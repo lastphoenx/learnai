@@ -116,6 +116,9 @@ def generate_modules(
 
 
 def _collect_source_notes(db: Session, unit: LearningUnit, prefs: dict) -> str:
+    from app.ai.extract import extract_pdf_text, fetch_url_text, transcribe_audio
+    from app.ai.errors import LlmError
+
     parts: list[str] = []
     for source in unit.sources:
         label = (
@@ -125,6 +128,15 @@ def _collect_source_notes(db: Session, unit: LearningUnit, prefs: dict) -> str:
         )
         if source.extracted_text_encrypted:
             parts.append(f"### {label}\n{decrypt_text_master(source.extracted_text_encrypted)}")
+            continue
+        if source.kind == "url":
+            try:
+                text = fetch_url_text(label)
+                source.extracted_text_encrypted = encrypt_text_master(text)
+                db.flush()
+                parts.append(f"### {label}\n{text}")
+            except LlmError as exc:
+                parts.append(f"### {label}\n(Link — {exc.message})")
             continue
         if source.kind == "image" and source.storage_path and source.purged_at is None:
             path = Path(settings.upload_dir) / source.storage_path
@@ -156,6 +168,36 @@ def _collect_source_notes(db: Session, unit: LearningUnit, prefs: dict) -> str:
             maybe_auto_purge_after_extract(db, unit, source)
             db.flush()
             parts.append(f"### {label}\n{described['text']}")
-        elif source.kind == "document":
-            parts.append(f"### {label}\n(Dokument — OCR folgt, Datei liegt vor)")
+        elif source.kind == "document" and source.storage_path and source.purged_at is None:
+            path = Path(settings.upload_dir) / source.storage_path
+            if not path.is_file():
+                path = upload_dir() / source.storage_path
+            if path.is_file():
+                try:
+                    text = extract_pdf_text(path)
+                    source.extracted_text_encrypted = encrypt_text_master(text)
+                    source.analysis_encrypted = encrypt_text_master("pypdf/vision")
+                    maybe_auto_purge_after_extract(db, unit, source)
+                    db.flush()
+                    parts.append(f"### {label}\n{text}")
+                except LlmError as exc:
+                    parts.append(f"### {label}\n(PDF — {exc.message})")
+            else:
+                parts.append(f"### {label}\n(PDF-Datei nicht gefunden)")
+        elif source.kind == "audio" and source.storage_path and source.purged_at is None:
+            path = Path(settings.upload_dir) / source.storage_path
+            if not path.is_file():
+                path = upload_dir() / source.storage_path
+            if path.is_file():
+                try:
+                    text = transcribe_audio(path, language=unit.language or "de")
+                    source.extracted_text_encrypted = encrypt_text_master(text)
+                    source.analysis_encrypted = encrypt_text_master("whisper-1")
+                    maybe_auto_purge_after_extract(db, unit, source)
+                    db.flush()
+                    parts.append(f"### {label}\n{text}")
+                except LlmError as exc:
+                    parts.append(f"### {label}\n(Audio — {exc.message})")
+            else:
+                parts.append(f"### {label}\n(Audio-Datei nicht gefunden)")
     return "\n\n".join(parts)

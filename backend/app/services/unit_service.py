@@ -449,6 +449,48 @@ def add_source(
     return _dec_source(source)
 
 
+def add_source_url(
+    db: Session,
+    user: User,
+    unit_id: uuid.UUID,
+    *,
+    url: str,
+) -> dict:
+    from urllib.parse import urlparse
+
+    unit = _get_unit_or_404(db, user, unit_id)
+    cleaned = url.strip()
+    parsed = urlparse(cleaned)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise UnitError("Ungültige URL (nur http/https)", "bad_url")
+    if len(cleaned) > 2048:
+        raise UnitError("URL zu lang", "bad_url")
+
+    source = UnitSource(
+        unit_id=unit.id,
+        kind="url",
+        original_name_encrypted=encrypt_text_master(cleaned),
+        content_type="text/html",
+        byte_size=0,
+    )
+    db.add(source)
+    db.flush()
+
+    try:
+        from app.ai.extract import fetch_url_text
+
+        text = fetch_url_text(cleaned)
+        source.extracted_text_encrypted = encrypt_text_master(text)
+        db.flush()
+    except Exception:
+        pass
+
+    record = db.query(LearningRecord).filter(LearningRecord.unit_id == unit.id).first()
+    if record:
+        _add_event(db, record, "source_url_added", {"url": cleaned[:200]})
+    return _dec_source(source)
+
+
 def delete_source(db: Session, user: User, unit_id: uuid.UUID, source_id: uuid.UUID) -> None:
     unit = _get_unit_or_404(db, user, unit_id)
     source = db.get(UnitSource, source_id)

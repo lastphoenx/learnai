@@ -9,6 +9,7 @@ import {
   fetchLearnState,
   fetchMe,
   markLearnTextRead,
+  resetLearnProgress,
   saveLearnPosition,
   speak,
   submitLearnAnswer,
@@ -76,6 +77,24 @@ export default function UnitLearnPage() {
       setSelectedOption(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Speichern fehlgeschlagen");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onResetLearn() {
+    if (!confirm("Fortschritt zurücksetzen und von vorne beginnen?")) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await resetLearnProgress(unitId);
+      if (state) {
+        setState({ ...state, progress: res.progress, summary: res.summary });
+      } else {
+        load();
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Zurücksetzen fehlgeschlagen");
     } finally {
       setBusy(false);
     }
@@ -346,8 +365,8 @@ export default function UnitLearnPage() {
                 {summary.modules_done > 0 ? "Weitermachen" : "Los geht's"}
               </button>
               {summary.modules_done > 0 && (
-                <button type="button" onClick={() => goTo(0, "read")} disabled={busy}>
-                  Von Anfang
+                <button type="button" onClick={onResetLearn} disabled={busy}>
+                  Von Anfang (zurücksetzen)
                 </button>
               )}
               <Link href={`/units/${unitId}`} className="btn ghost">
@@ -491,12 +510,13 @@ export default function UnitLearnPage() {
               </p>
             )}
             <div className="learn-actions">
-              <Link href="/units" className="btn btn-primary">
+              <button type="button" className="btn-primary" onClick={onResetLearn} disabled={busy}>
+                Nochmal lernen
+              </button>
+              <Link href="/units" className="btn">
                 Andere Einheit
               </Link>
-              <Link href={`/units/${unitId}`} className="btn">
-                Zur Bearbeitung
-              </Link>
+              <Link href={`/units/${unitId}`}>Zur Bearbeitung</Link>
               <Link href="/history">Verlauf</Link>
             </div>
           </>

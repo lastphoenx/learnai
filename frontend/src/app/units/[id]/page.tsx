@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { ChangeEvent, useEffect, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import {
+  addSourceUrl,
   deleteSource,
   deleteUnit,
   fetchMe,
@@ -26,6 +27,7 @@ export default function UnitDetailPage() {
   const [unit, setUnit] = useState<LearningUnit | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [sourceUrl, setSourceUrl] = useState("");
 
   function reload() {
     fetchUnit(unitId).then(setUnit).catch(() => setError("Einheit nicht gefunden"));
@@ -59,6 +61,22 @@ export default function UnitDetailPage() {
     } finally {
       setBusy(false);
       e.target.value = "";
+    }
+  }
+
+  async function onAddUrl(e: FormEvent) {
+    e.preventDefault();
+    if (!sourceUrl.trim()) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await addSourceUrl(unitId, sourceUrl.trim());
+      setSourceUrl("");
+      reload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Link hinzufügen fehlgeschlagen");
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -148,8 +166,21 @@ export default function UnitDetailPage() {
             </label>
           </p>
 
-          <h2 style={{ fontSize: "1.1rem" }}>Quellen (Lernmittel-Fotos / Dokumente)</h2>
+          <h2 style={{ fontSize: "1.1rem" }}>Quellen (Fotos / PDF / Audio / Links)</h2>
           <input type="file" multiple accept="image/*,.pdf,audio/*" onChange={onFiles} disabled={busy} />
+          <form onSubmit={onAddUrl} style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+            <input
+              type="url"
+              placeholder="https://… Link als Quelle"
+              value={sourceUrl}
+              onChange={(e) => setSourceUrl(e.target.value)}
+              style={{ flex: 1, minWidth: 200 }}
+              disabled={busy}
+            />
+            <button type="submit" disabled={busy || !sourceUrl.trim()}>
+              Link hinzufügen
+            </button>
+          </form>
           <ul style={{ listStyle: "none", padding: 0 }}>
             {(unit.sources || []).map((s) => (
               <li

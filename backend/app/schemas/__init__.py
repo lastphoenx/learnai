@@ -168,6 +168,10 @@ class LearnModuleRequest(BaseModel):
     module_id: str
 
 
+class SourceUrlRequest(BaseModel):
+    url: str = Field(min_length=8, max_length=2048)
+
+
 class ProjectCreateRequest(BaseModel):
     name: str = Field(min_length=1, max_length=256)
     description: str | None = Field(default=None, max_length=4096)

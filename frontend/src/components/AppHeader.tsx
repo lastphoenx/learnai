@@ -16,6 +16,9 @@ export function AppHeader({ user, title }: { user?: User | null; title: string }
         <h1>{title}</h1>
         <nav className="app-nav">
           <Link href="/units">Einheiten</Link>
+          {user && !user.is_child && (user.child_count ?? 0) > 0 && (
+            <Link href="/parent">Kinder</Link>
+          )}
           <Link href="/history">Verlauf</Link>
           <Link href="/settings">Einstellungen</Link>
           {user?.is_admin && <Link href="/admin/users">Benutzer</Link>}

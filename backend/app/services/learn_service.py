@@ -258,6 +258,35 @@ def complete_learn(db: Session, user: User, unit_id: uuid.UUID) -> dict:
     return {"progress": learn, "summary": _progress_summary(stats, len(unit.modules))}
 
 
+def reset_learn_progress(db: Session, user: User, unit_id: uuid.UUID) -> dict:
+    unit = _get_unit_or_404(db, user, unit_id)
+    record = _get_record_for_unit(db, unit.id)
+    stats = _get_stats(record)
+    learn = stats.get("learn") or {}
+    attempts = stats.get("learn_attempts") if isinstance(stats.get("learn_attempts"), list) else []
+    if learn.get("status") in {"in_progress", "completed"}:
+        attempts.append(
+            {
+                "completed_at": learn.get("completed_at"),
+                "quiz_correct": learn.get("quiz_correct", 0),
+                "quiz_total": learn.get("quiz_total", 0),
+                "modules_done": sum(
+                    1 for m in (learn.get("modules") or {}).values() if m.get("done")
+                ),
+            }
+        )
+    fresh = _default_learn()
+    fresh["status"] = "in_progress"
+    fresh["phase"] = "intro"
+    stats["learn"] = fresh
+    stats["modules_done"] = 0
+    stats["learn_attempts"] = attempts[-10:]
+    _save_stats(db, record, stats)
+    _add_event(db, record, "learn_reset", {"unit_id": str(unit.id)})
+    module_count = len(unit.modules)
+    return {"progress": fresh, "summary": _progress_summary(stats, module_count)}
+
+
 def _find_module(unit: LearningUnit, module_id: uuid.UUID) -> UnitModule:
     for m in unit.modules:
         if m.id == module_id:

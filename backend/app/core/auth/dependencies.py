@@ -18,7 +18,7 @@ def get_current_user(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Nicht angemeldet")
     user = (
         db.query(User)
-        .options(joinedload(User.profile), joinedload(User.children))
+        .options(joinedload(User.profile), joinedload(User.children), joinedload(User.guardian_of))
         .filter(User.id == session.user_id)
         .first()
     )

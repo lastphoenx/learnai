@@ -13,6 +13,7 @@ from app.schemas import (
     LearnModuleRequest,
     LearnPositionRequest,
     RecordRebuildRequest,
+    SourceUrlRequest,
     UnitCreateRequest,
     UnitGenerateRequest,
     UnitUpdateRequest,
@@ -21,10 +22,11 @@ from app.services.learn_service import (
     complete_learn,
     get_learn_state,
     mark_text_read,
+    reset_learn_progress,
     save_learn_position,
     submit_quiz_answer,
 )
-from app.services.unit_service import UnitError, add_source, create_unit, create_unit_from_record, delete_source, delete_unit, get_record, get_unit, list_records, list_units, purge_source_file_keep_meta, update_unit_flags
+from app.services.unit_service import UnitError, add_source, add_source_url, create_unit, create_unit_from_record, delete_source, delete_unit, get_record, get_unit, list_records, list_units, purge_source_file_keep_meta, update_unit_flags
 
 router = APIRouter(prefix="/units", tags=["units"])
 records_router = APIRouter(prefix="/records", tags=["records"])
@@ -40,6 +42,7 @@ def _http(exc: UnitError) -> HTTPException:
         "invalid_index": status.HTTP_400_BAD_REQUEST,
         "invalid_phase": status.HTTP_400_BAD_REQUEST,
         "invalid_question": status.HTTP_400_BAD_REQUEST,
+        "bad_url": status.HTTP_400_BAD_REQUEST,
     }
     return HTTPException(status_code=mapping.get(exc.code, 400), detail=exc.message)
 
@@ -188,6 +191,22 @@ def units_purge_source(
         raise _http(ext) from ext
 
 
+@router.post("/{unit_id}/sources/url", status_code=status.HTTP_201_CREATED)
+def units_add_source_url(
+    unit_id: UUID,
+    body: SourceUrlRequest,
+    user: User = Depends(get_app_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        result = add_source_url(db, user, unit_id, url=body.url)
+        db.commit()
+        return result
+    except UnitError as exc:
+        db.rollback()
+        raise _http(exc) from exc
+
+
 @router.get("/{unit_id}/learn")
 def units_learn_get(unit_id: UUID, user: User = Depends(get_app_user), db: Session = Depends(get_db)):
     try:
@@ -265,6 +284,17 @@ def units_learn_answer(
 def units_learn_complete(unit_id: UUID, user: User = Depends(get_app_user), db: Session = Depends(get_db)):
     try:
         result = complete_learn(db, user, unit_id)
+        db.commit()
+        return result
+    except UnitError as exc:
+        db.rollback()
+        raise _http(exc) from exc
+
+
+@router.post("/{unit_id}/learn/reset")
+def units_learn_reset(unit_id: UUID, user: User = Depends(get_app_user), db: Session = Depends(get_db)):
+    try:
+        result = reset_learn_progress(db, user, unit_id)
         db.commit()
         return result
     except UnitError as exc:

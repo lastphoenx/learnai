@@ -343,6 +343,43 @@ export const completeLearn = (unitId: string) =>
     { method: "POST" },
   );
 
+export const resetLearnProgress = (unitId: string) =>
+  apiFetch<{ progress: LearnProgress; summary: LearnSummary }>(
+    `/api/v1/units/${unitId}/learn/reset`,
+    { method: "POST" },
+  );
+
+export type ChildDashboardStats = {
+  user_id: string;
+  display_name: string;
+  profile_id: string | null;
+  active_units: number;
+  records_total: number;
+  completed: number;
+  in_progress: number;
+  quiz_correct: number;
+  quiz_total: number;
+  quiz_percent: number | null;
+  recent: {
+    record_id: string;
+    unit_id: string | null;
+    title: string;
+    status: string;
+    quiz_correct: number;
+    quiz_total: number;
+    last_activity_at: string;
+  }[];
+};
+
+export const fetchParentDashboard = () =>
+  apiFetch<{ children: ChildDashboardStats[]; child_count: number }>("/api/v1/dashboard/parent");
+
+export const addSourceUrl = (unitId: string, url: string) =>
+  apiFetch<UnitSource>(`/api/v1/units/${unitId}/sources/url`, {
+    method: "POST",
+    json: { url },
+  });
+
 export type TaskCatalogItem = {
   key: string;
   label: string;
