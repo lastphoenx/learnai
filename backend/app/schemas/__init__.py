@@ -1,3 +1,4 @@
+from datetime import date
 from typing import Literal
 
 from pydantic import BaseModel, EmailStr, Field
@@ -180,6 +181,17 @@ class LearnModuleRequest(BaseModel):
 
 class SourceUrlRequest(BaseModel):
     url: str = Field(min_length=8, max_length=2048)
+
+
+class ExamUpdateRequest(BaseModel):
+    taken_at: date | None = None
+    exam_type: str | None = Field(default=None, max_length=32)
+    grade_label: str | None = Field(default=None, max_length=32)
+    score: int | None = Field(default=None, ge=0)
+    max_score: int | None = Field(default=None, ge=1)
+    notes: str | None = Field(default=None, max_length=4000)
+    clear_grade: bool = False
+    clear_notes: bool = False
 
 
 class ProjectCreateRequest(BaseModel):

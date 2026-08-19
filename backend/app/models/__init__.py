@@ -353,6 +353,7 @@ class LearningUnit(Base, TimestampMixin):
     sources: Mapped[list["UnitSource"]] = relationship(
         back_populates="unit", cascade="all, delete-orphan"
     )
+    exam_results: Mapped[list["ExamResult"]] = relationship(back_populates="unit")
 
 
 class UnitModule(Base, TimestampMixin):
@@ -433,6 +434,56 @@ class LearningRecord(Base, TimestampMixin):
     events: Mapped[list["LearningEvent"]] = relationship(
         back_populates="record", cascade="all, delete-orphan"
     )
+    exam_results: Mapped[list["ExamResult"]] = relationship(
+        back_populates="record", cascade="all, delete-orphan"
+    )
+
+
+class ExamResult(Base, TimestampMixin):
+    """Hochgeladene Schulprüfung (korrigiert) — Phase A: Speichern + Note, ohne KI-Analyse."""
+
+    __tablename__ = "exam_results"
+    __table_args__ = (Index("ix_exam_results_record", "record_id"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False
+    )
+    record_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("learning_records.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    unit_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("learning_units.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    profile_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("learning_profiles.id"), nullable=True
+    )
+    uploaded_by_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
+    )
+    taken_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    exam_type: Mapped[str] = mapped_column(String(32), default="klassenarbeit", nullable=False)
+    grade_label_encrypted: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    score: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    max_score: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    notes_encrypted: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    original_name_encrypted: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    storage_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    content_type: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    byte_size: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    status: Mapped[str] = mapped_column(String(24), default="uploaded", nullable=False)
+    classification: Mapped[int] = mapped_column(
+        SmallInteger, default=DataClassification.CONFIDENTIAL, nullable=False
+    )
+
+    record: Mapped["LearningRecord"] = relationship(back_populates="exam_results")
+    unit: Mapped["LearningUnit | None"] = relationship(back_populates="exam_results")
 
 
 class LearningEvent(Base):

@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { UnitEditDialog } from "@/components/UnitEditDialog";
+import { UnitExamSection } from "@/components/UnitExamSection";
 import {
   addSourceUrl,
   createReviewUnit,
@@ -327,6 +328,13 @@ export default function UnitDetailPage() {
               </ul>
             )}
           </section>
+
+          <UnitExamSection
+            unitId={unitId}
+            exams={unit.exams || []}
+            onChange={reload}
+            disabled={busy}
+          />
 
           <section className="card unit-section">
             <div className="section-head">

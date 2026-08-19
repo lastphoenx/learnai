@@ -59,6 +59,7 @@ export default function HistoryPage() {
             )}
             <span style={{ marginLeft: 8, color: "var(--muted)", fontSize: "0.85rem" }}>
               {r.unit_alive ? "Einheit aktiv" : "Einheit gelöscht"}
+              {(r.exam_count ?? 0) > 0 ? ` · ${r.exam_count} Prüfung${r.exam_count === 1 ? "" : "en"}` : ""}
             </span>
             <p style={{ margin: "0.4rem 0 0", color: "var(--muted)", fontSize: "0.875rem" }}>
               {r.subject || "–"} · {r.language} · Stufe {r.difficulty}

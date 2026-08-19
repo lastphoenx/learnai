@@ -106,10 +106,12 @@ Verknüpfung mit **Lernverlauf**: `learning_record.stats.exams[]` oder eigenes E
 
 ## Empfohlene Umsetzungsreihenfolge
 
-### Phase A — Prüfung erfassen (MVP)
-- Tabelle `exam_results` + Upload-API
-- UI auf Einheitsseite: Foto/PDF + Note/Punkte
-- Speicherung im Verlauf des Kindes
+### Phase A — Prüfung erfassen (MVP) ✅ *implementiert*
+- Tabelle `exam_results` + Upload-API (`POST /units/{id}/exams`)
+- UI auf Einheitsseite: Foto/PDF + Note/Punkte + Kommentar
+- Speicherung im Lernverlauf (`exam_uploaded`-Event, `exam_count` im Verlauf)
+- Datei abrufbar: `GET /units/{id}/exams/{exam_id}/file`
+- Migration: `008_exam_results`
 
 ### Phase B — KI-Analyse
 - Vision/OCR auf korrigierte Prüfung

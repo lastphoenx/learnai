@@ -739,6 +739,30 @@ button:disabled {
   border-color: color-mix(in srgb, var(--accent) 25%, var(--border));
 }
 
+.badge-exam {
+  background: color-mix(in srgb, #c2410c 10%, var(--card));
+  border-color: color-mix(in srgb, #c2410c 28%, var(--border));
+  color: color-mix(in srgb, #c2410c 85%, var(--fg));
+}
+
+.exam-upload-form {
+  padding: 1rem;
+  box-shadow: none;
+  background: var(--bg-2);
+  border: 1px dashed var(--border);
+}
+
+.exam-item {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.exam-notes {
+  margin: 0.35rem 0 0;
+  font-size: 0.9rem;
+  width: 100%;
+}
+
 .unit-brief {
   margin: 1rem 0 0;
   white-space: pre-wrap;

@@ -163,6 +163,44 @@ export type LearningUnit = {
   learner_name?: string | null;
   sources?: UnitSource[];
   modules?: UnitModule[];
+  exams?: ExamResult[];
+};
+
+export type ExamResult = {
+  id: string;
+  unit_id: string | null;
+  record_id: string;
+  taken_at: string | null;
+  exam_type: string;
+  grade_label: string | null;
+  score: number | null;
+  max_score: number | null;
+  notes: string | null;
+  original_name: string | null;
+  content_type: string | null;
+  byte_size: number;
+  has_file: boolean;
+  status: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ExamPatchBody = {
+  taken_at?: string | null;
+  exam_type?: string;
+  grade_label?: string | null;
+  score?: number | null;
+  max_score?: number | null;
+  notes?: string | null;
+};
+
+export type ExamUploadMeta = {
+  taken_at?: string;
+  exam_type?: string;
+  grade_label?: string;
+  score?: number;
+  max_score?: number;
+  notes?: string;
 };
 
 export type LearningRecord = {
@@ -187,6 +225,7 @@ export type LearningRecord = {
   stats: Record<string, unknown>;
   last_activity_at: string;
   created_at: string;
+  exam_count?: number;
   events?: { id: string; event_type: string; payload: unknown; created_at: string }[];
 };
 
@@ -320,6 +359,40 @@ export const deleteSource = (unitId: string, sourceId: string) =>
   apiFetch<void>(`/api/v1/units/${unitId}/sources/${sourceId}`, { method: "DELETE" });
 export const purgeSource = (unitId: string, sourceId: string) =>
   apiFetch<UnitSource>(`/api/v1/units/${unitId}/sources/${sourceId}/purge`, { method: "POST" });
+
+export async function uploadExam(unitId: string, file: File, meta: ExamUploadMeta): Promise<ExamResult> {
+  const form = new FormData();
+  form.append("file", file);
+  if (meta.taken_at) form.append("taken_at", meta.taken_at);
+  if (meta.exam_type) form.append("exam_type", meta.exam_type);
+  if (meta.grade_label) form.append("grade_label", meta.grade_label);
+  if (meta.score != null) form.append("score", String(meta.score));
+  if (meta.max_score != null) form.append("max_score", String(meta.max_score));
+  if (meta.notes) form.append("notes", meta.notes);
+  const res = await fetch(`${API_URL}/api/v1/units/${unitId}/exams`, {
+    method: "POST",
+    credentials: "include",
+    body: form,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(typeof err.detail === "string" ? err.detail : `API ${res.status}`);
+  }
+  return res.json();
+}
+
+export const patchExam = (unitId: string, examId: string, body: ExamPatchBody) =>
+  apiFetch<ExamResult>(`/api/v1/units/${unitId}/exams/${examId}`, { method: "PATCH", json: body });
+
+export const deleteExam = (unitId: string, examId: string) =>
+  apiFetch<void>(`/api/v1/units/${unitId}/exams/${examId}`, { method: "DELETE" });
+
+export const fetchRecordExams = (recordId: string) =>
+  apiFetch<ExamResult[]>(`/api/v1/records/${recordId}/exams`);
+
+export function examFileUrl(unitId: string, examId: string) {
+  return `${API_URL}/api/v1/units/${unitId}/exams/${examId}/file`;
+}
 
 export const generateUnit = (unitId: string, provider?: string) =>
   apiFetch<LearningUnit>(`/api/v1/units/${unitId}/generate`, {

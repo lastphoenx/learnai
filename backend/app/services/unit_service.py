@@ -103,7 +103,7 @@ def _dec_module(module: UnitModule) -> dict:
     }
 
 
-def _dec_record(record: LearningRecord) -> dict:
+def _dec_record(record: LearningRecord, *, exam_count: int | None = None) -> dict:
     learner_name = None
     if record.profile_id and record.profile:
         learner_name = record.profile.display_name
@@ -120,6 +120,7 @@ def _dec_record(record: LearningRecord) -> dict:
         "difficulty": record.difficulty,
         "reconstruction": decrypt_json(record.reconstruction_encrypted),
         "stats": decrypt_json(record.stats_encrypted) or {},
+        "exam_count": exam_count if exam_count is not None else len(record.exam_results),
         "last_activity_at": record.last_activity_at.isoformat(),
         "created_at": record.created_at.isoformat(),
     }
@@ -173,6 +174,16 @@ def get_unit(db: Session, user: User, unit_id: uuid.UUID) -> dict:
 
     unit = _get_unit_or_404(db, user, unit_id)
     data = _dec_unit(unit)
+    from app.models import ExamResult
+    from app.services.exam_service import _dec_exam
+
+    exam_rows = (
+        db.query(ExamResult)
+        .filter(ExamResult.unit_id == unit.id)
+        .order_by(ExamResult.taken_at.desc().nullslast(), ExamResult.created_at.desc())
+        .all()
+    )
+    data["exams"] = [_dec_exam(e) for e in exam_rows]
     record = db.query(LearningRecord).filter(LearningRecord.unit_id == unit.id).first()
     if record and record.reconstruction_encrypted:
         recon = decrypt_json(record.reconstruction_encrypted)
@@ -549,12 +560,25 @@ def list_records(db: Session, user: User) -> list[dict]:
         if profile_ids:
             clauses.append(LearningRecord.profile_id.in_(profile_ids))
         q = q.filter(or_(*clauses))
-    rows = q.order_by(LearningRecord.last_activity_at.desc()).all()
+    from sqlalchemy.orm import joinedload
+
+    rows = (
+        q.options(joinedload(LearningRecord.exam_results), joinedload(LearningRecord.profile))
+        .order_by(LearningRecord.last_activity_at.desc())
+        .all()
+    )
     return [_dec_record(r) for r in rows]
 
 
 def get_record(db: Session, user: User, record_id: uuid.UUID) -> dict:
-    record = db.get(LearningRecord, record_id)
+    from sqlalchemy.orm import joinedload
+
+    record = (
+        db.query(LearningRecord)
+        .options(joinedload(LearningRecord.exam_results), joinedload(LearningRecord.profile))
+        .filter(LearningRecord.id == record_id)
+        .first()
+    )
     if not record or record.tenant_id != user.tenant_id:
         raise UnitError("Verlaufseintrag nicht gefunden", "not_found")
     if not user.is_admin and record.user_id != user.id:
@@ -565,6 +589,9 @@ def get_record(db: Session, user: User, record_id: uuid.UUID) -> dict:
             if not record.profile_id or not can_view_profile_data(db, user, record.profile_id):
                 raise UnitError("Kein Zugriff", "forbidden")
     data = _dec_record(record)
+    from app.services.exam_service import _dec_exam
+
+    data["exams"] = [_dec_exam(e) for e in record.exam_results]
     data["events"] = [
         {
             "id": str(e.id),

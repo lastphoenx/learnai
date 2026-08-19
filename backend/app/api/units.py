@@ -1,6 +1,7 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.core.auth.dependencies import get_app_user
@@ -14,6 +15,7 @@ from app.schemas import (
     LearnPositionRequest,
     RecordRebuildRequest,
     SourceUrlRequest,
+    ExamUpdateRequest,
     UnitCreateRequest,
     UnitGenerateRequest,
     UnitUpdateRequest,
@@ -25,6 +27,14 @@ from app.services.learn_service import (
     reset_learn_progress,
     save_learn_position,
     submit_quiz_answer,
+)
+from app.services.exam_service import (
+    create_exam,
+    delete_exam,
+    get_exam_file,
+    list_exams_for_record,
+    list_exams_for_unit,
+    update_exam,
 )
 from app.services.unit_service import UnitError, add_source, add_source_url, create_unit, create_review_from_unit, create_unit_from_record, delete_source, delete_unit, get_record, get_unit, list_records, list_units, purge_source_file_keep_meta, update_unit, update_unit_flags
 from app.ai.task_types import math_focus_public, task_types_public
@@ -45,6 +55,8 @@ def _http(exc: UnitError) -> HTTPException:
         "invalid_phase": status.HTTP_400_BAD_REQUEST,
         "invalid_question": status.HTTP_400_BAD_REQUEST,
         "bad_url": status.HTTP_400_BAD_REQUEST,
+        "invalid_exam_type": status.HTTP_400_BAD_REQUEST,
+        "invalid_score": status.HTTP_400_BAD_REQUEST,
     }
     return HTTPException(status_code=mapping.get(exc.code, 400), detail=exc.message)
 
@@ -239,6 +251,128 @@ def units_add_source_url(
         raise _http(exc) from exc
 
 
+@router.get("/{unit_id}/exams")
+def units_list_exams(unit_id: UUID, user: User = Depends(get_app_user), db: Session = Depends(get_db)):
+    try:
+        return list_exams_for_unit(db, user, unit_id)
+    except UnitError as exc:
+        raise _http(exc) from exc
+
+
+@router.post("/{unit_id}/exams", status_code=status.HTTP_201_CREATED)
+async def units_upload_exam(
+    unit_id: UUID,
+    user: User = Depends(get_app_user),
+    db: Session = Depends(get_db),
+    file: UploadFile = File(...),
+    taken_at: str | None = Form(default=None),
+    exam_type: str = Form(default="klassenarbeit"),
+    grade_label: str | None = Form(default=None),
+    score: int | None = Form(default=None),
+    max_score: int | None = Form(default=None),
+    notes: str | None = Form(default=None),
+):
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="Leere Datei")
+    if len(data) > 25 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Datei zu gross (max. 25 MB)")
+    parsed_date = None
+    if taken_at and taken_at.strip():
+        try:
+            from datetime import date as date_cls
+
+            parsed_date = date_cls.fromisoformat(taken_at.strip()[:10])
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="Ungültiges Datum (YYYY-MM-DD)") from exc
+    try:
+        result = create_exam(
+            db,
+            user,
+            unit_id,
+            filename=file.filename or "pruefung",
+            content_type=file.content_type,
+            data=data,
+            taken_at=parsed_date,
+            exam_type=exam_type,
+            grade_label=grade_label,
+            score=score,
+            max_score=max_score,
+            notes=notes,
+        )
+        db.commit()
+        return result
+    except UnitError as exc:
+        db.rollback()
+        raise _http(exc) from exc
+
+
+@router.patch("/{unit_id}/exams/{exam_id}")
+def units_patch_exam(
+    unit_id: UUID,
+    exam_id: UUID,
+    body: ExamUpdateRequest,
+    user: User = Depends(get_app_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        result = update_exam(
+            db,
+            user,
+            unit_id,
+            exam_id,
+            taken_at=body.taken_at,
+            exam_type=body.exam_type,
+            grade_label=body.grade_label,
+            score=body.score,
+            max_score=body.max_score,
+            notes=body.notes,
+            clear_grade=body.clear_grade,
+            clear_notes=body.clear_notes,
+        )
+        db.commit()
+        return result
+    except UnitError as exc:
+        db.rollback()
+        raise _http(exc) from exc
+
+
+@router.delete("/{unit_id}/exams/{exam_id}", status_code=status.HTTP_204_NO_CONTENT)
+def units_delete_exam(
+    unit_id: UUID,
+    exam_id: UUID,
+    user: User = Depends(get_app_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        delete_exam(db, user, unit_id, exam_id)
+        db.commit()
+    except UnitError as exc:
+        db.rollback()
+        raise _http(exc) from exc
+
+
+@router.get("/{unit_id}/exams/{exam_id}/file")
+def units_exam_file(
+    unit_id: UUID,
+    exam_id: UUID,
+    user: User = Depends(get_app_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        exam, path = get_exam_file(db, user, unit_id, exam_id)
+        from app.core.crypto import decrypt_text_master
+
+        name = (
+            decrypt_text_master(exam.original_name_encrypted)
+            if exam.original_name_encrypted
+            else "pruefung"
+        )
+        return FileResponse(path, media_type=exam.content_type or "application/octet-stream", filename=name)
+    except UnitError as exc:
+        raise _http(exc) from exc
+
+
 @router.get("/{unit_id}/learn")
 def units_learn_get(unit_id: UUID, user: User = Depends(get_app_user), db: Session = Depends(get_db)):
     try:
@@ -343,6 +477,14 @@ def records_list(user: User = Depends(get_app_user), db: Session = Depends(get_d
 def records_get(record_id: UUID, user: User = Depends(get_app_user), db: Session = Depends(get_db)):
     try:
         return get_record(db, user, record_id)
+    except UnitError as exc:
+        raise _http(exc) from exc
+
+
+@records_router.get("/{record_id}/exams")
+def records_list_exams(record_id: UUID, user: User = Depends(get_app_user), db: Session = Depends(get_db)):
+    try:
+        return list_exams_for_record(db, user, record_id)
     except UnitError as exc:
         raise _http(exc) from exc
 
