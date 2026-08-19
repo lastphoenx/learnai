@@ -35,6 +35,7 @@ services:
       - "${API_PORT:-8000}:8000"
     volumes:
       - ./backend/app:/app/app:ro
+      - ./scripts:/opt/scripts:ro
       - ./uploads:/app/uploads
 
   worker:

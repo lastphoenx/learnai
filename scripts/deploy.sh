@@ -10,7 +10,7 @@ REPO_DIR="/opt/learnai"
 cd "$REPO_DIR"
 
 if [[ ! -f .env ]]; then
-  echo "FEHLER: .env fehlt. Einmalig: cp .env.example .env && nano .env" >&2
+  echo "FEHLER: .env fehlt. Einmalig: bash scripts/init_db.sh" >&2
   exit 1
 fi
 

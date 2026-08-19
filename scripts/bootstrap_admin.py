@@ -6,8 +6,9 @@ import getpass
 import sys
 from pathlib import Path
 
-# backend/ als Python-Pfad
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
+# Host: repo/backend — Container: WORKDIR /app
+_backend = Path(__file__).resolve().parents[1] / "backend"
+sys.path.insert(0, str(_backend if _backend.is_dir() else Path("/app")))
 
 from app.core.db.session import SessionLocal
 from app.services.user_service import AuthError, register_user

@@ -14,13 +14,12 @@ Self-hosted KI-Lernplattform. Foundation (Auth, 2FA, Crypto) aus dem Projektmana
 ## Schnellstart
 
 ```bash
-cp .env.example .env
-# ENCRYPTION_MASTER_KEY, SESSION_SECRET, POSTGRES_PASSWORD setzen
-
-docker compose up -d
-docker compose exec api alembic upgrade head
-python scripts/bootstrap_admin.py --email admin@example.local
+bash scripts/init_db.sh
+# Prompt: DB-Passwort, Produktion ja/nein, Keys falls leer
+docker compose exec -it api python /opt/scripts/bootstrap_admin.py --email admin@example.local
 ```
+
+`init_db.sh` schreibt `.env`, startet Postgres, prüft Login (`SELECT`), fährt Alembic, testet `/api/v1/health`.
 
 Frontend: http://localhost:3000
 
