@@ -1,0 +1,155 @@
+"use client";
+
+import { useState } from "react";
+import { ModelSelect } from "@/components/ModelSelect";
+import type { AiModelCatalog, TaskCatalogItem } from "@/lib/api";
+
+export type TaskRow = { provider: string; model: string };
+
+type Props = {
+  catalog: TaskCatalogItem[];
+  configured: { openai: boolean; anthropic: boolean; ollama: boolean };
+  ollamaModels: string[];
+  modelCatalog: AiModelCatalog;
+  byTask: Record<string, TaskRow>;
+  llmProvider: string;
+  llmModel: string;
+  onByTaskChange: (next: Record<string, TaskRow>) => void;
+  onFallbackChange: (provider: string, model: string) => void;
+  onApplyRecommendations: () => void;
+  readOnly?: boolean;
+};
+
+export function LearnerSettingsForm({
+  catalog,
+  configured,
+  ollamaModels,
+  modelCatalog,
+  byTask,
+  llmProvider,
+  llmModel,
+  onByTaskChange,
+  onFallbackChange,
+  onApplyRecommendations,
+  readOnly,
+}: Props) {
+  function setRow(key: string, patch: Partial<TaskRow>) {
+    const current = byTask[key] || { provider: "", model: "" };
+    onByTaskChange({ ...byTask, [key]: { ...current, ...patch } });
+  }
+
+  return (
+    <>
+      <p className="muted">
+        Pro Aufgabentyp ein Modell. Nur Einträge aus live geladenen Provider-Listen sind wählbar.
+        Keys bleiben in der Server-.env.
+      </p>
+      {!readOnly && (
+        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+          <button type="button" className="ghost" onClick={onApplyRecommendations}>
+            Empfehlungen übernehmen
+          </button>
+        </div>
+      )}
+      {catalog.length > 0 && (
+        <div style={{ overflowX: "auto" }}>
+          <table className="task-ai">
+            <thead>
+              <tr>
+                <th>Typ</th>
+                <th>Provider</th>
+                <th>Modell</th>
+              </tr>
+            </thead>
+            <tbody>
+              {catalog.map((item) => {
+                const row = byTask[item.key] || { provider: "", model: "" };
+                const provider = row.provider || "";
+                const isTts = item.key === "tts";
+                const effectiveProvider = provider || item.default_provider;
+                return (
+                  <tr key={item.key}>
+                    <td>
+                      <strong>{item.label}</strong>
+                      <p className="why">{item.why}</p>
+                    </td>
+                    <td>
+                      {readOnly ? (
+                        effectiveProvider
+                      ) : (
+                        <select
+                          value={provider}
+                          onChange={(e) => setRow(item.key, { provider: e.target.value, model: "" })}
+                        >
+                          <option value="">Empfehlung ({item.default_provider})</option>
+                          {!isTts && configured.ollama && (
+                            <option value="ollama">Ollama (lokal)</option>
+                          )}
+                          {configured.openai && <option value="openai">OpenAI</option>}
+                          {!isTts && configured.anthropic && (
+                            <option value="anthropic">Anthropic</option>
+                          )}
+                        </select>
+                      )}
+                    </td>
+                    <td>
+                      {readOnly ? (
+                        row.model || "Default"
+                      ) : (
+                        <ModelSelect
+                          provider={effectiveProvider}
+                          taskKey={item.key}
+                          value={row.model}
+                          onChange={(model) => setRow(item.key, { model })}
+                          ollamaModels={ollamaModels}
+                          catalog={modelCatalog}
+                          emptyLabel="Default"
+                        />
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <details>
+        <summary className="muted">Fallback für Text-Typen ohne eigene Zeile</summary>
+        <div className="stack" style={{ marginTop: "0.75rem" }}>
+          <label>
+            KI-Provider
+            {readOnly ? (
+              <span>{llmProvider || "Empfehlung je Typ"}</span>
+            ) : (
+              <select
+                value={llmProvider}
+                onChange={(e) => onFallbackChange(e.target.value, llmModel)}
+              >
+                <option value="default">Standard (Empfehlung je Typ)</option>
+                {configured.ollama && <option value="ollama">Ollama (lokal)</option>}
+                {configured.openai && <option value="openai">OpenAI</option>}
+                {configured.anthropic && <option value="anthropic">Anthropic</option>}
+              </select>
+            )}
+          </label>
+          <label>
+            Modell
+            {readOnly || llmProvider === "default" ? (
+              <span>{llmModel || "Default"}</span>
+            ) : (
+              <ModelSelect
+                provider={llmProvider}
+                taskKey="mixed"
+                value={llmModel}
+                onChange={(model) => onFallbackChange(llmProvider, model)}
+                ollamaModels={ollamaModels}
+                catalog={modelCatalog}
+              />
+            )}
+          </label>
+        </div>
+      </details>
+    </>
+  );
+}

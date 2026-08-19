@@ -1,7 +1,7 @@
 """FastAPI-Dependencies für authentifizierte Requests."""
 
 from fastapi import Cookie, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.config import settings
 from app.core.auth.sessions import get_valid_session
@@ -16,7 +16,12 @@ def get_current_user(
     session = get_valid_session(db, session_token or "")
     if not session:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Nicht angemeldet")
-    user = db.get(User, session.user_id)
+    user = (
+        db.query(User)
+        .options(joinedload(User.profile), joinedload(User.children))
+        .filter(User.id == session.user_id)
+        .first()
+    )
     if not user or not user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Benutzer inaktiv")
     return user

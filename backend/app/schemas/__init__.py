@@ -36,6 +36,11 @@ class TwoFactorSetupResponse(BaseModel):
 class UserResponse(BaseModel):
     id: str
     is_admin: bool
+    is_child: bool = False
+    parent_id: str | None = None
+    profile_id: str | None = None
+    learner_name: str = ""
+    child_count: int = 0
     totp_enabled: bool
     totp_required: bool
     must_enroll_2fa: bool = False
@@ -43,6 +48,44 @@ class UserResponse(BaseModel):
     llm_provider: str = ""
     llm_model: str = ""
     by_task: dict[str, dict[str, str]] = Field(default_factory=dict)
+    ki_summary: str = ""
+
+
+class ProfileResponse(BaseModel):
+    id: str
+    display_name: str
+    user_id: str | None = None
+    managed_by_id: str
+    is_child_profile: bool = False
+    llm_provider: str = ""
+    llm_model: str = ""
+    by_task: dict[str, dict[str, str]] = Field(default_factory=dict)
+    default_language: str = "de"
+    target_age: str = ""
+    auto_purge_sources: bool = False
+    created_at: str
+
+
+class ProfileCreateRequest(BaseModel):
+    display_name: str = Field(min_length=1, max_length=80)
+    is_child_profile: bool = False
+
+
+class ProfileSettingsUpdateRequest(BaseModel):
+    display_name: str | None = Field(default=None, max_length=80)
+    llm_provider: str | None = Field(default=None, max_length=32)
+    llm_model: str | None = Field(default=None, max_length=80)
+    by_task: dict[str, dict[str, str]] | None = None
+    default_language: str | None = Field(default=None, max_length=8)
+    target_age: str | None = Field(default=None, max_length=32)
+    auto_purge_sources: bool | None = None
+
+
+class ChildCreateRequest(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=12)
+    display_name: str = Field(min_length=1, max_length=80)
+    parent_id: str | None = None
 
 
 class UserSettingsUpdateRequest(BaseModel):
@@ -88,6 +131,7 @@ class UnitCreateRequest(BaseModel):
     difficulty: int = Field(default=1, ge=1, le=5)
     task_type: str = Field(default="mixed", max_length=32)
     auto_purge_sources: bool = False
+    profile_id: str | None = None
 
 
 class UnitUpdateRequest(BaseModel):

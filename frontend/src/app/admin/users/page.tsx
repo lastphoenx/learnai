@@ -3,7 +3,18 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
-import { createUser, fetchMe, fetchUsers, setTotpPolicy, updateAdminUser, type AdminUser, type User } from "@/lib/api";
+import { InlineEditName } from "@/components/InlineEditName";
+import {
+  createChildUser,
+  createUser,
+  fetchMe,
+  fetchUsers,
+  setTotpPolicy,
+  updateAdminUser,
+  type AdminUser,
+  type User,
+} from "@/lib/api";
+import { formatKiSummary } from "@/lib/kiSummary";
 
 export default function AdminUsersPage() {
   const [user, setUser] = useState<User | null>(null);
@@ -14,7 +25,10 @@ export default function AdminUsersPage() {
   const [displayName, setDisplayName] = useState("");
   const [makeAdmin, setMakeAdmin] = useState(false);
   const [totpRequired, setTotpRequired] = useState(false);
-  const [rename, setRename] = useState<Record<string, string>>({});
+  const [childName, setChildName] = useState("");
+  const [childEmail, setChildEmail] = useState("");
+  const [childPassword, setChildPassword] = useState("");
+  const [childParentId, setChildParentId] = useState("");
 
   function load() {
     fetchUsers().then(setUsers).catch((e: Error) => setError(e.message));
@@ -52,6 +66,26 @@ export default function AdminUsersPage() {
     }
   }
 
+  async function onCreateChild(e: FormEvent) {
+    e.preventDefault();
+    setError(null);
+    try {
+      await createChildUser({
+        email: childEmail.trim(),
+        password: childPassword,
+        display_name: childName.trim(),
+        parent_id: childParentId || undefined,
+      });
+      setChildName("");
+      setChildEmail("");
+      setChildPassword("");
+      setChildParentId("");
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Kind anlegen fehlgeschlagen");
+    }
+  }
+
   if (error && !user) {
     return (
       <main className="shell">
@@ -61,12 +95,14 @@ export default function AdminUsersPage() {
     );
   }
 
+  const adults = users.filter((u) => !u.is_child);
+
   return (
     <main className="shell">
       <AppHeader user={user} title="Benutzer" />
       <p className="muted">
-        2FA ist pro Account steuerbar: Pflicht oder optional. Wenn sie einmal eingerichtet ist, gilt
-        sie beim Login immer.
+        Accounts für Login und 2FA. Lerner-Einstellungen (KI je Typ) unter Einstellungen →
+        Lerner-Profil.
       </p>
       {error && <p className="err">{error}</p>}
 
@@ -74,20 +110,11 @@ export default function AdminUsersPage() {
         <h2>Neuen Benutzer anlegen</h2>
         <label>
           Anzeigename
-          <input
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-            placeholder="z.B. Lena"
-          />
+          <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="z.B. Lena" />
         </label>
         <label>
           E-Mail (Login)
-          <input
-            type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
+          <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
         </label>
         <label>
           Startpasswort (min. 12 Zeichen)
@@ -114,6 +141,44 @@ export default function AdminUsersPage() {
         <button type="submit">Benutzer anlegen</button>
       </form>
 
+      <form onSubmit={onCreateChild} className="card stack" style={{ marginBottom: "1.5rem" }}>
+        <h2>Kind anlegen</h2>
+        <p className="muted">
+          Kind-Account mit Lerner-Profil. Eltern sehen Einheiten und Verlauf des Kindes und pflegen
+          dessen KI-Einstellungen.
+        </p>
+        <label>
+          Lerner-Name
+          <input required value={childName} onChange={(e) => setChildName(e.target.value)} />
+        </label>
+        <label>
+          E-Mail (Login für Kind, optional synthetisch)
+          <input type="email" required value={childEmail} onChange={(e) => setChildEmail(e.target.value)} />
+        </label>
+        <label>
+          Startpasswort
+          <input
+            type="password"
+            required
+            minLength={12}
+            value={childPassword}
+            onChange={(e) => setChildPassword(e.target.value)}
+          />
+        </label>
+        <label>
+          Eltern-Account
+          <select value={childParentId} onChange={(e) => setChildParentId(e.target.value)}>
+            <option value="">Ich bin der Elternteil</option>
+            {adults.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.display_name || u.id.slice(0, 8)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button type="submit">Kind anlegen</button>
+      </form>
+
       <ul style={{ listStyle: "none", padding: 0 }}>
         {users.map((u) => (
           <li
@@ -125,37 +190,22 @@ export default function AdminUsersPage() {
               marginBottom: 8,
             }}
           >
-            <strong>{u.display_name || "ohne Namen"}</strong>
-            <p style={{ margin: "0.4rem 0" }}>
-              {u.is_admin ? "Admin" : "Benutzer"} · 2FA {u.totp_enabled ? "aktiv" : "nicht eingerichtet"}
-              {u.llm_provider ? ` · KI: ${u.llm_provider}` : ""}
-            </p>
-            <form
-              className="stack"
-              style={{ marginBottom: "0.75rem" }}
-              onSubmit={async (e) => {
-                e.preventDefault();
-                setError(null);
-                try {
-                  await updateAdminUser(u.id, {
-                    display_name: (rename[u.id] ?? u.display_name ?? "").trim(),
-                  });
-                  load();
-                } catch (err) {
-                  setError(err instanceof Error ? err.message : "Name speichern fehlgeschlagen");
-                }
+            <InlineEditName
+              value={u.display_name || ""}
+              emptyLabel="ohne Namen"
+              onSave={async (name) => {
+                await updateAdminUser(u.id, { display_name: name });
+                load();
               }}
-            >
-              <label>
-                Anzeigename
-                <input
-                  value={rename[u.id] ?? u.display_name ?? ""}
-                  onChange={(e) => setRename((prev) => ({ ...prev, [u.id]: e.target.value }))}
-                  placeholder="z.B. Thomas"
-                />
-              </label>
-              <button type="submit">Namen speichern</button>
-            </form>
+            />
+            <p style={{ margin: "0.4rem 0" }}>
+              {u.is_admin ? "Admin" : u.is_child ? "Kind" : "Benutzer"} · 2FA{" "}
+              {u.totp_enabled ? "aktiv" : "nicht eingerichtet"}
+              {u.ki_summary || formatKiSummary(u.by_task)
+                ? ` · KI: ${u.ki_summary || formatKiSummary(u.by_task)}`
+                : ""}
+              {u.parent_id ? " · hat Eltern" : ""}
+            </p>
             <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
               <input
                 type="checkbox"

@@ -53,6 +53,7 @@ def units_create(
             difficulty=body.difficulty,
             task_type=body.task_type,
             auto_purge_sources=body.auto_purge_sources,
+            profile_id=UUID(body.profile_id) if body.profile_id else None,
         )
         db.commit()
         return result

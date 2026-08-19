@@ -48,7 +48,9 @@ def generate_modules(
     provider: str | None = None,
 ) -> dict:
     unit = _get_unit_or_404(db, user, unit_id)
-    prefs = get_user_settings(user)
+    from app.services.profile_service import resolve_prefs_for_profile
+
+    prefs = resolve_prefs_for_profile(db, unit.profile_id) or get_user_settings(user)
     task = unit.task_type or "mixed"
     name, model = resolve_task_ai(prefs, task, override=provider)
     name = resolve_provider(name)

@@ -10,6 +10,7 @@ import httpx
 
 from app.ai.catalog import catalog_public
 from app.ai.errors import LlmError
+from app.ai.model_registry import model_catalog
 from app.config import settings
 
 VISION_NAME_HINTS = (
@@ -56,6 +57,7 @@ def provider_status() -> dict:
     data = configured_providers()
     data["ollama"] = {**data["ollama"], **ollama_status()}
     data["task_catalog"] = catalog_public()
+    data["models"] = model_catalog()
     return data
 
 

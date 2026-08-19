@@ -56,6 +56,7 @@ export default function UnitsPage() {
                   </Link>
                 </strong>
                 <p className="muted" style={{ margin: "0.4rem 0 0", fontSize: "0.9rem" }}>
+                  {u.learner_name ? `${u.learner_name} · ` : ""}
                   {u.subject || "Thema offen"} · {u.task_type || "mixed"} · {u.language} · Stufe{" "}
                   {u.difficulty} · {u.source_count} Quellen · {u.module_count} Blöcke
                 </p>

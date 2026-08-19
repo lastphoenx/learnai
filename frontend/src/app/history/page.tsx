@@ -52,6 +52,11 @@ export default function HistoryPage() {
             }}
           >
             <strong>{r.title}</strong>
+            {r.learner_name && (
+              <span style={{ marginLeft: 8, color: "var(--muted)", fontSize: "0.85rem" }}>
+                · {r.learner_name}
+              </span>
+            )}
             <span style={{ marginLeft: 8, color: "var(--muted)", fontSize: "0.85rem" }}>
               {r.unit_alive ? "Einheit aktiv" : "Einheit gelöscht"}
             </span>

@@ -25,6 +25,11 @@ export type HealthResponse = { status: string; tenant: string };
 export type User = {
   id: string;
   is_admin: boolean;
+  is_child?: boolean;
+  parent_id?: string | null;
+  profile_id?: string | null;
+  learner_name?: string;
+  child_count?: number;
   totp_enabled: boolean;
   totp_required: boolean;
   must_enroll_2fa: boolean;
@@ -32,9 +37,43 @@ export type User = {
   llm_provider?: string;
   llm_model?: string;
   by_task?: Record<string, { provider: string; model: string }>;
+  ki_summary?: string;
 };
 export type LoginResponse = { requires_2fa: boolean; must_enroll_2fa?: boolean; user?: User };
 export type AdminUser = User & { is_active: boolean; created_at: string };
+
+export type LearnerProfile = {
+  id: string;
+  display_name: string;
+  user_id: string | null;
+  managed_by_id: string;
+  is_child_profile: boolean;
+  llm_provider: string;
+  llm_model: string;
+  by_task: Record<string, { provider: string; model: string }>;
+  default_language: string;
+  target_age: string;
+  auto_purge_sources: boolean;
+  created_at: string;
+};
+
+export type AiModelCatalog = {
+  openai: {
+    ok: boolean;
+    configured: boolean;
+    chat: string[];
+    vision: string[];
+    tts: string[];
+    error?: string | null;
+  };
+  anthropic: {
+    ok: boolean;
+    configured: boolean;
+    chat: string[];
+    vision: string[];
+    error?: string | null;
+  };
+};
 
 export type UnitSource = {
   id: string;
@@ -71,6 +110,8 @@ export type LearningUnit = {
   updated_at: string;
   source_count: number;
   module_count: number;
+  profile_id?: string | null;
+  learner_name?: string | null;
   sources?: UnitSource[];
   modules?: UnitModule[];
 };
@@ -79,6 +120,8 @@ export type LearningRecord = {
   id: string;
   unit_id: string | null;
   unit_alive: boolean;
+  profile_id?: string | null;
+  learner_name?: string | null;
   title: string;
   summary: string | null;
   subject: string | null;
@@ -137,12 +180,32 @@ export const createUser = (body: {
 export const updateAdminUser = (userId: string, body: { display_name?: string }) =>
   apiFetch<AdminUser>(`/api/v1/users/${userId}`, { method: "PATCH", json: body });
 
-export const updateMySettings = (body: {
-  display_name?: string;
-  llm_provider?: string;
-  llm_model?: string;
-  by_task?: Record<string, { provider: string; model: string }>;
-}) => apiFetch<User>("/api/v1/auth/me", { method: "PATCH", json: body });
+export const createChildUser = (body: {
+  email: string;
+  password: string;
+  display_name: string;
+  parent_id?: string;
+}) => apiFetch<AdminUser>("/api/v1/users/children", { method: "POST", json: body });
+
+export const updateMySettings = (body: { display_name?: string }) =>
+  apiFetch<User>("/api/v1/auth/me", { method: "PATCH", json: body });
+
+export const fetchProfiles = () => apiFetch<LearnerProfile[]>("/api/v1/profiles");
+export const fetchProfile = (id: string) => apiFetch<LearnerProfile>(`/api/v1/profiles/${id}`);
+export const updateProfile = (
+  id: string,
+  body: {
+    display_name?: string;
+    llm_provider?: string;
+    llm_model?: string;
+    by_task?: Record<string, { provider: string; model: string }>;
+    default_language?: string;
+    target_age?: string;
+    auto_purge_sources?: boolean;
+  },
+) => apiFetch<LearnerProfile>(`/api/v1/profiles/${id}`, { method: "PATCH", json: body });
+export const applyProfileRecommendations = (id: string) =>
+  apiFetch<LearnerProfile>(`/api/v1/profiles/${id}/apply-recommendations`, { method: "POST" });
 
 export const fetchUnits = () => apiFetch<LearningUnit[]>("/api/v1/units");
 export const fetchUnit = (id: string) => apiFetch<LearningUnit>(`/api/v1/units/${id}`);
@@ -155,6 +218,7 @@ export const createUnit = (body: {
   difficulty?: number;
   task_type?: string;
   auto_purge_sources?: boolean;
+  profile_id?: string;
 }) => apiFetch<LearningUnit>("/api/v1/units", { method: "POST", json: body });
 export const patchUnit = (id: string, auto_purge_sources: boolean) =>
   apiFetch<LearningUnit>(`/api/v1/units/${id}`, { method: "PATCH", json: { auto_purge_sources } });
@@ -204,6 +268,7 @@ export const fetchAiStatus = () =>
     ollama: { ok?: boolean; configured?: boolean; url: string; models?: string[]; error?: string };
     tts: { provider: string; configured: boolean };
     task_catalog?: TaskCatalogItem[];
+    models?: AiModelCatalog;
   }>("/api/v1/ai/status");
 
 export const fetchRecords = () => apiFetch<LearningRecord[]>("/api/v1/records");

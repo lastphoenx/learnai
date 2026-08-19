@@ -4,7 +4,7 @@ from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
 from app import config
-from app.core.auth.dependencies import get_challenge_token, get_current_user, require_admin
+from app.core.auth.dependencies import get_app_user, get_challenge_token, get_current_user, require_admin
 from app.core.auth.sessions import (
     clear_challenge_cookie,
     clear_session_cookie,
@@ -18,6 +18,7 @@ from app.models import User
 from app.schemas import (
     AdminCreateUserRequest,
     AdminUserUpdateRequest,
+    ChildCreateRequest,
     LoginRequest,
     LoginResponse,
     RegisterRequest,
@@ -36,6 +37,7 @@ from app.services.user_service import (
     authenticate_password,
     complete_2fa_login,
     confirm_totp,
+    create_child_user,
     list_users_admin,
     register_user,
     set_totp_required,
@@ -142,14 +144,16 @@ def me_update(
     db: Session = Depends(get_db),
 ):
     try:
-        update_user_settings(
-            db,
-            user,
-            display_name=body.display_name,
-            llm_provider=body.llm_provider,
-            llm_model=body.llm_model,
-            by_task=body.by_task,
-        )
+        if body.display_name is not None:
+            update_user_settings(db, user, display_name=body.display_name)
+        if any(v is not None for v in (body.llm_provider, body.llm_model, body.by_task)):
+            update_user_settings(
+                db,
+                user,
+                llm_provider=body.llm_provider,
+                llm_model=body.llm_model,
+                by_task=body.by_task,
+            )
         db.commit()
         db.refresh(user)
         return _user_response(user)
@@ -212,6 +216,37 @@ def users_create(
         db.commit()
         db.refresh(user)
         row = {**user_public_dict(user), "is_active": user.is_active, "created_at": user.created_at.isoformat()}
+        return UserAdminResponse(**row)
+    except AuthError as exc:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=exc.message) from exc
+
+
+@users_router.post("/children", response_model=UserAdminResponse, status_code=status.HTTP_201_CREATED)
+def users_create_child(
+    body: ChildCreateRequest,
+    actor: User = Depends(get_app_user),
+    db: Session = Depends(get_db),
+):
+    if actor.is_child:
+        raise HTTPException(status_code=403, detail="Kinder-Accounts dürfen keine Kinder anlegen")
+    try:
+        parent_uuid = UUID(body.parent_id) if body.parent_id else None
+        child = create_child_user(
+            db,
+            actor,
+            email=body.email,
+            password=body.password,
+            display_name=body.display_name,
+            parent_id=parent_uuid,
+        )
+        db.commit()
+        db.refresh(child)
+        row = {
+            **user_public_dict(child),
+            "is_active": child.is_active,
+            "created_at": child.created_at.isoformat(),
+        }
         return UserAdminResponse(**row)
     except AuthError as exc:
         db.rollback()

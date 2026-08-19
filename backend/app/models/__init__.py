@@ -73,6 +73,13 @@ class User(Base, TimestampMixin):
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     settings_encrypted: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    parent_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
+    profile_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("learning_profiles.id", use_alter=True), nullable=True
+    )
+    is_child: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     classification: Mapped[int] = mapped_column(
         SmallInteger, default=DataClassification.SECRET, nullable=False
     )
@@ -81,6 +88,15 @@ class User(Base, TimestampMixin):
     sessions: Mapped[list["UserSession"]] = relationship(back_populates="user")
     recovery_codes: Mapped[list["RecoveryCode"]] = relationship(back_populates="user")
     learning_records: Mapped[list["LearningRecord"]] = relationship(back_populates="user")
+    profile: Mapped["LearningProfile | None"] = relationship(
+        foreign_keys=[profile_id], back_populates="account"
+    )
+    children: Mapped[list["User"]] = relationship(
+        foreign_keys=[parent_id], back_populates="parent"
+    )
+    parent: Mapped["User | None"] = relationship(
+        foreign_keys=[parent_id], remote_side=[id], back_populates="children"
+    )
 
 
 class UserSession(Base, TimestampMixin):
@@ -115,6 +131,33 @@ class RecoveryCode(Base):
     )
 
     user: Mapped["User"] = relationship(back_populates="recovery_codes")
+
+
+class LearningProfile(Base, TimestampMixin):
+    """Lerner-Profil: KI-Einstellungen und Lerner-Anzeigename."""
+
+    __tablename__ = "learning_profiles"
+    __table_args__ = (Index("ix_learning_profiles_tenant", "tenant_id"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("tenants.id"), nullable=False
+    )
+    display_name: Mapped[str] = mapped_column(String(80), nullable=False)
+    settings_encrypted: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    managed_by_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
+    )
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
+    is_child_profile: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    account: Mapped["User | None"] = relationship(
+        foreign_keys="User.profile_id", back_populates="profile"
+    )
 
 
 class LoginChallenge(Base):
@@ -247,6 +290,9 @@ class LearningUnit(Base, TimestampMixin):
     learner_id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
     )
+    profile_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("learning_profiles.id"), nullable=True
+    )
     title_encrypted: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
     brief_encrypted: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
     subject: Mapped[str | None] = mapped_column(String(64), nullable=True)
@@ -261,6 +307,7 @@ class LearningUnit(Base, TimestampMixin):
     )
 
     tenant: Mapped["Tenant"] = relationship(back_populates="learning_units")
+    profile: Mapped["LearningProfile | None"] = relationship(foreign_keys=[profile_id])
     modules: Mapped[list["UnitModule"]] = relationship(
         back_populates="unit", cascade="all, delete-orphan"
     )
@@ -322,6 +369,9 @@ class LearningRecord(Base, TimestampMixin):
     user_id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
     )
+    profile_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("learning_profiles.id"), nullable=True
+    )
     unit_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("learning_units.id", ondelete="SET NULL"),
@@ -340,6 +390,7 @@ class LearningRecord(Base, TimestampMixin):
 
     tenant: Mapped["Tenant"] = relationship(back_populates="learning_records")
     user: Mapped["User"] = relationship(back_populates="learning_records")
+    profile: Mapped["LearningProfile | None"] = relationship(foreign_keys=[profile_id])
     events: Mapped[list["LearningEvent"]] = relationship(
         back_populates="record", cascade="all, delete-orphan"
     )

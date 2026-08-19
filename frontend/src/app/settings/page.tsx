@@ -3,31 +3,34 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
+import { InlineEditName } from "@/components/InlineEditName";
+import { LearnerSettingsForm, type TaskRow } from "@/components/LearnerSettingsForm";
 import { TotpQr } from "@/components/TotpQr";
 import {
+  applyProfileRecommendations,
   confirm2fa,
+  createChildUser,
   fetchAiStatus,
   fetchMe,
+  fetchProfiles,
   setup2fa,
   updateMySettings,
+  updateProfile,
+  type AiModelCatalog,
+  type LearnerProfile,
   type TaskCatalogItem,
   type User,
 } from "@/lib/api";
 
-type TaskRow = { provider: string; model: string };
-
-function pickLocal(recs: string[], pulled: string[]): string {
-  const lower = pulled.map((p) => p.toLowerCase());
-  for (const rec of recs) {
-    const r = rec.toLowerCase();
-    const idx = lower.findIndex((p) => p === r || p.startsWith(r) || p.includes(r.split(":")[0]));
-    if (idx >= 0) return pulled[idx];
-  }
-  return "";
-}
+const EMPTY_CATALOG: AiModelCatalog = {
+  openai: { ok: false, configured: false, chat: [], vision: [], tts: [] },
+  anthropic: { ok: false, configured: false, chat: [], vision: [] },
+};
 
 export default function SettingsPage() {
   const [user, setUser] = useState<User | null>(null);
+  const [profiles, setProfiles] = useState<LearnerProfile[]>([]);
+  const [selectedId, setSelectedId] = useState<string>("");
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [secret, setSecret] = useState<string | null>(null);
@@ -35,23 +38,44 @@ export default function SettingsPage() {
   const [recovery, setRecovery] = useState<string[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showSecret, setShowSecret] = useState(false);
-  const [displayName, setDisplayName] = useState("");
+  const [childName, setChildName] = useState("");
+  const [childEmail, setChildEmail] = useState("");
+  const [childPassword, setChildPassword] = useState("");
+  const [saved, setSaved] = useState(false);
+  const [byTask, setByTask] = useState<Record<string, TaskRow>>({});
   const [llmProvider, setLlmProvider] = useState("default");
   const [llmModel, setLlmModel] = useState("");
-  const [byTask, setByTask] = useState<Record<string, TaskRow>>({});
   const [catalog, setCatalog] = useState<TaskCatalogItem[]>([]);
-  const [saved, setSaved] = useState(false);
+  const [modelCatalog, setModelCatalog] = useState<AiModelCatalog>(EMPTY_CATALOG);
   const [ollamaModels, setOllamaModels] = useState<string[]>([]);
   const [configured, setConfigured] = useState({ openai: false, anthropic: false, ollama: false });
+
+  const selected = profiles.find((p) => p.id === selectedId) ?? null;
+  const readOnly = Boolean(user?.is_child);
+
+  function loadProfileForm(profile: LearnerProfile) {
+    setByTask(profile.by_task || {});
+    setLlmProvider(profile.llm_provider || "default");
+    setLlmModel(profile.llm_model || "");
+  }
 
   useEffect(() => {
     fetchMe()
       .then((u) => {
         setUser(u);
-        setDisplayName(u.display_name || "");
-        setLlmProvider(u.llm_provider || "default");
-        setLlmModel(u.llm_model || "");
-        setByTask(u.by_task || {});
+        if (!u.is_child) {
+          fetchProfiles()
+            .then((rows) => {
+              setProfiles(rows);
+              const initial = u.profile_id && rows.some((r) => r.id === u.profile_id)
+                ? u.profile_id
+                : rows[0]?.id || "";
+              setSelectedId(initial);
+              const profile = rows.find((p) => p.id === initial);
+              if (profile) loadProfileForm(profile);
+            })
+            .catch((e: Error) => setError(e.message));
+        }
       })
       .catch(() => setError("Nicht angemeldet"));
     fetchAiStatus()
@@ -63,30 +87,15 @@ export default function SettingsPage() {
           ollama: Boolean(s.ollama.ok || s.ollama.configured),
         });
         setCatalog(s.task_catalog || []);
+        setModelCatalog(s.models || EMPTY_CATALOG);
       })
       .catch(() => undefined);
   }, []);
 
-  function setRow(key: string, patch: Partial<TaskRow>) {
-    setByTask((prev) => {
-      const current = prev[key] || { provider: "", model: "" };
-      return { ...prev, [key]: { ...current, ...patch } };
-    });
-  }
-
-  function applyRecommended() {
-    const next: Record<string, TaskRow> = {};
-    for (const item of catalog) {
-      next[item.key] = {
-        provider: item.default_provider,
-        model:
-          item.default_provider === "ollama"
-            ? pickLocal(item.local, ollamaModels)
-            : item.external[0] || "",
-      };
-    }
-    setByTask(next);
-  }
+  useEffect(() => {
+    const profile = profiles.find((p) => p.id === selectedId);
+    if (profile) loadProfileForm(profile);
+  }, [selectedId, profiles]);
 
   async function onSetup(e: FormEvent) {
     e.preventDefault();
@@ -128,142 +137,142 @@ export default function SettingsPage() {
       {user?.must_enroll_2fa && (
         <p className="warn">Für diesen Account ist 2FA Pflicht. Bitte jetzt einrichten.</p>
       )}
+
       <div className="card stack">
-        <h2>Profil</h2>
+        <h2>Account</h2>
+        <p className="muted">Name in der Kopfzeile beim Login — nicht der Lerner-Name.</p>
+        <InlineEditName
+          value={user?.display_name || ""}
+          placeholder="z.B. Thomas"
+          onSave={async (name) => {
+            const me = await updateMySettings({ display_name: name });
+            setUser(me);
+          }}
+        />
+      </div>
+
+      <div className="card stack">
+        <h2>Lerner-Einstellungen</h2>
+        {readOnly ? (
+          <p className="muted">Kinder-Accounts: dein Eltern-Account pflegt die KI-Einstellungen.</p>
+        ) : profiles.length > 1 ? (
+          <label>
+            Lerner-Profil
+            <select value={selectedId} onChange={(e) => setSelectedId(e.target.value)}>
+              {profiles.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.display_name}
+                  {p.is_child_profile ? " (Kind)" : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : selected ? (
+          <p>
+            Profil: <strong>{selected.display_name}</strong>
+            {selected.is_child_profile && <span className="muted"> · Kind</span>}
+          </p>
+        ) : null}
+
+        {!readOnly && selected && (
+          <form
+            className="stack"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              setError(null);
+              setSaved(false);
+              try {
+                const updated = await updateProfile(selected.id, {
+                  llm_provider: llmProvider,
+                  llm_model: llmModel,
+                  by_task: byTask,
+                });
+                setProfiles((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+                setSaved(true);
+              } catch (err) {
+                setError(err instanceof Error ? err.message : "Speichern fehlgeschlagen");
+              }
+            }}
+          >
+            <InlineEditName
+              value={selected.display_name}
+              placeholder="Lerner-Name"
+              onSave={async (name) => {
+                const updated = await updateProfile(selected.id, { display_name: name });
+                setProfiles((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+              }}
+            />
+            <LearnerSettingsForm
+              catalog={catalog}
+              configured={configured}
+              ollamaModels={ollamaModels}
+              modelCatalog={modelCatalog}
+              byTask={byTask}
+              llmProvider={llmProvider}
+              llmModel={llmModel}
+              onByTaskChange={setByTask}
+              onFallbackChange={(provider, model) => {
+                setLlmProvider(provider);
+                setLlmModel(model);
+              }}
+              onApplyRecommendations={async () => {
+                const updated = await applyProfileRecommendations(selected.id);
+                setProfiles((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+                loadProfileForm(updated);
+              }}
+            />
+            <button type="submit">Lerner-Einstellungen speichern</button>
+            {saved && <p>Gespeichert.</p>}
+          </form>
+        )}
+      </div>
+
+      {!readOnly && !user?.is_admin && (
         <form
-          className="stack"
+          className="card stack"
           onSubmit={async (e) => {
             e.preventDefault();
             setError(null);
-            setSaved(false);
             try {
-              const me = await updateMySettings({
-                display_name: displayName,
-                llm_provider: llmProvider,
-                llm_model: llmModel,
-                by_task: byTask,
+              await createChildUser({
+                email: childEmail.trim(),
+                password: childPassword,
+                display_name: childName.trim(),
               });
-              setUser(me);
-              setByTask(me.by_task || {});
-              setSaved(true);
+              setChildName("");
+              setChildEmail("");
+              setChildPassword("");
+              const rows = await fetchProfiles();
+              setProfiles(rows);
             } catch (err) {
-              setError(err instanceof Error ? err.message : "Speichern fehlgeschlagen");
+              setError(err instanceof Error ? err.message : "Kind anlegen fehlgeschlagen");
             }
           }}
         >
+          <h2>Kind anlegen</h2>
+          <p className="muted">Du wirst Elternteil und kannst Lerner-Einstellungen und Verlauf sehen.</p>
           <label>
-            Anzeigename
+            Lerner-Name
+            <input required value={childName} onChange={(e) => setChildName(e.target.value)} />
+          </label>
+          <label>
+            E-Mail (Login Kind)
+            <input type="email" required value={childEmail} onChange={(e) => setChildEmail(e.target.value)} />
+          </label>
+          <label>
+            Startpasswort
             <input
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              placeholder="z.B. Thomas, Lena, Klasse 4a"
+              type="password"
+              required
+              minLength={12}
+              value={childPassword}
+              onChange={(e) => setChildPassword(e.target.value)}
             />
           </label>
-          <p className="muted">
-            Pro Aufgabentyp ein Modell. Lokal wo Qualität und Datenschutz passen; Vorlesen und
-            Sprache über OpenAI/Anthropic. Keys bleiben in der Server-.env.
-          </p>
-          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-            <button type="button" className="ghost" onClick={applyRecommended}>
-              Empfehlungen übernehmen
-            </button>
-          </div>
-          {catalog.length > 0 && (
-            <div style={{ overflowX: "auto" }}>
-              <table className="task-ai">
-                <thead>
-                  <tr>
-                    <th>Typ</th>
-                    <th>Provider</th>
-                    <th>Modell</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {catalog.map((item) => {
-                    const row = byTask[item.key] || { provider: "", model: "" };
-                    const provider = row.provider || "";
-                    const isTts = item.key === "tts";
-                    return (
-                      <tr key={item.key}>
-                        <td>
-                          <strong>{item.label}</strong>
-                          <p className="why">{item.why}</p>
-                          <p className="why">
-                            Lokal: {item.local.map((m, i) => `${i + 1}. ${m}`).join(" · ")}
-                            <br />
-                            Extern: {item.external.map((m, i) => `${i + 1}. ${m}`).join(" · ")}
-                          </p>
-                        </td>
-                        <td>
-                          <select
-                            value={provider}
-                            onChange={(e) =>
-                              setRow(item.key, { provider: e.target.value, model: "" })
-                            }
-                          >
-                            <option value="">Empfehlung ({item.default_provider})</option>
-                            {!isTts && configured.ollama && (
-                              <option value="ollama">Ollama (lokal)</option>
-                            )}
-                            {configured.openai && <option value="openai">OpenAI</option>}
-                            {!isTts && configured.anthropic && (
-                              <option value="anthropic">Anthropic</option>
-                            )}
-                          </select>
-                        </td>
-                        <td>
-                          <ModelField
-                            item={item}
-                            provider={provider || item.default_provider}
-                            model={row.model}
-                            ollamaModels={ollamaModels}
-                            onChange={(model) => setRow(item.key, { model })}
-                          />
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-          <details>
-            <summary className="muted">Fallback für Text-Typen ohne eigene Zeile</summary>
-            <div className="stack" style={{ marginTop: "0.75rem" }}>
-              <label>
-                KI-Provider
-                <select value={llmProvider} onChange={(e) => setLlmProvider(e.target.value)}>
-                  <option value="default">Standard (Empfehlung je Typ)</option>
-                  {configured.ollama && <option value="ollama">Ollama (lokal)</option>}
-                  {configured.openai && <option value="openai">OpenAI</option>}
-                  {configured.anthropic && <option value="anthropic">Anthropic / Claude</option>}
-                </select>
-              </label>
-              <label>
-                Modell
-                {llmProvider === "ollama" && ollamaModels.length > 0 ? (
-                  <select value={llmModel} onChange={(e) => setLlmModel(e.target.value)}>
-                    <option value="">Standard</option>
-                    {ollamaModels.map((m) => (
-                      <option key={m} value={m}>
-                        {m}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <input
-                    value={llmModel}
-                    onChange={(e) => setLlmModel(e.target.value)}
-                    placeholder="leer = Server-Default"
-                  />
-                )}
-              </label>
-            </div>
-          </details>
-          <button type="submit">Einstellungen speichern</button>
-          {saved && <p>Gespeichert.</p>}
+          <button type="submit">Kind anlegen</button>
         </form>
-      </div>
+      )}
+
       <div className="card stack">
         <p>
           2FA: <strong>{user?.totp_enabled ? "aktiv" : "aus"}</strong> · Policy:{" "}
@@ -271,126 +280,38 @@ export default function SettingsPage() {
         </p>
         {!user?.totp_enabled && !uri && (
           <form onSubmit={onSetup} className="stack">
-            <p className="muted">
-              Die E-Mail erscheint als Name in der Authenticator-App. Du bist bereits angemeldet —
-              kein Passwort nötig.
-            </p>
             <label>
               E-Mail im Authenticator
-              <input
-                type="email"
-                required
-                autoComplete="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
+              <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
             </label>
             <button type="submit">QR-Code erzeugen</button>
           </form>
         )}
         {uri && !user?.totp_enabled && (
           <section className="stack">
-            <h2>Authenticator scannen</h2>
-            <p className="muted">
-              Aegis, Google Authenticator oder Authy: QR scannen, danach den 6-stelligen Code
-              eintragen.
-            </p>
             <div className="qr-wrap">
               <TotpQr uri={uri} />
             </div>
-            <details>
-              <summary>Kein Scan möglich? Secret manuell</summary>
-              <button type="button" onClick={() => setShowSecret((v) => !v)}>
-                {showSecret ? "Secret verbergen" : "Secret zeigen"}
-              </button>
-              {showSecret && <code className="secret">{secret}</code>}
-            </details>
             <form onSubmit={onConfirm} className="stack">
               <label>
-                Code aus der App
-                <input
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
-                  placeholder="123456"
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  required
-                />
+                Code
+                <input value={code} onChange={(e) => setCode(e.target.value)} required />
               </label>
               <button type="submit">Code bestätigen</button>
             </form>
           </section>
         )}
         {recovery && (
-          <section className="stack">
-            <h2>Recovery-Codes</h2>
-            <p className="warn">
-              Einmalig notieren und offline aufbewahren. Jeder Code gilt nur einmal.
-            </p>
-            <ul>
-              {recovery.map((c) => (
-                <li key={c}>
-                  <code>{c}</code>
-                </li>
-              ))}
-            </ul>
-          </section>
+          <ul>
+            {recovery.map((c) => (
+              <li key={c}>
+                <code>{c}</code>
+              </li>
+            ))}
+          </ul>
         )}
         {error && <p className="err">{error}</p>}
       </div>
     </main>
-  );
-}
-
-function ModelField({
-  item,
-  provider,
-  model,
-  ollamaModels,
-  onChange,
-}: {
-  item: TaskCatalogItem;
-  provider: string;
-  model: string;
-  ollamaModels: string[];
-  onChange: (model: string) => void;
-}) {
-  if (item.key === "tts") {
-    return (
-      <select value={model} onChange={(e) => onChange(e.target.value)}>
-        <option value="">1. tts-1-hd</option>
-        <option value="tts-1-hd">1. tts-1-hd</option>
-        <option value="gpt-4o-mini-tts">2. gpt-4o-mini-tts</option>
-        <option value="tts-1">3. tts-1</option>
-      </select>
-    );
-  }
-  if (provider === "ollama" && ollamaModels.length > 0) {
-    return (
-      <select value={model} onChange={(e) => onChange(e.target.value)}>
-        <option value="">auto / Server</option>
-        {ollamaModels.map((m) => (
-          <option key={m} value={m}>
-            {m}
-          </option>
-        ))}
-      </select>
-    );
-  }
-  const hints = provider === "ollama" ? item.local : item.external;
-  return (
-    <>
-      <input
-        value={model}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={hints[0] || "leer = Default"}
-        list={`models-${item.key}`}
-      />
-      <datalist id={`models-${item.key}`}>
-        {hints.map((h) => (
-          <option key={h} value={h} />
-        ))}
-      </datalist>
-    </>
   );
 }

@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.config import settings
 from app.core.crypto import decrypt_text_master, encrypt_text_master
@@ -14,6 +14,7 @@ from app.core.crypto.classification import DataClassification
 from app.models import LearningEvent, LearningRecord, LearningUnit, UnitModule, UnitSource, User
 from app.services.audit import log_event
 from app.services.crypto_json import decrypt_json, encrypt_json
+from app.services.profile_service import child_user_ids, get_profile_for_actor
 
 
 class UnitError(Exception):
@@ -45,6 +46,9 @@ def reconstruction_payload(
 
 
 def _dec_unit(unit: LearningUnit, *, sources: bool = True, modules: bool = True) -> dict:
+    learner_name = None
+    if unit.profile_id and unit.profile:
+        learner_name = unit.profile.display_name
     data = {
         "id": str(unit.id),
         "title": decrypt_text_master(unit.title_encrypted),
@@ -56,6 +60,8 @@ def _dec_unit(unit: LearningUnit, *, sources: bool = True, modules: bool = True)
         "task_type": unit.task_type,
         "status": unit.status,
         "auto_purge_sources": unit.auto_purge_sources,
+        "profile_id": str(unit.profile_id) if unit.profile_id else None,
+        "learner_name": learner_name,
         "created_at": unit.created_at.isoformat(),
         "updated_at": unit.updated_at.isoformat(),
         "source_count": len(unit.sources),
@@ -95,10 +101,15 @@ def _dec_module(module: UnitModule) -> dict:
 
 
 def _dec_record(record: LearningRecord) -> dict:
+    learner_name = None
+    if record.profile_id and record.profile:
+        learner_name = record.profile.display_name
     return {
         "id": str(record.id),
         "unit_id": str(record.unit_id) if record.unit_id else None,
         "unit_alive": record.unit_id is not None,
+        "profile_id": str(record.profile_id) if record.profile_id else None,
+        "learner_name": learner_name,
         "title": decrypt_text_master(record.title_encrypted),
         "summary": decrypt_text_master(record.summary_encrypted) if record.summary_encrypted else None,
         "subject": record.subject,
@@ -123,12 +134,21 @@ def _add_event(db: Session, record: LearningRecord, event_type: str, payload: di
 
 
 def _accessible_units(db: Session, user: User):
+    from sqlalchemy import or_
+
     q = db.query(LearningUnit).filter(LearningUnit.tenant_id == user.tenant_id)
     if user.is_admin:
         return q
-    return q.filter(
-        (LearningUnit.created_by_id == user.id) | (LearningUnit.learner_id == user.id)
-    )
+    child_ids = child_user_ids(db, user)
+    clauses = [LearningUnit.created_by_id == user.id, LearningUnit.learner_id == user.id]
+    if child_ids:
+        clauses.append(LearningUnit.learner_id.in_(child_ids))
+    from app.services.profile_service import accessible_profile_ids
+
+    profile_ids = accessible_profile_ids(db, user)
+    if profile_ids:
+        clauses.append(LearningUnit.profile_id.in_(profile_ids))
+    return q.filter(or_(*clauses))
 
 
 def list_units(db: Session, user: User) -> list[dict]:
@@ -162,12 +182,26 @@ def create_unit(
     difficulty: int = 1,
     task_type: str = "mixed",
     auto_purge_sources: bool = False,
+    profile_id: uuid.UUID | None = None,
 ) -> dict:
     if difficulty < 1 or difficulty > 5:
         raise UnitError("Schwierigkeit muss 1–5 sein", "invalid_difficulty")
     kind = (task_type or "mixed").strip().lower()
     if kind not in {"mixed", "explain", "quiz", "vocab", "practice", "exam"}:
         raise UnitError("Unbekannter Aufgabentyp", "invalid_task_type")
+
+    learner_id = user.id
+    chosen_profile_id = profile_id or user.profile_id
+    if profile_id:
+        profile = get_profile_for_actor(db, user, profile_id)
+        chosen_profile_id = profile.id
+        if profile.user_id:
+            learner_id = profile.user_id
+    elif user.profile_id:
+        profile = get_profile_for_actor(db, user, user.profile_id)
+        chosen_profile_id = profile.id
+        if profile.user_id:
+            learner_id = profile.user_id
 
     recon = reconstruction_payload(
         title=title,
@@ -181,7 +215,8 @@ def create_unit(
     unit = LearningUnit(
         tenant_id=user.tenant_id,
         created_by_id=user.id,
-        learner_id=user.id,
+        learner_id=learner_id,
+        profile_id=chosen_profile_id,
         title_encrypted=encrypt_text_master(title),
         brief_encrypted=encrypt_text_master(brief) if brief else None,
         subject=subject,
@@ -198,7 +233,8 @@ def create_unit(
 
     record = LearningRecord(
         tenant_id=user.tenant_id,
-        user_id=user.id,
+        user_id=learner_id,
+        profile_id=chosen_profile_id,
         unit_id=unit.id,
         title_encrypted=encrypt_text_master(title),
         summary_encrypted=encrypt_text_master(brief) if brief else encrypt_text_master(title),
@@ -233,7 +269,12 @@ def create_unit_from_record(
     if not record or record.tenant_id != user.tenant_id:
         raise UnitError("Verlaufseintrag nicht gefunden", "not_found")
     if not user.is_admin and record.user_id != user.id:
-        raise UnitError("Kein Zugriff", "forbidden")
+        child_ids = child_user_ids(db, user)
+        if record.user_id not in child_ids:
+            from app.services.profile_service import can_view_profile_data
+
+            if not record.profile_id or not can_view_profile_data(db, user, record.profile_id):
+                raise UnitError("Kein Zugriff", "forbidden")
     recon = decrypt_json(record.reconstruction_encrypted) or {}
     new_difficulty = difficulty if difficulty is not None else int(recon.get("difficulty") or record.difficulty)
     return create_unit(
@@ -246,6 +287,7 @@ def create_unit_from_record(
         target_age=recon.get("target_age"),
         difficulty=new_difficulty,
         task_type=str(recon.get("task_type") or "mixed"),
+        profile_id=record.profile_id,
     )
 
 
@@ -293,9 +335,19 @@ def delete_unit(db: Session, user: User, unit_id: uuid.UUID) -> None:
 
 
 def list_records(db: Session, user: User) -> list[dict]:
+    from sqlalchemy import or_
+
     q = db.query(LearningRecord).filter(LearningRecord.tenant_id == user.tenant_id)
     if not user.is_admin:
-        q = q.filter(LearningRecord.user_id == user.id)
+        child_ids = child_user_ids(db, user)
+        ids = {user.id, *child_ids}
+        from app.services.profile_service import accessible_profile_ids
+
+        profile_ids = accessible_profile_ids(db, user)
+        clauses = [LearningRecord.user_id.in_(ids)]
+        if profile_ids:
+            clauses.append(LearningRecord.profile_id.in_(profile_ids))
+        q = q.filter(or_(*clauses))
     rows = q.order_by(LearningRecord.last_activity_at.desc()).all()
     return [_dec_record(r) for r in rows]
 
@@ -305,7 +357,12 @@ def get_record(db: Session, user: User, record_id: uuid.UUID) -> dict:
     if not record or record.tenant_id != user.tenant_id:
         raise UnitError("Verlaufseintrag nicht gefunden", "not_found")
     if not user.is_admin and record.user_id != user.id:
-        raise UnitError("Kein Zugriff", "forbidden")
+        child_ids = child_user_ids(db, user)
+        if record.user_id not in child_ids:
+            from app.services.profile_service import can_view_profile_data
+
+            if not record.profile_id or not can_view_profile_data(db, user, record.profile_id):
+                raise UnitError("Kein Zugriff", "forbidden")
     data = _dec_record(record)
     data["events"] = [
         {

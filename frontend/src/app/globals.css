@@ -294,3 +294,30 @@ button:disabled {
 .ghost:hover {
   background: var(--bg-2);
 }
+
+.inline-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.inline-name-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
+}
+
+.icon-btn {
+  border: none;
+  background: transparent;
+  padding: 0.15rem 0.35rem;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--muted);
+}
+
+.icon-btn:hover {
+  color: var(--accent);
+}

@@ -1,10 +1,12 @@
 """Benutzer-Registrierung, Login und 2FA."""
 
 import json
+import uuid
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.ai.catalog import TASK_KEYS
+from app.ai.model_registry import validate_model
 from app.core.auth.challenges import consume_login_challenge, create_login_challenge
 from app.core.auth.passwords import hash_email, hash_password, verify_password
 from app.core.auth.recovery import generate_recovery_codes, verify_and_consume_recovery_code
@@ -20,6 +22,7 @@ from app.core.tenant import get_default_tenant
 from app.models import User
 from app.services.audit import log_event
 from app.services.crypto_json import decrypt_json, encrypt_json
+from app.services.profile_service import create_profile, get_profile_settings, set_profile_settings
 
 
 class AuthError(Exception):
@@ -64,8 +67,17 @@ def register_user(
     )
     db.add(user)
     db.flush()
-    if display_name.strip() or email:
-        update_user_settings(db, user, display_name=display_name.strip() or email.split("@")[0])
+    account_name = display_name.strip() or email.split("@")[0]
+    _write_account_display_name(user, account_name)
+    create_profile(
+        db,
+        user,
+        display_name=account_name,
+        user_id=user.id,
+        managed_by_id=user.id,
+        is_child_profile=False,
+    )
+    db.refresh(user)
     log_event(
         db,
         tenant_id=tenant.id,
@@ -166,18 +178,50 @@ def confirm_totp(db: Session, user: User, code: str, email: str) -> list[str]:
     return codes
 
 
+def _write_account_display_name(user: User, name: str) -> None:
+    user.settings_encrypted = encrypt_json({"display_name": name.strip()[:80]})
+
+
+def _account_display_name(user: User) -> str:
+    data = decrypt_json(user.settings_encrypted) if user.settings_encrypted else None
+    if isinstance(data, dict):
+        return str(data.get("display_name") or "").strip()[:80]
+    return ""
+
+
+def _ki_summary(by_task: dict) -> str:
+    counts: dict[str, int] = {}
+    for row in by_task.values():
+        provider = str(row.get("provider") or "").strip().lower()
+        if provider:
+            counts[provider] = counts.get(provider, 0) + 1
+    if not counts:
+        return ""
+    return " · ".join(f"{name} ({count})" for name, count in sorted(counts.items(), key=lambda x: -x[1]))
+
+
 def user_public_dict(user: User) -> dict:
     prefs = get_user_settings(user)
+    profile_name = ""
+    if user.profile_id and user.profile:
+        profile_name = user.profile.display_name
+    child_count = len(user.children) if user.children else 0
     return {
         "id": str(user.id),
         "is_admin": user.is_admin,
+        "is_child": user.is_child,
+        "parent_id": str(user.parent_id) if user.parent_id else None,
+        "profile_id": str(user.profile_id) if user.profile_id else None,
+        "learner_name": profile_name,
+        "child_count": child_count,
         "totp_enabled": user.totp_enabled,
         "totp_required": user.totp_required,
         "must_enroll_2fa": bool(user.totp_required and not user.totp_enabled),
-        "display_name": prefs.get("display_name") or "",
+        "display_name": _account_display_name(user) or profile_name,
         "llm_provider": prefs.get("llm_provider") or "",
         "llm_model": prefs.get("llm_model") or "",
         "by_task": prefs.get("by_task") or {},
+        "ki_summary": _ki_summary(prefs.get("by_task") or {}),
     }
 
 
@@ -198,6 +242,12 @@ def _normalize_by_task(raw: object) -> dict:
 
 
 def get_user_settings(user: User) -> dict:
+    if user.profile_id and user.profile:
+        prefs = get_profile_settings(user.profile)
+        account = _account_display_name(user)
+        if account:
+            prefs = {**prefs, "display_name": account}
+        return prefs
     data = decrypt_json(user.settings_encrypted) if user.settings_encrypted else None
     if not isinstance(data, dict):
         data = {}
@@ -221,22 +271,47 @@ def update_user_settings(
     llm_model: str | None = None,
     by_task: dict | None = None,
 ) -> dict:
-    current = get_user_settings(user)
     if display_name is not None:
-        current["display_name"] = display_name.strip()[:80]
+        _write_account_display_name(user, display_name)
+    profile_payload: dict = {}
     if llm_provider is not None:
         name = llm_provider.strip().lower()
         if name in {"", "default"}:
-            current["llm_provider"] = ""
+            profile_payload["llm_provider"] = ""
         elif name in {"ollama", "openai", "anthropic"}:
-            current["llm_provider"] = name
+            profile_payload["llm_provider"] = name
         else:
             raise AuthError("Unbekannter KI-Provider", "bad_provider")
     if llm_model is not None:
-        current["llm_model"] = llm_model.strip()[:80]
+        profile_payload["llm_model"] = llm_model.strip()[:80]
     if by_task is not None:
-        current["by_task"] = _normalize_by_task(by_task)
-    user.settings_encrypted = encrypt_json(current)
+        profile_payload["by_task"] = by_task
+    if profile_payload and user.profile_id and user.profile:
+        try:
+            set_profile_settings(db, user.profile, profile_payload)
+        except Exception as exc:
+            from app.services.profile_service import ProfileError
+
+            if isinstance(exc, ProfileError):
+                raise AuthError(exc.message, exc.code) from exc
+            raise
+    elif profile_payload:
+        current = get_user_settings(user)
+        if llm_provider is not None:
+            current["llm_provider"] = profile_payload.get("llm_provider", "")
+        if llm_model is not None:
+            current["llm_model"] = profile_payload.get("llm_model", "")
+        if by_task is not None:
+            current["by_task"] = _normalize_by_task(by_task)
+            for key, row in current["by_task"].items():
+                provider = row.get("provider") or ""
+                model = row.get("model") or ""
+                if provider:
+                    try:
+                        row["model"] = validate_model(provider, model, task_key=key)
+                    except ValueError as err:
+                        raise AuthError(str(err), "invalid_model") from err
+        user.settings_encrypted = encrypt_json(current)
     db.flush()
     return get_user_settings(user)
 
@@ -260,6 +335,7 @@ def set_totp_required(db: Session, actor: User, target: User, required: bool) ->
 def list_users_admin(db: Session, actor: User) -> list[dict]:
     rows = (
         db.query(User)
+        .options(joinedload(User.profile))
         .filter(User.tenant_id == actor.tenant_id)
         .order_by(User.created_at.asc())
         .all()
@@ -293,7 +369,9 @@ def admin_create_user(
     )
     user.totp_required = totp_required
     if display_name.strip():
-        update_user_settings(db, user, display_name=display_name)
+        _write_account_display_name(user, display_name)
+        if user.profile:
+            user.profile.display_name = display_name.strip()[:80]
     log_event(
         db,
         tenant_id=actor.tenant_id,
@@ -304,3 +382,64 @@ def admin_create_user(
     )
     db.flush()
     return user
+
+
+def create_child_user(
+    db: Session,
+    actor: User,
+    *,
+    display_name: str,
+    email: str,
+    password: str,
+    parent_id: uuid.UUID | None = None,
+) -> User:
+    if actor.is_child:
+        raise AuthError("Kinder-Accounts dürfen keine Kinder anlegen", "forbidden")
+    parent = actor
+    if parent_id:
+        if not actor.is_admin and parent_id != actor.id:
+            raise AuthError("Kein Zugriff", "forbidden")
+        row = db.get(User, parent_id)
+        if not row or row.tenant_id != actor.tenant_id:
+            raise AuthError("Eltern-Account nicht gefunden", "not_found")
+        parent = row
+
+    tenant = get_default_tenant(db)
+    email_h = hash_email(email)
+    if db.query(User).filter(User.tenant_id == tenant.id, User.email_hash == email_h).first():
+        raise AuthError("E-Mail bereits registriert", "email_taken")
+
+    salt = generate_salt()
+    enc = _encrypt_profile(display_name, password, salt, email)
+    child = User(
+        tenant_id=tenant.id,
+        email_hash=email_h,
+        password_hash=hash_password(password),
+        encryption_salt=salt,
+        encrypted_profile=enc,
+        is_child=True,
+        parent_id=parent.id,
+    )
+    db.add(child)
+    db.flush()
+    _write_account_display_name(child, display_name)
+    profile = create_profile(
+        db,
+        actor,
+        display_name=display_name.strip(),
+        user_id=child.id,
+        managed_by_id=parent.id,
+        is_child_profile=True,
+    )
+    child.profile_id = profile.id
+    log_event(
+        db,
+        tenant_id=actor.tenant_id,
+        actor_id=actor.id,
+        action="user.child_create",
+        resource_type="user",
+        resource_id=child.id,
+        detail=f"parent={parent.id}",
+    )
+    db.flush()
+    return child

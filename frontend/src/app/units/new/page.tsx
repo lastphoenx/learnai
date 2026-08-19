@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { AppHeader } from "@/components/AppHeader";
-import { createUnit, fetchMe, type User } from "@/lib/api";
+import { createUnit, fetchMe, fetchProfiles, type LearnerProfile, type User } from "@/lib/api";
 
 export default function NewUnitPage() {
   const router = useRouter();
@@ -17,6 +17,8 @@ export default function NewUnitPage() {
   const [difficulty, setDifficulty] = useState(1);
   const [taskType, setTaskType] = useState("mixed");
   const [autoPurge, setAutoPurge] = useState(false);
+  const [profileId, setProfileId] = useState("");
+  const [profiles, setProfiles] = useState<LearnerProfile[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -24,6 +26,14 @@ export default function NewUnitPage() {
       .then((u) => {
         setUser(u);
         if (u.must_enroll_2fa) window.location.href = "/settings";
+        if (!u.is_child) {
+          fetchProfiles()
+            .then((rows) => {
+              setProfiles(rows);
+              setProfileId(u.profile_id && rows.some((r) => r.id === u.profile_id) ? u.profile_id : rows[0]?.id || "");
+            })
+            .catch(() => undefined);
+        }
       })
       .catch(() => setError("Nicht angemeldet"));
   }, []);
@@ -40,6 +50,7 @@ export default function NewUnitPage() {
         difficulty,
         task_type: taskType,
         auto_purge_sources: autoPurge,
+        profile_id: profileId || undefined,
       });
       router.push(`/units/${unit.id}`);
     } catch (err) {
@@ -126,6 +137,23 @@ export default function NewUnitPage() {
             <option value="exam">Kurzprüfung</option>
           </select>
         </label>
+        {profiles.length > 1 && (
+          <label>
+            Für wen?
+            <select
+              value={profileId}
+              onChange={(e) => setProfileId(e.target.value)}
+              style={{ display: "block", width: "100%", marginTop: 4, padding: 8 }}
+            >
+              {profiles.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.display_name}
+                  {p.is_child_profile ? " (Kind)" : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <label>
           Schwierigkeit (1–5)
           <input
