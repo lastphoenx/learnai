@@ -105,26 +105,28 @@ export default function HistoryPage() {
                   </button>
                 </>
               ) : (
-                <button
-                  type="button"
-                  onClick={async () => {
-                    const nextDiff = Math.min(5, (r.difficulty || 1) + 1);
-                    const unit = await rebuildFromRecord(r.id, nextDiff, "review");
-                    router.push(`/units/${unit.id}`);
-                  }}
-                >
-                  Wiederholung (eine Stufe schwerer)
-                </button>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    const nextDiff = Math.min(5, (r.difficulty || 1) + 1);
-                    const unit = await rebuildFromRecord(r.id, nextDiff);
-                    router.push(`/units/${unit.id}`);
-                  }}
-                >
-                  Ähnliche Einheit, eine Stufe schwerer
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const nextDiff = Math.min(5, (r.difficulty || 1) + 1);
+                      const unit = await rebuildFromRecord(r.id, nextDiff, "review");
+                      router.push(`/units/${unit.id}`);
+                    }}
+                  >
+                    Wiederholung (eine Stufe schwerer)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const nextDiff = Math.min(5, (r.difficulty || 1) + 1);
+                      const unit = await rebuildFromRecord(r.id, nextDiff);
+                      router.push(`/units/${unit.id}`);
+                    }}
+                  >
+                    Ähnliche Einheit, eine Stufe schwerer
+                  </button>
+                </>
               )}
             </p>
           </li>
