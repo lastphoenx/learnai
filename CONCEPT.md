@@ -113,10 +113,10 @@ Verknüpfung mit **Lernverlauf**: `learning_record.stats.exams[]` oder eigenes E
 - Datei abrufbar: `GET /units/{id}/exams/{exam_id}/file`
 - Migration: `008_exam_results`
 
-### Phase B — KI-Analyse
-- Vision/OCR auf korrigierte Prüfung
-- Strukturiertes JSON: Aufgaben, erkannte Fehler, Tags
-- Anzeige «Analyse» für Eltern
+### Phase B — KI-Analyse ✅ *implementiert*
+- `POST /units/{id}/exams/{exam_id}/analyze` — Vision/OCR + strukturiertes JSON
+- Anzeige: Zusammenfassung, Lücken, Fehlermuster, Empfehlungen
+- Migration: `009_exam_analysis` (`analysis_encrypted`)
 
 ### Phase C — Nacharbeit aus Fehlern
 - `POST /units/{id}/remediation-from-exam` oder von `exam_result_id`

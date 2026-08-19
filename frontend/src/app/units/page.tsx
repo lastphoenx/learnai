@@ -186,42 +186,49 @@ export default function UnitsPage() {
             {filtered.map((u) => {
               const badge = statusBadge(u.status);
               return (
-                <li key={u.id} className="unit-list-item card">
-                  <div className="unit-list-head">
-                    <Link href={`/units/${u.id}`} className="unit-list-title">
-                      {u.title}
-                    </Link>
-                    <span className={badge.className}>{badge.label}</span>
-                  </div>
-                  <div className="badge-row" style={{ marginTop: "0.55rem" }}>
-                    {u.learner_name && <span className="badge badge-neutral">{u.learner_name}</span>}
-                    <span className="badge badge-subject">{u.subject || "Ohne Fach"}</span>
-                    <span className="badge badge-mode">{taskTypeLabel(u.task_type || "mixed")}</span>
-                    <span className="badge badge-neutral">{languageLabel(u.language)}</span>
-                    <span className="badge badge-neutral">Stufe {u.difficulty}</span>
-                    <span className="badge badge-neutral">{u.source_count} Quellen</span>
-                    <span className="badge badge-neutral">{u.module_count} Blöcke</span>
-                    {u.learn_progress?.status === "completed" && (
-                      <span className="badge badge-ready">Abgeschlossen</span>
-                    )}
-                    {u.learn_progress?.status === "in_progress" && u.learn_progress.percent > 0 && (
-                      <span className="badge badge-neutral">{u.learn_progress.percent}% gelernt</span>
-                    )}
-                  </div>
-                  {u.brief && <p className="unit-list-brief">{u.brief}</p>}
+                <li key={u.id} className="unit-list-item card unit-list-card">
+                  <Link href={`/units/${u.id}`} className="unit-list-link" aria-label={`Einheit öffnen: ${u.title}`}>
+                    <div className="unit-list-head">
+                      <span className="unit-list-title">{u.title}</span>
+                      <span className={badge.className}>{badge.label}</span>
+                    </div>
+                    <div className="badge-row" style={{ marginTop: "0.55rem" }}>
+                      {u.learner_name && <span className="badge badge-neutral">{u.learner_name}</span>}
+                      <span className="badge badge-subject">{u.subject || "Ohne Fach"}</span>
+                      <span className="badge badge-mode">{taskTypeLabel(u.task_type || "mixed")}</span>
+                      <span className="badge badge-neutral">{languageLabel(u.language)}</span>
+                      <span className="badge badge-neutral">Stufe {u.difficulty}</span>
+                      <span className="badge badge-neutral">{u.source_count} Quellen</span>
+                      <span className="badge badge-neutral">{u.module_count} Blöcke</span>
+                      {u.learn_progress?.status === "completed" && (
+                        <span className="badge badge-ready">Abgeschlossen</span>
+                      )}
+                      {u.learn_progress?.status === "in_progress" && u.learn_progress.percent > 0 && (
+                        <span className="badge badge-neutral">{u.learn_progress.percent}% gelernt</span>
+                      )}
+                    </div>
+                    {u.brief && <p className="unit-list-brief">{u.brief}</p>}
+                  </Link>
                   {u.module_count > 0 && (
                     <div className="unit-list-actions">
-                      <Link className="btn btn-primary" href={`/units/${u.id}/learn`}>
+                      <Link
+                        className="btn btn-primary"
+                        href={`/units/${u.id}/learn`}
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         {u.learn_progress?.status === "in_progress"
                           ? "Weiterlernen"
                           : u.learn_progress?.status === "completed"
                             ? "Nochmal"
                             : "Lernen"}
                       </Link>
-                      <Link className="btn ghost" href={`/units/${u.id}`}>
+                      <Link className="btn ghost" href={`/units/${u.id}`} onClick={(e) => e.stopPropagation()}>
                         Bearbeiten
                       </Link>
                     </div>
+                  )}
+                  {u.module_count === 0 && (
+                    <p className="muted unit-list-open-hint">Klick irgendwo auf die Karte zum Öffnen</p>
                   )}
                 </li>
               );

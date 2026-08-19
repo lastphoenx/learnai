@@ -4,11 +4,13 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { AppHeader } from "@/components/AppHeader";
+import { LearnerMultiSelect } from "@/components/LearnerMultiSelect";
 import {
   createUnit,
   fetchMe,
   fetchProfiles,
   fetchUnitTaskTypes,
+  isUnitCreateBatch,
   type LearnerProfile,
   type User,
 } from "@/lib/api";
@@ -32,7 +34,7 @@ export default function NewUnitPage() {
   const [taskType, setTaskType] = useState("mixed");
   const [mathFocus, setMathFocus] = useState("");
   const [autoPurge, setAutoPurge] = useState(false);
-  const [profileId, setProfileId] = useState("");
+  const [profileIds, setProfileIds] = useState<string[]>([]);
   const [profiles, setProfiles] = useState<LearnerProfile[]>([]);
   const [taskTypes, setTaskTypes] = useState<UnitTaskType[]>(FALLBACK_TASK_TYPES);
   const [mathFocusOptions, setMathFocusOptions] = useState<MathFocusOption[]>(FALLBACK_MATH_FOCUS);
@@ -54,7 +56,14 @@ export default function NewUnitPage() {
           fetchProfiles()
             .then((rows) => {
               setProfiles(rows);
-              setProfileId(u.profile_id && rows.some((r) => r.id === u.profile_id) ? u.profile_id : rows[0]?.id || "");
+              const children = rows.filter((r) => r.is_child_profile);
+              if (children.length === 1) {
+                setProfileIds([children[0].id]);
+              } else if (children.length > 1) {
+                setProfileIds(children.map((c) => c.id));
+              } else if (rows[0]) {
+                setProfileIds([rows[0].id]);
+              }
             })
             .catch(() => undefined);
         }
@@ -71,7 +80,7 @@ export default function NewUnitPage() {
   async function onCreate(e: FormEvent) {
     e.preventDefault();
     try {
-      const unit = await createUnit({
+      const result = await createUnit({
         title: title.trim(),
         brief: brief.trim() || undefined,
         subject: subject.trim() || undefined,
@@ -81,9 +90,13 @@ export default function NewUnitPage() {
         task_type: taskType,
         math_focus: mathFocusVisible && mathFocus ? mathFocus : undefined,
         auto_purge_sources: autoPurge,
-        profile_id: profileId || undefined,
+        profile_ids: profileIds.length > 0 ? profileIds : undefined,
       });
-      router.push(`/units/${unit.id}`);
+      if (isUnitCreateBatch(result)) {
+        router.push(`/units/${result.units[0]?.id || ""}`);
+      } else {
+        router.push(`/units/${result.id}`);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Fehler");
     }
@@ -176,18 +189,13 @@ export default function NewUnitPage() {
             </span>
           </label>
         )}
-        {profiles.length > 1 && (
-          <label>
-            Für wen?
-            <select value={profileId} onChange={(e) => setProfileId(e.target.value)}>
-              {profiles.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.display_name}
-                  {p.is_child_profile ? " (Kind)" : ""}
-                </option>
-              ))}
-            </select>
-          </label>
+        {!user?.is_child && profiles.length > 0 && (
+          <LearnerMultiSelect
+            profiles={profiles}
+            selectedIds={profileIds}
+            onChange={setProfileIds}
+            label="Für welche Kinder?"
+          />
         )}
         <label>
           Schwierigkeit (1–5)

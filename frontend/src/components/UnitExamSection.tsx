@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import {
+  analyzeExam,
   deleteExam,
   examFileUrl,
   patchExam,
@@ -117,7 +118,7 @@ export function UnitExamSection({ unitId, exams, onChange, disabled }: Props) {
         <span className="badge badge-neutral">{exams.length}</span>
       </div>
       <p className="muted section-lead">
-        Korrigierte Prüfung hochladen und Note eintragen — Grundlage für spätere Fehleranalyse (Phase B).
+        Korrigierte Prüfung hochladen, Note eintragen und per KI Fehlermuster erkennen lassen.
       </p>
 
       {exams.length > 0 && (
@@ -128,6 +129,7 @@ export function UnitExamSection({ unitId, exams, onChange, disabled }: Props) {
                 <span className="badge badge-exam">{EXAM_TYPE_LABELS[exam.exam_type] || exam.exam_type}</span>
                 <strong>{formatExamGrade(exam)}</strong>
                 <span className="muted">{formatDate(exam.taken_at)}</span>
+                {exam.status === "analyzed" && <span className="badge badge-ready">Analysiert</span>}
                 {exam.original_name && <span className="muted source-flags">{exam.original_name}</span>}
               </div>
               {editingId === exam.id ? (
@@ -152,11 +154,93 @@ export function UnitExamSection({ unitId, exams, onChange, disabled }: Props) {
               ) : (
                 <>
                   {exam.notes && <p className="exam-notes muted">{exam.notes}</p>}
+                  {exam.analysis && (
+                    <div className="exam-analysis">
+                      {exam.analysis.summary && <p>{exam.analysis.summary}</p>}
+                      {(exam.analysis.gaps || []).length > 0 && (
+                        <div>
+                          <strong>Verständnislücken</strong>
+                          <ul>
+                            {(exam.analysis.gaps || []).map((g, i) => (
+                              <li key={i}>{g}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {(exam.analysis.error_patterns || []).length > 0 && (
+                        <div>
+                          <strong>Fehlermuster</strong>
+                          <ul className="exam-pattern-list">
+                            {(exam.analysis.error_patterns || []).map((p, i) => (
+                              <li key={i}>
+                                <span className="badge badge-math">{p.label || p.tag}</span>
+                                {p.count ? ` · ${p.count}×` : ""}
+                                {(p.examples || []).length > 0 && (
+                                  <span className="muted"> — {p.examples?.[0]}</span>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {(exam.analysis.recommendations || []).length > 0 && (
+                        <div>
+                          <strong>Empfehlungen</strong>
+                          <ul>
+                            {(exam.analysis.recommendations || []).map((r, i) => (
+                              <li key={i}>{r}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  )}
                   <div className="source-actions">
                     {exam.has_file && (
                       <a className="btn-sm ghost" href={examFileUrl(unitId, exam.id)} target="_blank" rel="noreferrer">
                         Ansehen
                       </a>
+                    )}
+                    {exam.has_file && exam.status !== "analyzed" && (
+                      <button
+                        type="button"
+                        className="btn-sm btn-primary"
+                        disabled={busy}
+                        onClick={async () => {
+                          setBusy(true);
+                          setError(null);
+                          try {
+                            await analyzeExam(unitId, exam.id);
+                            onChange();
+                          } catch (err) {
+                            setError(err instanceof Error ? err.message : "Analyse fehlgeschlagen");
+                          } finally {
+                            setBusy(false);
+                          }
+                        }}
+                      >
+                        KI-Analyse
+                      </button>
+                    )}
+                    {exam.has_file && exam.status === "analyzed" && (
+                      <button
+                        type="button"
+                        className="btn-sm ghost"
+                        disabled={busy}
+                        onClick={async () => {
+                          setBusy(true);
+                          try {
+                            await analyzeExam(unitId, exam.id);
+                            onChange();
+                          } catch (err) {
+                            setError(err instanceof Error ? err.message : "Analyse fehlgeschlagen");
+                          } finally {
+                            setBusy(false);
+                          }
+                        }}
+                      >
+                        Analyse neu
+                      </button>
                     )}
                     <button type="button" className="btn-sm ghost" onClick={() => startEdit(exam)} disabled={busy}>
                       ✎

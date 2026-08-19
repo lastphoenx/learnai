@@ -16,6 +16,7 @@ from app.schemas import (
     RecordRebuildRequest,
     SourceUrlRequest,
     ExamUpdateRequest,
+    UnitAssignRequest,
     UnitCreateRequest,
     UnitGenerateRequest,
     UnitUpdateRequest,
@@ -29,6 +30,7 @@ from app.services.learn_service import (
     submit_quiz_answer,
 )
 from app.services.exam_service import (
+    analyze_exam,
     create_exam,
     delete_exam,
     get_exam_file,
@@ -36,7 +38,7 @@ from app.services.exam_service import (
     list_exams_for_unit,
     update_exam,
 )
-from app.services.unit_service import UnitError, add_source, add_source_url, create_unit, create_review_from_unit, create_unit_from_record, delete_source, delete_unit, get_record, get_unit, list_records, list_units, purge_source_file_keep_meta, update_unit, update_unit_flags
+from app.services.unit_service import UnitError, add_source, add_source_url, assign_unit_to_profiles, create_unit, create_review_from_unit, create_unit_from_record, create_units, delete_source, delete_unit, get_record, get_unit, list_records, list_units, purge_source_file_keep_meta, update_unit, update_unit_flags
 from app.ai.task_types import math_focus_public, task_types_public
 
 router = APIRouter(prefix="/units", tags=["units"])
@@ -57,6 +59,10 @@ def _http(exc: UnitError) -> HTTPException:
         "bad_url": status.HTTP_400_BAD_REQUEST,
         "invalid_exam_type": status.HTTP_400_BAD_REQUEST,
         "invalid_score": status.HTTP_400_BAD_REQUEST,
+        "invalid_profile": status.HTTP_400_BAD_REQUEST,
+        "already_assigned": status.HTTP_400_BAD_REQUEST,
+        "no_file": status.HTTP_400_BAD_REQUEST,
+        "analysis_failed": status.HTTP_400_BAD_REQUEST,
     }
     return HTTPException(status_code=mapping.get(exc.code, 400), detail=exc.message)
 
@@ -89,7 +95,8 @@ def units_create(
     db: Session = Depends(get_db),
 ):
     try:
-        result = create_unit(
+        profile_ids = [UUID(x) for x in body.profile_ids] if body.profile_ids else None
+        results = create_units(
             db,
             user,
             title=body.title,
@@ -102,9 +109,33 @@ def units_create(
             math_focus=body.math_focus,
             auto_purge_sources=body.auto_purge_sources,
             profile_id=UUID(body.profile_id) if body.profile_id else None,
+            profile_ids=profile_ids,
         )
         db.commit()
-        return result
+        if len(results) == 1:
+            return results[0]
+        return {"units": results, "created_count": len(results)}
+    except UnitError as exc:
+        db.rollback()
+        raise _http(exc) from exc
+
+
+@router.post("/{unit_id}/assign", status_code=status.HTTP_201_CREATED)
+def units_assign(
+    unit_id: UUID,
+    body: UnitAssignRequest,
+    user: User = Depends(get_app_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        result = assign_unit_to_profiles(
+            db,
+            user,
+            unit_id,
+            [UUID(x) for x in body.profile_ids],
+        )
+        db.commit()
+        return {"units": result, "created_count": len(result)}
     except UnitError as exc:
         db.rollback()
         raise _http(exc) from exc
@@ -370,6 +401,22 @@ def units_exam_file(
         )
         return FileResponse(path, media_type=exam.content_type or "application/octet-stream", filename=name)
     except UnitError as exc:
+        raise _http(exc) from exc
+
+
+@router.post("/{unit_id}/exams/{exam_id}/analyze")
+def units_analyze_exam(
+    unit_id: UUID,
+    exam_id: UUID,
+    user: User = Depends(get_app_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        result = analyze_exam(db, user, unit_id, exam_id)
+        db.commit()
+        return result
+    except UnitError as exc:
+        db.rollback()
         raise _http(exc) from exc
 
 

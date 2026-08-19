@@ -181,8 +181,32 @@ export type ExamResult = {
   byte_size: number;
   has_file: boolean;
   status: string;
+  analysis?: ExamAnalysis | null;
   created_at: string;
   updated_at: string;
+};
+
+export type ExamAnalysis = {
+  summary?: string;
+  strengths?: string[];
+  gaps?: string[];
+  error_patterns?: {
+    tag?: string;
+    label?: string;
+    count?: number;
+    examples?: string[];
+  }[];
+  tasks?: {
+    index?: number;
+    description?: string;
+    correct?: boolean;
+    points_earned?: number;
+    max_points?: number;
+    errors?: string[];
+  }[];
+  recommendations?: string[];
+  provider?: string;
+  model?: string;
 };
 
 export type ExamPatchBody = {
@@ -311,7 +335,7 @@ export type UnitTaskTypesResponse = {
 
 export const fetchUnitTaskTypes = () => apiFetch<UnitTaskTypesResponse>("/api/v1/units/task-types");
 export const fetchUnit = (id: string) => apiFetch<LearningUnit>(`/api/v1/units/${id}`);
-export const createUnit = (body: {
+export type UnitCreateBody = {
   title: string;
   brief?: string;
   subject?: string;
@@ -322,7 +346,25 @@ export const createUnit = (body: {
   math_focus?: string;
   auto_purge_sources?: boolean;
   profile_id?: string;
-}) => apiFetch<LearningUnit>("/api/v1/units", { method: "POST", json: body });
+  profile_ids?: string[];
+};
+
+export type UnitCreateBatchResult = { units: LearningUnit[]; created_count: number };
+
+export function isUnitCreateBatch(
+  res: LearningUnit | UnitCreateBatchResult,
+): res is UnitCreateBatchResult {
+  return typeof res === "object" && res !== null && "created_count" in res;
+}
+
+export const createUnit = (body: UnitCreateBody) =>
+  apiFetch<LearningUnit | UnitCreateBatchResult>("/api/v1/units", { method: "POST", json: body });
+
+export const assignUnitToProfiles = (unitId: string, profileIds: string[]) =>
+  apiFetch<UnitCreateBatchResult>(`/api/v1/units/${unitId}/assign`, {
+    method: "POST",
+    json: { profile_ids: profileIds },
+  });
 export type UnitPatchBody = {
   title?: string;
   brief?: string | null;
@@ -393,6 +435,9 @@ export const fetchRecordExams = (recordId: string) =>
 export function examFileUrl(unitId: string, examId: string) {
   return `${API_URL}/api/v1/units/${unitId}/exams/${examId}/file`;
 }
+
+export const analyzeExam = (unitId: string, examId: string) =>
+  apiFetch<ExamResult>(`/api/v1/units/${unitId}/exams/${examId}/analyze`, { method: "POST" });
 
 export const generateUnit = (unitId: string, provider?: string) =>
   apiFetch<LearningUnit>(`/api/v1/units/${unitId}/generate`, {

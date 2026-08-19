@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
+import { UnitAssignSection } from "@/components/UnitAssignSection";
 import { UnitEditDialog } from "@/components/UnitEditDialog";
 import { UnitExamSection } from "@/components/UnitExamSection";
 import {
@@ -12,6 +13,7 @@ import {
   deleteSource,
   deleteUnit,
   fetchMe,
+  fetchProfiles,
   fetchUnit,
   fetchUnitTaskTypes,
   generateUnit,
@@ -20,6 +22,7 @@ import {
   speak,
   uploadSource,
   type LearningUnit,
+  type LearnerProfile,
   type User,
 } from "@/lib/api";
 import {
@@ -57,6 +60,7 @@ export default function UnitDetailPage() {
   const [busy, setBusy] = useState(false);
   const [sourceUrl, setSourceUrl] = useState("");
   const [editOpen, setEditOpen] = useState(false);
+  const [profiles, setProfiles] = useState<LearnerProfile[]>([]);
 
   function reload() {
     fetchUnit(unitId).then(setUnit).catch(() => setError("Einheit nicht gefunden"));
@@ -71,6 +75,9 @@ export default function UnitDetailPage() {
       .catch(() => setError("Nicht angemeldet"));
     fetchUnitTaskTypes()
       .then((d) => setTaskTypes(d.task_types || []))
+      .catch(() => undefined);
+    fetchProfiles()
+      .then(setProfiles)
       .catch(() => undefined);
   }, []);
 
@@ -275,6 +282,15 @@ export default function UnitDetailPage() {
               <span>Fotos nach OCR automatisch löschen (Metadaten bleiben)</span>
             </label>
           </section>
+
+          {user && !user.is_child && (
+            <UnitAssignSection
+              unitId={unitId}
+              currentProfileId={unit.profile_id}
+              profiles={profiles}
+              onAssigned={reload}
+            />
+          )}
 
           <section className="card unit-section">
             <div className="section-head">

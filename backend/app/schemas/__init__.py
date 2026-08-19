@@ -140,6 +140,11 @@ class UnitCreateRequest(BaseModel):
     math_focus: str | None = Field(default=None, max_length=32)
     auto_purge_sources: bool = False
     profile_id: str | None = None
+    profile_ids: list[str] | None = None
+
+
+class UnitAssignRequest(BaseModel):
+    profile_ids: list[str] = Field(min_length=1)
 
 
 class UnitUpdateRequest(BaseModel):

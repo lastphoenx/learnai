@@ -478,6 +478,7 @@ class ExamResult(Base, TimestampMixin):
     content_type: Mapped[str | None] = mapped_column(String(128), nullable=True)
     byte_size: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
     status: Mapped[str] = mapped_column(String(24), default="uploaded", nullable=False)
+    analysis_encrypted: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
     classification: Mapped[int] = mapped_column(
         SmallInteger, default=DataClassification.CONFIDENTIAL, nullable=False
     )

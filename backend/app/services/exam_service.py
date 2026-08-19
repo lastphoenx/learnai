@@ -18,6 +18,11 @@ EXAM_TYPES = frozenset({"klassenarbeit", "test", "muendlich", "sonstiges"})
 
 
 def _dec_exam(exam: ExamResult) -> dict:
+    analysis = None
+    if exam.analysis_encrypted:
+        raw = decrypt_json(exam.analysis_encrypted)
+        if isinstance(raw, dict):
+            analysis = raw
     return {
         "id": str(exam.id),
         "unit_id": str(exam.unit_id) if exam.unit_id else None,
@@ -37,6 +42,7 @@ def _dec_exam(exam: ExamResult) -> dict:
         "byte_size": exam.byte_size,
         "has_file": bool(exam.storage_path),
         "status": exam.status,
+        "analysis": analysis,
         "created_at": exam.created_at.isoformat(),
         "updated_at": exam.updated_at.isoformat(),
     }
@@ -251,6 +257,70 @@ def get_exam_file(db: Session, user: User, unit_id: uuid.UUID, exam_id: uuid.UUI
     if not path:
         raise UnitError("Datei nicht vorhanden", "not_found")
     return exam, path
+
+
+def analyze_exam(
+    db: Session,
+    user: User,
+    unit_id: uuid.UUID,
+    exam_id: uuid.UUID,
+    *,
+    provider: str | None = None,
+) -> dict:
+    from app.ai.errors import LlmError
+    from app.ai.exam_analyze import analyze_exam_content
+    from app.core.crypto import decrypt_text_master
+
+    unit = _get_unit_or_404(db, user, unit_id)
+    exam = _get_exam_or_404(db, user, unit_id, exam_id)
+    path = exam_file_path(exam)
+    if not path:
+        raise UnitError("Keine Datei für die Analyse vorhanden", "no_file")
+
+    title = decrypt_text_master(unit.title_encrypted)
+    grade = decrypt_text_master(exam.grade_label_encrypted) if exam.grade_label_encrypted else None
+    notes = decrypt_text_master(exam.notes_encrypted) if exam.notes_encrypted else None
+
+    try:
+        analysis = analyze_exam_content(
+            path,
+            content_type=exam.content_type,
+            subject=unit.subject,
+            unit_title=title,
+            grade_label=grade,
+            score=exam.score,
+            max_score=exam.max_score,
+            teacher_notes=notes,
+            provider=provider,
+        )
+    except LlmError as exc:
+        raise UnitError(exc.message, "analysis_failed") from exc
+
+    exam.analysis_encrypted = encrypt_json(analysis)
+    exam.status = "analyzed"
+    db.flush()
+
+    record = db.get(LearningRecord, exam.record_id)
+    if record:
+        _add_event(
+            db,
+            record,
+            "exam_analyzed",
+            {
+                "exam_id": str(exam.id),
+                "gap_count": len(analysis.get("gaps") or []),
+                "pattern_count": len(analysis.get("error_patterns") or []),
+            },
+        )
+    log_event(
+        db,
+        tenant_id=user.tenant_id,
+        actor_id=user.id,
+        action="exam.analyze",
+        resource_type="exam_result",
+        resource_id=exam.id,
+    )
+    return _dec_exam(exam)
 
 
 def _purge_exam_file(exam: ExamResult) -> None:

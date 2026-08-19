@@ -317,6 +317,129 @@ def create_unit(
     return _dec_unit(unit)
 
 
+def _resolve_profile_targets(
+    db: Session,
+    user: User,
+    *,
+    profile_id: uuid.UUID | None,
+    profile_ids: list[uuid.UUID] | None,
+) -> list[uuid.UUID | None]:
+    if profile_ids:
+        seen: set[uuid.UUID] = set()
+        ordered: list[uuid.UUID] = []
+        for pid in profile_ids:
+            if pid in seen:
+                continue
+            profile = get_profile_for_actor(db, user, pid)
+            seen.add(profile.id)
+            ordered.append(profile.id)
+        if not ordered:
+            raise UnitError("Kein Profil gewählt", "invalid_profile")
+        return ordered
+    if profile_id:
+        profile = get_profile_for_actor(db, user, profile_id)
+        return [profile.id]
+    return [None]
+
+
+def create_units(
+    db: Session,
+    user: User,
+    *,
+    title: str,
+    brief: str | None = None,
+    subject: str | None = None,
+    language: str = "de",
+    target_age: str | None = None,
+    difficulty: int = 1,
+    task_type: str = "mixed",
+    auto_purge_sources: bool = False,
+    profile_id: uuid.UUID | None = None,
+    profile_ids: list[uuid.UUID] | None = None,
+    math_focus: str | None = None,
+) -> list[dict]:
+    targets = _resolve_profile_targets(db, user, profile_id=profile_id, profile_ids=profile_ids)
+    return [
+        create_unit(
+            db,
+            user,
+            title=title,
+            brief=brief,
+            subject=subject,
+            language=language,
+            target_age=target_age,
+            difficulty=difficulty,
+            task_type=task_type,
+            auto_purge_sources=auto_purge_sources,
+            profile_id=pid,
+            math_focus=math_focus,
+        )
+        for pid in targets
+    ]
+
+
+def assign_unit_to_profiles(
+    db: Session,
+    user: User,
+    unit_id: uuid.UUID,
+    profile_ids: list[uuid.UUID],
+) -> list[dict]:
+    """Kopie der Einheit (inkl. Quellen) für weitere Kinder-Profile."""
+    unit = _get_unit_or_404(db, user, unit_id)
+    if not profile_ids:
+        raise UnitError("Keine Profile gewählt", "invalid_profile")
+
+    title = decrypt_text_master(unit.title_encrypted)
+    brief = decrypt_text_master(unit.brief_encrypted) if unit.brief_encrypted else None
+    math_focus = None
+    src_record = db.query(LearningRecord).filter(LearningRecord.unit_id == unit.id).first()
+    if src_record and src_record.reconstruction_encrypted:
+        src_recon = decrypt_json(src_record.reconstruction_encrypted)
+        if isinstance(src_recon, dict):
+            focus = (src_recon.get("math_focus") or "").strip()
+            math_focus = focus or None
+
+    created: list[dict] = []
+    seen: set[uuid.UUID | None] = {unit.profile_id}
+    for pid in profile_ids:
+        if pid in seen:
+            continue
+        get_profile_for_actor(db, user, pid)
+        seen.add(pid)
+        result = create_unit(
+            db,
+            user,
+            title=title,
+            brief=brief,
+            subject=unit.subject,
+            language=unit.language,
+            target_age=unit.target_age,
+            difficulty=unit.difficulty,
+            task_type=unit.task_type,
+            math_focus=math_focus,
+            auto_purge_sources=unit.auto_purge_sources,
+            profile_id=pid,
+        )
+        new_unit = db.get(LearningUnit, uuid.UUID(result["id"]))
+        if new_unit:
+            _copy_sources(db, unit, new_unit)
+            created.append(_dec_unit(new_unit))
+        else:
+            created.append(result)
+    if not created:
+        raise UnitError("Einheit ist bereits allen gewählten Kindern zugewiesen", "already_assigned")
+    log_event(
+        db,
+        tenant_id=user.tenant_id,
+        actor_id=user.id,
+        action="unit.assign",
+        resource_type="learning_unit",
+        resource_id=unit.id,
+        detail=f"copies={len(created)}",
+    )
+    return created
+
+
 def create_unit_from_record(
     db: Session,
     user: User,
