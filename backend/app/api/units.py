@@ -16,6 +16,7 @@ from app.schemas import (
     RecordRebuildRequest,
     SourceUrlRequest,
     ExamUpdateRequest,
+    ExamAnalysisUpdateRequest,
     UnitAssignRequest,
     UnitCreateRequest,
     UnitGenerateRequest,
@@ -38,6 +39,7 @@ from app.services.exam_service import (
     list_exams_for_record,
     list_exams_for_unit,
     update_exam,
+    update_exam_analysis,
 )
 from app.services.unit_service import UnitError, add_source, add_source_url, assign_unit_to_profiles, create_unit, create_review_from_unit, create_unit_from_record, create_units, delete_source, delete_unit, get_record, get_unit, list_records, list_units, purge_source_file_keep_meta, update_unit, update_unit_flags
 from app.ai.task_types import math_focus_public, task_types_public
@@ -403,6 +405,34 @@ def units_exam_file(
         )
         return FileResponse(path, media_type=exam.content_type or "application/octet-stream", filename=name)
     except UnitError as exc:
+        raise _http(exc) from exc
+
+
+@router.patch("/{unit_id}/exams/{exam_id}/analysis")
+def units_patch_exam_analysis(
+    unit_id: UUID,
+    exam_id: UUID,
+    body: ExamAnalysisUpdateRequest,
+    user: User = Depends(get_app_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        result = update_exam_analysis(
+            db,
+            user,
+            unit_id,
+            exam_id,
+            summary=body.summary,
+            strengths=body.strengths,
+            gaps=body.gaps,
+            error_patterns=body.error_patterns,
+            tasks=body.tasks,
+            recommendations=body.recommendations,
+        )
+        db.commit()
+        return result
+    except UnitError as exc:
+        db.rollback()
         raise _http(exc) from exc
 
 

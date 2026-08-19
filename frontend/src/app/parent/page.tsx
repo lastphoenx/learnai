@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
+import { TransferComparison } from "@/components/TransferComparison";
 import {
   childReportUrl,
   createReviewUnit,
@@ -168,6 +169,11 @@ export default function ParentDashboardPage() {
                             {formatDate(row.taken_at)} · {row.grade_label || "—"}
                             {row.has_analysis ? " · analysiert" : ""}
                           </span>
+                          {row.transfer && (
+                            <div style={{ marginTop: "0.5rem" }}>
+                              <TransferComparison transfer={row.transfer} compact />
+                            </div>
+                          )}
                           {row.unit_id && (
                             <p style={{ margin: "0.5rem 0 0" }}>
                               <Link className="btn btn-sm" href={`/units/${row.unit_id}`}>

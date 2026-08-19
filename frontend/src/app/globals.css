@@ -1122,6 +1122,49 @@ button:disabled {
   margin-top: 0.25rem;
 }
 
+.exam-transfer {
+  margin: 0.75rem 0;
+  padding: 0.65rem 0.85rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface-2, var(--card));
+}
+
+.exam-transfer-alert {
+  border-color: color-mix(in srgb, var(--warn, #c9a227) 55%, var(--border));
+  background: color-mix(in srgb, var(--warn, #c9a227) 8%, var(--card));
+}
+
+.exam-analysis-editor {
+  margin-top: 0.75rem;
+  padding: 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2, var(--card));
+}
+
+.exam-task-edit-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.exam-task-edit-item {
+  padding: 0.75rem;
+  box-shadow: none;
+}
+
+.exam-task-correct-label {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  align-self: end;
+  padding-bottom: 0.35rem;
+}
+
 .parent-child-card .section-head {
   display: flex;
   align-items: center;

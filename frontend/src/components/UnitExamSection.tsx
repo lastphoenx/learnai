@@ -8,10 +8,15 @@ import {
   deleteExam,
   examFileUrl,
   patchExam,
+  patchExamAnalysis,
   uploadExam,
+  type ExamAnalysis,
   type ExamResult,
   type ExamPatchBody,
 } from "@/lib/api";
+import { ExamAnalysisEditor } from "@/components/ExamAnalysisEditor";
+import { TransferComparison } from "@/components/TransferComparison";
+import { labelForErrorTag } from "@/lib/examErrorTags";
 
 const EXAM_TYPE_LABELS: Record<string, string> = {
   klassenarbeit: "Klassenarbeit",
@@ -55,6 +60,7 @@ export function UnitExamSection({ unitId, exams, onChange, disabled }: Props) {
   const [notes, setNotes] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingAnalysisId, setEditingAnalysisId] = useState<string | null>(null);
   const [editGrade, setEditGrade] = useState("");
   const [editNotes, setEditNotes] = useState("");
 
@@ -132,6 +138,7 @@ export function UnitExamSection({ unitId, exams, onChange, disabled }: Props) {
                 <strong>{formatExamGrade(exam)}</strong>
                 <span className="muted">{formatDate(exam.taken_at)}</span>
                 {exam.status === "analyzed" && <span className="badge badge-ready">Analysiert</span>}
+                {exam.analysis_edited && <span className="badge badge-neutral">Manuell bearbeitet</span>}
                 {exam.status === "action_created" && <span className="badge badge-ready">Nacharbeit</span>}
                 {exam.original_name && <span className="muted source-flags">{exam.original_name}</span>}
               </div>
@@ -157,7 +164,35 @@ export function UnitExamSection({ unitId, exams, onChange, disabled }: Props) {
               ) : (
                 <>
                   {exam.notes && <p className="exam-notes muted">{exam.notes}</p>}
-                  {exam.analysis && (
+                  {exam.transfer && <TransferComparison transfer={exam.transfer} />}
+                  {exam.analysis && editingAnalysisId === exam.id ? (
+                    <ExamAnalysisEditor
+                      analysis={exam.analysis}
+                      busy={busy}
+                      onCancel={() => setEditingAnalysisId(null)}
+                      onSave={async (updated: ExamAnalysis) => {
+                        setBusy(true);
+                        setError(null);
+                        try {
+                          await patchExamAnalysis(unitId, exam.id, {
+                            summary: updated.summary ?? null,
+                            strengths: updated.strengths ?? null,
+                            gaps: updated.gaps ?? null,
+                            error_patterns: updated.error_patterns ?? null,
+                            tasks: updated.tasks ?? null,
+                            recommendations: updated.recommendations ?? null,
+                          });
+                          setEditingAnalysisId(null);
+                          onChange();
+                        } catch (err) {
+                          setError(err instanceof Error ? err.message : "Speichern fehlgeschlagen");
+                        } finally {
+                          setBusy(false);
+                        }
+                      }}
+                    />
+                  ) : (
+                    exam.analysis && (
                     <div className="exam-analysis">
                       {exam.analysis.summary && <p>{exam.analysis.summary}</p>}
                       {(exam.analysis.gaps || []).length > 0 && (
@@ -213,7 +248,7 @@ export function UnitExamSection({ unitId, exams, onChange, disabled }: Props) {
                                   <span className="exam-task-tags">
                                     {(t.error_tags || []).map((tag) => (
                                       <span key={tag} className="badge badge-math">
-                                        {tag.replace(/_/g, " ")}
+                                        {labelForErrorTag(tag)}
                                       </span>
                                     ))}
                                   </span>
@@ -227,8 +262,19 @@ export function UnitExamSection({ unitId, exams, onChange, disabled }: Props) {
                         </div>
                       )}
                     </div>
+                    )
                   )}
                   <div className="source-actions">
+                    {exam.analysis && (
+                      <button
+                        type="button"
+                        className="btn-sm ghost"
+                        disabled={busy}
+                        onClick={() => setEditingAnalysisId(exam.id)}
+                      >
+                        Analyse bearbeiten
+                      </button>
+                    )}
                     {exam.has_file && (
                       <a className="btn-sm ghost" href={examFileUrl(unitId, exam.id)} target="_blank" rel="noreferrer">
                         Ansehen

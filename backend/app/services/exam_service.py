@@ -26,13 +26,153 @@ from app.services.unit_service import (
 EXAM_TYPES = frozenset({"klassenarbeit", "test", "muendlich", "sonstiges"})
 
 
-def _dec_exam(exam: ExamResult) -> dict:
+def compute_transfer_comparison(
+    db: Session,
+    *,
+    unit_id: uuid.UUID | None,
+    score: int | None,
+    max_score: int | None,
+) -> dict | None:
+    """App-Quiz vs. Schulprüfung für dieselbe Lerneinheit."""
+    from app.services.learn_service import learn_progress_for_unit
+
+    if not unit_id:
+        return None
+    prog = learn_progress_for_unit(db, unit_id)
+    if not prog:
+        return None
+
+    quiz_correct = int(prog.get("quiz_correct") or 0)
+    quiz_total = int(prog.get("quiz_total") or 0)
+    quiz_percent = round(100 * quiz_correct / quiz_total) if quiz_total else None
+    exam_percent = round(100 * score / max_score) if score is not None and max_score and max_score > 0 else None
+
+    if quiz_percent is None and exam_percent is None:
+        return None
+
+    gap: int | None = None
+    signal = "insufficient_data"
+    if quiz_percent is not None and exam_percent is not None:
+        gap = quiz_percent - exam_percent
+        if gap >= 15:
+            signal = "transfer_gap"
+        elif gap <= -15:
+            signal = "exam_better"
+        else:
+            signal = "aligned"
+    elif quiz_percent is not None:
+        signal = "quiz_only"
+    else:
+        signal = "exam_only"
+
+    return {
+        "quiz_correct": quiz_correct,
+        "quiz_total": quiz_total,
+        "quiz_percent": quiz_percent,
+        "exam_score": score,
+        "exam_max_score": max_score,
+        "exam_percent": exam_percent,
+        "gap_percent": gap,
+        "signal": signal,
+    }
+
+
+def _clean_str_list(items: list | None, *, max_items: int = 30, max_len: int = 2000) -> list[str]:
+    if not items:
+        return []
+    out: list[str] = []
+    for raw in items[:max_items]:
+        text = str(raw).strip()
+        if text:
+            out.append(text[:max_len])
+    return out
+
+
+def _clean_error_patterns(patterns: list | None) -> list[dict]:
+    if not patterns:
+        return []
+    out: list[dict] = []
+    for raw in patterns[:30]:
+        if not isinstance(raw, dict):
+            continue
+        tag = str(raw.get("tag") or "").strip().lower()[:64]
+        label = str(raw.get("label") or "").strip()[:200]
+        if not tag and not label:
+            continue
+        item: dict = {"tag": tag or label.lower().replace(" ", "_")[:64], "label": label or tag}
+        count = raw.get("count")
+        if isinstance(count, int) and count >= 0:
+            item["count"] = count
+        examples = _clean_str_list(raw.get("examples") if isinstance(raw.get("examples"), list) else None, max_items=5)
+        if examples:
+            item["examples"] = examples
+        out.append(item)
+    return out
+
+
+def _clean_tasks(tasks: list | None) -> list[dict]:
+    if not tasks:
+        return []
+    out: list[dict] = []
+    for i, raw in enumerate(tasks[:40]):
+        if not isinstance(raw, dict):
+            continue
+        idx = raw.get("index")
+        if not isinstance(idx, int) or idx < 1:
+            idx = i + 1
+        desc = str(raw.get("description") or "").strip()[:2000]
+        item: dict = {
+            "index": idx,
+            "description": desc or f"Aufgabe {idx}",
+            "correct": bool(raw.get("correct")),
+        }
+        for key in ("points_earned", "max_points"):
+            val = raw.get(key)
+            if isinstance(val, int) and val >= 0:
+                item[key] = val
+        errors = _clean_str_list(raw.get("errors") if isinstance(raw.get("errors"), list) else None, max_items=8)
+        if errors:
+            item["errors"] = errors
+        tags: list[str] = []
+        for raw_tag in raw.get("error_tags") or []:
+            tag = str(raw_tag).strip().lower()[:64]
+            if tag and tag not in tags:
+                tags.append(tag)
+        if tags:
+            item["error_tags"] = tags[:12]
+        out.append(item)
+    return out
+
+
+def _normalize_analysis_payload(data: dict, existing: dict | None) -> dict:
+    out: dict = {
+        "summary": str(data.get("summary") or "").strip()[:8000],
+        "strengths": _clean_str_list(data.get("strengths") if isinstance(data.get("strengths"), list) else None),
+        "gaps": _clean_str_list(data.get("gaps") if isinstance(data.get("gaps"), list) else None),
+        "error_patterns": _clean_error_patterns(
+            data.get("error_patterns") if isinstance(data.get("error_patterns"), list) else None
+        ),
+        "tasks": _clean_tasks(data.get("tasks") if isinstance(data.get("tasks"), list) else None),
+        "recommendations": _clean_str_list(
+            data.get("recommendations") if isinstance(data.get("recommendations"), list) else None
+        ),
+        "edited_by_human": True,
+        "edited_at": datetime.now(timezone.utc).isoformat(),
+    }
+    if isinstance(existing, dict):
+        for key in ("provider", "model"):
+            if existing.get(key):
+                out[key] = existing[key]
+    return out
+
+
+def _dec_exam(exam: ExamResult, db: Session | None = None) -> dict:
     analysis = None
     if exam.analysis_encrypted:
         raw = decrypt_json(exam.analysis_encrypted)
         if isinstance(raw, dict):
             analysis = raw
-    return {
+    result = {
         "id": str(exam.id),
         "unit_id": str(exam.unit_id) if exam.unit_id else None,
         "record_id": str(exam.record_id),
@@ -52,10 +192,18 @@ def _dec_exam(exam: ExamResult) -> dict:
         "has_file": bool(exam.storage_path),
         "status": exam.status,
         "analysis": analysis,
+        "analysis_edited": bool(isinstance(analysis, dict) and analysis.get("edited_by_human")),
         "remediation_unit_id": str(exam.remediation_unit_id) if exam.remediation_unit_id else None,
         "created_at": exam.created_at.isoformat(),
         "updated_at": exam.updated_at.isoformat(),
     }
+    if db and exam.unit_id:
+        transfer = compute_transfer_comparison(
+            db, unit_id=exam.unit_id, score=exam.score, max_score=exam.max_score
+        )
+        if transfer:
+            result["transfer"] = transfer
+    return result
 
 
 def _get_record_for_unit(db: Session, unit_id: uuid.UUID) -> LearningRecord:
@@ -81,7 +229,7 @@ def list_exams_for_unit(db: Session, user: User, unit_id: uuid.UUID) -> list[dic
         .order_by(ExamResult.taken_at.desc().nullslast(), ExamResult.created_at.desc())
         .all()
     )
-    return [_dec_exam(e) for e in rows]
+    return [_dec_exam(e, db) for e in rows]
 
 
 def list_exams_for_record(db: Session, user: User, record_id: uuid.UUID) -> list[dict]:
@@ -94,7 +242,7 @@ def list_exams_for_record(db: Session, user: User, record_id: uuid.UUID) -> list
         .order_by(ExamResult.taken_at.desc().nullslast(), ExamResult.created_at.desc())
         .all()
     )
-    return [_dec_exam(e) for e in rows]
+    return [_dec_exam(e, db) for e in rows]
 
 
 def create_exam(
@@ -179,7 +327,7 @@ def create_exam(
         resource_id=exam.id,
         detail=f"unit={unit.id}",
     )
-    return _dec_exam(exam)
+    return _dec_exam(exam, db)
 
 
 def update_exam(
@@ -237,7 +385,55 @@ def update_exam(
         exam.notes_encrypted = encrypt_text_master(notes.strip()) if notes.strip() else None
 
     db.flush()
-    return _dec_exam(exam)
+    return _dec_exam(exam, db)
+
+
+def update_exam_analysis(
+    db: Session,
+    user: User,
+    unit_id: uuid.UUID,
+    exam_id: uuid.UUID,
+    *,
+    summary: str | None = None,
+    strengths: list[str] | None = None,
+    gaps: list[str] | None = None,
+    error_patterns: list[dict] | None = None,
+    tasks: list[dict] | None = None,
+    recommendations: list[str] | None = None,
+) -> dict:
+    """Manuelle Korrektur der KI-Analyse."""
+    exam = _get_exam_or_404(db, user, unit_id, exam_id)
+    if not exam.analysis_encrypted:
+        raise UnitError("Keine Analyse vorhanden — zuerst KI-Analyse durchführen", "not_analyzed")
+
+    existing = decrypt_json(exam.analysis_encrypted)
+    base = existing if isinstance(existing, dict) else {}
+    payload = {
+        "summary": summary if summary is not None else base.get("summary"),
+        "strengths": strengths if strengths is not None else base.get("strengths"),
+        "gaps": gaps if gaps is not None else base.get("gaps"),
+        "error_patterns": error_patterns if error_patterns is not None else base.get("error_patterns"),
+        "tasks": tasks if tasks is not None else base.get("tasks"),
+        "recommendations": recommendations if recommendations is not None else base.get("recommendations"),
+    }
+    normalized = _normalize_analysis_payload(payload, base)
+    exam.analysis_encrypted = encrypt_json(normalized)
+    if exam.status == "uploaded":
+        exam.status = "analyzed"
+    db.flush()
+
+    record = db.get(LearningRecord, exam.record_id)
+    if record:
+        _add_event(db, record, "exam_analysis_edited", {"exam_id": str(exam.id)})
+    log_event(
+        db,
+        tenant_id=user.tenant_id,
+        actor_id=user.id,
+        action="exam.analysis_update",
+        resource_type="exam_result",
+        resource_id=exam.id,
+    )
+    return _dec_exam(exam, db)
 
 
 def delete_exam(db: Session, user: User, unit_id: uuid.UUID, exam_id: uuid.UUID) -> None:
@@ -336,7 +532,7 @@ def analyze_exam(
         resource_type="exam_result",
         resource_id=exam.id,
     )
-    return _dec_exam(exam)
+    return _dec_exam(exam, db)
 
 
 def _infer_math_focus(analysis: dict, parent_focus: str | None) -> str | None:
@@ -412,7 +608,7 @@ def create_remediation_from_exam(
     if exam.remediation_unit_id:
         existing = db.get(LearningUnit, exam.remediation_unit_id)
         if existing and existing.tenant_id == user.tenant_id:
-            return {"exam": _dec_exam(exam), "unit": _dec_unit(existing)}
+            return {"exam": _dec_exam(exam, db), "unit": _dec_unit(existing)}
         exam.remediation_unit_id = None
 
     if not exam.analysis_encrypted:
@@ -487,7 +683,7 @@ def create_remediation_from_exam(
         resource_id=exam.id,
         detail=f"unit={new_unit.id}",
     )
-    return {"exam": _dec_exam(exam), "unit": _dec_unit(new_unit)}
+    return {"exam": _dec_exam(exam, db), "unit": _dec_unit(new_unit)}
 
 
 def _purge_exam_file(exam: ExamResult) -> None:

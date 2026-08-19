@@ -183,7 +183,7 @@ def get_unit(db: Session, user: User, unit_id: uuid.UUID) -> dict:
         .order_by(ExamResult.taken_at.desc().nullslast(), ExamResult.created_at.desc())
         .all()
     )
-    data["exams"] = [_dec_exam(e) for e in exam_rows]
+    data["exams"] = [_dec_exam(e, db) for e in exam_rows]
     record = db.query(LearningRecord).filter(LearningRecord.unit_id == unit.id).first()
     if record and record.reconstruction_encrypted:
         recon = decrypt_json(record.reconstruction_encrypted)

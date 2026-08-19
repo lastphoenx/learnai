@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session, joinedload
 
 from app.ai.error_tags import collect_tags_from_analysis, label_for_tag
+from app.services.exam_service import compute_transfer_comparison
 from app.core.crypto import decrypt_text_master
 from app.models import ExamResult, LearningProfile, LearningRecord, LearningUnit, User
 from app.services.crypto_json import decrypt_json
@@ -67,6 +68,9 @@ def exam_insights_for_profile(db: Session, tenant_id: uuid.UUID, profile_id: uui
                 analysis = raw
         grade = _exam_grade_display(exam)
         taken = exam.taken_at.isoformat() if exam.taken_at else exam.created_at.isoformat()
+        transfer = compute_transfer_comparison(
+            db, unit_id=exam.unit_id, score=exam.score, max_score=exam.max_score
+        )
         timeline.append(
             {
                 "exam_id": str(exam.id),
@@ -79,6 +83,7 @@ def exam_insights_for_profile(db: Session, tenant_id: uuid.UUID, profile_id: uui
                 "has_analysis": bool(analysis),
                 "status": exam.status,
                 "remediation_unit_id": str(exam.remediation_unit_id) if exam.remediation_unit_id else None,
+                "transfer": transfer,
             }
         )
         if analysis and exam.status == "analyzed" and not exam.remediation_unit_id:

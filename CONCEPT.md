@@ -55,8 +55,8 @@ Lernen in der App (Quiz, Blöcke) ≠ echte Schulprüfung. Beides muss verbunden
 | Thema | Status | Anmerkung |
 |-------|--------|-----------|
 | Fehlermuster über mehrere Prüfungen | ✅ | Aggregation im Eltern-Dashboard (Phase D) |
-| Manuelle Korrektur der KI-Analyse | fehlt | Lehrperson korrigiert erkannte Aufgaben/Fehler |
-| Vergleich App-Quiz vs. Schulprüfung | fehlt | «In der App 90 %, in der Prüfung 60 %» → Transferproblem |
+| Manuelle Korrektur der KI-Analyse | ✅ | PATCH analysis + UI «Analyse bearbeiten» |
+| Vergleich App-Quiz vs. Schulprüfung | ✅ | `transfer` pro Prüfung (Einheit + Eltern-Dashboard) |
 | Spaced Repetition / Erinnerungsplan | teilweise | Wiederholungs-Hinweis nach 7 Tagen (Kinder-Übersicht) |
 | Offline / Druck | fehlt | Arbeitsblatt exportieren (PDF) |
 | Mehrere Kinder gleiche Einheit | teilweise | Zuweisung an Profile; kein «Vorlage duplizieren» |
@@ -94,6 +94,15 @@ Lernen in der App (Quiz, Blöcke) ≠ echte Schulprüfung. Beides muss verbunden
 - Wiederholungs-Erinnerungen (7 Tage nach Abschluss einer Einheit)
 - Export Markdown-Bericht für Elterngespräche (`GET /dashboard/parent/report/{profile_id}`)
 
+### Phase E — Analyse editieren ✅ *implementiert*
+- `PATCH /units/{id}/exams/{exam_id}/analysis` — manuelle Korrektur (Aufgaben, Tags, Lücken)
+- UI: «Analyse bearbeiten» auf Einheitsseite; Flag `analysis_edited`
+
+### Phase F — Transfer App vs. Prüfung ✅ *implementiert*
+- Vergleich Quiz-% vs. Prüfungs-% pro Einheit (`transfer` in Exam-API)
+- Anzeige auf Einheitsseite und Eltern-Prüfungsverlauf
+- Signale: `transfer_gap` (≥15 % App besser), `aligned`, `exam_better`
+
 ### exam_item / error_tags (Stand)
 - **Keine eigene `exam_items`-Tabelle** — Aufgaben liegen in `analysis.tasks[]` (JSON, Phase B)
 - Pro Aufgabe: `error_tags[]` (z. B. `fractions_denominator`, `unit_conversion`) via KI-Analyse
@@ -117,7 +126,6 @@ Beides existiert nebeneinander und wird im Verlauf des Kindes zusammengeführt.
 
 ## Nächste Schritte (optional)
 
-1. **KI-Analyse manuell korrigieren** — erkannte Aufgaben/Fehler im UI editierbar
-2. **Transfer-Analyse** — App-Quiz-Ergebnis vs. Schulprüfung vergleichen
-3. **PDF-Export** — Arbeitsblatt / Bericht drucken
-4. **Benachrichtigungen** — E-Mail/Push bei Abschluss oder Prüfungserinnerung
+1. **PDF-Export** — Elternbericht und Arbeitsblatt drucken
+2. **Benachrichtigungen** — E-Mail/Push bei Abschluss oder Prüfungserinnerung
+3. **Datenschutz Prüfungsfotos** — Aufbewahrungsfrist formalisieren

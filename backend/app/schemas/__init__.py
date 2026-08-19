@@ -199,6 +199,17 @@ class ExamUpdateRequest(BaseModel):
     clear_notes: bool = False
 
 
+class ExamAnalysisUpdateRequest(BaseModel):
+    """Manuelle Korrektur der KI-Prüfungsanalyse (strukturiertes JSON)."""
+
+    summary: str | None = Field(default=None, max_length=8000)
+    strengths: list[str] | None = None
+    gaps: list[str] | None = None
+    error_patterns: list[dict] | None = None
+    tasks: list[dict] | None = None
+    recommendations: list[str] | None = None
+
+
 class ProjectCreateRequest(BaseModel):
     name: str = Field(min_length=1, max_length=256)
     description: str | None = Field(default=None, max_length=4096)

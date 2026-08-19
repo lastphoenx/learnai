@@ -166,6 +166,23 @@ export type LearningUnit = {
   exams?: ExamResult[];
 };
 
+export type ExamTransfer = {
+  quiz_correct: number;
+  quiz_total: number;
+  quiz_percent: number | null;
+  exam_score: number | null;
+  exam_max_score: number | null;
+  exam_percent: number | null;
+  gap_percent: number | null;
+  signal:
+    | "transfer_gap"
+    | "exam_better"
+    | "aligned"
+    | "quiz_only"
+    | "exam_only"
+    | "insufficient_data";
+};
+
 export type ExamResult = {
   id: string;
   unit_id: string | null;
@@ -182,6 +199,8 @@ export type ExamResult = {
   has_file: boolean;
   status: string;
   analysis?: ExamAnalysis | null;
+  analysis_edited?: boolean;
+  transfer?: ExamTransfer | null;
   remediation_unit_id?: string | null;
   created_at: string;
   updated_at: string;
@@ -209,6 +228,15 @@ export type ExamAnalysis = {
   recommendations?: string[];
   provider?: string;
   model?: string;
+};
+
+export type ExamAnalysisPatchBody = {
+  summary?: string | null;
+  strengths?: string[] | null;
+  gaps?: string[] | null;
+  error_patterns?: ExamAnalysis["error_patterns"];
+  tasks?: ExamAnalysis["tasks"];
+  recommendations?: string[] | null;
 };
 
 export type ExamPatchBody = {
@@ -428,6 +456,9 @@ export async function uploadExam(unitId: string, file: File, meta: ExamUploadMet
 export const patchExam = (unitId: string, examId: string, body: ExamPatchBody) =>
   apiFetch<ExamResult>(`/api/v1/units/${unitId}/exams/${examId}`, { method: "PATCH", json: body });
 
+export const patchExamAnalysis = (unitId: string, examId: string, body: ExamAnalysisPatchBody) =>
+  apiFetch<ExamResult>(`/api/v1/units/${unitId}/exams/${examId}/analysis`, { method: "PATCH", json: body });
+
 export const deleteExam = (unitId: string, examId: string) =>
   apiFetch<void>(`/api/v1/units/${unitId}/exams/${examId}`, { method: "DELETE" });
 
@@ -540,6 +571,7 @@ export type ChildExamInsights = {
     has_analysis: boolean;
     status: string;
     remediation_unit_id: string | null;
+    transfer?: ExamTransfer | null;
   }[];
   error_tags: { tag: string; label: string; count: number; exam_count: number }[];
   review_due: {
