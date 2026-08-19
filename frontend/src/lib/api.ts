@@ -103,10 +103,10 @@ export const verify2fa = (totp_code?: string, recovery_code?: string) =>
     json: { totp_code, recovery_code },
   });
 export const logout = () => apiFetch<void>("/api/v1/auth/logout", { method: "POST" });
-export const setup2fa = (email: string, password: string) =>
+export const setup2fa = (email: string) =>
   apiFetch<{ provisioning_uri: string; secret: string }>("/api/v1/auth/2fa/setup", {
     method: "POST",
-    json: { email, password },
+    json: { email },
   });
 export const confirm2fa = (code: string, email: string) =>
   apiFetch<{ recovery_codes: string[] }>("/api/v1/auth/2fa/confirm", {

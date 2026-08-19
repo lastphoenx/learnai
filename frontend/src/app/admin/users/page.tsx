@@ -26,7 +26,7 @@ export default function AdminUsersPage() {
 
   if (error && !user) {
     return (
-      <main style={{ maxWidth: 720, margin: "3rem auto", padding: "0 1.5rem" }}>
+      <main className="shell">
         <p>{error}</p>
         <Link href="/login">Zum Login</Link>
       </main>
@@ -34,7 +34,7 @@ export default function AdminUsersPage() {
   }
 
   return (
-    <main style={{ maxWidth: 800, margin: "3rem auto", padding: "0 1.5rem" }}>
+      <main className="shell">
       <AppHeader user={user} title="Benutzer / 2FA-Policy" />
       <p style={{ color: "var(--muted)" }}>
         2FA ist pro Account steuerbar: Pflicht oder optional. Wenn sie einmal eingerichtet ist, gilt

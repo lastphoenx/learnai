@@ -11,25 +11,17 @@ export function AppHeader({ user, title }: { user?: User | null; title: string }
   }
 
   return (
-    <header
-      style={{
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "flex-start",
-        gap: "1rem",
-        marginBottom: "2rem",
-      }}
-    >
+    <header className="app-header">
       <div>
-        <h1 style={{ margin: 0 }}>{title}</h1>
-        <nav style={{ marginTop: "0.5rem", display: "flex", gap: "0.75rem", fontSize: "0.9rem" }}>
+        <h1>{title}</h1>
+        <nav className="app-nav">
           <Link href="/units">Einheiten</Link>
           <Link href="/history">Verlauf</Link>
           <Link href="/settings">Einstellungen</Link>
           {user?.is_admin && <Link href="/admin/users">Benutzer</Link>}
         </nav>
       </div>
-      <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+      <div className="header-actions">
         <ThemeToggle />
         {user && (
           <button type="button" onClick={onLogout}>

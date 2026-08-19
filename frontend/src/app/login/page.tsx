@@ -51,57 +51,59 @@ export default function LoginPage() {
   }
 
   return (
-    <main style={{ maxWidth: 400, margin: "4rem auto", padding: "0 1.5rem" }}>
-      <header style={{ display: "flex", justifyContent: "space-between", marginBottom: "2rem" }}>
-        <h1 style={{ margin: 0 }}>Anmelden</h1>
+    <main className="shell" style={{ maxWidth: 28rem }}>
+      <header className="app-header">
+        <h1>Anmelden</h1>
         <ThemeToggle />
       </header>
 
-      {!needs2fa ? (
-        <form onSubmit={onLogin} style={{ display: "grid", gap: "1rem" }}>
-          <label>
-            E-Mail
+      <section className="card">
+        {!needs2fa ? (
+          <form onSubmit={onLogin} className="stack">
+            <label>
+              E-Mail
+              <input
+                type="email"
+                required
+                autoComplete="username"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </label>
+            <label>
+              Passwort
+              <input
+                type="password"
+                required
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </label>
+            {error && <p className="err">{error}</p>}
+            <button type="submit" disabled={loading}>
+              {loading ? "…" : "Login"}
+            </button>
+          </form>
+        ) : (
+          <form onSubmit={on2fa} className="stack">
+            <p className="muted">6-stelliger Code aus der Authenticator-App:</p>
             <input
-              type="email"
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
               required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              style={{ display: "block", width: "100%", marginTop: 4, padding: 8 }}
+              value={totpCode}
+              onChange={(e) => setTotpCode(e.target.value)}
+              placeholder="123456"
             />
-          </label>
-          <label>
-            Passwort
-            <input
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              style={{ display: "block", width: "100%", marginTop: 4, padding: 8 }}
-            />
-          </label>
-          {error && <p style={{ color: "#ef4444", margin: 0 }}>{error}</p>}
-          <button type="submit" disabled={loading}>
-            {loading ? "…" : "Login"}
-          </button>
-        </form>
-      ) : (
-        <form onSubmit={on2fa} style={{ display: "grid", gap: "1rem" }}>
-          <p style={{ color: "var(--muted)" }}>2FA-Code aus der Authenticator-App:</p>
-          <input
-            type="text"
-            inputMode="numeric"
-            required
-            value={totpCode}
-            onChange={(e) => setTotpCode(e.target.value)}
-            placeholder="123456"
-            style={{ padding: 8 }}
-          />
-          {error && <p style={{ color: "#ef4444", margin: 0 }}>{error}</p>}
-          <button type="submit" disabled={loading}>
-            {loading ? "…" : "Bestätigen"}
-          </button>
-        </form>
-      )}
+            {error && <p className="err">{error}</p>}
+            <button type="submit" disabled={loading}>
+              {loading ? "…" : "Bestätigen"}
+            </button>
+          </form>
+        )}
+      </section>
     </main>
   );
 }

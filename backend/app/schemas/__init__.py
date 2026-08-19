@@ -19,9 +19,13 @@ class TwoFactorVerifyRequest(BaseModel):
     recovery_code: str | None = None
 
 
+class TwoFactorSetupRequest(BaseModel):
+    email: EmailStr
+
+
 class TwoFactorConfirmRequest(BaseModel):
     code: str = Field(min_length=6, max_length=8)
-    email: EmailStr
+    email: EmailStr | None = None
 
 
 class TwoFactorSetupResponse(BaseModel):

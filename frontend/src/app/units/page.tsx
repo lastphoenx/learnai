@@ -24,7 +24,7 @@ export default function UnitsPage() {
 
   if (error && !user) {
     return (
-      <main style={{ maxWidth: 720, margin: "3rem auto", padding: "0 1.5rem" }}>
+      <main className="shell">
         <p>{error}</p>
         <Link href="/login">Zum Login</Link>
       </main>
@@ -32,7 +32,7 @@ export default function UnitsPage() {
   }
 
   return (
-    <main style={{ maxWidth: 800, margin: "3rem auto", padding: "0 1.5rem" }}>
+      <main className="shell">
       <AppHeader user={user} title="Lerneinheiten" />
       <p style={{ color: "var(--muted)", marginTop: 0 }}>
         Jede Einheit ist ein eigenes Gefäss: Inhalt und Dateien kannst du später löschen. Verlauf und

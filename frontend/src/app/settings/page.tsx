@@ -3,17 +3,18 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
+import { TotpQr } from "@/components/TotpQr";
 import { confirm2fa, fetchMe, setup2fa, type User } from "@/lib/api";
 
 export default function SettingsPage() {
   const [user, setUser] = useState<User | null>(null);
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
   const [secret, setSecret] = useState<string | null>(null);
   const [uri, setUri] = useState<string | null>(null);
   const [recovery, setRecovery] = useState<string[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showSecret, setShowSecret] = useState(false);
 
   useEffect(() => {
     fetchMe()
@@ -25,7 +26,7 @@ export default function SettingsPage() {
     e.preventDefault();
     setError(null);
     try {
-      const res = await setup2fa(email, password);
+      const res = await setup2fa(email);
       setSecret(res.secret);
       setUri(res.provisioning_uri);
     } catch (err) {
@@ -48,7 +49,7 @@ export default function SettingsPage() {
 
   if (error && !user) {
     return (
-      <main style={{ maxWidth: 640, margin: "3rem auto", padding: "0 1.5rem" }}>
+      <main className="shell">
         <p>{error}</p>
         <Link href="/login">Zum Login</Link>
       </main>
@@ -56,74 +57,85 @@ export default function SettingsPage() {
   }
 
   return (
-    <main style={{ maxWidth: 640, margin: "3rem auto", padding: "0 1.5rem" }}>
+    <main className="shell">
       <AppHeader user={user} title="Einstellungen" />
       {user?.must_enroll_2fa && (
-        <p style={{ color: "#b45309" }}>
-          Für diesen Account ist 2FA Pflicht. Bitte jetzt einrichten, danach geht es weiter.
-        </p>
+        <p className="warn">Für diesen Account ist 2FA Pflicht. Bitte jetzt einrichten.</p>
       )}
-      <p>
-        2FA: {user?.totp_enabled ? "aktiv" : "aus"} · Policy:{" "}
-        {user?.totp_required ? "Pflicht" : "optional"}
-      </p>
-      {!user?.totp_enabled && (
-        <>
-          <form onSubmit={onSetup} style={{ display: "grid", gap: "0.75rem", marginTop: "1.5rem" }}>
+      <div className="card stack">
+        <p>
+          2FA: <strong>{user?.totp_enabled ? "aktiv" : "aus"}</strong> · Policy:{" "}
+          {user?.totp_required ? "Pflicht" : "optional"}
+        </p>
+        {!user?.totp_enabled && !uri && (
+          <form onSubmit={onSetup} className="stack">
+            <p className="muted">
+              Die E-Mail erscheint als Name in der Authenticator-App. Du bist bereits angemeldet —
+              kein Passwort nötig.
+            </p>
             <label>
-              E-Mail
+              E-Mail im Authenticator
               <input
                 type="email"
                 required
+                autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                style={{ display: "block", width: "100%", marginTop: 4, padding: 8 }}
               />
             </label>
-            <label>
-              Passwort
-              <input
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                style={{ display: "block", width: "100%", marginTop: 4, padding: 8 }}
-              />
-            </label>
-            <button type="submit">2FA starten</button>
+            <button type="submit">QR-Code erzeugen</button>
           </form>
-          {uri && (
-            <section style={{ marginTop: "1.5rem" }}>
-              <p>Secret in die Authenticator-App übernehmen:</p>
-              <code style={{ display: "block", wordBreak: "break-all" }}>{secret}</code>
-              <p style={{ fontSize: "0.85rem", color: "var(--muted)" }}>{uri}</p>
-              <form onSubmit={onConfirm} style={{ display: "grid", gap: 8, marginTop: 12 }}>
+        )}
+        {uri && !user?.totp_enabled && (
+          <section className="stack">
+            <h2>Authenticator scannen</h2>
+            <p className="muted">
+              Aegis, Google Authenticator oder Authy: QR scannen, danach den 6-stelligen Code
+              eintragen.
+            </p>
+            <div className="qr-wrap">
+              <TotpQr uri={uri} />
+            </div>
+            <details>
+              <summary>Kein Scan möglich? Secret manuell</summary>
+              <button type="button" onClick={() => setShowSecret((v) => !v)}>
+                {showSecret ? "Secret verbergen" : "Secret zeigen"}
+              </button>
+              {showSecret && <code className="secret">{secret}</code>}
+            </details>
+            <form onSubmit={onConfirm} className="stack">
+              <label>
+                Code aus der App
                 <input
                   value={code}
                   onChange={(e) => setCode(e.target.value)}
                   placeholder="123456"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
                   required
-                  style={{ padding: 8 }}
                 />
-                <button type="submit">Code bestätigen</button>
-              </form>
-            </section>
-          )}
-        </>
-      )}
-      {recovery && (
-        <section style={{ marginTop: "1.5rem" }}>
-          <p>Recovery-Codes – einmalig notieren und offline aufbewahren:</p>
-          <ul>
-            {recovery.map((c) => (
-              <li key={c}>
-                <code>{c}</code>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-      {error && <p style={{ color: "#ef4444" }}>{error}</p>}
+              </label>
+              <button type="submit">Code bestätigen</button>
+            </form>
+          </section>
+        )}
+        {recovery && (
+          <section className="stack">
+            <h2>Recovery-Codes</h2>
+            <p className="warn">
+              Einmalig notieren und offline aufbewahren. Jeder Code gilt nur einmal.
+            </p>
+            <ul>
+              {recovery.map((c) => (
+                <li key={c}>
+                  <code>{c}</code>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+        {error && <p className="err">{error}</p>}
+      </div>
     </main>
   );
 }

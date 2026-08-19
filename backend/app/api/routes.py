@@ -21,6 +21,7 @@ from app.schemas import (
     RegisterRequest,
     TotpPolicyRequest,
     TwoFactorConfirmRequest,
+    TwoFactorSetupRequest,
     TwoFactorSetupResponse,
     TwoFactorVerifyRequest,
     UserAdminResponse,
@@ -131,7 +132,7 @@ def me(user: User = Depends(get_current_user)):
 
 @auth_router.post("/2fa/setup", response_model=TwoFactorSetupResponse)
 def totp_setup(
-    body: LoginRequest,
+    body: TwoFactorSetupRequest,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
