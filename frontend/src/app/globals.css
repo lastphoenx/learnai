@@ -75,8 +75,18 @@ a:hover {
   color: var(--accent-hover);
 }
 
+.shell {
+  display: block;
+  box-sizing: border-box;
+  width: min(44rem, calc(100% - 3rem));
+  margin-left: auto;
+  margin-right: auto;
+  padding-top: 2.5rem;
+  padding-bottom: 4rem;
+}
+
 .shell-narrow {
-  max-width: 28rem;
+  width: min(26rem, calc(100% - 3rem));
 }
 
 .card {
@@ -132,6 +142,11 @@ button,
   color: var(--fg);
   padding: 0.55rem 1.05rem;
   cursor: pointer;
+}
+
+a.btn {
+  display: inline-block;
+  text-decoration: none;
 }
 
 button[type="submit"],

@@ -32,41 +32,39 @@ export default function UnitsPage() {
   }
 
   return (
-      <main className="shell">
+    <main className="shell">
       <AppHeader user={user} title="Lerneinheiten" />
-      <p style={{ color: "var(--muted)", marginTop: 0 }}>
-        Jede Einheit ist ein eigenes Gefäss: Inhalt und Dateien kannst du später löschen. Verlauf und
-        Ergebnisse bleiben.
-      </p>
-      <p>
-        <Link href="/units/new">+ Neue Einheit</Link>
-      </p>
-      <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-        {units.map((u) => (
-          <li
-            key={u.id}
-            style={{
-              background: "var(--card)",
-              border: "1px solid var(--border)",
-              borderRadius: 8,
-              padding: "1rem",
-              marginBottom: "0.75rem",
-            }}
-          >
-            <strong>
-              <Link href={`/units/${u.id}`} style={{ textDecoration: "none", color: "inherit" }}>
-                {u.title}
-              </Link>
-            </strong>
-            <p style={{ margin: "0.4rem 0 0", color: "var(--muted)", fontSize: "0.875rem" }}>
-              {u.subject || "Thema offen"} · {u.language} · Stufe {u.difficulty} · {u.source_count}{" "}
-              Quellen · {u.module_count} Blöcke
-            </p>
-            {u.brief && <p style={{ margin: "0.5rem 0 0" }}>{u.brief}</p>}
-          </li>
-        ))}
-        {units.length === 0 && <p style={{ color: "var(--muted)" }}>Noch keine Einheiten.</p>}
-      </ul>
+      <div className="card stack">
+        <p className="muted" style={{ margin: 0 }}>
+          Jede Einheit ist ein eigenes Gefäss: Inhalt und Dateien kannst du später löschen. Verlauf
+          und Ergebnisse bleiben.
+        </p>
+        <p>
+          <Link className="btn btn-primary" href="/units/new">
+            Neue Einheit
+          </Link>
+        </p>
+        {units.length === 0 ? (
+          <p className="muted">Noch keine Einheiten — starte mit der ersten aus deinen Unterlagen.</p>
+        ) : (
+          <ul className="list">
+            {units.map((u) => (
+              <li key={u.id} className="card" style={{ boxShadow: "none", padding: "1rem" }}>
+                <strong>
+                  <Link href={`/units/${u.id}`} style={{ textDecoration: "none", color: "inherit" }}>
+                    {u.title}
+                  </Link>
+                </strong>
+                <p className="muted" style={{ margin: "0.4rem 0 0", fontSize: "0.9rem" }}>
+                  {u.subject || "Thema offen"} · {u.language} · Stufe {u.difficulty} · {u.source_count}{" "}
+                  Quellen · {u.module_count} Blöcke
+                </p>
+                {u.brief && <p style={{ margin: "0.5rem 0 0" }}>{u.brief}</p>}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </main>
   );
 }
