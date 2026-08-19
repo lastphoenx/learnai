@@ -32,6 +32,7 @@ from app.services.learn_service import (
 from app.services.exam_service import (
     analyze_exam,
     create_exam,
+    create_remediation_from_exam,
     delete_exam,
     get_exam_file,
     list_exams_for_record,
@@ -63,6 +64,7 @@ def _http(exc: UnitError) -> HTTPException:
         "already_assigned": status.HTTP_400_BAD_REQUEST,
         "no_file": status.HTTP_400_BAD_REQUEST,
         "analysis_failed": status.HTTP_400_BAD_REQUEST,
+        "not_analyzed": status.HTTP_400_BAD_REQUEST,
     }
     return HTTPException(status_code=mapping.get(exc.code, 400), detail=exc.message)
 
@@ -413,6 +415,22 @@ def units_analyze_exam(
 ):
     try:
         result = analyze_exam(db, user, unit_id, exam_id)
+        db.commit()
+        return result
+    except UnitError as exc:
+        db.rollback()
+        raise _http(exc) from exc
+
+
+@router.post("/{unit_id}/exams/{exam_id}/remediation", status_code=status.HTTP_201_CREATED)
+def units_create_remediation(
+    unit_id: UUID,
+    exam_id: UUID,
+    user: User = Depends(get_app_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        result = create_remediation_from_exam(db, user, unit_id, exam_id)
         db.commit()
         return result
     except UnitError as exc:

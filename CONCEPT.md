@@ -118,10 +118,14 @@ Verknüpfung mit **Lernverlauf**: `learning_record.stats.exams[]` oder eigenes E
 - Anzeige: Zusammenfassung, Lücken, Fehlermuster, Empfehlungen
 - Migration: `009_exam_analysis` (`analysis_encrypted`)
 
-### Phase C — Nacharbeit aus Fehlern
-- `POST /units/{id}/remediation-from-exam` oder von `exam_result_id`
-- Brief + `math_focus` / Thema aus Fehlermustern
-- Verknüpfung Exam ↔ neue Einheit
+### Phase C — Nacharbeit aus Fehlern ✅ *implementiert*
+- `POST /units/{id}/exams/{exam_id}/remediation` — neue Einheit (Modus Wiederholung/Festigung)
+- Brief aus Lücken, Fehlermustern und Empfehlungen; `math_focus` aus Analyse oder Ursprungseinheit
+- Quellen der Ursprungseinheit werden mitkopiert; Schwierigkeit +1 (max. 5)
+- Verknüpfung Exam ↔ Nacharbeit (`remediation_unit_id`, Status `action_created`)
+- UI: «Nacharbeit erstellen» / «Zur Nacharbeit»
+- Migration: `010_exam_remediation`
+- KI-Einstellungen: neuer Aufgabentyp **«Schulprüfung analysieren»** (`exam_analysis`); OCR-Schritt nutzt **«Fotos / OCR»** (`vision`)
 
 ### Phase D — Langzeit
 - Fehlertrend-Dashboard

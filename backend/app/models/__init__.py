@@ -479,6 +479,11 @@ class ExamResult(Base, TimestampMixin):
     byte_size: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
     status: Mapped[str] = mapped_column(String(24), default="uploaded", nullable=False)
     analysis_encrypted: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    remediation_unit_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("learning_units.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     classification: Mapped[int] = mapped_column(
         SmallInteger, default=DataClassification.CONFIDENTIAL, nullable=False
     )

@@ -182,6 +182,7 @@ export type ExamResult = {
   has_file: boolean;
   status: string;
   analysis?: ExamAnalysis | null;
+  remediation_unit_id?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -438,6 +439,13 @@ export function examFileUrl(unitId: string, examId: string) {
 
 export const analyzeExam = (unitId: string, examId: string) =>
   apiFetch<ExamResult>(`/api/v1/units/${unitId}/exams/${examId}/analyze`, { method: "POST" });
+
+export type RemediationResponse = { exam: ExamResult; unit: Unit };
+
+export const createRemediationFromExam = (unitId: string, examId: string) =>
+  apiFetch<RemediationResponse>(`/api/v1/units/${unitId}/exams/${examId}/remediation`, {
+    method: "POST",
+  });
 
 export const generateUnit = (unitId: string, provider?: string) =>
   apiFetch<LearningUnit>(`/api/v1/units/${unitId}/generate`, {

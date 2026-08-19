@@ -60,6 +60,14 @@ TASK_CATALOG: list[dict] = [
         "external": ["gpt-4o", "gpt-4o-mini", "claude-sonnet-4-0"],
     },
     {
+        "key": "exam_analysis",
+        "label": "Schulprüfung analysieren",
+        "why": "Auswertung korrigierter Prüfungen: Fehlermuster und Empfehlungen. Fotos/OCR nutzen zusätzlich «Fotos / OCR».",
+        "default_provider": "ollama",
+        "local": ["qwen2.5:32b", "llama3.3:70b", "qwen2.5:14b"],
+        "external": ["claude-sonnet-4-0", "gpt-4o", "gpt-4o-mini"],
+    },
+    {
         "key": "tts",
         "label": "Vorlesen / Aussprache (Ton)",
         "why": "Lokale Stimmen klingen oft falsch. OpenAI TTS ist der Default.",

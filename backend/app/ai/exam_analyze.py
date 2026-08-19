@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from app.ai.catalog import resolve_task_ai
 from app.ai.errors import LlmError
 from app.ai.extract import extract_pdf_text
 from app.ai.providers import complete, describe_image, parse_json_object, resolve_provider
-from app.config import settings
 
 ANALYSIS_SYSTEM = (
     "Du bist Lernberater für Eltern und Kinder. Antworte immer mit einem JSON-Objekt, ohne Markdown."
@@ -33,7 +33,13 @@ def _image_mime(path: Path, content_type: str | None) -> str:
     return "image/jpeg"
 
 
-def _extract_exam_text(path: Path, content_type: str | None) -> str:
+def _extract_exam_text(
+    path: Path,
+    content_type: str | None,
+    *,
+    vision_provider: str,
+    vision_model: str | None,
+) -> str:
     if content_type == "application/pdf" or path.suffix.lower() == ".pdf":
         return extract_pdf_text(path)
     if (content_type or "").startswith("image/") or path.suffix.lower() in {
@@ -53,6 +59,8 @@ def _extract_exam_text(path: Path, content_type: str | None) -> str:
                 "Extrahiere alle Aufgaben, Schülerantworten, Korrekturen (Rotstift), "
                 "Punkteabzüge und Notizen der Lehrperson."
             ),
+            provider=vision_provider,
+            model=vision_model,
         )
         return result["text"]
     raise LlmError("Dateityp für Prüfungsanalyse nicht unterstützt (PDF oder Bild)", "bad_file")
@@ -68,9 +76,21 @@ def analyze_exam_content(
     score: int | None,
     max_score: int | None,
     teacher_notes: str | None,
+    prefs: dict | None = None,
     provider: str | None = None,
 ) -> dict:
-    raw = _extract_exam_text(path, content_type)
+    prefs = prefs or {}
+    vision_provider, vision_model = resolve_task_ai(prefs, "vision", override=provider)
+    analysis_provider, analysis_model = resolve_task_ai(prefs, "exam_analysis", override=provider)
+    vision_provider = resolve_provider(vision_provider)
+    analysis_provider = resolve_provider(analysis_provider)
+
+    raw = _extract_exam_text(
+        path,
+        content_type,
+        vision_provider=vision_provider,
+        vision_model=vision_model,
+    )
     if len(raw.strip()) < 20:
         raise LlmError("Zu wenig erkennbarer Inhalt in der Prüfung", "empty_content")
 
@@ -87,8 +107,12 @@ def analyze_exam_content(
         f"Hinweis der Lehrperson: {teacher_notes or '(keiner)'}\n\n"
         f"Inhalt der Prüfung (OCR/Vision):\n{raw[:12000]}\n"
     )
-    name = resolve_provider(provider)
-    result = complete(prompt=prompt, provider=name, system=ANALYSIS_SYSTEM, model=None)
+    result = complete(
+        prompt=prompt,
+        provider=analysis_provider,
+        system=ANALYSIS_SYSTEM,
+        model=analysis_model,
+    )
     parsed = parse_json_object(result["text"])
     parsed["provider"] = result["provider"]
     parsed["model"] = result["model"]

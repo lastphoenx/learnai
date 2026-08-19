@@ -1,8 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useState } from "react";
 import {
   analyzeExam,
+  createRemediationFromExam,
   deleteExam,
   examFileUrl,
   patchExam,
@@ -130,6 +132,7 @@ export function UnitExamSection({ unitId, exams, onChange, disabled }: Props) {
                 <strong>{formatExamGrade(exam)}</strong>
                 <span className="muted">{formatDate(exam.taken_at)}</span>
                 {exam.status === "analyzed" && <span className="badge badge-ready">Analysiert</span>}
+                {exam.status === "action_created" && <span className="badge badge-ready">Nacharbeit</span>}
                 {exam.original_name && <span className="muted source-flags">{exam.original_name}</span>}
               </div>
               {editingId === exam.id ? (
@@ -241,6 +244,35 @@ export function UnitExamSection({ unitId, exams, onChange, disabled }: Props) {
                       >
                         Analyse neu
                       </button>
+                    )}
+                    {exam.analysis && !exam.remediation_unit_id && (
+                      <button
+                        type="button"
+                        className="btn-sm btn-primary"
+                        disabled={busy}
+                        onClick={async () => {
+                          setBusy(true);
+                          setError(null);
+                          try {
+                            const res = await createRemediationFromExam(unitId, exam.id);
+                            onChange();
+                            if (res.unit?.id) {
+                              window.location.href = `/units/${res.unit.id}`;
+                            }
+                          } catch (err) {
+                            setError(err instanceof Error ? err.message : "Nacharbeit fehlgeschlagen");
+                          } finally {
+                            setBusy(false);
+                          }
+                        }}
+                      >
+                        Nacharbeit erstellen
+                      </button>
+                    )}
+                    {exam.remediation_unit_id && (
+                      <Link className="btn-sm ghost" href={`/units/${exam.remediation_unit_id}`}>
+                        Zur Nacharbeit
+                      </Link>
                     )}
                     <button type="button" className="btn-sm ghost" onClick={() => startEdit(exam)} disabled={busy}>
                       ✎
