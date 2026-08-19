@@ -33,6 +33,11 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     ollama_url: str = "http://192.168.131.60:11434"
     tts_provider: str = "openai"
+    llm_provider: str = "ollama"
+    ollama_model: str = "llama3.2"
+    ollama_vision_model: str = ""
+    openai_model: str = "gpt-4o-mini"
+    anthropic_model: str = "claude-sonnet-4-0"
 
     @property
     def cors_origin_list(self) -> list[str]:

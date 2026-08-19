@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.health import router as health_router
 from app.api.routes import auth_router, users_router
 from app.api.units import records_router, router as units_router
-from app.ai.tts_routes import router as ai_router
+from app.ai.routes import router as ai_router
 from app.config import settings
 
 app = FastAPI(

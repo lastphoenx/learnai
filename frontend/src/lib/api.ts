@@ -157,6 +157,21 @@ export const deleteSource = (unitId: string, sourceId: string) =>
 export const purgeSource = (unitId: string, sourceId: string) =>
   apiFetch<UnitSource>(`/api/v1/units/${unitId}/sources/${sourceId}/purge`, { method: "POST" });
 
+export const generateUnit = (unitId: string, provider?: string) =>
+  apiFetch<LearningUnit>(`/api/v1/units/${unitId}/generate`, {
+    method: "POST",
+    json: { provider: provider ?? null },
+  });
+
+export const fetchAiStatus = () =>
+  apiFetch<{
+    llm_provider: string;
+    openai: { configured: boolean };
+    anthropic: { configured: boolean };
+    ollama: { ok?: boolean; url: string; models?: string[]; error?: string };
+    tts: { provider: string; configured: boolean };
+  }>("/api/v1/ai/status");
+
 export const fetchRecords = () => apiFetch<LearningRecord[]>("/api/v1/records");
 export const rebuildFromRecord = (recordId: string, difficulty?: number) =>
   apiFetch<LearningUnit>(`/api/v1/records/${recordId}/rebuild`, {

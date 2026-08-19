@@ -6,9 +6,12 @@ from sqlalchemy.orm import Session
 from app.core.auth.dependencies import get_app_user
 from app.core.db import get_db
 from app.models import User
+from app.ai.errors import LlmError
+from app.ai.generate import generate_modules
 from app.schemas import (
     RecordRebuildRequest,
     UnitCreateRequest,
+    UnitGenerateRequest,
     UnitUpdateRequest,
 )
 from app.services.unit_service import UnitError, add_source, create_unit, create_unit_from_record, delete_source, delete_unit, get_record, get_unit, list_records, list_units, purge_source_file_keep_meta, update_unit_flags
@@ -22,6 +25,7 @@ def _http(exc: UnitError) -> HTTPException:
         "not_found": status.HTTP_404_NOT_FOUND,
         "forbidden": status.HTTP_403_FORBIDDEN,
         "invalid_difficulty": status.HTTP_400_BAD_REQUEST,
+        "empty": status.HTTP_400_BAD_REQUEST,
     }
     return HTTPException(status_code=mapping.get(exc.code, 400), detail=exc.message)
 
@@ -62,6 +66,25 @@ def units_get(unit_id: UUID, user: User = Depends(get_app_user), db: Session = D
         return get_unit(db, user, unit_id)
     except UnitError as exc:
         raise _http(exc) from exc
+
+
+@router.post("/{unit_id}/generate")
+def units_generate(
+    unit_id: UUID,
+    body: UnitGenerateRequest,
+    user: User = Depends(get_app_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        result = generate_modules(db, user, unit_id, provider=body.provider)
+        db.commit()
+        return result
+    except UnitError as exc:
+        db.rollback()
+        raise _http(exc) from exc
+    except LlmError as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=exc.message) from exc
 
 
 @router.patch("/{unit_id}")

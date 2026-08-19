@@ -70,6 +70,10 @@ class UnitUpdateRequest(BaseModel):
     auto_purge_sources: bool | None = None
 
 
+class UnitGenerateRequest(BaseModel):
+    provider: str | None = Field(default=None, max_length=32)
+
+
 class RecordRebuildRequest(BaseModel):
     difficulty: int | None = Field(default=None, ge=1, le=5)
 

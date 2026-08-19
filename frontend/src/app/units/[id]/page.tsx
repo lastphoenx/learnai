@@ -9,6 +9,7 @@ import {
   deleteUnit,
   fetchMe,
   fetchUnit,
+  generateUnit,
   patchUnit,
   purgeSource,
   speak,
@@ -85,6 +86,19 @@ export default function UnitDetailPage() {
     }
   }
 
+  async function onGenerate() {
+    setBusy(true);
+    setError(null);
+    try {
+      const next = await generateUnit(unitId);
+      setUnit(next);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "KI-Aufbereitung fehlgeschlagen");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (error && !unit) {
     return (
       <main style={{ maxWidth: 720, margin: "3rem auto", padding: "0 1.5rem" }}>
@@ -106,8 +120,11 @@ export default function UnitDetailPage() {
           </p>
           {unit.brief && <p>{unit.brief}</p>}
           <p style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <button type="button" onClick={onSpeak}>
+            <button type="button" onClick={onSpeak} disabled={busy}>
               Vorlesen (OpenAI TTS)
+            </button>
+            <button type="button" onClick={onGenerate} disabled={busy}>
+              {busy ? "KI arbeitet…" : "Mit KI aufbereiten"}
             </button>
             <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
               <input
@@ -156,11 +173,47 @@ export default function UnitDetailPage() {
               </li>
             ))}
           </ul>
-          {(unit.modules || []).length > 0 && (
-            <>
-              <h2 style={{ fontSize: "1.1rem" }}>Lernblöcke</h2>
-              <p style={{ color: "var(--muted)" }}>KI-Aufbereitung folgt im nächsten Slice.</p>
-            </>
+          <h2 style={{ fontSize: "1.1rem" }}>Lernblöcke</h2>
+          {(unit.modules || []).length === 0 ? (
+            <p style={{ color: "var(--muted)" }}>
+              Fotos hochladen, dann «Mit KI aufbereiten». Ohne Fotos nimmt die KI Titel und Auftrag.
+            </p>
+          ) : (
+            (unit.modules || []).map((m) => {
+              const content = m.content as { text?: string } | null;
+              const quiz = m.quiz as { questions?: { q: string; options?: string[]; answer?: number }[] } | null;
+              return (
+                <article
+                  key={m.id}
+                  style={{
+                    border: "1px solid var(--border)",
+                    borderRadius: 8,
+                    padding: "0.9rem",
+                    marginTop: 10,
+                  }}
+                >
+                  <h3 style={{ margin: "0 0 0.5rem" }}>{m.title}</h3>
+                  {content?.text && <p style={{ whiteSpace: "pre-wrap" }}>{content.text}</p>}
+                  {(quiz?.questions || []).length > 0 && (
+                    <ol>
+                      {(quiz?.questions || []).map((q, i) => (
+                        <li key={i} style={{ marginTop: 6 }}>
+                          {q.q}
+                          <ul>
+                            {(q.options || []).map((opt, j) => (
+                              <li key={j}>
+                                {opt}
+                                {j === q.answer ? " ✓" : ""}
+                              </li>
+                            ))}
+                          </ul>
+                        </li>
+                      ))}
+                    </ol>
+                  )}
+                </article>
+              );
+            })
           )}
           <hr style={{ margin: "2rem 0", borderColor: "var(--border)" }} />
           <button type="button" onClick={onDeleteUnit}>

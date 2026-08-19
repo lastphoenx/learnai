@@ -27,11 +27,12 @@ Frontend: http://localhost:3000
 
 | Dienst | Default |
 |--------|---------|
+| Chat / Aufbereitung | Ollama auf EVO (`LLM_PROVIDER=ollama`, `192.168.131.60:11434`) |
+| Vision (Fotos) | Ollama-Vision-Modell, sonst OpenAI/Claude je nach Provider |
+| Fallback | `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` — im UI oder `provider` im API |
 | TTS | OpenAI (`TTS_PROVIDER=openai`) |
-| Vision / Kurse | folgt, lokal Ollama `192.168.131.60:11434` |
-| Chat | Ollama / OpenAI / Anthropic |
 
-Sprachkurse in Slice 1: **Fotos aus dem Lernmittel**, noch kein Kamera-Objekt-Modus.
+Test (eingeloggt, Cookie): `GET /api/v1/ai/status`, `POST /api/v1/ai/complete`. Lerneinheit: «Mit KI aufbereiten».
 
 ## Deploy
 
