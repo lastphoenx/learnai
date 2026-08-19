@@ -93,10 +93,10 @@ Verknüpfung mit **Lernverlauf**: `learning_record.stats.exams[]` oder eigenes E
 
 | Thema | Status | Anmerkung |
 |-------|--------|-----------|
-| Fehlermuster über mehrere Prüfungen | fehlt | Braucht `error_tags` + Auswertung über Zeit |
+| Fehlermuster über mehrere Prüfungen | teilweise | Aggregation im Eltern-Dashboard (Phase D) |
 | Manuelle Korrektur der KI-Analyse | fehlt | Lehrperson korrigiert erkannte Aufgaben/Fehler |
 | Vergleich App-Quiz vs. Schulprüfung | fehlt | «In der App 90 %, in der Prüfung 60 %» → Transferproblem |
-| Spaced Repetition / Erinnerungsplan | fehlt | Wiederholung nach X Tagen automatisch vorschlagen |
+| Spaced Repetition / Erinnerungsplan | teilweise | Wiederholungs-Hinweis nach 7 Tagen (Kinder-Übersicht) |
 | Offline / Druck | fehlt | Arbeitsblatt exportieren (PDF) |
 | Mehrere Kinder gleiche Einheit | teilweise | Einheit pro Profil, kein «Vorlage duplizieren» |
 | Benachrichtigungen | fehlt | «Kind hat Einheit abgeschlossen» |
@@ -127,10 +127,17 @@ Verknüpfung mit **Lernverlauf**: `learning_record.stats.exams[]` oder eigenes E
 - Migration: `010_exam_remediation`
 - KI-Einstellungen: neuer Aufgabentyp **«Schulprüfung analysieren»** (`exam_analysis`); OCR-Schritt nutzt **«Fotos / OCR»** (`vision`)
 
-### Phase D — Langzeit
-- Fehlertrend-Dashboard
-- Erinnerungen / Spaced Repetition
-- Export & Berichte für Elterngespräche
+### Phase D — Langzeit ✅ *implementiert*
+- Fehlertrend-Dashboard auf **Kinder-Übersicht** (`GET /dashboard/parent/exam-insights`)
+- Aggregation von `error_tags` über alle Prüfungen pro Kind
+- Wiederholungs-Erinnerungen (7 Tage nach Abschluss einer Einheit)
+- Export Markdown-Bericht für Elterngespräche (`GET /dashboard/parent/report/{profile_id}`)
+
+### exam_item / error_tags (Stand)
+- **Keine eigene `exam_items`-Tabelle** — Aufgaben liegen in `analysis.tasks[]` (JSON, Phase B)
+- Pro Aufgabe: `error_tags[]` (z. B. `fractions_denominator`, `unit_conversion`) via KI-Analyse
+- Aggregierte Muster zusätzlich in `analysis.error_patterns[]`
+- Anzeige pro Aufgabe auf der Einheitsseite; Trends im Eltern-Dashboard
 
 ---
 

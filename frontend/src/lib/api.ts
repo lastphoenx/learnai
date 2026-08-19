@@ -204,6 +204,7 @@ export type ExamAnalysis = {
     points_earned?: number;
     max_points?: number;
     errors?: string[];
+    error_tags?: string[];
   }[];
   recommendations?: string[];
   provider?: string;
@@ -440,7 +441,7 @@ export function examFileUrl(unitId: string, examId: string) {
 export const analyzeExam = (unitId: string, examId: string) =>
   apiFetch<ExamResult>(`/api/v1/units/${unitId}/exams/${examId}/analyze`, { method: "POST" });
 
-export type RemediationResponse = { exam: ExamResult; unit: Unit };
+export type RemediationResponse = { exam: ExamResult; unit: LearningUnit };
 
 export const createRemediationFromExam = (unitId: string, examId: string) =>
   apiFetch<RemediationResponse>(`/api/v1/units/${unitId}/exams/${examId}/remediation`, {
@@ -520,6 +521,42 @@ export type ChildDashboardStats = {
 
 export const fetchParentDashboard = () =>
   apiFetch<{ children: ChildDashboardStats[]; child_count: number }>("/api/v1/dashboard/parent");
+
+export type ChildExamInsights = {
+  user_id: string;
+  profile_id: string;
+  display_name: string;
+  exam_count: number;
+  analyzed_count: number;
+  pending_remediation: number;
+  timeline: {
+    exam_id: string;
+    unit_id: string | null;
+    unit_title: string | null;
+    taken_at: string;
+    grade_label: string | null;
+    score: number | null;
+    max_score: number | null;
+    has_analysis: boolean;
+    status: string;
+    remediation_unit_id: string | null;
+  }[];
+  error_tags: { tag: string; label: string; count: number; exam_count: number }[];
+  review_due: {
+    record_id: string;
+    unit_id: string | null;
+    title: string;
+    completed_at: string;
+    days_since: number;
+  }[];
+};
+
+export const fetchParentExamInsights = () =>
+  apiFetch<{ children: ChildExamInsights[] }>("/api/v1/dashboard/parent/exam-insights");
+
+export function childReportUrl(profileId: string) {
+  return `${API_URL}/api/v1/dashboard/parent/report/${profileId}`;
+}
 
 export const addSourceUrl = (unitId: string, url: string) =>
   apiFetch<UnitSource>(`/api/v1/units/${unitId}/sources/url`, {

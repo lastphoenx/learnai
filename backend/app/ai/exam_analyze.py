@@ -14,8 +14,10 @@ ANALYSIS_SYSTEM = (
     ' Schema: {"summary":"...","strengths":["..."],"gaps":["..."],'
     '"error_patterns":[{"tag":"snake_case","label":"...","count":1,"examples":["..."]}],'
     '"tasks":[{"index":1,"description":"...","correct":false,"points_earned":0,'
-    '"max_points":5,"errors":["..."]}],"recommendations":["..."]}'
+    '"max_points":5,"errors":["..."],"error_tags":["fractions_denominator","unit_conversion"]}],'
+    '"recommendations":["..."]}'
     " error_patterns: konkrete Fehlertypen (z.B. fractions_denominator, unit_conversion)."
+    " tasks: jede erkannte Aufgabe; error_tags pro Aufgabe (snake_case, z.B. fractions_denominator)."
     " recommendations: 2–5 konkrete Lernschritte zur Nacharbeit."
 )
 

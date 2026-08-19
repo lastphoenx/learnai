@@ -196,6 +196,36 @@ export function UnitExamSection({ unitId, exams, onChange, disabled }: Props) {
                           </ul>
                         </div>
                       )}
+                      {(exam.analysis.tasks || []).length > 0 && (
+                        <div>
+                          <strong>Aufgaben</strong>
+                          <ul className="exam-task-list">
+                            {(exam.analysis.tasks || []).map((t, i) => (
+                              <li key={i} className={t.correct ? "exam-task-ok" : "exam-task-fail"}>
+                                <span>
+                                  {t.index != null ? `Aufgabe ${t.index}: ` : ""}
+                                  {t.description || "—"}
+                                  {t.max_points != null
+                                    ? ` (${t.points_earned ?? "?"}/${t.max_points} Pkt.)`
+                                    : ""}
+                                </span>
+                                {(t.error_tags || []).length > 0 && (
+                                  <span className="exam-task-tags">
+                                    {(t.error_tags || []).map((tag) => (
+                                      <span key={tag} className="badge badge-math">
+                                        {tag.replace(/_/g, " ")}
+                                      </span>
+                                    ))}
+                                  </span>
+                                )}
+                                {(t.errors || []).length > 0 && (
+                                  <span className="muted"> — {(t.errors || [])[0]}</span>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                     </div>
                   )}
                   <div className="source-actions">

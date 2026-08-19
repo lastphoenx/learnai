@@ -386,6 +386,14 @@ def _build_remediation_brief(
     if recs:
         lines.append("Konkrete Lernschritte:")
         lines.extend(f"- {r}" for r in recs[:6])
+    wrong_tasks = [t for t in (analysis.get("tasks") or []) if isinstance(t, dict) and t.get("correct") is False]
+    if wrong_tasks:
+        lines.append("Fehlerhafte Aufgaben (mit Tags):")
+        for t in wrong_tasks[:8]:
+            desc = (t.get("description") or "").strip() or f"Aufgabe {t.get('index', '?')}"
+            tags = [str(x).strip() for x in (t.get("error_tags") or []) if str(x).strip()]
+            tag_part = f" [{', '.join(tags)}]" if tags else ""
+            lines.append(f"- {desc}{tag_part}")
     if unit_brief and unit_brief.strip():
         lines.append(f"Hintergrund zur Ursprungseinheit: {unit_brief.strip()[:600]}")
     return "\n".join(lines)
