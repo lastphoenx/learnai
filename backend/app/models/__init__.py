@@ -353,7 +353,14 @@ class LearningUnit(Base, TimestampMixin):
     sources: Mapped[list["UnitSource"]] = relationship(
         back_populates="unit", cascade="all, delete-orphan"
     )
-    exam_results: Mapped[list["ExamResult"]] = relationship(back_populates="unit")
+    exam_results: Mapped[list["ExamResult"]] = relationship(
+        back_populates="unit",
+        foreign_keys="ExamResult.unit_id",
+    )
+    remediation_exams: Mapped[list["ExamResult"]] = relationship(
+        back_populates="remediation_unit",
+        foreign_keys="ExamResult.remediation_unit_id",
+    )
 
 
 class UnitModule(Base, TimestampMixin):
@@ -489,7 +496,14 @@ class ExamResult(Base, TimestampMixin):
     )
 
     record: Mapped["LearningRecord"] = relationship(back_populates="exam_results")
-    unit: Mapped["LearningUnit | None"] = relationship(back_populates="exam_results")
+    unit: Mapped["LearningUnit | None"] = relationship(
+        back_populates="exam_results",
+        foreign_keys=[unit_id],
+    )
+    remediation_unit: Mapped["LearningUnit | None"] = relationship(
+        back_populates="remediation_exams",
+        foreign_keys=[remediation_unit_id],
+    )
 
 
 class LearningEvent(Base):
