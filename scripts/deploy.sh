@@ -16,7 +16,7 @@ fi
 
 if [[ -d .git ]]; then
   echo "==> git pull"
-  git pull --ff-only
+  git pull
 else
   echo "WARNUNG: kein git-Repo — manueller Stand, kein pull" >&2
 fi
