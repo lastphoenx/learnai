@@ -26,7 +26,8 @@ from app.services.learn_service import (
     save_learn_position,
     submit_quiz_answer,
 )
-from app.services.unit_service import UnitError, add_source, add_source_url, create_unit, create_unit_from_record, delete_source, delete_unit, get_record, get_unit, list_records, list_units, purge_source_file_keep_meta, update_unit_flags
+from app.services.unit_service import UnitError, add_source, add_source_url, create_unit, create_review_from_unit, create_unit_from_record, delete_source, delete_unit, get_record, get_unit, list_records, list_units, purge_source_file_keep_meta, update_unit_flags
+from app.ai.task_types import math_focus_public, task_types_public
 
 router = APIRouter(prefix="/units", tags=["units"])
 records_router = APIRouter(prefix="/records", tags=["records"])
@@ -45,6 +46,22 @@ def _http(exc: UnitError) -> HTTPException:
         "bad_url": status.HTTP_400_BAD_REQUEST,
     }
     return HTTPException(status_code=mapping.get(exc.code, 400), detail=exc.message)
+
+
+@router.get("/task-types")
+def units_task_types():
+    return {"task_types": task_types_public(), "math_focus": math_focus_public()}
+
+
+@router.post("/{unit_id}/review", status_code=status.HTTP_201_CREATED)
+def units_create_review(unit_id: UUID, user: User = Depends(get_app_user), db: Session = Depends(get_db)):
+    try:
+        result = create_review_from_unit(db, user, unit_id)
+        db.commit()
+        return result
+    except UnitError as exc:
+        db.rollback()
+        raise _http(exc) from exc
 
 
 @router.get("")
@@ -69,6 +86,7 @@ def units_create(
             target_age=body.target_age,
             difficulty=body.difficulty,
             task_type=body.task_type,
+            math_focus=body.math_focus,
             auto_purge_sources=body.auto_purge_sources,
             profile_id=UUID(body.profile_id) if body.profile_id else None,
         )
@@ -323,7 +341,7 @@ def records_rebuild(
     db: Session = Depends(get_db),
 ):
     try:
-        result = create_unit_from_record(db, user, record_id, difficulty=body.difficulty)
+        result = create_unit_from_record(db, user, record_id, difficulty=body.difficulty, task_type=body.task_type)
         db.commit()
         return result
     except UnitError as exc:

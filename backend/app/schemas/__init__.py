@@ -136,6 +136,7 @@ class UnitCreateRequest(BaseModel):
     target_age: str | None = Field(default=None, max_length=32)
     difficulty: int = Field(default=1, ge=1, le=5)
     task_type: str = Field(default="mixed", max_length=32)
+    math_focus: str | None = Field(default=None, max_length=32)
     auto_purge_sources: bool = False
     profile_id: str | None = None
 
@@ -150,6 +151,7 @@ class UnitGenerateRequest(BaseModel):
 
 class RecordRebuildRequest(BaseModel):
     difficulty: int | None = Field(default=None, ge=1, le=5)
+    task_type: str | None = Field(default=None, max_length=32)
 
 
 class LearnPositionRequest(BaseModel):

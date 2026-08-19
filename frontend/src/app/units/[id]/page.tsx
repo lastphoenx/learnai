@@ -6,6 +6,7 @@ import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import {
   addSourceUrl,
+  createReviewUnit,
   deleteSource,
   deleteUnit,
   fetchMe,
@@ -152,6 +153,24 @@ export default function UnitDetailPage() {
             </button>
             <button type="button" onClick={onGenerate} disabled={busy}>
               {busy ? "KI arbeitet…" : "Mit KI aufbereiten"}
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={async () => {
+                setBusy(true);
+                setError(null);
+                try {
+                  const review = await createReviewUnit(unitId);
+                  router.push(`/units/${review.id}`);
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : "Wiederholung konnte nicht erstellt werden");
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              Wiederholung / Festigung
             </button>
             <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
               <input

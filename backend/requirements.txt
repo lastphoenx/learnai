@@ -13,6 +13,7 @@ pyotp==2.9.0
 celery[redis]==5.5.3
 httpx==0.28.1
 pypdf==5.9.0
+pymupdf==1.26.3
 
 # Tests
 pytest==9.0.3

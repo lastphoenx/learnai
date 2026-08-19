@@ -263,6 +263,13 @@ export const applyProfileRecommendations = (id: string) =>
   apiFetch<LearnerProfile>(`/api/v1/profiles/${id}/apply-recommendations`, { method: "POST" });
 
 export const fetchUnits = () => apiFetch<LearningUnit[]>("/api/v1/units");
+
+export type UnitTaskTypesResponse = {
+  task_types: { key: string; label: string; description: string; hint: string }[];
+  math_focus: { key: string; label: string }[];
+};
+
+export const fetchUnitTaskTypes = () => apiFetch<UnitTaskTypesResponse>("/api/v1/units/task-types");
 export const fetchUnit = (id: string) => apiFetch<LearningUnit>(`/api/v1/units/${id}`);
 export const createUnit = (body: {
   title: string;
@@ -272,6 +279,7 @@ export const createUnit = (body: {
   target_age?: string;
   difficulty?: number;
   task_type?: string;
+  math_focus?: string;
   auto_purge_sources?: boolean;
   profile_id?: string;
 }) => apiFetch<LearningUnit>("/api/v1/units", { method: "POST", json: body });
@@ -401,11 +409,14 @@ export const fetchAiStatus = () =>
   }>("/api/v1/ai/status");
 
 export const fetchRecords = () => apiFetch<LearningRecord[]>("/api/v1/records");
-export const rebuildFromRecord = (recordId: string, difficulty?: number) =>
+export const rebuildFromRecord = (recordId: string, difficulty?: number, task_type?: string) =>
   apiFetch<LearningUnit>(`/api/v1/records/${recordId}/rebuild`, {
     method: "POST",
-    json: { difficulty: difficulty ?? null },
+    json: { difficulty: difficulty ?? null, task_type: task_type ?? null },
   });
+
+export const createReviewUnit = (unitId: string) =>
+  apiFetch<LearningUnit>(`/api/v1/units/${unitId}/review`, { method: "POST" });
 
 export async function speak(text: string, lang = "de"): Promise<Blob> {
   const res = await fetch(`${API_URL}/api/v1/ai/tts`, {

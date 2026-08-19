@@ -1,10 +1,24 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { AppHeader } from "@/components/AppHeader";
-import { createUnit, fetchMe, fetchProfiles, type LearnerProfile, type User } from "@/lib/api";
+import {
+  createUnit,
+  fetchMe,
+  fetchProfiles,
+  fetchUnitTaskTypes,
+  type LearnerProfile,
+  type User,
+} from "@/lib/api";
+import {
+  FALLBACK_MATH_FOCUS,
+  FALLBACK_TASK_TYPES,
+  showMathFocus,
+  type MathFocusOption,
+  type UnitTaskType,
+} from "@/lib/taskTypes";
 
 export default function NewUnitPage() {
   const router = useRouter();
@@ -16,10 +30,20 @@ export default function NewUnitPage() {
   const [targetAge, setTargetAge] = useState("");
   const [difficulty, setDifficulty] = useState(1);
   const [taskType, setTaskType] = useState("mixed");
+  const [mathFocus, setMathFocus] = useState("");
   const [autoPurge, setAutoPurge] = useState(false);
   const [profileId, setProfileId] = useState("");
   const [profiles, setProfiles] = useState<LearnerProfile[]>([]);
+  const [taskTypes, setTaskTypes] = useState<UnitTaskType[]>(FALLBACK_TASK_TYPES);
+  const [mathFocusOptions, setMathFocusOptions] = useState<MathFocusOption[]>(FALLBACK_MATH_FOCUS);
   const [error, setError] = useState<string | null>(null);
+
+  const selectedType = useMemo(
+    () => taskTypes.find((t) => t.key === taskType) ?? taskTypes[0],
+    [taskTypes, taskType],
+  );
+
+  const mathFocusVisible = showMathFocus(taskType, subject);
 
   useEffect(() => {
     fetchMe()
@@ -36,6 +60,12 @@ export default function NewUnitPage() {
         }
       })
       .catch(() => setError("Nicht angemeldet"));
+    fetchUnitTaskTypes()
+      .then((data) => {
+        if (data.task_types?.length) setTaskTypes(data.task_types);
+        if (data.math_focus?.length) setMathFocusOptions(data.math_focus);
+      })
+      .catch(() => undefined);
   }, []);
 
   async function onCreate(e: FormEvent) {
@@ -49,6 +79,7 @@ export default function NewUnitPage() {
         target_age: targetAge.trim() || undefined,
         difficulty,
         task_type: taskType,
+        math_focus: mathFocusVisible && mathFocus ? mathFocus : undefined,
         auto_purge_sources: autoPurge,
         profile_id: profileId || undefined,
       });
@@ -60,7 +91,7 @@ export default function NewUnitPage() {
 
   if (error && !user) {
     return (
-      <main style={{ maxWidth: 720, margin: "3rem auto", padding: "0 1.5rem" }}>
+      <main className="shell">
         <p>{error}</p>
         <Link href="/login">Zum Login</Link>
       </main>
@@ -68,9 +99,9 @@ export default function NewUnitPage() {
   }
 
   return (
-    <main style={{ maxWidth: 720, margin: "3rem auto", padding: "0 1.5rem" }}>
+    <main className="shell">
       <AppHeader user={user} title="Neue Lerneinheit" />
-      <form onSubmit={onCreate} style={{ display: "grid", gap: "0.9rem" }}>
+      <form onSubmit={onCreate} className="card stack">
         <label>
           Titel
           <input
@@ -78,7 +109,6 @@ export default function NewUnitPage() {
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="z.B. Einstieg ins Bruchrechnen"
-            style={{ display: "block", width: "100%", marginTop: 4, padding: 8 }}
           />
         </label>
         <label>
@@ -88,7 +118,6 @@ export default function NewUnitPage() {
             onChange={(e) => setBrief(e.target.value)}
             rows={5}
             placeholder="Was soll gelernt werden? Fotos vom Lernmittel kannst du danach hochladen."
-            style={{ display: "block", width: "100%", marginTop: 4, padding: 8 }}
           />
         </label>
         <label>
@@ -97,16 +126,11 @@ export default function NewUnitPage() {
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
             placeholder="Mathematik, Französisch, Grammatik…"
-            style={{ display: "block", width: "100%", marginTop: 4, padding: 8 }}
           />
         </label>
         <label>
           Sprache
-          <select
-            value={language}
-            onChange={(e) => setLanguage(e.target.value)}
-            style={{ display: "block", width: "100%", marginTop: 4, padding: 8 }}
-          >
+          <select value={language} onChange={(e) => setLanguage(e.target.value)}>
             <option value="de">Deutsch</option>
             <option value="fr">Französisch</option>
             <option value="it">Italienisch</option>
@@ -118,33 +142,44 @@ export default function NewUnitPage() {
           <input
             value={targetAge}
             onChange={(e) => setTargetAge(e.target.value)}
-            placeholder="z.B. 6-12"
-            style={{ display: "block", width: "100%", marginTop: 4, padding: 8 }}
+            placeholder="z.B. 10-14"
           />
         </label>
         <label>
           Aufgabentyp
-          <select
-            value={taskType}
-            onChange={(e) => setTaskType(e.target.value)}
-            style={{ display: "block", width: "100%", marginTop: 4, padding: 8 }}
-          >
-            <option value="mixed">Gemischt (Lerntext + Quiz)</option>
-            <option value="explain">Erklären / Lerntext</option>
-            <option value="quiz">Quiz / Verständnisfragen</option>
-            <option value="vocab">Vokabeln / Sprache</option>
-            <option value="practice">Übungen</option>
-            <option value="exam">Kurzprüfung</option>
+          <select value={taskType} onChange={(e) => setTaskType(e.target.value)}>
+            {taskTypes.map((t) => (
+              <option key={t.key} value={t.key}>
+                {t.label}
+              </option>
+            ))}
           </select>
         </label>
+        {selectedType && (
+          <p className="muted" style={{ margin: 0, fontSize: "0.92rem" }}>
+            {selectedType.description}
+          </p>
+        )}
+        {mathFocusVisible && (
+          <label>
+            Mathe-Schwerpunkt
+            <select value={mathFocus} onChange={(e) => setMathFocus(e.target.value)}>
+              {mathFocusOptions.map((o) => (
+                <option key={o.key || "none"} value={o.key}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+            <span className="muted" style={{ fontWeight: 400, fontSize: "0.85rem" }}>
+              Kein eigener Modus pro Rechenart — der Schwerpunkt steuert die KI (Bruchrechnen, Geometrie,
+              Einheiten …). Details im Auftrag ergänzen.
+            </span>
+          </label>
+        )}
         {profiles.length > 1 && (
           <label>
             Für wen?
-            <select
-              value={profileId}
-              onChange={(e) => setProfileId(e.target.value)}
-              style={{ display: "block", width: "100%", marginTop: 4, padding: 8 }}
-            >
+            <select value={profileId} onChange={(e) => setProfileId(e.target.value)}>
               {profiles.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.display_name}
@@ -162,19 +197,16 @@ export default function NewUnitPage() {
             max={5}
             value={difficulty}
             onChange={(e) => setDifficulty(Number(e.target.value))}
-            style={{ display: "block", width: "100%", marginTop: 4, padding: 8 }}
           />
         </label>
-        <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <input
-            type="checkbox"
-            checked={autoPurge}
-            onChange={(e) => setAutoPurge(e.target.checked)}
-          />
+        <label style={{ display: "flex", gap: 8, alignItems: "center", fontWeight: 600 }}>
+          <input type="checkbox" checked={autoPurge} onChange={(e) => setAutoPurge(e.target.checked)} />
           Quellenfotos nach OCR/Vision automatisch löschen (Metadaten bleiben)
         </label>
-        {error && <p style={{ color: "#ef4444" }}>{error}</p>}
-        <button type="submit">Einheit anlegen</button>
+        {error && <p className="err">{error}</p>}
+        <button type="submit" className="btn-primary">
+          Einheit anlegen
+        </button>
       </form>
     </main>
   );

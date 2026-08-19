@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
-import { fetchMe, fetchRecords, rebuildFromRecord, type LearningRecord, type User } from "@/lib/api";
+import { fetchMe, fetchRecords, rebuildFromRecord, createReviewUnit, type LearningRecord, type User } from "@/lib/api";
 
 export default function HistoryPage() {
   const router = useRouter();
@@ -94,8 +94,27 @@ export default function HistoryPage() {
                       : "Lernen"}
                   </Link>
                   <Link href={`/units/${r.unit_id}`}>Bearbeiten</Link>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const unit = await createReviewUnit(r.unit_id!);
+                      router.push(`/units/${unit.id}`);
+                    }}
+                  >
+                    Wiederholung
+                  </button>
                 </>
               ) : (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const nextDiff = Math.min(5, (r.difficulty || 1) + 1);
+                    const unit = await rebuildFromRecord(r.id, nextDiff, "review");
+                    router.push(`/units/${unit.id}`);
+                  }}
+                >
+                  Wiederholung (eine Stufe schwerer)
+                </button>
                 <button
                   type="button"
                   onClick={async () => {

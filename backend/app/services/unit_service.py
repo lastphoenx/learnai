@@ -14,6 +14,7 @@ from app.core.crypto.classification import DataClassification
 from app.models import LearningEvent, LearningRecord, LearningUnit, UnitModule, UnitSource, User
 from app.services.audit import log_event
 from app.services.crypto_json import decrypt_json, encrypt_json
+from app.ai.task_types import UNIT_TASK_KEYS, augment_brief
 from app.services.profile_service import child_user_ids, get_profile_for_actor
 
 
@@ -33,6 +34,7 @@ def reconstruction_payload(
     target_age: str | None,
     difficulty: int,
     task_type: str = "mixed",
+    math_focus: str | None = None,
 ) -> dict:
     return {
         "title": title,
@@ -42,6 +44,7 @@ def reconstruction_payload(
         "target_age": target_age,
         "difficulty": difficulty,
         "task_type": task_type,
+        "math_focus": math_focus or "",
     }
 
 
@@ -206,12 +209,16 @@ def create_unit(
     task_type: str = "mixed",
     auto_purge_sources: bool = False,
     profile_id: uuid.UUID | None = None,
+    math_focus: str | None = None,
 ) -> dict:
     if difficulty < 1 or difficulty > 5:
         raise UnitError("Schwierigkeit muss 1–5 sein", "invalid_difficulty")
     kind = (task_type or "mixed").strip().lower()
-    if kind not in {"mixed", "explain", "quiz", "vocab", "practice", "exam"}:
+    if kind not in UNIT_TASK_KEYS:
         raise UnitError("Unbekannter Aufgabentyp", "invalid_task_type")
+
+    focus = (math_focus or "").strip() or None
+    effective_brief = augment_brief(brief, task_key=kind, math_focus=focus)
 
     learner_id = user.id
     chosen_profile_id = profile_id or user.profile_id
@@ -228,12 +235,13 @@ def create_unit(
 
     recon = reconstruction_payload(
         title=title,
-        brief=brief,
+        brief=effective_brief,
         subject=subject,
         language=language,
         target_age=target_age,
         difficulty=difficulty,
         task_type=kind,
+        math_focus=focus,
     )
     unit = LearningUnit(
         tenant_id=user.tenant_id,
@@ -241,7 +249,7 @@ def create_unit(
         learner_id=learner_id,
         profile_id=chosen_profile_id,
         title_encrypted=encrypt_text_master(title),
-        brief_encrypted=encrypt_text_master(brief) if brief else None,
+        brief_encrypted=encrypt_text_master(effective_brief) if effective_brief else None,
         subject=subject,
         language=language,
         target_age=target_age,
@@ -260,7 +268,7 @@ def create_unit(
         profile_id=chosen_profile_id,
         unit_id=unit.id,
         title_encrypted=encrypt_text_master(title),
-        summary_encrypted=encrypt_text_master(brief) if brief else encrypt_text_master(title),
+        summary_encrypted=encrypt_text_master(effective_brief) if effective_brief else encrypt_text_master(title),
         subject=subject,
         language=language,
         difficulty=difficulty,
@@ -297,6 +305,7 @@ def create_unit_from_record(
     record_id: uuid.UUID,
     *,
     difficulty: int | None = None,
+    task_type: str | None = None,
 ) -> dict:
     record = db.get(LearningRecord, record_id)
     if not record or record.tenant_id != user.tenant_id:
@@ -310,18 +319,91 @@ def create_unit_from_record(
                 raise UnitError("Kein Zugriff", "forbidden")
     recon = decrypt_json(record.reconstruction_encrypted) or {}
     new_difficulty = difficulty if difficulty is not None else int(recon.get("difficulty") or record.difficulty)
+    kind = (task_type or recon.get("task_type") or "mixed").strip().lower()
+    title = str(recon.get("title") or decrypt_text_master(record.title_encrypted))
+    if kind == "review" and not title.lower().startswith("wiederholung"):
+        title = f"Wiederholung: {title}"
     return create_unit(
         db,
         user,
-        title=str(recon.get("title") or decrypt_text_master(record.title_encrypted)),
+        title=title,
         brief=recon.get("brief") or (decrypt_text_master(record.summary_encrypted) if record.summary_encrypted else None),
         subject=recon.get("subject") or record.subject,
         language=str(recon.get("language") or record.language),
         target_age=recon.get("target_age"),
         difficulty=new_difficulty,
-        task_type=str(recon.get("task_type") or "mixed"),
+        task_type=kind,
+        math_focus=recon.get("math_focus") or None,
         profile_id=record.profile_id,
     )
+
+
+def _copy_sources(db: Session, from_unit: LearningUnit, to_unit: LearningUnit) -> None:
+    import shutil
+
+    for src in from_unit.sources:
+        new_src = UnitSource(
+            unit_id=to_unit.id,
+            kind=src.kind,
+            original_name_encrypted=src.original_name_encrypted,
+            content_type=src.content_type,
+            byte_size=src.byte_size,
+            extracted_text_encrypted=src.extracted_text_encrypted,
+            analysis_encrypted=src.analysis_encrypted,
+        )
+        db.add(new_src)
+        db.flush()
+        if src.storage_path and src.purged_at is None:
+            old_path = upload_dir() / src.storage_path
+            if old_path.is_file():
+                rel = f"{to_unit.id}/{new_src.id}"
+                dest = upload_dir() / rel
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(old_path, dest)
+                new_src.storage_path = rel
+        db.flush()
+
+
+def create_review_from_unit(db: Session, user: User, unit_id: uuid.UUID) -> dict:
+    """Wiederholung/Festigung aus bestehender Einheit (Quellen werden mitkopiert)."""
+    unit = _get_unit_or_404(db, user, unit_id)
+    title = decrypt_text_master(unit.title_encrypted)
+    if not title.lower().startswith("wiederholung"):
+        title = f"Wiederholung: {title}"
+    brief = decrypt_text_master(unit.brief_encrypted) if unit.brief_encrypted else ""
+    math_focus = None
+    src_record = db.query(LearningRecord).filter(LearningRecord.unit_id == unit.id).first()
+    if src_record and src_record.reconstruction_encrypted:
+        src_recon = decrypt_json(src_record.reconstruction_encrypted)
+        if isinstance(src_recon, dict):
+            focus = (src_recon.get("math_focus") or "").strip()
+            math_focus = focus or None
+    result = create_unit(
+        db,
+        user,
+        title=title,
+        brief=brief,
+        subject=unit.subject,
+        language=unit.language,
+        target_age=unit.target_age,
+        difficulty=unit.difficulty,
+        task_type="review",
+        math_focus=math_focus,
+        profile_id=unit.profile_id,
+    )
+    new_unit = db.get(LearningUnit, uuid.UUID(result["id"]))
+    if new_unit:
+        _copy_sources(db, unit, new_unit)
+    log_event(
+        db,
+        tenant_id=user.tenant_id,
+        actor_id=user.id,
+        action="unit.review_create",
+        resource_type="learning_unit",
+        resource_id=uuid.UUID(result["id"]),
+        detail=f"from={unit.id}",
+    )
+    return _dec_unit(new_unit) if new_unit else result
 
 
 def update_unit_flags(

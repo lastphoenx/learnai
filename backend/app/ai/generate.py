@@ -23,14 +23,7 @@ from app.services.unit_service import (
     upload_dir,
 )
 
-TASK_HINTS = {
-    "mixed": "Mischung aus kurzem Lerntext und Quizfragen.",
-    "explain": "Schwerpunkt Erklären: ausführlicher Lerntext, nur 1–2 Kontrollfragen.",
-    "quiz": "Schwerpunkt Quiz: kurze Einleitung, viele Verständnisfragen.",
-    "vocab": "Sprachkurs/Vokabeln: Wort, Bedeutung, Beispielsatz, Mini-Quiz.",
-    "practice": "Übungsaufgaben zum Selberlösen, danach Lösungshinweis im Quiz.",
-    "exam": "Kurzprüfung: nur Aufgaben, knappe Anweisungen, klare richtige Antworten.",
-}
+from app.ai.task_types import AI_TASK_FOR_UNIT, hint_for_task
 
 SYSTEM = (
     "Du bist Lerncoach. Antworte immer mit einem JSON-Objekt, ohne Markdown."
@@ -52,10 +45,23 @@ def generate_modules(
 
     prefs = resolve_prefs_for_profile(db, unit.profile_id) or get_user_settings(user)
     task = unit.task_type or "mixed"
-    name, model = resolve_task_ai(prefs, task, override=provider)
+    ai_task = AI_TASK_FOR_UNIT.get(task, "mixed")
+    name, model = resolve_task_ai(prefs, ai_task, override=provider)
     name = resolve_provider(name)
     notes = _collect_source_notes(db, unit, prefs)
-    hint = TASK_HINTS.get(task, TASK_HINTS["mixed"])
+    hint = hint_for_task(task)
+    recon = None
+    from app.services.crypto_json import decrypt_json as _dj
+
+    record = db.query(LearningRecord).filter(LearningRecord.unit_id == unit.id).first()
+    if record and record.reconstruction_encrypted:
+        recon = _dj(record.reconstruction_encrypted)
+    math_focus = (recon or {}).get("math_focus") if isinstance(recon, dict) else None
+    if math_focus:
+        from app.ai.task_types import MATH_FOCUS_HINTS, MATH_FOCUS_OPTIONS
+
+        label = next((o["label"] for o in MATH_FOCUS_OPTIONS if o["key"] == math_focus), math_focus)
+        hint += f" Mathe-Schwerpunkt: {label}."
 
     title = decrypt_text_master(unit.title_encrypted)
     brief = decrypt_text_master(unit.brief_encrypted) if unit.brief_encrypted else ""
