@@ -26,7 +26,7 @@ from app.services.learn_service import (
     save_learn_position,
     submit_quiz_answer,
 )
-from app.services.unit_service import UnitError, add_source, add_source_url, create_unit, create_review_from_unit, create_unit_from_record, delete_source, delete_unit, get_record, get_unit, list_records, list_units, purge_source_file_keep_meta, update_unit_flags
+from app.services.unit_service import UnitError, add_source, add_source_url, create_unit, create_review_from_unit, create_unit_from_record, delete_source, delete_unit, get_record, get_unit, list_records, list_units, purge_source_file_keep_meta, update_unit, update_unit_flags
 from app.ai.task_types import math_focus_public, task_types_public
 
 router = APIRouter(prefix="/units", tags=["units"])
@@ -38,6 +38,7 @@ def _http(exc: UnitError) -> HTTPException:
         "not_found": status.HTTP_404_NOT_FOUND,
         "forbidden": status.HTTP_403_FORBIDDEN,
         "invalid_difficulty": status.HTTP_400_BAD_REQUEST,
+        "invalid_title": status.HTTP_400_BAD_REQUEST,
         "invalid_task_type": status.HTTP_400_BAD_REQUEST,
         "no_modules": status.HTTP_400_BAD_REQUEST,
         "invalid_index": status.HTTP_400_BAD_REQUEST,
@@ -132,7 +133,20 @@ def units_patch(
     db: Session = Depends(get_db),
 ):
     try:
-        result = update_unit_flags(db, user, unit_id, auto_purge_sources=body.auto_purge_sources)
+        result = update_unit(
+            db,
+            user,
+            unit_id,
+            title=body.title,
+            brief=body.brief,
+            subject=body.subject,
+            language=body.language,
+            target_age=body.target_age,
+            difficulty=body.difficulty,
+            task_type=body.task_type,
+            math_focus=body.math_focus,
+            auto_purge_sources=body.auto_purge_sources,
+        )
         db.commit()
         return result
     except UnitError as exc:

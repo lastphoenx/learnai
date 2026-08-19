@@ -151,6 +151,7 @@ export type LearningUnit = {
   target_age: string | null;
   difficulty: number;
   task_type?: string;
+  math_focus?: string | null;
   status: string;
   auto_purge_sources: boolean;
   created_at: string;
@@ -283,8 +284,20 @@ export const createUnit = (body: {
   auto_purge_sources?: boolean;
   profile_id?: string;
 }) => apiFetch<LearningUnit>("/api/v1/units", { method: "POST", json: body });
-export const patchUnit = (id: string, auto_purge_sources: boolean) =>
-  apiFetch<LearningUnit>(`/api/v1/units/${id}`, { method: "PATCH", json: { auto_purge_sources } });
+export type UnitPatchBody = {
+  title?: string;
+  brief?: string | null;
+  subject?: string | null;
+  language?: string;
+  target_age?: string | null;
+  difficulty?: number;
+  task_type?: string;
+  math_focus?: string | null;
+  auto_purge_sources?: boolean;
+};
+
+export const patchUnit = (id: string, body: UnitPatchBody) =>
+  apiFetch<LearningUnit>(`/api/v1/units/${id}`, { method: "PATCH", json: body });
 export const deleteUnit = (id: string) =>
   apiFetch<void>(`/api/v1/units/${id}`, { method: "DELETE" });
 

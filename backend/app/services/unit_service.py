@@ -173,6 +173,13 @@ def get_unit(db: Session, user: User, unit_id: uuid.UUID) -> dict:
 
     unit = _get_unit_or_404(db, user, unit_id)
     data = _dec_unit(unit)
+    record = db.query(LearningRecord).filter(LearningRecord.unit_id == unit.id).first()
+    if record and record.reconstruction_encrypted:
+        recon = decrypt_json(record.reconstruction_encrypted)
+        if isinstance(recon, dict):
+            focus = (recon.get("math_focus") or "").strip()
+            if focus:
+                data["math_focus"] = focus
     prog = learn_progress_for_unit(db, unit.id)
     if prog:
         data["learn_progress"] = prog
@@ -413,9 +420,88 @@ def update_unit_flags(
     *,
     auto_purge_sources: bool | None = None,
 ) -> dict:
+    return update_unit(db, user, unit_id, auto_purge_sources=auto_purge_sources)
+
+
+def update_unit(
+    db: Session,
+    user: User,
+    unit_id: uuid.UUID,
+    *,
+    title: str | None = None,
+    brief: str | None = None,
+    subject: str | None = None,
+    language: str | None = None,
+    target_age: str | None = None,
+    difficulty: int | None = None,
+    task_type: str | None = None,
+    math_focus: str | None = None,
+    auto_purge_sources: bool | None = None,
+) -> dict:
     unit = _get_unit_or_404(db, user, unit_id)
+    record = db.query(LearningRecord).filter(LearningRecord.unit_id == unit.id).first()
+    recon = decrypt_json(record.reconstruction_encrypted) if record and record.reconstruction_encrypted else {}
+    if not isinstance(recon, dict):
+        recon = {}
+
+    if title is not None:
+        cleaned = title.strip()
+        if not cleaned:
+            raise UnitError("Titel darf nicht leer sein", "invalid_title")
+        unit.title_encrypted = encrypt_text_master(cleaned)
+
+    if subject is not None:
+        unit.subject = subject.strip() or None
+    if language is not None:
+        unit.language = language.strip() or "de"
+    if target_age is not None:
+        unit.target_age = target_age.strip() or None
+    if difficulty is not None:
+        if difficulty < 1 or difficulty > 5:
+            raise UnitError("Schwierigkeit muss 1–5 sein", "invalid_difficulty")
+        unit.difficulty = difficulty
+
+    kind = unit.task_type
+    if task_type is not None:
+        kind = (task_type or "mixed").strip().lower()
+        if kind not in UNIT_TASK_KEYS:
+            raise UnitError("Unbekannter Aufgabentyp", "invalid_task_type")
+        unit.task_type = kind
+
+    focus = (recon.get("math_focus") or "").strip() or None
+    if math_focus is not None:
+        focus = (math_focus or "").strip() or None
+
+    brief_changed = brief is not None or task_type is not None or math_focus is not None
+    if brief_changed:
+        current_brief = decrypt_text_master(unit.brief_encrypted) if unit.brief_encrypted else ""
+        new_brief = brief.strip() if brief is not None else current_brief
+        effective_brief = augment_brief(new_brief or None, task_key=kind, math_focus=focus)
+        unit.brief_encrypted = encrypt_text_master(effective_brief) if effective_brief else None
+
     if auto_purge_sources is not None:
         unit.auto_purge_sources = auto_purge_sources
+
+    if record:
+        dec_title = decrypt_text_master(unit.title_encrypted)
+        dec_brief = decrypt_text_master(unit.brief_encrypted) if unit.brief_encrypted else ""
+        record.title_encrypted = encrypt_text_master(dec_title)
+        record.summary_encrypted = encrypt_text_master(dec_brief or dec_title)
+        record.subject = unit.subject
+        record.language = unit.language
+        record.difficulty = unit.difficulty
+        recon = reconstruction_payload(
+            title=dec_title,
+            brief=dec_brief,
+            subject=unit.subject,
+            language=unit.language,
+            target_age=unit.target_age,
+            difficulty=unit.difficulty,
+            task_type=unit.task_type,
+            math_focus=focus,
+        )
+        record.reconstruction_encrypted = encrypt_json(recon)
+
     db.flush()
     return _dec_unit(unit)
 

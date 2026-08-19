@@ -87,4 +87,25 @@ export function showMathFocus(taskType: string, subject: string) {
   return /mathe|math|rechnen/i.test(subject);
 }
 
+export function taskTypeLabel(key: string, types?: UnitTaskType[]) {
+  const list = types?.length ? types : FALLBACK_TASK_TYPES;
+  return list.find((t) => t.key === key)?.label ?? key;
+}
+
+export function mathFocusLabel(key: string | null | undefined, options = FALLBACK_MATH_FOCUS) {
+  if (!key) return null;
+  return options.find((o) => o.key === key)?.label ?? key;
+}
+
+const LANG_LABELS: Record<string, string> = {
+  de: "Deutsch",
+  fr: "Französisch",
+  it: "Italienisch",
+  en: "Englisch",
+};
+
+export function languageLabel(code: string) {
+  return LANG_LABELS[code] ?? code;
+}
+
 export { FALLBACK_TASK_TYPES, FALLBACK_MATH_FOCUS };

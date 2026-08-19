@@ -321,7 +321,17 @@ export default function UnitLearnPage() {
 
   return (
     <main className="shell">
-      <AppHeader user={user} title={unit.title} />
+      <AppHeader user={user} />
+      <nav className="breadcrumb" aria-label="Brotkrumen">
+        <Link href="/units">Einheiten</Link>
+        <span aria-hidden="true">›</span>
+        <Link href={`/units/${unit.id}`}>{unit.title}</Link>
+        <span aria-hidden="true">›</span>
+        <span>Lernen</span>
+      </nav>
+      <h1 className="unit-title" style={{ marginBottom: "1rem" }}>
+        {unit.title}
+      </h1>
       <div className="learn-step-label">
         {phase === "complete"
           ? "Abgeschlossen"

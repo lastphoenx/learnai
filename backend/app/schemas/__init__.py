@@ -142,6 +142,14 @@ class UnitCreateRequest(BaseModel):
 
 
 class UnitUpdateRequest(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=256)
+    brief: str | None = Field(default=None, max_length=8000)
+    subject: str | None = Field(default=None, max_length=64)
+    language: str | None = Field(default=None, max_length=8)
+    target_age: str | None = Field(default=None, max_length=32)
+    difficulty: int | None = Field(default=None, ge=1, le=5)
+    task_type: str | None = Field(default=None, max_length=32)
+    math_focus: str | None = Field(default=None, max_length=32)
     auto_purge_sources: bool | None = None
 
 
