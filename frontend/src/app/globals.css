@@ -441,6 +441,176 @@ button:disabled {
   border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
 }
 
+.learn-page .learn-hero {
+  padding: 1.2rem 1.35rem;
+  background: linear-gradient(135deg, var(--card) 0%, color-mix(in srgb, var(--accent) 8%, var(--card)) 100%);
+}
+
+.learn-phase-card {
+  padding: 1.35rem 1.4rem;
+}
+
+.learn-phase-card h2 {
+  font-size: 1.2rem;
+}
+
+.learn-phase-kicker {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  margin: 0 0 0.35rem;
+  font-weight: 650;
+}
+
+.learn-module-stepper {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 1rem;
+}
+
+.learn-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0.25rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  color: var(--muted);
+  max-width: 100%;
+}
+
+.learn-step span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.learn-step.done {
+  background: color-mix(in srgb, var(--accent) 12%, var(--card));
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
+  color: var(--accent);
+}
+
+.learn-step.current {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-fg);
+}
+
+.learn-step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 50%;
+  background: color-mix(in srgb, currentColor 15%, transparent);
+  font-size: 0.7rem;
+  flex-shrink: 0;
+}
+
+.learn-text-body {
+  white-space: pre-wrap;
+  font-size: 1.02rem;
+  line-height: 1.6;
+  margin: 0.75rem 0 0;
+  padding: 1rem;
+  border-radius: 12px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+}
+
+.learn-quiz-meta {
+  margin: 0.5rem 0 0.75rem;
+  font-size: 0.88rem;
+}
+
+.learn-quiz-question {
+  font-weight: 650;
+  font-size: 1.05rem;
+  margin: 0 0 0.75rem;
+}
+
+.learn-feedback {
+  margin-top: 1rem;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+}
+
+.learn-feedback.ok {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+  background: color-mix(in srgb, var(--accent) 8%, var(--card));
+}
+
+.learn-feedback.bad {
+  border-color: color-mix(in srgb, var(--danger) 35%, var(--border));
+  background: color-mix(in srgb, var(--danger) 8%, var(--card));
+}
+
+.learn-complete-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+  gap: 0.65rem;
+  margin: 1rem 0;
+}
+
+.learn-stat-tile {
+  padding: 0.85rem;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  text-align: center;
+}
+
+.learn-stat-tile strong {
+  display: block;
+  font-size: 1.35rem;
+  font-family: var(--font-display), Georgia, serif;
+}
+
+.learn-stat-tile span {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.filter-bar {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem 1.1rem;
+  margin-bottom: 0.25rem;
+}
+
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.filter-row select {
+  width: auto;
+  min-width: 9rem;
+  flex: 1;
+  max-width: 14rem;
+}
+
+.filter-search {
+  flex: 2;
+  min-width: 12rem;
+}
+
+.filter-count {
+  font-size: 0.88rem;
+  margin: 0;
+}
+
 /* —— Unit detail —— */
 .unit-page {
   display: grid;

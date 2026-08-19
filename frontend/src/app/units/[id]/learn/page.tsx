@@ -16,9 +16,9 @@ import {
   type LearnModule,
   type LearnProgress,
   type LearnState,
-  type LearnSummary,
   type User,
 } from "@/lib/api";
+import { languageLabel, taskTypeLabel } from "@/lib/taskTypes";
 
 type AnswerResult = {
   correct: boolean;
@@ -294,6 +294,7 @@ export default function UnitLearnPage() {
   if (error && !state) {
     return (
       <main className="shell">
+        <AppHeader user={user} />
         <p className="err">{error}</p>
         <Link href={`/units/${unitId}`}>Zurück zur Einheit</Link>
       </main>
@@ -302,7 +303,8 @@ export default function UnitLearnPage() {
 
   if (!state) {
     return (
-      <main className="shell">
+      <main className="shell shell-wide unit-page learn-page">
+        <AppHeader user={user} />
         <p className="muted">Laden…</p>
       </main>
     );
@@ -319,8 +321,21 @@ export default function UnitLearnPage() {
         ? totalModules + 1
         : progress.module_index + 1;
 
+  const phaseLabel =
+    phase === "complete"
+      ? "Abgeschlossen"
+      : phase === "intro"
+        ? "Einstieg"
+        : phase === "read"
+          ? "Lerntext"
+          : phase === "quiz"
+            ? "Quiz"
+            : phase === "module_done"
+              ? "Block fertig"
+              : `Block ${stepNum}`;
+
   return (
-    <main className="shell">
+    <main className="shell shell-wide unit-page learn-page">
       <AppHeader user={user} />
       <nav className="breadcrumb" aria-label="Brotkrumen">
         <Link href="/units">Einheiten</Link>
@@ -329,40 +344,62 @@ export default function UnitLearnPage() {
         <span aria-hidden="true">›</span>
         <span>Lernen</span>
       </nav>
-      <h1 className="unit-title" style={{ marginBottom: "1rem" }}>
-        {unit.title}
-      </h1>
-      <div className="learn-step-label">
-        {phase === "complete"
-          ? "Abgeschlossen"
-          : phase === "intro"
-            ? "Einstieg"
-            : `Block ${stepNum} von ${totalModules}`}
-        {summary.percent > 0 && phase !== "complete" && (
-          <span className="learn-badge" style={{ marginLeft: 8 }}>
-            {summary.percent}% erledigt
-          </span>
+
+      <section className="card learn-hero">
+        <p className="hero-kicker">Lernmodus</p>
+        <h1 className="unit-title">{unit.title}</h1>
+        <div className="badge-row" style={{ marginTop: "0.75rem" }}>
+          <span className="badge badge-mode">{phaseLabel}</span>
+          {unit.subject && <span className="badge badge-subject">{unit.subject}</span>}
+          <span className="badge badge-neutral">{taskTypeLabel(unit.task_type || "mixed")}</span>
+          <span className="badge badge-neutral">{languageLabel(unit.language)}</span>
+          <span className="badge badge-neutral">Stufe {unit.difficulty}</span>
+          {summary.percent > 0 && phase !== "complete" && (
+            <span className="learn-badge">{summary.percent}% erledigt</span>
+          )}
+        </div>
+        <div className="learn-progress-bar" aria-hidden>
+          <div className="learn-progress-fill" style={{ width: `${summary.percent}%` }} />
+        </div>
+        {totalModules > 0 && (
+          <div className="learn-module-stepper" aria-label="Fortschritt pro Block">
+            {modules.map((m, i) => {
+              const done = Boolean(progress.modules[m.id]?.done);
+              const current =
+                phase !== "intro" &&
+                phase !== "complete" &&
+                i === progress.module_index;
+              return (
+                <div
+                  key={m.id}
+                  className={`learn-step${done ? " done" : ""}${current ? " current" : ""}`}
+                  title={m.title}
+                >
+                  <span className="learn-step-num">{i + 1}</span>
+                  <span>{m.title}</span>
+                </div>
+              );
+            })}
+          </div>
         )}
-      </div>
-      <div className="learn-progress-bar" aria-hidden>
-        <div className="learn-progress-fill" style={{ width: `${summary.percent}%` }} />
-      </div>
+      </section>
 
       {error && <p className="err">{error}</p>}
 
-      <div className="card stack">
+      <section className="card learn-phase-card stack">
         {phase === "intro" && (
           <>
-            <h2 style={{ margin: 0 }}>Bereit zum Lernen?</h2>
-            {unit.brief && <p>{unit.brief}</p>}
+            <p className="learn-phase-kicker">Start</p>
+            <h2>Bereit zum Lernen?</h2>
+            {unit.brief && <p className="muted">{unit.brief}</p>}
             <p className="muted">
-              {totalModules} Lernblock{totalModules !== 1 ? "e" : ""} · Stufe {unit.difficulty}
-              {unit.subject ? ` · ${unit.subject}` : ""}
+              {totalModules} Lernblock{totalModules !== 1 ? "e" : ""}
+              {unit.target_age ? ` · Zielalter ${unit.target_age}` : ""}
             </p>
             {summary.status === "in_progress" && summary.modules_done > 0 && (
               <p>
-                Du hast schon {summary.modules_done} von {totalModules} Blöcken geschafft — weitermachen
-                oder von vorne.
+                Du hast schon <strong>{summary.modules_done}</strong> von {totalModules} Blöcken
+                geschafft.
               </p>
             )}
             <div className="learn-actions">
@@ -375,7 +412,7 @@ export default function UnitLearnPage() {
                 {summary.modules_done > 0 ? "Weitermachen" : "Los geht's"}
               </button>
               {summary.modules_done > 0 && (
-                <button type="button" onClick={onResetLearn} disabled={busy}>
+                <button type="button" className="ghost" onClick={onResetLearn} disabled={busy}>
                   Von Anfang (zurücksetzen)
                 </button>
               )}
@@ -388,16 +425,18 @@ export default function UnitLearnPage() {
 
         {phase === "read" && mod && (
           <>
-            <h2 style={{ margin: 0 }}>{mod.title}</h2>
-            {mod.content?.text && (
-              <p style={{ whiteSpace: "pre-wrap", fontSize: "1.05rem" }}>{mod.content.text}</p>
-            )}
+            <p className="learn-phase-kicker">
+              Block {progress.module_index + 1} von {totalModules} · Lerntext
+            </p>
+            <h2>{mod.title}</h2>
+            {mod.content?.text && <div className="learn-text-body">{mod.content.text}</div>}
             <div className="learn-actions">
-              <button type="button" onClick={onBack} disabled={busy}>
+              <button type="button" className="ghost" onClick={onBack} disabled={busy}>
                 Zurück
               </button>
               <button
                 type="button"
+                className="ghost"
                 onClick={() => onSpeak(mod.content?.text || mod.title, unit.language)}
               >
                 Vorlesen
@@ -405,7 +444,7 @@ export default function UnitLearnPage() {
               <button type="button" className="btn-primary" onClick={onTextContinue} disabled={busy}>
                 {(mod.quiz?.questions?.length || 0) > 0 ? "Weiter zum Quiz" : "Weiter"}
               </button>
-              <Link href="/units" className="muted">
+              <Link href={`/units/${unitId}`} className="muted">
                 Pause
               </Link>
             </div>
@@ -414,17 +453,20 @@ export default function UnitLearnPage() {
 
         {phase === "quiz" && mod && (
           <>
-            <h2 style={{ margin: 0 }}>{mod.title}</h2>
+            <p className="learn-phase-kicker">
+              Block {progress.module_index + 1} von {totalModules} · Quiz
+            </p>
+            <h2>{mod.title}</h2>
             {(() => {
               const q = mod.quiz?.questions?.[progress.question_index];
               if (!q) return <p className="muted">Keine Frage.</p>;
               const saved = progress.modules[mod.id]?.answers?.[progress.question_index];
               return (
                 <>
-                  <p className="muted">
+                  <p className="learn-quiz-meta muted">
                     Frage {progress.question_index + 1} von {mod.quiz?.questions?.length}
                   </p>
-                  <p style={{ fontWeight: 600, fontSize: "1.05rem" }}>{q.q}</p>
+                  <p className="learn-quiz-question">{q.q}</p>
                   <div>
                     {(q.options || []).map((opt, i) => {
                       let cls = "learn-quiz-option";
@@ -448,16 +490,18 @@ export default function UnitLearnPage() {
                     })}
                   </div>
                   {answerResult && (
-                    <p style={{ marginTop: "1rem" }}>
+                    <div className={`learn-feedback ${answerResult.correct ? "ok" : "bad"}`}>
                       {answerResult.correct ? (
                         <strong style={{ color: "var(--accent)" }}>Richtig!</strong>
                       ) : (
                         <strong style={{ color: "var(--danger)" }}>Nicht ganz — schau nochmal hin.</strong>
                       )}
                       {answerResult.explanation && (
-                        <span className="muted"> {answerResult.explanation}</span>
+                        <p className="muted" style={{ margin: "0.35rem 0 0" }}>
+                          {answerResult.explanation}
+                        </p>
                       )}
-                    </p>
+                    </div>
                   )}
                   {saved !== null && saved !== undefined && !answerResult && (
                     <p className="muted">Bereits beantwortet.</p>
@@ -466,7 +510,7 @@ export default function UnitLearnPage() {
               );
             })()}
             <div className="learn-actions">
-              <button type="button" onClick={onBack} disabled={busy || Boolean(answerResult)}>
+              <button type="button" className="ghost" onClick={onBack} disabled={busy || Boolean(answerResult)}>
                 Zurück
               </button>
               {answerResult && (
@@ -476,7 +520,7 @@ export default function UnitLearnPage() {
                     : "Block abschliessen"}
                 </button>
               )}
-              <Link href="/units" className="muted">
+              <Link href={`/units/${unitId}`} className="muted">
                 Pause
               </Link>
             </div>
@@ -485,23 +529,29 @@ export default function UnitLearnPage() {
 
         {phase === "module_done" && mod && (
           <>
-            <h2 style={{ margin: 0 }}>Block geschafft!</h2>
+            <p className="learn-phase-kicker">Block {progress.module_index + 1} abgeschlossen</p>
+            <h2>Gut gemacht!</h2>
             <p>
               <strong>{mod.title}</strong> ist erledigt.
             </p>
             {progress.modules[mod.id]?.total ? (
-              <p>
-                Quiz: {progress.modules[mod.id].correct} von {progress.modules[mod.id].total} richtig.
-              </p>
+              <div className="learn-complete-stats">
+                <div className="learn-stat-tile">
+                  <strong>
+                    {progress.modules[mod.id].correct}/{progress.modules[mod.id].total}
+                  </strong>
+                  <span>Quiz richtig</span>
+                </div>
+              </div>
             ) : null}
             <div className="learn-actions">
-              <button type="button" onClick={onBack} disabled={busy}>
+              <button type="button" className="ghost" onClick={onBack} disabled={busy}>
                 Zurück
               </button>
               <button type="button" className="btn-primary" onClick={onModuleContinue} disabled={busy}>
                 {progress.module_index + 1 < totalModules ? "Nächster Block" : "Einheit abschliessen"}
               </button>
-              <Link href="/units" className="muted">
+              <Link href={`/units/${unitId}`} className="muted">
                 Pause
               </Link>
             </div>
@@ -510,28 +560,44 @@ export default function UnitLearnPage() {
 
         {phase === "complete" && (
           <>
-            <h2 style={{ margin: 0 }}>Geschafft!</h2>
+            <p className="learn-phase-kicker">Fertig</p>
+            <h2>Geschafft!</h2>
             <p>Du hast alle {totalModules} Blöcke durchgearbeitet.</p>
-            {summary.quiz_total > 0 && (
-              <p>
-                Quiz gesamt: <strong>{summary.quiz_correct}</strong> von{" "}
-                <strong>{summary.quiz_total}</strong> richtig (
-                {Math.round((100 * summary.quiz_correct) / summary.quiz_total)}%).
-              </p>
-            )}
+            <div className="learn-complete-stats">
+              <div className="learn-stat-tile">
+                <strong>{totalModules}</strong>
+                <span>Blöcke</span>
+              </div>
+              {summary.quiz_total > 0 && (
+                <>
+                  <div className="learn-stat-tile">
+                    <strong>{summary.quiz_correct}</strong>
+                    <span>richtig</span>
+                  </div>
+                  <div className="learn-stat-tile">
+                    <strong>{Math.round((100 * summary.quiz_correct) / summary.quiz_total)}%</strong>
+                    <span>Quiz</span>
+                  </div>
+                </>
+              )}
+            </div>
             <div className="learn-actions">
               <button type="button" className="btn-primary" onClick={onResetLearn} disabled={busy}>
                 Nochmal lernen
               </button>
-              <Link href="/units" className="btn">
+              <Link href="/units" className="btn ghost">
                 Andere Einheit
               </Link>
-              <Link href={`/units/${unitId}`}>Zur Bearbeitung</Link>
-              <Link href="/history">Verlauf</Link>
+              <Link href={`/units/${unitId}`} className="btn ghost">
+                Zur Bearbeitung
+              </Link>
+              <Link href="/history" className="muted">
+                Verlauf
+              </Link>
             </div>
           </>
         )}
-      </div>
+      </section>
     </main>
   );
 }

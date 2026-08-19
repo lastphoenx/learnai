@@ -11,6 +11,8 @@ Self-hosted KI-Lernplattform. Foundation (Auth, 2FA, Crypto) aus dem Projektmana
 - Quellenfotos können einzeln weg, oder nach OCR nur die Datei (Text bleibt). Optional Auto-Purge nach Vision.
 - **2FA pro Account:** Pflicht oder optional (Admin). Einmal eingerichtet, gilt sie beim Login immer.
 
+Ausführliches Konzept, Lücken und Roadmap (u. a. **Schulprüfungen hochladen & Fehlermuster**): **[CONCEPT.md](CONCEPT.md)**
+
 ## Schnellstart
 
 ```bash
