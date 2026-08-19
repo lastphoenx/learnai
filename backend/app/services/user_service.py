@@ -90,9 +90,16 @@ def register_user(
 
 
 def authenticate_password(db: Session, email: str, password: str) -> User:
+    from sqlalchemy.orm import joinedload
+
     tenant = get_default_tenant(db)
     user = (
         db.query(User)
+        .options(
+            joinedload(User.profile),
+            joinedload(User.guardian_of),
+            joinedload(User.guarded_by),
+        )
         .filter(User.tenant_id == tenant.id, User.email_hash == hash_email(email))
         .first()
     )

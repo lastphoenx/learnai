@@ -1,5 +1,7 @@
 from uuid import UUID
 
+import logging
+
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
@@ -60,6 +62,7 @@ def _user_response(user: User) -> UserResponse:
 def _finish_login(db: Session, user: User, response: Response) -> LoginResponse:
     token, _ = create_session(db, user.id)
     db.commit()
+    db.refresh(user)
     set_session_cookie(response, token)
     clear_challenge_cookie(response)
     public = user_public_dict(user)
@@ -97,6 +100,13 @@ def login(body: LoginRequest, response: Response, db: Session = Depends(get_db))
     except AuthError as exc:
         db.rollback()
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=exc.message) from exc
+    except Exception as exc:
+        db.rollback()
+        logging.getLogger(__name__).exception("login failed")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Interner Fehler bei der Anmeldung",
+        ) from exc
 
 
 @auth_router.post("/2fa/verify", response_model=LoginResponse)
