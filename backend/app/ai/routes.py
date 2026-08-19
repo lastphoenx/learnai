@@ -3,11 +3,13 @@
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field
 
+from app.ai.catalog import resolve_task_ai
 from app.ai.errors import LlmError
 from app.ai.providers import complete, provider_status
 from app.ai.tts import TtsError, synthesize_openai
 from app.core.auth.dependencies import get_app_user
 from app.models import User
+from app.services.user_service import get_user_settings
 
 router = APIRouter(prefix="/ai", tags=["ai"])
 
@@ -39,9 +41,15 @@ def complete_prompt(body: CompleteRequest, user: User = Depends(get_app_user)):
 
 @router.post("/tts")
 def tts(body: TtsRequest, user: User = Depends(get_app_user)):
-    del user
+    prefs = get_user_settings(user)
+    provider, model = resolve_task_ai(prefs, "tts")
+    if provider != "openai":
+        raise HTTPException(
+            status_code=400,
+            detail="Vorlesen ist nur mit OpenAI-TTS eingebaut. In den Einstellungen TTS auf OpenAI stellen.",
+        )
     try:
-        audio = synthesize_openai(body.text, body.lang)
+        audio = synthesize_openai(body.text, body.lang, model=model)
         return Response(content=audio, media_type="audio/mpeg")
     except TtsError as exc:
         raise HTTPException(status_code=400, detail=exc.message) from exc

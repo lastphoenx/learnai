@@ -7,6 +7,7 @@ from pathlib import Path
 
 from sqlalchemy.orm import Session
 
+from app.ai.catalog import resolve_task_ai
 from app.ai.errors import LlmError
 from app.ai.providers import complete, describe_image, parse_json_object, resolve_provider
 from app.config import settings
@@ -48,10 +49,10 @@ def generate_modules(
 ) -> dict:
     unit = _get_unit_or_404(db, user, unit_id)
     prefs = get_user_settings(user)
-    name = resolve_provider(provider or prefs.get("llm_provider") or None)
-    model = (prefs.get("llm_model") or "").strip() or None
-    notes = _collect_source_notes(db, unit, name)
     task = unit.task_type or "mixed"
+    name, model = resolve_task_ai(prefs, task, override=provider)
+    name = resolve_provider(name)
+    notes = _collect_source_notes(db, unit, prefs)
     hint = TASK_HINTS.get(task, TASK_HINTS["mixed"])
 
     title = decrypt_text_master(unit.title_encrypted)
@@ -112,7 +113,7 @@ def generate_modules(
     return _dec_unit(unit)
 
 
-def _collect_source_notes(db: Session, unit: LearningUnit, provider: str) -> str:
+def _collect_source_notes(db: Session, unit: LearningUnit, prefs: dict) -> str:
     parts: list[str] = []
     for source in unit.sources:
         label = (
@@ -134,6 +135,7 @@ def _collect_source_notes(db: Session, unit: LearningUnit, provider: str) -> str
                 parts.append(f"### {label}\n(Bild zu groß für Vision, übersprungen)")
                 continue
             mime = source.content_type or "image/jpeg"
+            vision_name, vision_model = resolve_task_ai(prefs, "vision")
             described = describe_image(
                 image_bytes=data,
                 mime=mime,
@@ -142,7 +144,8 @@ def _collect_source_notes(db: Session, unit: LearningUnit, provider: str) -> str
                     "und beschreibe die Aufgabe so, dass man daraus eine Lerneinheit bauen kann. "
                     f"Sprache: {unit.language}."
                 ),
-                provider=provider,
+                provider=vision_name,
+                model=vision_model,
             )
             source.extracted_text_encrypted = encrypt_text_master(described["text"])
             source.analysis_encrypted = encrypt_text_master(

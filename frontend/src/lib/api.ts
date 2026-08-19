@@ -31,6 +31,7 @@ export type User = {
   display_name?: string;
   llm_provider?: string;
   llm_model?: string;
+  by_task?: Record<string, { provider: string; model: string }>;
 };
 export type LoginResponse = { requires_2fa: boolean; must_enroll_2fa?: boolean; user?: User };
 export type AdminUser = User & { is_active: boolean; created_at: string };
@@ -133,10 +134,14 @@ export const createUser = (body: {
   totp_required?: boolean;
 }) => apiFetch<AdminUser>("/api/v1/users", { method: "POST", json: body });
 
+export const updateAdminUser = (userId: string, body: { display_name?: string }) =>
+  apiFetch<AdminUser>(`/api/v1/users/${userId}`, { method: "PATCH", json: body });
+
 export const updateMySettings = (body: {
   display_name?: string;
   llm_provider?: string;
   llm_model?: string;
+  by_task?: Record<string, { provider: string; model: string }>;
 }) => apiFetch<User>("/api/v1/auth/me", { method: "PATCH", json: body });
 
 export const fetchUnits = () => apiFetch<LearningUnit[]>("/api/v1/units");
@@ -182,6 +187,15 @@ export const generateUnit = (unitId: string, provider?: string) =>
     json: { provider: provider ?? null },
   });
 
+export type TaskCatalogItem = {
+  key: string;
+  label: string;
+  why: string;
+  default_provider: string;
+  local: string[];
+  external: string[];
+};
+
 export const fetchAiStatus = () =>
   apiFetch<{
     llm_provider: string;
@@ -189,6 +203,7 @@ export const fetchAiStatus = () =>
     anthropic: { configured: boolean };
     ollama: { ok?: boolean; configured?: boolean; url: string; models?: string[]; error?: string };
     tts: { provider: string; configured: boolean };
+    task_catalog?: TaskCatalogItem[];
   }>("/api/v1/ai/status");
 
 export const fetchRecords = () => apiFetch<LearningRecord[]>("/api/v1/records");

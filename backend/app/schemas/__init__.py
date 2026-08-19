@@ -42,12 +42,14 @@ class UserResponse(BaseModel):
     display_name: str = ""
     llm_provider: str = ""
     llm_model: str = ""
+    by_task: dict[str, dict[str, str]] = Field(default_factory=dict)
 
 
 class UserSettingsUpdateRequest(BaseModel):
     display_name: str | None = Field(default=None, max_length=80)
     llm_provider: str | None = Field(default=None, max_length=32)
     llm_model: str | None = Field(default=None, max_length=80)
+    by_task: dict[str, dict[str, str]] | None = None
 
 
 class AdminCreateUserRequest(BaseModel):
@@ -56,6 +58,10 @@ class AdminCreateUserRequest(BaseModel):
     display_name: str = Field(default="", max_length=80)
     is_admin: bool = False
     totp_required: bool = False
+
+
+class AdminUserUpdateRequest(BaseModel):
+    display_name: str | None = Field(default=None, max_length=80)
 
 
 class LoginResponse(BaseModel):

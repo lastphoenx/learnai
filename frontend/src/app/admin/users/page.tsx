@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
-import { createUser, fetchMe, fetchUsers, setTotpPolicy, type AdminUser, type User } from "@/lib/api";
+import { createUser, fetchMe, fetchUsers, setTotpPolicy, updateAdminUser, type AdminUser, type User } from "@/lib/api";
 
 export default function AdminUsersPage() {
   const [user, setUser] = useState<User | null>(null);
@@ -14,6 +14,7 @@ export default function AdminUsersPage() {
   const [displayName, setDisplayName] = useState("");
   const [makeAdmin, setMakeAdmin] = useState(false);
   const [totpRequired, setTotpRequired] = useState(false);
+  const [rename, setRename] = useState<Record<string, string>>({});
 
   function load() {
     fetchUsers().then(setUsers).catch((e: Error) => setError(e.message));
@@ -129,6 +130,32 @@ export default function AdminUsersPage() {
               {u.is_admin ? "Admin" : "Benutzer"} · 2FA {u.totp_enabled ? "aktiv" : "nicht eingerichtet"}
               {u.llm_provider ? ` · KI: ${u.llm_provider}` : ""}
             </p>
+            <form
+              className="stack"
+              style={{ marginBottom: "0.75rem" }}
+              onSubmit={async (e) => {
+                e.preventDefault();
+                setError(null);
+                try {
+                  await updateAdminUser(u.id, {
+                    display_name: (rename[u.id] ?? u.display_name ?? "").trim(),
+                  });
+                  load();
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : "Name speichern fehlgeschlagen");
+                }
+              }}
+            >
+              <label>
+                Anzeigename
+                <input
+                  value={rename[u.id] ?? u.display_name ?? ""}
+                  onChange={(e) => setRename((prev) => ({ ...prev, [u.id]: e.target.value }))}
+                  placeholder="z.B. Thomas"
+                />
+              </label>
+              <button type="submit">Namen speichern</button>
+            </form>
             <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
               <input
                 type="checkbox"

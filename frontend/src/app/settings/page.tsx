@@ -4,7 +4,27 @@ import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { TotpQr } from "@/components/TotpQr";
-import { confirm2fa, fetchAiStatus, fetchMe, setup2fa, updateMySettings, type User } from "@/lib/api";
+import {
+  confirm2fa,
+  fetchAiStatus,
+  fetchMe,
+  setup2fa,
+  updateMySettings,
+  type TaskCatalogItem,
+  type User,
+} from "@/lib/api";
+
+type TaskRow = { provider: string; model: string };
+
+function pickLocal(recs: string[], pulled: string[]): string {
+  const lower = pulled.map((p) => p.toLowerCase());
+  for (const rec of recs) {
+    const r = rec.toLowerCase();
+    const idx = lower.findIndex((p) => p === r || p.startsWith(r) || p.includes(r.split(":")[0]));
+    if (idx >= 0) return pulled[idx];
+  }
+  return "";
+}
 
 export default function SettingsPage() {
   const [user, setUser] = useState<User | null>(null);
@@ -18,6 +38,8 @@ export default function SettingsPage() {
   const [displayName, setDisplayName] = useState("");
   const [llmProvider, setLlmProvider] = useState("default");
   const [llmModel, setLlmModel] = useState("");
+  const [byTask, setByTask] = useState<Record<string, TaskRow>>({});
+  const [catalog, setCatalog] = useState<TaskCatalogItem[]>([]);
   const [saved, setSaved] = useState(false);
   const [ollamaModels, setOllamaModels] = useState<string[]>([]);
   const [configured, setConfigured] = useState({ openai: false, anthropic: false, ollama: false });
@@ -29,6 +51,7 @@ export default function SettingsPage() {
         setDisplayName(u.display_name || "");
         setLlmProvider(u.llm_provider || "default");
         setLlmModel(u.llm_model || "");
+        setByTask(u.by_task || {});
       })
       .catch(() => setError("Nicht angemeldet"));
     fetchAiStatus()
@@ -39,9 +62,31 @@ export default function SettingsPage() {
           anthropic: s.anthropic.configured,
           ollama: Boolean(s.ollama.ok || s.ollama.configured),
         });
+        setCatalog(s.task_catalog || []);
       })
       .catch(() => undefined);
   }, []);
+
+  function setRow(key: string, patch: Partial<TaskRow>) {
+    setByTask((prev) => {
+      const current = prev[key] || { provider: "", model: "" };
+      return { ...prev, [key]: { ...current, ...patch } };
+    });
+  }
+
+  function applyRecommended() {
+    const next: Record<string, TaskRow> = {};
+    for (const item of catalog) {
+      next[item.key] = {
+        provider: item.default_provider,
+        model:
+          item.default_provider === "ollama"
+            ? pickLocal(item.local, ollamaModels)
+            : item.external[0] || "",
+      };
+    }
+    setByTask(next);
+  }
 
   async function onSetup(e: FormEvent) {
     e.preventDefault();
@@ -96,8 +141,10 @@ export default function SettingsPage() {
                 display_name: displayName,
                 llm_provider: llmProvider,
                 llm_model: llmModel,
+                by_task: byTask,
               });
               setUser(me);
+              setByTask(me.by_task || {});
               setSaved(true);
             } catch (err) {
               setError(err instanceof Error ? err.message : "Speichern fehlgeschlagen");
@@ -109,47 +156,110 @@ export default function SettingsPage() {
             <input
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
-              placeholder="z.B. Papa, Lena, Klasse 4a"
+              placeholder="z.B. Thomas, Lena, Klasse 4a"
             />
           </label>
-          <label>
-            KI-Provider
-            <select value={llmProvider} onChange={(e) => setLlmProvider(e.target.value)}>
-              <option value="default">Standard (Server)</option>
-              {configured.ollama && <option value="ollama">Ollama (lokal)</option>}
-              {configured.openai && <option value="openai">OpenAI</option>}
-              {configured.anthropic && <option value="anthropic">Anthropic / Claude</option>}
-            </select>
-          </label>
-          <label>
-            Modell
-            {llmProvider === "ollama" && ollamaModels.length > 0 ? (
-              <select value={llmModel} onChange={(e) => setLlmModel(e.target.value)}>
-                <option value="">Standard</option>
-                {ollamaModels.map((m) => (
-                  <option key={m} value={m}>
-                    {m}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <input
-                value={llmModel}
-                onChange={(e) => setLlmModel(e.target.value)}
-                placeholder={
-                  llmProvider === "openai"
-                    ? "z.B. gpt-4o-mini"
-                    : llmProvider === "anthropic"
-                      ? "z.B. claude-sonnet-4-0"
-                      : "leer = Server-Default"
-                }
-              />
-            )}
-          </label>
           <p className="muted">
-            API-Keys bleiben in der Server-.env. Hier wählst du nur, womit deine Einheiten
-            aufbereitet werden.
+            Pro Aufgabentyp ein Modell. Lokal wo Qualität und Datenschutz passen; Vorlesen und
+            Sprache über OpenAI/Anthropic. Keys bleiben in der Server-.env.
           </p>
+          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+            <button type="button" className="ghost" onClick={applyRecommended}>
+              Empfehlungen übernehmen
+            </button>
+          </div>
+          {catalog.length > 0 && (
+            <div style={{ overflowX: "auto" }}>
+              <table className="task-ai">
+                <thead>
+                  <tr>
+                    <th>Typ</th>
+                    <th>Provider</th>
+                    <th>Modell</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {catalog.map((item) => {
+                    const row = byTask[item.key] || { provider: "", model: "" };
+                    const provider = row.provider || "";
+                    const isTts = item.key === "tts";
+                    return (
+                      <tr key={item.key}>
+                        <td>
+                          <strong>{item.label}</strong>
+                          <p className="why">{item.why}</p>
+                          <p className="why">
+                            Lokal: {item.local.map((m, i) => `${i + 1}. ${m}`).join(" · ")}
+                            <br />
+                            Extern: {item.external.map((m, i) => `${i + 1}. ${m}`).join(" · ")}
+                          </p>
+                        </td>
+                        <td>
+                          <select
+                            value={provider}
+                            onChange={(e) =>
+                              setRow(item.key, { provider: e.target.value, model: "" })
+                            }
+                          >
+                            <option value="">Empfehlung ({item.default_provider})</option>
+                            {!isTts && configured.ollama && (
+                              <option value="ollama">Ollama (lokal)</option>
+                            )}
+                            {configured.openai && <option value="openai">OpenAI</option>}
+                            {!isTts && configured.anthropic && (
+                              <option value="anthropic">Anthropic</option>
+                            )}
+                          </select>
+                        </td>
+                        <td>
+                          <ModelField
+                            item={item}
+                            provider={provider || item.default_provider}
+                            model={row.model}
+                            ollamaModels={ollamaModels}
+                            onChange={(model) => setRow(item.key, { model })}
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <details>
+            <summary className="muted">Fallback für Text-Typen ohne eigene Zeile</summary>
+            <div className="stack" style={{ marginTop: "0.75rem" }}>
+              <label>
+                KI-Provider
+                <select value={llmProvider} onChange={(e) => setLlmProvider(e.target.value)}>
+                  <option value="default">Standard (Empfehlung je Typ)</option>
+                  {configured.ollama && <option value="ollama">Ollama (lokal)</option>}
+                  {configured.openai && <option value="openai">OpenAI</option>}
+                  {configured.anthropic && <option value="anthropic">Anthropic / Claude</option>}
+                </select>
+              </label>
+              <label>
+                Modell
+                {llmProvider === "ollama" && ollamaModels.length > 0 ? (
+                  <select value={llmModel} onChange={(e) => setLlmModel(e.target.value)}>
+                    <option value="">Standard</option>
+                    {ollamaModels.map((m) => (
+                      <option key={m} value={m}>
+                        {m}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    value={llmModel}
+                    onChange={(e) => setLlmModel(e.target.value)}
+                    placeholder="leer = Server-Default"
+                  />
+                )}
+              </label>
+            </div>
+          </details>
           <button type="submit">Einstellungen speichern</button>
           {saved && <p>Gespeichert.</p>}
         </form>
@@ -229,5 +339,58 @@ export default function SettingsPage() {
         {error && <p className="err">{error}</p>}
       </div>
     </main>
+  );
+}
+
+function ModelField({
+  item,
+  provider,
+  model,
+  ollamaModels,
+  onChange,
+}: {
+  item: TaskCatalogItem;
+  provider: string;
+  model: string;
+  ollamaModels: string[];
+  onChange: (model: string) => void;
+}) {
+  if (item.key === "tts") {
+    return (
+      <select value={model} onChange={(e) => onChange(e.target.value)}>
+        <option value="">1. tts-1-hd</option>
+        <option value="tts-1-hd">1. tts-1-hd</option>
+        <option value="gpt-4o-mini-tts">2. gpt-4o-mini-tts</option>
+        <option value="tts-1">3. tts-1</option>
+      </select>
+    );
+  }
+  if (provider === "ollama" && ollamaModels.length > 0) {
+    return (
+      <select value={model} onChange={(e) => onChange(e.target.value)}>
+        <option value="">auto / Server</option>
+        {ollamaModels.map((m) => (
+          <option key={m} value={m}>
+            {m}
+          </option>
+        ))}
+      </select>
+    );
+  }
+  const hints = provider === "ollama" ? item.local : item.external;
+  return (
+    <>
+      <input
+        value={model}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={hints[0] || "leer = Default"}
+        list={`models-${item.key}`}
+      />
+      <datalist id={`models-${item.key}`}>
+        {hints.map((h) => (
+          <option key={h} value={h} />
+        ))}
+      </datalist>
+    </>
   );
 }

@@ -250,3 +250,47 @@ button:disabled {
   color: var(--muted);
   margin: 0 0 0.4rem;
 }
+
+.task-ai {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.task-ai th,
+.task-ai td {
+  text-align: left;
+  vertical-align: top;
+  padding: 0.75rem 0.5rem 0.75rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.task-ai th {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  font-weight: 650;
+}
+
+.task-ai select,
+.task-ai input:not([type="checkbox"]) {
+  padding: 0.45rem 0.6rem;
+}
+
+.task-ai .why {
+  font-weight: 400;
+  font-size: 0.82rem;
+  color: var(--muted);
+  margin: 0.2rem 0 0;
+}
+
+.ghost {
+  background: transparent;
+  color: var(--fg);
+  border: 1px solid var(--border);
+}
+
+.ghost:hover {
+  background: var(--bg-2);
+}

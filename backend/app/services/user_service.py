@@ -4,6 +4,7 @@ import json
 
 from sqlalchemy.orm import Session
 
+from app.ai.catalog import TASK_KEYS
 from app.core.auth.challenges import consume_login_challenge, create_login_challenge
 from app.core.auth.passwords import hash_email, hash_password, verify_password
 from app.core.auth.recovery import generate_recovery_codes, verify_and_consume_recovery_code
@@ -176,7 +177,24 @@ def user_public_dict(user: User) -> dict:
         "display_name": prefs.get("display_name") or "",
         "llm_provider": prefs.get("llm_provider") or "",
         "llm_model": prefs.get("llm_model") or "",
+        "by_task": prefs.get("by_task") or {},
     }
+
+
+def _normalize_by_task(raw: object) -> dict:
+    if not isinstance(raw, dict):
+        return {}
+    out: dict[str, dict[str, str]] = {}
+    for key, row in raw.items():
+        if key not in TASK_KEYS or not isinstance(row, dict):
+            continue
+        provider = str(row.get("provider") or "").strip().lower()
+        if provider in {"", "default"}:
+            provider = ""
+        elif provider not in {"ollama", "openai", "anthropic"}:
+            continue
+        out[str(key)] = {"provider": provider, "model": str(row.get("model") or "").strip()[:80]}
+    return out
 
 
 def get_user_settings(user: User) -> dict:
@@ -190,6 +208,7 @@ def get_user_settings(user: User) -> dict:
         "display_name": str(data.get("display_name") or "").strip()[:80],
         "llm_provider": provider,
         "llm_model": str(data.get("llm_model") or "").strip()[:80],
+        "by_task": _normalize_by_task(data.get("by_task")),
     }
 
 
@@ -200,6 +219,7 @@ def update_user_settings(
     display_name: str | None = None,
     llm_provider: str | None = None,
     llm_model: str | None = None,
+    by_task: dict | None = None,
 ) -> dict:
     current = get_user_settings(user)
     if display_name is not None:
@@ -214,6 +234,8 @@ def update_user_settings(
             raise AuthError("Unbekannter KI-Provider", "bad_provider")
     if llm_model is not None:
         current["llm_model"] = llm_model.strip()[:80]
+    if by_task is not None:
+        current["by_task"] = _normalize_by_task(by_task)
     user.settings_encrypted = encrypt_json(current)
     db.flush()
     return get_user_settings(user)

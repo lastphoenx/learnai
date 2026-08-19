@@ -17,6 +17,7 @@ from app.core.db import get_db
 from app.models import User
 from app.schemas import (
     AdminCreateUserRequest,
+    AdminUserUpdateRequest,
     LoginRequest,
     LoginResponse,
     RegisterRequest,
@@ -147,6 +148,7 @@ def me_update(
             display_name=body.display_name,
             llm_provider=body.llm_provider,
             llm_model=body.llm_model,
+            by_task=body.by_task,
         )
         db.commit()
         db.refresh(user)
@@ -210,6 +212,31 @@ def users_create(
         db.commit()
         db.refresh(user)
         row = {**user_public_dict(user), "is_active": user.is_active, "created_at": user.created_at.isoformat()}
+        return UserAdminResponse(**row)
+    except AuthError as exc:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=exc.message) from exc
+
+
+@users_router.patch("/{user_id}", response_model=UserAdminResponse)
+def users_update(
+    user_id: UUID,
+    body: AdminUserUpdateRequest,
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    target = db.get(User, user_id)
+    if not target or target.tenant_id != admin.tenant_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Benutzer nicht gefunden")
+    try:
+        update_user_settings(db, target, display_name=body.display_name)
+        db.commit()
+        db.refresh(target)
+        row = {
+            **user_public_dict(target),
+            "is_active": target.is_active,
+            "created_at": target.created_at.isoformat(),
+        }
         return UserAdminResponse(**row)
     except AuthError as exc:
         db.rollback()
