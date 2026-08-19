@@ -115,7 +115,7 @@ export default function UnitDetailPage() {
       {unit && (
         <>
           <p style={{ color: "var(--muted)" }}>
-            {unit.subject || "ohne Fach"} · {unit.language} · Stufe {unit.difficulty}
+            {unit.subject || "ohne Fach"} · {unit.task_type || "mixed"} · {unit.language} · Stufe {unit.difficulty}
             {unit.target_age ? ` · ${unit.target_age}` : ""}
           </p>
           {unit.brief && <p>{unit.brief}</p>}

@@ -25,7 +25,7 @@ def _http(exc: UnitError) -> HTTPException:
         "not_found": status.HTTP_404_NOT_FOUND,
         "forbidden": status.HTTP_403_FORBIDDEN,
         "invalid_difficulty": status.HTTP_400_BAD_REQUEST,
-        "empty": status.HTTP_400_BAD_REQUEST,
+        "invalid_task_type": status.HTTP_400_BAD_REQUEST,
     }
     return HTTPException(status_code=mapping.get(exc.code, 400), detail=exc.message)
 
@@ -51,6 +51,7 @@ def units_create(
             language=body.language,
             target_age=body.target_age,
             difficulty=body.difficulty,
+            task_type=body.task_type,
             auto_purge_sources=body.auto_purge_sources,
         )
         db.commit()

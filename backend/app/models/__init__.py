@@ -72,6 +72,7 @@ class User(Base, TimestampMixin):
     totp_required: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    settings_encrypted: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
     classification: Mapped[int] = mapped_column(
         SmallInteger, default=DataClassification.SECRET, nullable=False
     )
@@ -252,6 +253,7 @@ class LearningUnit(Base, TimestampMixin):
     language: Mapped[str] = mapped_column(String(8), default="de", nullable=False)
     target_age: Mapped[str | None] = mapped_column(String(32), nullable=True)
     difficulty: Mapped[int] = mapped_column(SmallInteger, default=1, nullable=False)
+    task_type: Mapped[str] = mapped_column(String(32), default="mixed", nullable=False)
     status: Mapped[str] = mapped_column(String(24), default="draft", nullable=False)
     auto_purge_sources: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     classification: Mapped[int] = mapped_column(

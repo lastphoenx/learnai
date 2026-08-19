@@ -64,16 +64,22 @@ def resolve_provider(override: str | None = None) -> str:
     return name
 
 
-def complete(*, prompt: str, provider: str | None = None, system: str | None = None) -> LlmResult:
+def complete(
+    *,
+    prompt: str,
+    provider: str | None = None,
+    system: str | None = None,
+    model: str | None = None,
+) -> LlmResult:
     name = resolve_provider(provider)
     text = prompt.strip()
     if not text:
         raise LlmError("Leerer Prompt", "empty")
     if name == "ollama":
-        return _ollama_chat(text, system=system)
+        return _ollama_chat(text, system=system, model=model)
     if name == "openai":
-        return _openai_chat(text, system=system)
-    return _anthropic_chat(text, system=system)
+        return _openai_chat(text, system=system, model=model)
+    return _anthropic_chat(text, system=system, model=model)
 
 
 def describe_image(
@@ -113,8 +119,8 @@ def parse_json_object(text: str) -> dict:
     raise LlmError("KI-Antwort war kein JSON", "bad_json")
 
 
-def _ollama_chat(prompt: str, system: str | None = None) -> LlmResult:
-    model = settings.ollama_model
+def _ollama_chat(prompt: str, system: str | None = None, model: str | None = None) -> LlmResult:
+    model = (model or settings.ollama_model).strip()
     messages = []
     if system:
         messages.append({"role": "system", "content": system})
@@ -166,16 +172,17 @@ def _ollama_post(path: str, payload: dict, timeout: float = 120.0) -> dict:
     return response.json()
 
 
-def _openai_chat(prompt: str, system: str | None = None) -> LlmResult:
+def _openai_chat(prompt: str, system: str | None = None, model: str | None = None) -> LlmResult:
     if not settings.openai_api_key:
         raise LlmError("OPENAI_API_KEY fehlt", "missing_key")
+    model = (model or settings.openai_model).strip()
     messages = []
     if system:
         messages.append({"role": "system", "content": system})
     messages.append({"role": "user", "content": prompt})
     data = _openai_post(
         {
-            "model": settings.openai_model,
+            "model": model,
             "messages": messages,
             "temperature": 0.3,
         }
@@ -183,7 +190,7 @@ def _openai_chat(prompt: str, system: str | None = None) -> LlmResult:
     text = (((data.get("choices") or [{}])[0].get("message") or {}).get("content")) or ""
     if not text.strip():
         raise LlmError("OpenAI lieferte keinen Text", "empty_response")
-    return LlmResult(provider="openai", model=settings.openai_model, text=text.strip())
+    return LlmResult(provider="openai", model=model, text=text.strip())
 
 
 def _openai_vision(b64: str, mime: str, prompt: str) -> LlmResult:
@@ -226,11 +233,12 @@ def _openai_post(payload: dict, timeout: float = 90.0) -> dict:
     return response.json()
 
 
-def _anthropic_chat(prompt: str, system: str | None = None) -> LlmResult:
+def _anthropic_chat(prompt: str, system: str | None = None, model: str | None = None) -> LlmResult:
     if not settings.anthropic_api_key:
         raise LlmError("ANTHROPIC_API_KEY fehlt", "missing_key")
+    model = (model or settings.anthropic_model).strip()
     body: dict = {
-        "model": settings.anthropic_model,
+        "model": model,
         "max_tokens": 4096,
         "messages": [{"role": "user", "content": prompt}],
     }
@@ -238,7 +246,7 @@ def _anthropic_chat(prompt: str, system: str | None = None) -> LlmResult:
         body["system"] = system
     data = _anthropic_post(body)
     text = _anthropic_text(data)
-    return LlmResult(provider="anthropic", model=settings.anthropic_model, text=text)
+    return LlmResult(provider="anthropic", model=model, text=text)
 
 
 def _anthropic_vision(b64: str, mime: str, prompt: str) -> LlmResult:

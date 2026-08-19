@@ -4,7 +4,7 @@ import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { TotpQr } from "@/components/TotpQr";
-import { confirm2fa, fetchMe, setup2fa, type User } from "@/lib/api";
+import { confirm2fa, fetchAiStatus, fetchMe, setup2fa, updateMySettings, type User } from "@/lib/api";
 
 export default function SettingsPage() {
   const [user, setUser] = useState<User | null>(null);
@@ -15,11 +15,32 @@ export default function SettingsPage() {
   const [recovery, setRecovery] = useState<string[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showSecret, setShowSecret] = useState(false);
+  const [displayName, setDisplayName] = useState("");
+  const [llmProvider, setLlmProvider] = useState("default");
+  const [llmModel, setLlmModel] = useState("");
+  const [saved, setSaved] = useState(false);
+  const [ollamaModels, setOllamaModels] = useState<string[]>([]);
+  const [configured, setConfigured] = useState({ openai: false, anthropic: false, ollama: false });
 
   useEffect(() => {
     fetchMe()
-      .then(setUser)
+      .then((u) => {
+        setUser(u);
+        setDisplayName(u.display_name || "");
+        setLlmProvider(u.llm_provider || "default");
+        setLlmModel(u.llm_model || "");
+      })
       .catch(() => setError("Nicht angemeldet"));
+    fetchAiStatus()
+      .then((s) => {
+        setOllamaModels(s.ollama.models || []);
+        setConfigured({
+          openai: s.openai.configured,
+          anthropic: s.anthropic.configured,
+          ollama: Boolean(s.ollama.ok || s.ollama.configured),
+        });
+      })
+      .catch(() => undefined);
   }, []);
 
   async function onSetup(e: FormEvent) {
@@ -62,6 +83,77 @@ export default function SettingsPage() {
       {user?.must_enroll_2fa && (
         <p className="warn">Für diesen Account ist 2FA Pflicht. Bitte jetzt einrichten.</p>
       )}
+      <div className="card stack">
+        <h2>Profil</h2>
+        <form
+          className="stack"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            setError(null);
+            setSaved(false);
+            try {
+              const me = await updateMySettings({
+                display_name: displayName,
+                llm_provider: llmProvider,
+                llm_model: llmModel,
+              });
+              setUser(me);
+              setSaved(true);
+            } catch (err) {
+              setError(err instanceof Error ? err.message : "Speichern fehlgeschlagen");
+            }
+          }}
+        >
+          <label>
+            Anzeigename
+            <input
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              placeholder="z.B. Papa, Lena, Klasse 4a"
+            />
+          </label>
+          <label>
+            KI-Provider
+            <select value={llmProvider} onChange={(e) => setLlmProvider(e.target.value)}>
+              <option value="default">Standard (Server)</option>
+              {configured.ollama && <option value="ollama">Ollama (lokal)</option>}
+              {configured.openai && <option value="openai">OpenAI</option>}
+              {configured.anthropic && <option value="anthropic">Anthropic / Claude</option>}
+            </select>
+          </label>
+          <label>
+            Modell
+            {llmProvider === "ollama" && ollamaModels.length > 0 ? (
+              <select value={llmModel} onChange={(e) => setLlmModel(e.target.value)}>
+                <option value="">Standard</option>
+                {ollamaModels.map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                value={llmModel}
+                onChange={(e) => setLlmModel(e.target.value)}
+                placeholder={
+                  llmProvider === "openai"
+                    ? "z.B. gpt-4o-mini"
+                    : llmProvider === "anthropic"
+                      ? "z.B. claude-sonnet-4-0"
+                      : "leer = Server-Default"
+                }
+              />
+            )}
+          </label>
+          <p className="muted">
+            API-Keys bleiben in der Server-.env. Hier wählst du nur, womit deine Einheiten
+            aufbereitet werden.
+          </p>
+          <button type="submit">Einstellungen speichern</button>
+          {saved && <p>Gespeichert.</p>}
+        </form>
+      </div>
       <div className="card stack">
         <p>
           2FA: <strong>{user?.totp_enabled ? "aktiv" : "aus"}</strong> · Policy:{" "}

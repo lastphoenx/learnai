@@ -16,6 +16,7 @@ from app.core.auth.sessions import (
 from app.core.db import get_db
 from app.models import User
 from app.schemas import (
+    AdminCreateUserRequest,
     LoginRequest,
     LoginResponse,
     RegisterRequest,
@@ -26,9 +27,11 @@ from app.schemas import (
     TwoFactorVerifyRequest,
     UserAdminResponse,
     UserResponse,
+    UserSettingsUpdateRequest,
 )
 from app.services.user_service import (
     AuthError,
+    admin_create_user,
     authenticate_password,
     complete_2fa_login,
     confirm_totp,
@@ -37,6 +40,7 @@ from app.services.user_service import (
     set_totp_required,
     setup_totp,
     start_2fa_challenge,
+    update_user_settings,
     user_public_dict,
 )
 
@@ -130,6 +134,28 @@ def me(user: User = Depends(get_current_user)):
     return _user_response(user)
 
 
+@auth_router.patch("/me", response_model=UserResponse)
+def me_update(
+    body: UserSettingsUpdateRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        update_user_settings(
+            db,
+            user,
+            display_name=body.display_name,
+            llm_provider=body.llm_provider,
+            llm_model=body.llm_model,
+        )
+        db.commit()
+        db.refresh(user)
+        return _user_response(user)
+    except AuthError as exc:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=exc.message) from exc
+
+
 @auth_router.post("/2fa/setup", response_model=TwoFactorSetupResponse)
 def totp_setup(
     body: TwoFactorSetupRequest,
@@ -163,6 +189,31 @@ def totp_confirm(
 @users_router.get("", response_model=list[UserAdminResponse])
 def users_list(admin: User = Depends(require_admin), db: Session = Depends(get_db)):
     return [UserAdminResponse(**row) for row in list_users_admin(db, admin)]
+
+
+@users_router.post("", response_model=UserAdminResponse, status_code=status.HTTP_201_CREATED)
+def users_create(
+    body: AdminCreateUserRequest,
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    try:
+        user = admin_create_user(
+            db,
+            admin,
+            email=body.email,
+            password=body.password,
+            display_name=body.display_name,
+            is_admin=body.is_admin,
+            totp_required=body.totp_required,
+        )
+        db.commit()
+        db.refresh(user)
+        row = {**user_public_dict(user), "is_active": user.is_active, "created_at": user.created_at.isoformat()}
+        return UserAdminResponse(**row)
+    except AuthError as exc:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=exc.message) from exc
 
 
 @users_router.patch("/{user_id}/totp-policy", response_model=UserResponse)

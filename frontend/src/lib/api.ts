@@ -28,6 +28,9 @@ export type User = {
   totp_enabled: boolean;
   totp_required: boolean;
   must_enroll_2fa: boolean;
+  display_name?: string;
+  llm_provider?: string;
+  llm_model?: string;
 };
 export type LoginResponse = { requires_2fa: boolean; must_enroll_2fa?: boolean; user?: User };
 export type AdminUser = User & { is_active: boolean; created_at: string };
@@ -60,6 +63,7 @@ export type LearningUnit = {
   language: string;
   target_age: string | null;
   difficulty: number;
+  task_type?: string;
   status: string;
   auto_purge_sources: boolean;
   created_at: string;
@@ -121,6 +125,20 @@ export const setTotpPolicy = (userId: string, totp_required: boolean) =>
     json: { totp_required },
   });
 
+export const createUser = (body: {
+  email: string;
+  password: string;
+  display_name?: string;
+  is_admin?: boolean;
+  totp_required?: boolean;
+}) => apiFetch<AdminUser>("/api/v1/users", { method: "POST", json: body });
+
+export const updateMySettings = (body: {
+  display_name?: string;
+  llm_provider?: string;
+  llm_model?: string;
+}) => apiFetch<User>("/api/v1/auth/me", { method: "PATCH", json: body });
+
 export const fetchUnits = () => apiFetch<LearningUnit[]>("/api/v1/units");
 export const fetchUnit = (id: string) => apiFetch<LearningUnit>(`/api/v1/units/${id}`);
 export const createUnit = (body: {
@@ -130,6 +148,7 @@ export const createUnit = (body: {
   language?: string;
   target_age?: string;
   difficulty?: number;
+  task_type?: string;
   auto_purge_sources?: boolean;
 }) => apiFetch<LearningUnit>("/api/v1/units", { method: "POST", json: body });
 export const patchUnit = (id: string, auto_purge_sources: boolean) =>

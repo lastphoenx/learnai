@@ -18,6 +18,7 @@ from app.core.crypto import derive_user_key, encrypt_text, generate_salt
 from app.core.tenant import get_default_tenant
 from app.models import User
 from app.services.audit import log_event
+from app.services.crypto_json import decrypt_json, encrypt_json
 
 
 class AuthError(Exception):
@@ -62,6 +63,8 @@ def register_user(
     )
     db.add(user)
     db.flush()
+    if display_name.strip() or email:
+        update_user_settings(db, user, display_name=display_name.strip() or email.split("@")[0])
     log_event(
         db,
         tenant_id=tenant.id,
@@ -163,13 +166,57 @@ def confirm_totp(db: Session, user: User, code: str, email: str) -> list[str]:
 
 
 def user_public_dict(user: User) -> dict:
+    prefs = get_user_settings(user)
     return {
         "id": str(user.id),
         "is_admin": user.is_admin,
         "totp_enabled": user.totp_enabled,
         "totp_required": user.totp_required,
         "must_enroll_2fa": bool(user.totp_required and not user.totp_enabled),
+        "display_name": prefs.get("display_name") or "",
+        "llm_provider": prefs.get("llm_provider") or "",
+        "llm_model": prefs.get("llm_model") or "",
     }
+
+
+def get_user_settings(user: User) -> dict:
+    data = decrypt_json(user.settings_encrypted) if user.settings_encrypted else None
+    if not isinstance(data, dict):
+        data = {}
+    provider = str(data.get("llm_provider") or "").strip().lower()
+    if provider and provider not in {"ollama", "openai", "anthropic"}:
+        provider = ""
+    return {
+        "display_name": str(data.get("display_name") or "").strip()[:80],
+        "llm_provider": provider,
+        "llm_model": str(data.get("llm_model") or "").strip()[:80],
+    }
+
+
+def update_user_settings(
+    db: Session,
+    user: User,
+    *,
+    display_name: str | None = None,
+    llm_provider: str | None = None,
+    llm_model: str | None = None,
+) -> dict:
+    current = get_user_settings(user)
+    if display_name is not None:
+        current["display_name"] = display_name.strip()[:80]
+    if llm_provider is not None:
+        name = llm_provider.strip().lower()
+        if name in {"", "default"}:
+            current["llm_provider"] = ""
+        elif name in {"ollama", "openai", "anthropic"}:
+            current["llm_provider"] = name
+        else:
+            raise AuthError("Unbekannter KI-Provider", "bad_provider")
+    if llm_model is not None:
+        current["llm_model"] = llm_model.strip()[:80]
+    user.settings_encrypted = encrypt_json(current)
+    db.flush()
+    return get_user_settings(user)
 
 
 def set_totp_required(db: Session, actor: User, target: User, required: bool) -> User:
@@ -203,3 +250,35 @@ def list_users_admin(db: Session, actor: User) -> list[dict]:
         }
         for u in rows
     ]
+
+
+def admin_create_user(
+    db: Session,
+    actor: User,
+    *,
+    email: str,
+    password: str,
+    display_name: str = "",
+    is_admin: bool = False,
+    totp_required: bool = False,
+) -> User:
+    user = register_user(
+        db,
+        email=email,
+        password=password,
+        display_name=display_name,
+        is_admin=is_admin,
+    )
+    user.totp_required = totp_required
+    if display_name.strip():
+        update_user_settings(db, user, display_name=display_name)
+    log_event(
+        db,
+        tenant_id=actor.tenant_id,
+        actor_id=actor.id,
+        action="user.admin_create",
+        resource_type="user",
+        resource_id=user.id,
+    )
+    db.flush()
+    return user

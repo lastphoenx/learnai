@@ -39,6 +39,23 @@ class UserResponse(BaseModel):
     totp_enabled: bool
     totp_required: bool
     must_enroll_2fa: bool = False
+    display_name: str = ""
+    llm_provider: str = ""
+    llm_model: str = ""
+
+
+class UserSettingsUpdateRequest(BaseModel):
+    display_name: str | None = Field(default=None, max_length=80)
+    llm_provider: str | None = Field(default=None, max_length=32)
+    llm_model: str | None = Field(default=None, max_length=80)
+
+
+class AdminCreateUserRequest(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=12)
+    display_name: str = Field(default="", max_length=80)
+    is_admin: bool = False
+    totp_required: bool = False
 
 
 class LoginResponse(BaseModel):
@@ -63,6 +80,7 @@ class UnitCreateRequest(BaseModel):
     language: str = Field(default="de", max_length=8)
     target_age: str | None = Field(default=None, max_length=32)
     difficulty: int = Field(default=1, ge=1, le=5)
+    task_type: str = Field(default="mixed", max_length=32)
     auto_purge_sources: bool = False
 
 

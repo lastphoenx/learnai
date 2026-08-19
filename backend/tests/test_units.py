@@ -13,4 +13,5 @@ def test_reconstruction_payload_shape():
     assert payload["title"] == "Bruchrechnen"
     assert payload["language"] == "de"
     assert payload["difficulty"] == 2
+    assert payload["task_type"] == "mixed"
     assert "brief" in payload

@@ -13,6 +13,7 @@ from app.config import settings
 from app.core.crypto import decrypt_text_master, encrypt_text_master
 from app.models import LearningRecord, LearningUnit, UnitModule, User
 from app.services.crypto_json import encrypt_json
+from app.services.user_service import get_user_settings
 from app.services.unit_service import (
     _add_event,
     _dec_unit,
@@ -20,6 +21,15 @@ from app.services.unit_service import (
     maybe_auto_purge_after_extract,
     upload_dir,
 )
+
+TASK_HINTS = {
+    "mixed": "Mischung aus kurzem Lerntext und Quizfragen.",
+    "explain": "Schwerpunkt Erklären: ausführlicher Lerntext, nur 1–2 Kontrollfragen.",
+    "quiz": "Schwerpunkt Quiz: kurze Einleitung, viele Verständnisfragen.",
+    "vocab": "Sprachkurs/Vokabeln: Wort, Bedeutung, Beispielsatz, Mini-Quiz.",
+    "practice": "Übungsaufgaben zum Selberlösen, danach Lösungshinweis im Quiz.",
+    "exam": "Kurzprüfung: nur Aufgaben, knappe Anweisungen, klare richtige Antworten.",
+}
 
 SYSTEM = (
     "Du bist Lerncoach. Antworte immer mit einem JSON-Objekt, ohne Markdown."
@@ -37,8 +47,12 @@ def generate_modules(
     provider: str | None = None,
 ) -> dict:
     unit = _get_unit_or_404(db, user, unit_id)
-    name = resolve_provider(provider)
+    prefs = get_user_settings(user)
+    name = resolve_provider(provider or prefs.get("llm_provider") or None)
+    model = (prefs.get("llm_model") or "").strip() or None
     notes = _collect_source_notes(db, unit, name)
+    task = unit.task_type or "mixed"
+    hint = TASK_HINTS.get(task, TASK_HINTS["mixed"])
 
     title = decrypt_text_master(unit.title_encrypted)
     brief = decrypt_text_master(unit.brief_encrypted) if unit.brief_encrypted else ""
@@ -49,10 +63,11 @@ def generate_modules(
         f"Fach: {unit.subject or 'offen'}\n"
         f"Sprache: {unit.language}\n"
         f"Zielalter: {unit.target_age or 'offen'}\n"
-        f"Schwierigkeit 1-5: {unit.difficulty}\n\n"
+        f"Schwierigkeit 1-5: {unit.difficulty}\n"
+        f"Aufgabentyp: {task} — {hint}\n\n"
         f"Material aus den Quellen:\n{notes or '(keine Quellen — nutze nur Titel und Auftrag)'}\n"
     )
-    result = complete(prompt=prompt, provider=name, system=SYSTEM)
+    result = complete(prompt=prompt, provider=name, system=SYSTEM, model=model)
     try:
         parsed = parse_json_object(result["text"])
         modules = parsed.get("modules")

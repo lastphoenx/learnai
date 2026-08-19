@@ -31,6 +31,7 @@ def reconstruction_payload(
     language: str,
     target_age: str | None,
     difficulty: int,
+    task_type: str = "mixed",
 ) -> dict:
     return {
         "title": title,
@@ -39,6 +40,7 @@ def reconstruction_payload(
         "language": language,
         "target_age": target_age,
         "difficulty": difficulty,
+        "task_type": task_type,
     }
 
 
@@ -51,6 +53,7 @@ def _dec_unit(unit: LearningUnit, *, sources: bool = True, modules: bool = True)
         "language": unit.language,
         "target_age": unit.target_age,
         "difficulty": unit.difficulty,
+        "task_type": unit.task_type,
         "status": unit.status,
         "auto_purge_sources": unit.auto_purge_sources,
         "created_at": unit.created_at.isoformat(),
@@ -157,10 +160,14 @@ def create_unit(
     language: str = "de",
     target_age: str | None = None,
     difficulty: int = 1,
+    task_type: str = "mixed",
     auto_purge_sources: bool = False,
 ) -> dict:
     if difficulty < 1 or difficulty > 5:
         raise UnitError("Schwierigkeit muss 1–5 sein", "invalid_difficulty")
+    kind = (task_type or "mixed").strip().lower()
+    if kind not in {"mixed", "explain", "quiz", "vocab", "practice", "exam"}:
+        raise UnitError("Unbekannter Aufgabentyp", "invalid_task_type")
 
     recon = reconstruction_payload(
         title=title,
@@ -169,6 +176,7 @@ def create_unit(
         language=language,
         target_age=target_age,
         difficulty=difficulty,
+        task_type=kind,
     )
     unit = LearningUnit(
         tenant_id=user.tenant_id,
@@ -180,6 +188,7 @@ def create_unit(
         language=language,
         target_age=target_age,
         difficulty=difficulty,
+        task_type=kind,
         status="draft",
         auto_purge_sources=auto_purge_sources,
         classification=DataClassification.INTERNAL,
@@ -236,6 +245,7 @@ def create_unit_from_record(
         language=str(recon.get("language") or record.language),
         target_age=recon.get("target_age"),
         difficulty=new_difficulty,
+        task_type=str(recon.get("task_type") or "mixed"),
     )
 
 

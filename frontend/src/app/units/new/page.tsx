@@ -15,6 +15,7 @@ export default function NewUnitPage() {
   const [language, setLanguage] = useState("de");
   const [targetAge, setTargetAge] = useState("");
   const [difficulty, setDifficulty] = useState(1);
+  const [taskType, setTaskType] = useState("mixed");
   const [autoPurge, setAutoPurge] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -37,6 +38,7 @@ export default function NewUnitPage() {
         language,
         target_age: targetAge.trim() || undefined,
         difficulty,
+        task_type: taskType,
         auto_purge_sources: autoPurge,
       });
       router.push(`/units/${unit.id}`);
@@ -108,6 +110,21 @@ export default function NewUnitPage() {
             placeholder="z.B. 6-12"
             style={{ display: "block", width: "100%", marginTop: 4, padding: 8 }}
           />
+        </label>
+        <label>
+          Aufgabentyp
+          <select
+            value={taskType}
+            onChange={(e) => setTaskType(e.target.value)}
+            style={{ display: "block", width: "100%", marginTop: 4, padding: 8 }}
+          >
+            <option value="mixed">Gemischt (Lerntext + Quiz)</option>
+            <option value="explain">Erklären / Lerntext</option>
+            <option value="quiz">Quiz / Verständnisfragen</option>
+            <option value="vocab">Vokabeln / Sprache</option>
+            <option value="practice">Übungen</option>
+            <option value="exam">Kurzprüfung</option>
+          </select>
         </label>
         <label>
           Schwierigkeit (1–5)

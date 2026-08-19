@@ -24,9 +24,12 @@ export function AppHeader({ user, title }: { user?: User | null; title: string }
       <div className="header-actions">
         <ThemeToggle />
         {user && (
-          <button type="button" onClick={onLogout}>
-            Logout
-          </button>
+          <>
+            {user.display_name ? <span className="muted">{user.display_name}</span> : null}
+            <button type="button" onClick={onLogout}>
+              Logout
+            </button>
+          </>
         )}
       </div>
     </header>
