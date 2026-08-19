@@ -1,0 +1,20 @@
+fastapi==0.141.1
+starlette==1.6.0
+uvicorn[standard]==0.52.3
+sqlalchemy==2.0.41
+psycopg[binary]==3.2.9
+alembic==1.16.1
+pydantic-settings==2.15.0
+pydantic[email]==2.12.5
+argon2-cffi==25.1.0
+cryptography==50.0.0
+python-multipart==0.0.32
+pyotp==2.9.0
+celery[redis]==5.6.3
+redis==6.4.0
+httpx==0.28.1
+pypdf==6.15.0
+pymupdf==1.26.3
+
+# Tests
+pytest==9.0.3
