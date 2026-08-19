@@ -88,6 +88,52 @@ export type UnitSource = {
   created_at: string;
 };
 
+export type LearnProgress = {
+  status: "not_started" | "in_progress" | "completed";
+  module_index: number;
+  phase: "intro" | "read" | "quiz" | "module_done" | "complete";
+  question_index: number;
+  modules: Record<
+    string,
+    {
+      text_read?: boolean;
+      answers?: (number | null)[];
+      correct?: number;
+      total?: number;
+      done?: boolean;
+    }
+  >;
+  quiz_correct: number;
+  quiz_total: number;
+  started_at: string | null;
+  completed_at: string | null;
+};
+
+export type LearnSummary = {
+  status: string;
+  modules_done: number;
+  module_count: number;
+  percent: number;
+  quiz_correct: number;
+  quiz_total: number;
+};
+
+export type LearnModule = {
+  id: string;
+  order_index: number;
+  title: string;
+  content: { text?: string } | null;
+  quiz: { questions?: { q: string; options?: string[] }[] } | null;
+};
+
+export type LearnState = {
+  unit: LearningUnit;
+  record_id: string;
+  modules: LearnModule[];
+  progress: LearnProgress;
+  summary: LearnSummary;
+};
+
 export type UnitModule = {
   id: string;
   order_index: number;
@@ -111,6 +157,7 @@ export type LearningUnit = {
   updated_at: string;
   source_count: number;
   module_count: number;
+  learn_progress?: LearnSummary;
   profile_id?: string | null;
   learner_name?: string | null;
   sources?: UnitSource[];
@@ -258,6 +305,43 @@ export const generateUnit = (unitId: string, provider?: string) =>
     method: "POST",
     json: { provider: provider ?? null },
   });
+
+export const fetchLearnState = (unitId: string) =>
+  apiFetch<LearnState>(`/api/v1/units/${unitId}/learn`);
+
+export const saveLearnPosition = (
+  unitId: string,
+  body: { module_index: number; phase: LearnProgress["phase"]; question_index?: number },
+) =>
+  apiFetch<{ progress: LearnProgress; summary: LearnSummary }>(
+    `/api/v1/units/${unitId}/learn/position`,
+    { method: "PATCH", json: body },
+  );
+
+export const markLearnTextRead = (unitId: string, moduleId: string) =>
+  apiFetch<{ progress: LearnProgress; summary: LearnSummary }>(
+    `/api/v1/units/${unitId}/learn/text-read`,
+    { method: "POST", json: { module_id: moduleId } },
+  );
+
+export const submitLearnAnswer = (
+  unitId: string,
+  body: { module_id: string; question_index: number; selected: number },
+) =>
+  apiFetch<{
+    correct: boolean;
+    correct_index: number;
+    explanation?: string;
+    progress: LearnProgress;
+    summary: LearnSummary;
+    module_quiz_done: boolean;
+  }>(`/api/v1/units/${unitId}/learn/answer`, { method: "POST", json: body });
+
+export const completeLearn = (unitId: string) =>
+  apiFetch<{ progress: LearnProgress; summary: LearnSummary }>(
+    `/api/v1/units/${unitId}/learn/complete`,
+    { method: "POST" },
+  );
 
 export type TaskCatalogItem = {
   key: string;

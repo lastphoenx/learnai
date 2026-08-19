@@ -152,20 +152,43 @@ def _accessible_units(db: Session, user: User):
 
 
 def list_units(db: Session, user: User) -> list[dict]:
+    from app.services.learn_service import learn_progress_for_unit
+
     units = _accessible_units(db, user).order_by(LearningUnit.created_at.desc()).all()
-    return [_dec_unit(u, sources=False, modules=False) for u in units]
+    out = []
+    for u in units:
+        row = _dec_unit(u, sources=False, modules=False)
+        prog = learn_progress_for_unit(db, u.id)
+        if prog:
+            row["learn_progress"] = prog
+        out.append(row)
+    return out
 
 
 def get_unit(db: Session, user: User, unit_id: uuid.UUID) -> dict:
+    from app.services.learn_service import learn_progress_for_unit
+
     unit = _get_unit_or_404(db, user, unit_id)
-    return _dec_unit(unit)
+    data = _dec_unit(unit)
+    prog = learn_progress_for_unit(db, unit.id)
+    if prog:
+        data["learn_progress"] = prog
+    return data
 
 
 def _get_unit_or_404(db: Session, user: User, unit_id: uuid.UUID) -> LearningUnit:
-    unit = db.get(LearningUnit, unit_id)
+    unit = (
+        db.query(LearningUnit)
+        .options(joinedload(LearningUnit.modules), joinedload(LearningUnit.sources), joinedload(LearningUnit.profile))
+        .filter(LearningUnit.id == unit_id)
+        .first()
+    )
     if not unit or unit.tenant_id != user.tenant_id:
         raise UnitError("Lerneinheit nicht gefunden", "not_found")
-    if not user.is_admin and unit.created_by_id != user.id and unit.learner_id != user.id:
+    if user.is_admin:
+        return unit
+    accessible = _accessible_units(db, user).filter(LearningUnit.id == unit_id).first()
+    if not accessible:
         raise UnitError("Kein Zugriff auf diese Lerneinheit", "forbidden")
     return unit
 
@@ -242,7 +265,17 @@ def create_unit(
         language=language,
         difficulty=difficulty,
         reconstruction_encrypted=encrypt_json(recon),
-        stats_encrypted=encrypt_json({"modules_done": 0, "quizzes": 0, "exams": 0}),
+        stats_encrypted=encrypt_json({"modules_done": 0, "quizzes": 0, "exams": 0, "learn": {
+            "status": "not_started",
+            "module_index": 0,
+            "phase": "intro",
+            "question_index": 0,
+            "modules": {},
+            "quiz_correct": 0,
+            "quiz_total": 0,
+            "started_at": None,
+            "completed_at": None,
+        }}),
     )
     db.add(record)
     db.flush()

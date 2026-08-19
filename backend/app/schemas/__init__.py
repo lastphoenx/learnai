@@ -152,6 +152,22 @@ class RecordRebuildRequest(BaseModel):
     difficulty: int | None = Field(default=None, ge=1, le=5)
 
 
+class LearnPositionRequest(BaseModel):
+    module_index: int = Field(ge=0)
+    phase: Literal["intro", "read", "quiz", "module_done", "complete"]
+    question_index: int = Field(default=0, ge=0)
+
+
+class LearnAnswerRequest(BaseModel):
+    module_id: str
+    question_index: int = Field(ge=0)
+    selected: int = Field(ge=0)
+
+
+class LearnModuleRequest(BaseModel):
+    module_id: str
+
+
 class ProjectCreateRequest(BaseModel):
     name: str = Field(min_length=1, max_length=256)
     description: str | None = Field(default=None, max_length=4096)

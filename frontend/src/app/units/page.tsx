@@ -59,8 +59,33 @@ export default function UnitsPage() {
                   {u.learner_name ? `${u.learner_name} · ` : ""}
                   {u.subject || "Thema offen"} · {u.task_type || "mixed"} · {u.language} · Stufe{" "}
                   {u.difficulty} · {u.source_count} Quellen · {u.module_count} Blöcke
+                  {u.learn_progress && u.module_count > 0
+                    ? u.learn_progress.status === "completed"
+                      ? " · abgeschlossen"
+                      : u.learn_progress.percent > 0
+                        ? ` · ${u.learn_progress.percent}% gelernt`
+                        : ""
+                    : ""}
                 </p>
                 {u.brief && <p style={{ margin: "0.5rem 0 0" }}>{u.brief}</p>}
+                {u.module_count > 0 && (
+                  <p style={{ margin: "0.75rem 0 0", display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <Link
+                      className="btn btn-primary"
+                      href={`/units/${u.id}/learn`}
+                      style={{ textDecoration: "none" }}
+                    >
+                      {u.learn_progress?.status === "in_progress"
+                        ? "Weiterlernen"
+                        : u.learn_progress?.status === "completed"
+                          ? "Nochmal"
+                          : "Lernen"}
+                    </Link>
+                    <Link className="btn" href={`/units/${u.id}`} style={{ textDecoration: "none" }}>
+                      Bearbeiten
+                    </Link>
+                  </p>
+                )}
               </li>
             ))}
           </ul>

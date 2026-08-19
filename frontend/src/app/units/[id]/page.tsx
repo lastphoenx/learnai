@@ -120,6 +120,15 @@ export default function UnitDetailPage() {
           </p>
           {unit.brief && <p>{unit.brief}</p>}
           <p style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {(unit.modules || []).length > 0 && (
+              <Link className="btn btn-primary" href={`/units/${unit.id}/learn`}>
+                {unit.learn_progress?.status === "in_progress"
+                  ? "Weiterlernen"
+                  : unit.learn_progress?.status === "completed"
+                    ? "Nochmal lernen"
+                    : "Lernen starten"}
+              </Link>
+            )}
             <button type="button" onClick={onSpeak} disabled={busy}>
               Vorlesen (OpenAI TTS)
             </button>

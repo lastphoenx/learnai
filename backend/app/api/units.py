@@ -9,10 +9,20 @@ from app.models import User
 from app.ai.errors import LlmError
 from app.ai.generate import generate_modules
 from app.schemas import (
+    LearnAnswerRequest,
+    LearnModuleRequest,
+    LearnPositionRequest,
     RecordRebuildRequest,
     UnitCreateRequest,
     UnitGenerateRequest,
     UnitUpdateRequest,
+)
+from app.services.learn_service import (
+    complete_learn,
+    get_learn_state,
+    mark_text_read,
+    save_learn_position,
+    submit_quiz_answer,
 )
 from app.services.unit_service import UnitError, add_source, create_unit, create_unit_from_record, delete_source, delete_unit, get_record, get_unit, list_records, list_units, purge_source_file_keep_meta, update_unit_flags
 
@@ -26,6 +36,10 @@ def _http(exc: UnitError) -> HTTPException:
         "forbidden": status.HTTP_403_FORBIDDEN,
         "invalid_difficulty": status.HTTP_400_BAD_REQUEST,
         "invalid_task_type": status.HTTP_400_BAD_REQUEST,
+        "no_modules": status.HTTP_400_BAD_REQUEST,
+        "invalid_index": status.HTTP_400_BAD_REQUEST,
+        "invalid_phase": status.HTTP_400_BAD_REQUEST,
+        "invalid_question": status.HTTP_400_BAD_REQUEST,
     }
     return HTTPException(status_code=mapping.get(exc.code, 400), detail=exc.message)
 
@@ -172,6 +186,90 @@ def units_purge_source(
     except UnitError as ext:
         db.rollback()
         raise _http(ext) from ext
+
+
+@router.get("/{unit_id}/learn")
+def units_learn_get(unit_id: UUID, user: User = Depends(get_app_user), db: Session = Depends(get_db)):
+    try:
+        result = get_learn_state(db, user, unit_id)
+        db.commit()
+        return result
+    except UnitError as exc:
+        db.rollback()
+        raise _http(exc) from exc
+
+
+@router.patch("/{unit_id}/learn/position")
+def units_learn_position(
+    unit_id: UUID,
+    body: LearnPositionRequest,
+    user: User = Depends(get_app_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        result = save_learn_position(
+            db,
+            user,
+            unit_id,
+            module_index=body.module_index,
+            phase=body.phase,
+            question_index=body.question_index,
+        )
+        db.commit()
+        return result
+    except UnitError as exc:
+        db.rollback()
+        raise _http(exc) from exc
+
+
+@router.post("/{unit_id}/learn/text-read")
+def units_learn_text_read(
+    unit_id: UUID,
+    body: LearnModuleRequest,
+    user: User = Depends(get_app_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        result = mark_text_read(db, user, unit_id, UUID(body.module_id))
+        db.commit()
+        return result
+    except UnitError as exc:
+        db.rollback()
+        raise _http(exc) from exc
+
+
+@router.post("/{unit_id}/learn/answer")
+def units_learn_answer(
+    unit_id: UUID,
+    body: LearnAnswerRequest,
+    user: User = Depends(get_app_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        result = submit_quiz_answer(
+            db,
+            user,
+            unit_id,
+            UUID(body.module_id),
+            body.question_index,
+            body.selected,
+        )
+        db.commit()
+        return result
+    except UnitError as exc:
+        db.rollback()
+        raise _http(exc) from exc
+
+
+@router.post("/{unit_id}/learn/complete")
+def units_learn_complete(unit_id: UUID, user: User = Depends(get_app_user), db: Session = Depends(get_db)):
+    try:
+        result = complete_learn(db, user, unit_id)
+        db.commit()
+        return result
+    except UnitError as exc:
+        db.rollback()
+        raise _http(exc) from exc
 
 
 @records_router.get("")

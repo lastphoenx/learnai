@@ -64,9 +64,37 @@ export default function HistoryPage() {
               {r.subject || "–"} · {r.language} · Stufe {r.difficulty}
             </p>
             {r.summary && <p style={{ margin: "0.5rem 0 0" }}>{r.summary}</p>}
-            <p style={{ margin: "0.75rem 0 0" }}>
+            {(() => {
+              const learn = r.stats?.learn as { status?: string; quiz_correct?: number; quiz_total?: number } | undefined;
+              if (learn?.status === "completed") {
+                return (
+                  <p className="muted" style={{ margin: "0.5rem 0 0", fontSize: "0.9rem" }}>
+                    Abgeschlossen
+                    {learn.quiz_total
+                      ? ` · Quiz: ${learn.quiz_correct}/${learn.quiz_total} richtig`
+                      : ""}
+                  </p>
+                );
+              }
+              if (learn?.status === "in_progress") {
+                return (
+                  <p className="muted" style={{ margin: "0.5rem 0 0", fontSize: "0.9rem" }}>
+                    In Bearbeitung — Fortschritt gespeichert
+                  </p>
+                );
+              }
+              return null;
+            })()}
+            <p style={{ margin: "0.75rem 0 0", display: "flex", gap: 8, flexWrap: "wrap" }}>
               {r.unit_alive && r.unit_id ? (
-                <Link href={`/units/${r.unit_id}`}>Öffnen</Link>
+                <>
+                  <Link className="btn btn-primary" href={`/units/${r.unit_id}/learn`}>
+                    {((r.stats?.learn as { status?: string })?.status === "in_progress")
+                      ? "Weiterlernen"
+                      : "Lernen"}
+                  </Link>
+                  <Link href={`/units/${r.unit_id}`}>Bearbeiten</Link>
+                </>
               ) : (
                 <button
                   type="button"
