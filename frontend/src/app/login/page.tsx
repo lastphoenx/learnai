@@ -51,7 +51,7 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="shell" style={{ maxWidth: 28rem }}>
+    <main className="shell shell-narrow">
       <header className="app-header">
         <h1>Anmelden</h1>
         <ThemeToggle />
