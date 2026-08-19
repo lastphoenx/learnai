@@ -187,7 +187,7 @@ export const fetchAiStatus = () =>
     llm_provider: string;
     openai: { configured: boolean };
     anthropic: { configured: boolean };
-    ollama: { ok?: boolean; url: string; models?: string[]; error?: string };
+    ollama: { ok?: boolean; configured?: boolean; url: string; models?: string[]; error?: string };
     tts: { provider: string; configured: boolean };
   }>("/api/v1/ai/status");
 
