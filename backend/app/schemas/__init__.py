@@ -38,6 +38,7 @@ class UserResponse(BaseModel):
     is_admin: bool
     is_child: bool = False
     parent_id: str | None = None
+    parent_ids: list[str] = Field(default_factory=list)
     profile_id: str | None = None
     learner_name: str = ""
     child_count: int = 0
@@ -86,6 +87,11 @@ class ChildCreateRequest(BaseModel):
     password: str = Field(min_length=12)
     display_name: str = Field(min_length=1, max_length=80)
     parent_id: str | None = None
+    parent_ids: list[str] = Field(default_factory=list, max_length=2)
+
+
+class ChildGuardiansUpdateRequest(BaseModel):
+    parent_ids: list[str] = Field(min_length=1, max_length=2)
 
 
 class UserSettingsUpdateRequest(BaseModel):

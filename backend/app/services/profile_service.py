@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.ai.catalog import TASK_KEYS
 from app.ai.model_registry import pick_external_model, validate_model
-from app.models import LearningProfile, User
+from app.models import ChildGuardian, LearningProfile, User
 from app.services.audit import log_event
 from app.services.crypto_json import decrypt_json, encrypt_json
 
@@ -124,12 +124,24 @@ def profile_public_dict(profile: LearningProfile) -> dict:
 
 
 def child_user_ids(db: Session, user: User) -> list[uuid.UUID]:
-    rows = (
+    guardian_rows = (
+        db.query(ChildGuardian.child_user_id)
+        .join(User, User.id == ChildGuardian.child_user_id)
+        .filter(
+            ChildGuardian.parent_user_id == user.id,
+            User.tenant_id == user.tenant_id,
+            User.is_active.is_(True),
+        )
+        .all()
+    )
+    ids = {row[0] for row in guardian_rows}
+    legacy_rows = (
         db.query(User.id)
         .filter(User.tenant_id == user.tenant_id, User.parent_id == user.id, User.is_active.is_(True))
         .all()
     )
-    return [row[0] for row in rows]
+    ids.update(row[0] for row in legacy_rows)
+    return list(ids)
 
 
 def can_manage_profile(db: Session, actor: User, profile: LearningProfile) -> bool:
@@ -139,6 +151,16 @@ def can_manage_profile(db: Session, actor: User, profile: LearningProfile) -> bo
         return True
     if profile.managed_by_id == actor.id:
         return True
+    if profile.user_id and profile.is_child_profile:
+        if (
+            db.query(ChildGuardian.id)
+            .filter(
+                ChildGuardian.child_user_id == profile.user_id,
+                ChildGuardian.parent_user_id == actor.id,
+            )
+            .first()
+        ):
+            return True
     if profile.user_id == actor.id and not actor.is_child:
         return True
     return False
@@ -154,7 +176,15 @@ def can_view_profile_data(db: Session, actor: User, profile_id: uuid.UUID) -> bo
         return True
     if profile.user_id:
         subject = db.get(User, profile.user_id)
-        if subject and subject.parent_id == actor.id:
+        if subject and (
+            subject.parent_id == actor.id
+            or db.query(ChildGuardian.id)
+            .filter(
+                ChildGuardian.child_user_id == subject.id,
+                ChildGuardian.parent_user_id == actor.id,
+            )
+            .first()
+        ):
             return True
     return False
 

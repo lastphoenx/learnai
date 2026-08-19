@@ -19,6 +19,7 @@ from app.schemas import (
     AdminCreateUserRequest,
     AdminUserUpdateRequest,
     ChildCreateRequest,
+    ChildGuardiansUpdateRequest,
     LoginRequest,
     LoginResponse,
     RegisterRequest,
@@ -43,6 +44,7 @@ from app.services.user_service import (
     set_totp_required,
     setup_totp,
     start_2fa_challenge,
+    update_child_guardians,
     update_user_settings,
     user_public_dict,
 )
@@ -231,14 +233,18 @@ def users_create_child(
     if actor.is_child:
         raise HTTPException(status_code=403, detail="Kinder-Accounts dürfen keine Kinder anlegen")
     try:
-        parent_uuid = UUID(body.parent_id) if body.parent_id else None
+        parent_uuids: list[UUID] = []
+        if body.parent_ids:
+            parent_uuids = [UUID(pid) for pid in body.parent_ids]
+        elif body.parent_id:
+            parent_uuids = [UUID(body.parent_id)]
         child = create_child_user(
             db,
             actor,
             email=body.email,
             password=body.password,
             display_name=body.display_name,
-            parent_id=parent_uuid,
+            parent_ids=parent_uuids or None,
         )
         db.commit()
         db.refresh(child)
@@ -246,6 +252,32 @@ def users_create_child(
             **user_public_dict(child),
             "is_active": child.is_active,
             "created_at": child.created_at.isoformat(),
+        }
+        return UserAdminResponse(**row)
+    except AuthError as exc:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=exc.message) from exc
+
+
+@users_router.patch("/{user_id}/guardians", response_model=UserAdminResponse)
+def users_update_guardians(
+    user_id: UUID,
+    body: ChildGuardiansUpdateRequest,
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    target = db.get(User, user_id)
+    if not target or target.tenant_id != admin.tenant_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Benutzer nicht gefunden")
+    try:
+        parent_uuids = [UUID(pid) for pid in body.parent_ids]
+        update_child_guardians(db, admin, target, parent_uuids)
+        db.commit()
+        db.refresh(target)
+        row = {
+            **user_public_dict(target),
+            "is_active": target.is_active,
+            "created_at": target.created_at.isoformat(),
         }
         return UserAdminResponse(**row)
     except AuthError as exc:

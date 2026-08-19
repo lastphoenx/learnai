@@ -97,6 +97,45 @@ class User(Base, TimestampMixin):
     parent: Mapped["User | None"] = relationship(
         foreign_keys=[parent_id], remote_side=[id], back_populates="children"
     )
+    guardian_of: Mapped[list["ChildGuardian"]] = relationship(
+        foreign_keys="ChildGuardian.parent_user_id",
+        back_populates="parent",
+        cascade="all, delete-orphan",
+    )
+    guarded_by: Mapped[list["ChildGuardian"]] = relationship(
+        foreign_keys="ChildGuardian.child_user_id",
+        back_populates="child",
+        cascade="all, delete-orphan",
+    )
+
+
+class ChildGuardian(Base):
+    """Zuordnung Eltern ↔ Kind (max. 2 Eltern pro Kind)."""
+
+    __tablename__ = "child_guardians"
+    __table_args__ = (
+        Index("ix_child_guardians_parent_child", "parent_user_id", "child_user_id", unique=True),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    parent_user_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    child_user_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    parent: Mapped["User"] = relationship(
+        foreign_keys=[parent_user_id], back_populates="guardian_of"
+    )
+    child: Mapped["User"] = relationship(
+        foreign_keys=[child_user_id], back_populates="guarded_by"
+    )
 
 
 class UserSession(Base, TimestampMixin):

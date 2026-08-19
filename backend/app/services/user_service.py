@@ -19,7 +19,7 @@ from app.core.auth.totp import (
 )
 from app.core.crypto import derive_user_key, encrypt_text, generate_salt
 from app.core.tenant import get_default_tenant
-from app.models import User
+from app.models import ChildGuardian, LearningProfile, User
 from app.services.audit import log_event
 from app.services.crypto_json import decrypt_json, encrypt_json
 from app.services.profile_service import create_profile, get_profile_settings, set_profile_settings
@@ -200,17 +200,97 @@ def _ki_summary(by_task: dict) -> str:
     return " · ".join(f"{name} ({count})" for name, count in sorted(counts.items(), key=lambda x: -x[1]))
 
 
-def user_public_dict(user: User) -> dict:
+MAX_CHILD_GUARDIANS = 2
+
+
+def guardian_parent_ids(db: Session, child: User) -> list[uuid.UUID]:
+    rows = (
+        db.query(ChildGuardian.parent_user_id)
+        .filter(ChildGuardian.child_user_id == child.id)
+        .order_by(ChildGuardian.created_at.asc())
+        .all()
+    )
+    if rows:
+        return [row[0] for row in rows]
+    if child.parent_id:
+        return [child.parent_id]
+    return []
+
+
+def is_guardian_of(db: Session, parent_id: uuid.UUID, child_id: uuid.UUID) -> bool:
+    if (
+        db.query(ChildGuardian.id)
+        .filter(
+            ChildGuardian.parent_user_id == parent_id,
+            ChildGuardian.child_user_id == child_id,
+        )
+        .first()
+    ):
+        return True
+    child = db.get(User, child_id)
+    return bool(child and child.parent_id == parent_id)
+
+
+def _validate_guardian_parents(
+    db: Session,
+    actor: User,
+    parent_ids: list[uuid.UUID],
+) -> list[User]:
+    unique: list[uuid.UUID] = []
+    for pid in parent_ids:
+        if pid not in unique:
+            unique.append(pid)
+    if not unique or len(unique) > MAX_CHILD_GUARDIANS:
+        raise AuthError("Es sind 1–2 Eltern erlaubt", "invalid_guardians")
+    parents: list[User] = []
+    for pid in unique:
+        if not actor.is_admin and pid != actor.id:
+            raise AuthError("Kein Zugriff", "forbidden")
+        row = db.get(User, pid)
+        if not row or row.tenant_id != actor.tenant_id or row.is_child:
+            raise AuthError("Eltern-Account nicht gefunden", "not_found")
+        parents.append(row)
+    return parents
+
+
+def set_child_guardians(db: Session, child: User, parents: list[User]) -> None:
+    if not child.is_child:
+        raise AuthError("Nur für Kinder-Accounts", "invalid_user")
+    db.query(ChildGuardian).filter(ChildGuardian.child_user_id == child.id).delete()
+    for parent in parents:
+        db.add(ChildGuardian(parent_user_id=parent.id, child_user_id=child.id))
+    child.parent_id = parents[0].id
+    if child.profile_id:
+        profile = db.get(LearningProfile, child.profile_id)
+        if profile:
+            profile.managed_by_id = parents[0].id
+    db.flush()
+
+
+def user_public_dict(user: User, *, parent_ids: list[str] | None = None) -> dict:
     prefs = get_user_settings(user)
     profile_name = ""
     if user.profile_id and user.profile:
         profile_name = user.profile.display_name
-    child_count = len(user.children) if user.children else 0
+    child_count = 0
+    if user.guardian_of:
+        child_count = len({link.child_user_id for link in user.guardian_of})
+    elif user.children:
+        child_count = len(user.children)
+    resolved_parent_ids = parent_ids
+    if resolved_parent_ids is None:
+        if user.guarded_by:
+            resolved_parent_ids = [str(link.parent_user_id) for link in user.guarded_by]
+        elif user.parent_id:
+            resolved_parent_ids = [str(user.parent_id)]
+        else:
+            resolved_parent_ids = []
     return {
         "id": str(user.id),
         "is_admin": user.is_admin,
         "is_child": user.is_child,
-        "parent_id": str(user.parent_id) if user.parent_id else None,
+        "parent_id": resolved_parent_ids[0] if resolved_parent_ids else None,
+        "parent_ids": resolved_parent_ids,
         "profile_id": str(user.profile_id) if user.profile_id else None,
         "learner_name": profile_name,
         "child_count": child_count,
@@ -335,7 +415,11 @@ def set_totp_required(db: Session, actor: User, target: User, required: bool) ->
 def list_users_admin(db: Session, actor: User) -> list[dict]:
     rows = (
         db.query(User)
-        .options(joinedload(User.profile))
+        .options(
+            joinedload(User.profile),
+            joinedload(User.guardian_of),
+            joinedload(User.guarded_by),
+        )
         .filter(User.tenant_id == actor.tenant_id)
         .order_by(User.created_at.asc())
         .all()
@@ -392,17 +476,18 @@ def create_child_user(
     email: str,
     password: str,
     parent_id: uuid.UUID | None = None,
+    parent_ids: list[uuid.UUID] | None = None,
 ) -> User:
     if actor.is_child:
         raise AuthError("Kinder-Accounts dürfen keine Kinder anlegen", "forbidden")
-    parent = actor
-    if parent_id:
-        if not actor.is_admin and parent_id != actor.id:
-            raise AuthError("Kein Zugriff", "forbidden")
-        row = db.get(User, parent_id)
-        if not row or row.tenant_id != actor.tenant_id:
-            raise AuthError("Eltern-Account nicht gefunden", "not_found")
-        parent = row
+
+    if parent_ids:
+        parents = _validate_guardian_parents(db, actor, parent_ids)
+    elif parent_id:
+        parents = _validate_guardian_parents(db, actor, [parent_id])
+    else:
+        parents = _validate_guardian_parents(db, actor, [actor.id])
+    primary = parents[0]
 
     tenant = get_default_tenant(db)
     email_h = hash_email(email)
@@ -418,7 +503,7 @@ def create_child_user(
         encryption_salt=salt,
         encrypted_profile=enc,
         is_child=True,
-        parent_id=parent.id,
+        parent_id=primary.id,
     )
     db.add(child)
     db.flush()
@@ -428,10 +513,12 @@ def create_child_user(
         actor,
         display_name=display_name.strip(),
         user_id=child.id,
-        managed_by_id=parent.id,
+        managed_by_id=primary.id,
         is_child_profile=True,
     )
     child.profile_id = profile.id
+    set_child_guardians(db, child, parents)
+    parent_detail = ",".join(str(p.id) for p in parents)
     log_event(
         db,
         tenant_id=actor.tenant_id,
@@ -439,7 +526,31 @@ def create_child_user(
         action="user.child_create",
         resource_type="user",
         resource_id=child.id,
-        detail=f"parent={parent.id}",
+        detail=f"parents={parent_detail}",
     )
     db.flush()
+    return child
+
+
+def update_child_guardians(
+    db: Session,
+    actor: User,
+    child: User,
+    parent_ids: list[uuid.UUID],
+) -> User:
+    if not actor.is_admin:
+        raise AuthError("Nur Admins dürfen Eltern zuweisen", "forbidden")
+    if not child.is_child:
+        raise AuthError("Nur für Kinder-Accounts", "invalid_user")
+    parents = _validate_guardian_parents(db, actor, parent_ids)
+    set_child_guardians(db, child, parents)
+    log_event(
+        db,
+        tenant_id=actor.tenant_id,
+        actor_id=actor.id,
+        action="user.child_guardians_update",
+        resource_type="user",
+        resource_id=child.id,
+        detail=",".join(str(p.id) for p in parents),
+    )
     return child

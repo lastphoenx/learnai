@@ -27,6 +27,7 @@ export type User = {
   is_admin: boolean;
   is_child?: boolean;
   parent_id?: string | null;
+  parent_ids?: string[];
   profile_id?: string | null;
   learner_name?: string;
   child_count?: number;
@@ -185,7 +186,14 @@ export const createChildUser = (body: {
   password: string;
   display_name: string;
   parent_id?: string;
+  parent_ids?: string[];
 }) => apiFetch<AdminUser>("/api/v1/users/children", { method: "POST", json: body });
+
+export const updateChildGuardians = (userId: string, parent_ids: string[]) =>
+  apiFetch<AdminUser>(`/api/v1/users/${userId}/guardians`, {
+    method: "PATCH",
+    json: { parent_ids },
+  });
 
 export const updateMySettings = (body: { display_name?: string }) =>
   apiFetch<User>("/api/v1/auth/me", { method: "PATCH", json: body });
