@@ -15,7 +15,21 @@ _cache: dict = {"ts": 0.0, "data": {}}
 OPENAI_TTS_IDS = frozenset({"tts-1", "tts-1-hd", "gpt-4o-mini-tts"})
 OPENAI_CHAT_RE = re.compile(r"^(gpt-|o[134]-|chatgpt-)", re.I)
 OPENAI_VISION_RE = re.compile(r"^gpt-4", re.I)
+OPENAI_NON_CHAT_HINTS = ("-tts", "whisper", "embedding", "dall-e", "moderation", "realtime", "transcribe", "audio")
 ANTHROPIC_CHAT_RE = re.compile(r"^claude-", re.I)
+
+
+def _is_openai_chat(model_id: str) -> bool:
+    if model_id in OPENAI_TTS_IDS:
+        return False
+    if not OPENAI_CHAT_RE.match(model_id):
+        return False
+    lower = model_id.lower()
+    return not any(part in lower for part in OPENAI_NON_CHAT_HINTS)
+
+
+def _is_openai_vision(model_id: str) -> bool:
+    return _is_openai_chat(model_id) and bool(OPENAI_VISION_RE.match(model_id))
 
 
 def _fetch_openai() -> dict:
@@ -36,8 +50,8 @@ def _fetch_openai() -> dict:
         )
         response.raise_for_status()
         ids = sorted({row.get("id", "") for row in response.json().get("data", []) if row.get("id")})
-        chat = sorted(m for m in ids if OPENAI_CHAT_RE.match(m))
-        vision = sorted(m for m in ids if OPENAI_VISION_RE.match(m))
+        chat = sorted(m for m in ids if _is_openai_chat(m))
+        vision = sorted(m for m in ids if _is_openai_vision(m))
         tts = sorted(m for m in ids if m in OPENAI_TTS_IDS)
         if not tts:
             tts = sorted(OPENAI_TTS_IDS)

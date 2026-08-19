@@ -321,3 +321,14 @@ button:disabled {
 .icon-btn:hover {
   color: var(--accent);
 }
+
+.model-select-wrap {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.model-select-more {
+  font-size: 0.82rem;
+  padding: 0.2rem 0.55rem;
+  justify-self: start;
+}

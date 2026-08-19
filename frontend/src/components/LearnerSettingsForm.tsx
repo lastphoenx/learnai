@@ -41,8 +41,8 @@ export function LearnerSettingsForm({
   return (
     <>
       <p className="muted">
-        Pro Aufgabentyp ein Modell. Nur Einträge aus live geladenen Provider-Listen sind wählbar.
-        Keys bleiben in der Server-.env.
+        Pro Zeile: Provider wählen, dann eine der 1–3 Empfehlungen — oder leer lassen für
+        automatische Wahl. «Empfehlungen übernehmen» setzt alles auf einmal.
       </p>
       {!readOnly && (
         <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
@@ -103,7 +103,12 @@ export function LearnerSettingsForm({
                           onChange={(model) => setRow(item.key, { model })}
                           ollamaModels={ollamaModels}
                           catalog={modelCatalog}
-                          emptyLabel="Default"
+                          hints={
+                            effectiveProvider === "ollama" ? item.local : item.external
+                          }
+                          emptyLabel={
+                            item.key === "tts" ? "Standard (tts-1-hd)" : "Empfehlung (automatisch)"
+                          }
                         />
                       )}
                     </td>
@@ -145,6 +150,11 @@ export function LearnerSettingsForm({
                 onChange={(model) => onFallbackChange(llmProvider, model)}
                 ollamaModels={ollamaModels}
                 catalog={modelCatalog}
+                hints={
+                  llmProvider === "ollama"
+                    ? catalog.find((c) => c.key === "mixed")?.local || []
+                    : catalog.find((c) => c.key === "mixed")?.external || []
+                }
               />
             )}
           </label>
