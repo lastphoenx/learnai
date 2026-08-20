@@ -531,6 +531,11 @@ class ExamResult(Base, TimestampMixin):
         ForeignKey("learning_units.id", ondelete="SET NULL"),
         nullable=True,
     )
+    trainer_unit_id: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("learning_units.id", ondelete="SET NULL"),
+        nullable=True,
+    )
     classification: Mapped[int] = mapped_column(
         SmallInteger, default=DataClassification.CONFIDENTIAL, nullable=False
     )

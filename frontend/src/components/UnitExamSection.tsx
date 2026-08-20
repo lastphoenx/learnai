@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FormEvent, useState } from "react";
 import {
   analyzeExam,
+  createInteractiveTrainerFromExam,
   createRemediationFromExam,
   deleteExam,
   examFileUrl,
@@ -345,9 +346,47 @@ export function UnitExamSection({ unitId, exams, onChange, disabled }: Props) {
                         Nacharbeit erstellen
                       </button>
                     )}
+                    {exam.analysis && !exam.trainer_unit_id && (
+                      <button
+                        type="button"
+                        className="btn-sm btn-primary"
+                        disabled={busy}
+                        onClick={async () => {
+                          if (
+                            !confirm(
+                              "Neue interaktive Trainer-Einheit aus den Prüfungs-Schwächen anlegen und KI-Generierung starten?"
+                            )
+                          ) {
+                            return;
+                          }
+                          setBusy(true);
+                          setError(null);
+                          try {
+                            const res = await createInteractiveTrainerFromExam(unitId, exam.id);
+                            onChange();
+                            if (res.unit?.id) {
+                              window.location.href = `/units/${res.unit.id}?autogen=1`;
+                            }
+                          } catch (err) {
+                            setError(
+                              err instanceof Error ? err.message : "Trainer-Einheit fehlgeschlagen",
+                            );
+                          } finally {
+                            setBusy(false);
+                          }
+                        }}
+                      >
+                        Trainer aus Schwächen
+                      </button>
+                    )}
                     {exam.remediation_unit_id && (
                       <Link className="btn-sm ghost" href={`/units/${exam.remediation_unit_id}`}>
                         Zur Nacharbeit
+                      </Link>
+                    )}
+                    {exam.trainer_unit_id && (
+                      <Link className="btn-sm ghost" href={`/units/${exam.trainer_unit_id}`}>
+                        Zum Lerntrainer
                       </Link>
                     )}
                     <button type="button" className="btn-sm ghost" onClick={() => startEdit(exam)} disabled={busy}>

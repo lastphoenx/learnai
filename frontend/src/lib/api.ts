@@ -234,6 +234,7 @@ export type ExamResult = {
   analysis_edited?: boolean;
   transfer?: ExamTransfer | null;
   remediation_unit_id?: string | null;
+  trainer_unit_id?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -509,6 +510,11 @@ export type RemediationResponse = { exam: ExamResult; unit: LearningUnit };
 
 export const createRemediationFromExam = (unitId: string, examId: string) =>
   apiFetch<RemediationResponse>(`/api/v1/units/${unitId}/exams/${examId}/remediation`, {
+    method: "POST",
+  });
+
+export const createInteractiveTrainerFromExam = (unitId: string, examId: string) =>
+  apiFetch<RemediationResponse>(`/api/v1/units/${unitId}/exams/${examId}/interactive-trainer`, {
     method: "POST",
   });
 

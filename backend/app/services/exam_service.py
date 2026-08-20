@@ -194,6 +194,7 @@ def _dec_exam(exam: ExamResult, db: Session | None = None) -> dict:
         "analysis": analysis,
         "analysis_edited": bool(isinstance(analysis, dict) and analysis.get("edited_by_human")),
         "remediation_unit_id": str(exam.remediation_unit_id) if exam.remediation_unit_id else None,
+        "trainer_unit_id": str(exam.trainer_unit_id) if exam.trainer_unit_id else None,
         "created_at": exam.created_at.isoformat(),
         "updated_at": exam.updated_at.isoformat(),
     }
@@ -595,6 +596,59 @@ def _build_remediation_brief(
     return "\n".join(lines)
 
 
+def _build_interactive_trainer_brief(
+    analysis: dict,
+    *,
+    unit_brief: str | None,
+    grade_label: str | None,
+    score: int | None,
+    max_score: int | None,
+) -> str:
+    from app.ai.error_tags import collect_tags_from_analysis, label_for_tag
+
+    lines = [
+        "Interaktiver Lerntrainer — gezielt zu den Schwächen aus der Schulprüfungs-Analyse.",
+        "Erstelle Lernkarten und Quiz NUR zu den unten genannten Fehlermustern und Lücken.",
+        "Kein allgemeiner Stoff — Fokus auf das, was in der Prüfung schiefging.",
+    ]
+    if grade_label:
+        lines.append(f"Schulnote: {grade_label}.")
+    elif score is not None and max_score is not None:
+        lines.append(f"Ergebnis: {score}/{max_score} Punkte.")
+    summary = (analysis.get("summary") or "").strip()
+    if summary:
+        lines.append(f"Analyse-Kurzfassung: {summary}")
+
+    tags = collect_tags_from_analysis(analysis)
+    if tags:
+        lines.append("Fehlertags (Priorität für Karten und Quiz):")
+        for tag in tags[:12]:
+            lines.append(f"- {label_for_tag(tag)} ({tag})")
+
+    gaps = [str(g).strip() for g in (analysis.get("gaps") or []) if str(g).strip()]
+    if gaps:
+        lines.append("Verständnislücken:")
+        lines.extend(f"- {g}" for g in gaps[:8])
+
+    wrong_tasks = [t for t in (analysis.get("tasks") or []) if isinstance(t, dict) and t.get("correct") is False]
+    if wrong_tasks:
+        lines.append("Falsch gelöste Prüfungsaufgaben:")
+        for t in wrong_tasks[:10]:
+            desc = (t.get("description") or "").strip() or f"Aufgabe {t.get('index', '?')}"
+            tags_raw = [str(x).strip() for x in (t.get("error_tags") or []) if str(x).strip()]
+            tag_part = f" [{', '.join(tags_raw)}]" if tags_raw else ""
+            lines.append(f"- {desc}{tag_part}")
+
+    recs = [str(r).strip() for r in (analysis.get("recommendations") or []) if str(r).strip()]
+    if recs:
+        lines.append("Empfohlene Übungsschwerpunkte:")
+        lines.extend(f"- {r}" for r in recs[:6])
+
+    if unit_brief and unit_brief.strip():
+        lines.append(f"Kontext Ursprungseinheit: {unit_brief.strip()[:400]}")
+    return "\n".join(lines)
+
+
 def create_remediation_from_exam(
     db: Session,
     user: User,
@@ -679,6 +733,103 @@ def create_remediation_from_exam(
         tenant_id=user.tenant_id,
         actor_id=user.id,
         action="exam.remediation_create",
+        resource_type="exam_result",
+        resource_id=exam.id,
+        detail=f"unit={new_unit.id}",
+    )
+    return {"exam": _dec_exam(exam, db), "unit": _dec_unit(new_unit)}
+
+
+def create_interactive_trainer_from_exam(
+    db: Session,
+    user: User,
+    unit_id: uuid.UUID,
+    exam_id: uuid.UUID,
+) -> dict:
+    """Interaktiven Lerntrainer aus Prüfungs-Schwächen (Phase B4)."""
+    unit = _get_unit_or_404(db, user, unit_id)
+    exam = _get_exam_or_404(db, user, unit_id, exam_id)
+
+    if exam.trainer_unit_id:
+        existing = db.get(LearningUnit, exam.trainer_unit_id)
+        if existing and existing.tenant_id == user.tenant_id:
+            return {"exam": _dec_exam(exam, db), "unit": _dec_unit(existing)}
+        exam.trainer_unit_id = None
+
+    if not exam.analysis_encrypted:
+        raise UnitError("Zuerst eine KI-Analyse der Prüfung durchführen", "not_analyzed")
+    analysis = decrypt_json(exam.analysis_encrypted)
+    if not isinstance(analysis, dict):
+        raise UnitError("Analyse-Daten ungültig", "not_analyzed")
+
+    title = decrypt_text_master(unit.title_encrypted)
+    if not title.lower().startswith("trainer:"):
+        title = f"Trainer: {title}"
+    unit_brief = decrypt_text_master(unit.brief_encrypted) if unit.brief_encrypted else None
+    grade = decrypt_text_master(exam.grade_label_encrypted) if exam.grade_label_encrypted else None
+    brief = _build_interactive_trainer_brief(
+        analysis,
+        unit_brief=unit_brief,
+        grade_label=grade,
+        score=exam.score,
+        max_score=exam.max_score,
+    )
+
+    parent_focus = None
+    src_record = db.query(LearningRecord).filter(LearningRecord.unit_id == unit.id).first()
+    if src_record and src_record.reconstruction_encrypted:
+        src_recon = decrypt_json(src_record.reconstruction_encrypted)
+        if isinstance(src_recon, dict):
+            focus = (src_recon.get("math_focus") or "").strip()
+            parent_focus = focus or None
+    math_focus = _infer_math_focus(analysis, parent_focus)
+
+    result = create_unit(
+        db,
+        user,
+        title=title,
+        brief=brief,
+        subject=unit.subject,
+        language=unit.language,
+        target_age=unit.target_age,
+        difficulty=unit.difficulty,
+        task_type="interactive",
+        math_focus=math_focus,
+        profile_id=unit.profile_id,
+    )
+    new_unit = db.get(LearningUnit, uuid.UUID(result["id"]))
+    if not new_unit:
+        raise UnitError("Trainer-Einheit konnte nicht erstellt werden", "create_failed")
+    _copy_sources(db, unit, new_unit)
+
+    new_record = db.query(LearningRecord).filter(LearningRecord.unit_id == new_unit.id).first()
+    if new_record and new_record.reconstruction_encrypted:
+        recon = decrypt_json(new_record.reconstruction_encrypted)
+        if isinstance(recon, dict):
+            recon["source_exam_id"] = str(exam.id)
+            recon["source_unit_id"] = str(unit.id)
+            new_record.reconstruction_encrypted = encrypt_json(recon)
+
+    exam.trainer_unit_id = new_unit.id
+    db.flush()
+
+    record = db.get(LearningRecord, exam.record_id)
+    if record:
+        _add_event(
+            db,
+            record,
+            "exam_trainer_created",
+            {
+                "exam_id": str(exam.id),
+                "trainer_unit_id": str(new_unit.id),
+                "source_unit_id": str(unit.id),
+            },
+        )
+    log_event(
+        db,
+        tenant_id=user.tenant_id,
+        actor_id=user.id,
+        action="exam.trainer_create",
         resource_type="exam_result",
         resource_id=exam.id,
         detail=f"unit={new_unit.id}",

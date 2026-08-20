@@ -5,7 +5,11 @@ from __future__ import annotations
 import uuid
 from unittest.mock import MagicMock, patch
 
-from app.services.exam_service import _normalize_analysis_payload, compute_transfer_comparison
+from app.services.exam_service import (
+    _build_interactive_trainer_brief,
+    _normalize_analysis_payload,
+    compute_transfer_comparison,
+)
 
 
 def test_compute_transfer_transfer_gap():
@@ -55,3 +59,23 @@ def test_normalize_analysis_marks_edited():
     assert out["summary"] == "Test"
     assert out["tasks"][0]["error_tags"] == ["fractions_denominator"]
     assert out["provider"] == "ollama"
+
+
+def test_build_interactive_trainer_brief_focuses_on_weaknesses():
+    analysis = {
+        "summary": "Probleme bei Brüchen",
+        "gaps": ["Nenner angleichen"],
+        "tasks": [
+            {
+                "index": 1,
+                "description": "1/2 + 1/3",
+                "correct": False,
+                "error_tags": ["fractions_denominator"],
+            }
+        ],
+    }
+    brief = _build_interactive_trainer_brief(analysis, unit_brief=None, grade_label="4", score=None, max_score=None)
+    assert "Interaktiver Lerntrainer" in brief
+    assert "Nenner angleichen" in brief
+    assert "1/2 + 1/3" in brief
+    assert "fractions_denominator" in brief

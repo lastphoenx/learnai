@@ -42,6 +42,7 @@ from app.services.learn_service import (
 from app.services.exam_service import (
     analyze_exam,
     create_exam,
+    create_interactive_trainer_from_exam,
     create_remediation_from_exam,
     delete_exam,
     get_exam_file,
@@ -534,6 +535,22 @@ def units_create_remediation(
 ):
     try:
         result = create_remediation_from_exam(db, user, unit_id, exam_id)
+        db.commit()
+        return result
+    except UnitError as exc:
+        db.rollback()
+        raise _http(exc) from exc
+
+
+@router.post("/{unit_id}/exams/{exam_id}/interactive-trainer", status_code=status.HTTP_201_CREATED)
+def units_create_interactive_trainer(
+    unit_id: UUID,
+    exam_id: UUID,
+    user: User = Depends(get_app_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        result = create_interactive_trainer_from_exam(db, user, unit_id, exam_id)
         db.commit()
         return result
     except UnitError as exc:

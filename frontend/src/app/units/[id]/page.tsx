@@ -233,7 +233,8 @@ export default function UnitDetailPage() {
       {error && <p className="err">{error}</p>}
 
       {unit && (
-        <>
+        <div className="unit-page-layout">
+          <div className="unit-page-main">
           <nav className="breadcrumb" aria-label="Brotkrumen">
             <Link href="/units">Einheiten</Link>
             <span aria-hidden="true">›</span>
@@ -275,114 +276,6 @@ export default function UnitDetailPage() {
             ) : (
               <p className="muted unit-brief-empty">Keine Beschreibung — Stift klicken zum Ergänzen.</p>
             )}
-          </section>
-
-          <section className="card unit-section">
-            <h2>Aktionen</h2>
-            <div className="action-grid">
-              {(unit.modules || []).length > 0 && (
-                <Link className="btn btn-primary action-tile" href={`/units/${unit.id}/learn`}>
-                  <strong>
-                    {unit.learn_progress?.status === "in_progress"
-                      ? "Weiterlernen"
-                      : unit.learn_progress?.status === "completed"
-                        ? "Nochmal lernen"
-                        : "Lernen starten"}
-                  </strong>
-                  <span className="muted">
-                    {unit.learn_progress?.percent
-                      ? `${unit.learn_progress.percent}% Fortschritt`
-                      : `${moduleCount} Lernblock${moduleCount === 1 ? "" : "e"}`}
-                  </span>
-                </Link>
-              )}
-              {(unit.modules || []).length > 0 && (
-                <a className="action-tile" href={unitWorksheetPdfUrl(unit.id)}>
-                  <strong>Arbeitsblatt (PDF)</strong>
-                  <span className="muted">Zum Ausdrucken — ohne Lösungen</span>
-                </a>
-              )}
-              <button
-                type="button"
-                className={`action-tile${busy && generateJob ? " action-tile-busy" : ""}`}
-                onClick={onGenerate}
-                disabled={busy}
-                aria-busy={busy}
-              >
-                <strong>{busy ? "KI arbeitet…" : "Mit KI aufbereiten"}</strong>
-                {busy && generateJob ? (
-                  <>
-                    <div
-                      className="generate-progress-bar"
-                      role="progressbar"
-                      aria-valuenow={generateJob.progress_pct ?? 0}
-                      aria-valuemin={0}
-                      aria-valuemax={100}
-                      aria-label={generateJob.message || "KI-Generierung"}
-                    >
-                      <div
-                        className="generate-progress-fill"
-                        style={{ width: `${Math.min(100, Math.max(0, generateJob.progress_pct ?? 0))}%` }}
-                      />
-                    </div>
-                    <span className="muted generate-progress-label">
-                      {generateJob.message || "Bitte Tab offen lassen."}
-                      {typeof generateJob.progress_pct === "number" ? ` · ${generateJob.progress_pct}%` : ""}
-                    </span>
-                  </>
-                ) : (
-                  <span className="muted">
-                    {unit.task_type === "interactive" && sourceCount > 0
-                      ? `${sourceCount} Quelle(n) — läuft im Hintergrund`
-                      : sourceCount > 0
-                        ? `${sourceCount} Quelle(n)`
-                        : "Aus Titel & Auftrag"}
-                  </span>
-                )}
-              </button>
-              <button
-                type="button"
-                className="action-tile"
-                disabled={busy}
-                onClick={async () => {
-                  if (
-                    !confirm(
-                      "Es wird eine neue Wiederholungs-Einheit angelegt — diese Einheit bleibt unverändert. Die KI erstellt danach neue Aufgaben (dauert einige Minuten). Fortfahren?"
-                    )
-                  ) {
-                    return;
-                  }
-                  setBusy(true);
-                  setError(null);
-                  try {
-                    const review = await createReviewUnit(unitId);
-                    router.push(`/units/${review.id}?autogen=1`);
-                  } catch (err) {
-                    setError(err instanceof Error ? err.message : "Wiederholung konnte nicht erstellt werden");
-                  } finally {
-                    setBusy(false);
-                  }
-                }}
-              >
-                <strong>Wiederholung</strong>
-                <span className="muted">Neue Einheit · gleiche Quellen · KI generiert neu</span>
-              </button>
-              <button type="button" className="action-tile" onClick={onSpeak} disabled={busy}>
-                <strong>Vorlesen</strong>
-                <span className="muted">OpenAI TTS</span>
-              </button>
-            </div>
-            <label className="toggle-row">
-              <input
-                type="checkbox"
-                checked={unit.auto_purge_sources}
-                onChange={async (e) => {
-                  const next = await patchUnit(unit.id, { auto_purge_sources: e.target.checked });
-                  setUnit(next);
-                }}
-              />
-              <span>Fotos nach OCR automatisch löschen (Metadaten bleiben)</span>
-            </label>
           </section>
 
           {user && !user.is_child && (
@@ -510,6 +403,117 @@ export default function UnitDetailPage() {
               Ganze Einheit löschen (Verlauf bleibt)
             </button>
           </section>
+          </div>
+
+          <aside className="card unit-section unit-page-aside">
+            <h2>Aktionen</h2>
+            <div className="action-grid action-grid-aside">
+              {(unit.modules || []).length > 0 && (
+                <Link className="btn btn-primary action-tile" href={`/units/${unit.id}/learn`}>
+                  <strong>
+                    {unit.learn_progress?.status === "in_progress"
+                      ? "Weiterlernen"
+                      : unit.learn_progress?.status === "completed"
+                        ? "Nochmal lernen"
+                        : "Lernen starten"}
+                  </strong>
+                  <span className="muted">
+                    {unit.learn_progress?.percent
+                      ? `${unit.learn_progress.percent}% Fortschritt`
+                      : `${moduleCount} Lernblock${moduleCount === 1 ? "" : "e"}`}
+                  </span>
+                </Link>
+              )}
+              {(unit.modules || []).length > 0 && (
+                <a className="action-tile" href={unitWorksheetPdfUrl(unit.id)}>
+                  <strong>Arbeitsblatt (PDF)</strong>
+                  <span className="muted">Zum Ausdrucken — ohne Lösungen</span>
+                </a>
+              )}
+              <button
+                type="button"
+                className={`action-tile${busy ? " action-tile-busy" : ""}`}
+                onClick={onGenerate}
+                disabled={busy}
+                aria-busy={busy}
+              >
+                <strong>{busy ? "KI arbeitet…" : "Mit KI aufbereiten"}</strong>
+                {busy ? (
+                  <div className="generate-progress-compact">
+                    <div
+                      className="generate-progress-bar"
+                      role="progressbar"
+                      aria-valuenow={generateJob?.progress_pct ?? 0}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-label={generateJob?.message || "KI-Generierung"}
+                    >
+                      <div
+                        className="generate-progress-fill"
+                        style={{
+                          width: `${Math.min(100, Math.max(0, generateJob?.progress_pct ?? 0))}%`,
+                        }}
+                      />
+                    </div>
+                    <span className="muted generate-progress-label">
+                      {generateJob?.message || "Bitte Tab offen lassen…"}
+                      {typeof generateJob?.progress_pct === "number" ? ` (${generateJob.progress_pct}%)` : ""}
+                    </span>
+                  </div>
+                ) : (
+                  <span className="muted">
+                    {unit.task_type === "interactive" && sourceCount > 0
+                      ? `${sourceCount} Quelle(n) — Tab offen lassen`
+                      : sourceCount > 0
+                        ? `${sourceCount} Quelle(n)`
+                        : "Aus Titel & Auftrag"}
+                  </span>
+                )}
+              </button>
+              <button
+                type="button"
+                className="action-tile"
+                disabled={busy}
+                onClick={async () => {
+                  if (
+                    !confirm(
+                      "Es wird eine neue Wiederholungs-Einheit angelegt — diese Einheit bleibt unverändert. Die KI erstellt danach neue Aufgaben (dauert einige Minuten). Fortfahren?"
+                    )
+                  ) {
+                    return;
+                  }
+                  setBusy(true);
+                  setError(null);
+                  try {
+                    const review = await createReviewUnit(unitId);
+                    router.push(`/units/${review.id}?autogen=1`);
+                  } catch (err) {
+                    setError(err instanceof Error ? err.message : "Wiederholung konnte nicht erstellt werden");
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+              >
+                <strong>Wiederholung</strong>
+                <span className="muted">Neue Einheit · gleiche Quellen · KI generiert neu</span>
+              </button>
+              <button type="button" className="action-tile" onClick={onSpeak} disabled={busy}>
+                <strong>Vorlesen</strong>
+                <span className="muted">OpenAI TTS</span>
+              </button>
+            </div>
+            <label className="toggle-row">
+              <input
+                type="checkbox"
+                checked={unit.auto_purge_sources}
+                onChange={async (e) => {
+                  const next = await patchUnit(unit.id, { auto_purge_sources: e.target.checked });
+                  setUnit(next);
+                }}
+              />
+              <span>Fotos nach OCR automatisch löschen (Metadaten bleiben)</span>
+            </label>
+          </aside>
 
           <UnitEditDialog
             unit={unit}
@@ -517,7 +521,7 @@ export default function UnitDetailPage() {
             onClose={() => setEditOpen(false)}
             onSaved={(next) => setUnit(next)}
           />
-        </>
+        </div>
       )}
     </main>
   );
