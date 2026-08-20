@@ -58,7 +58,7 @@ Lernen in der App (Quiz, Blöcke) ≠ echte Schulprüfung. Beides muss verbunden
 | Manuelle Korrektur der KI-Analyse | ✅ | PATCH analysis + UI «Analyse bearbeiten» |
 | Vergleich App-Quiz vs. Schulprüfung | ✅ | `transfer` pro Prüfung (Einheit + Eltern-Dashboard) |
 | Spaced Repetition / Erinnerungsplan | teilweise | Wiederholungs-Hinweis nach 7 Tagen (Kinder-Übersicht) |
-| Offline / Druck | fehlt | Arbeitsblatt exportieren (PDF) |
+| Offline / Druck | ✅ | Arbeitsblatt-PDF pro Einheit; Elternbericht-PDF |
 | Mehrere Kinder gleiche Einheit | teilweise | Zuweisung an Profile; kein «Vorlage duplizieren» |
 | Benachrichtigungen | fehlt | «Kind hat Einheit abgeschlossen» |
 | Datenschutz Prüfungsfotos | zu klären | Klassifizierung, Aufbewahrungsfrist, Löschen |
@@ -124,8 +124,15 @@ Beides existiert nebeneinander und wird im Verlauf des Kindes zusammengeführt.
 
 ---
 
+### Phase G — Bericht-PDF ✅ *implementiert*
+- `GET /dashboard/parent/report/{profile_id}/pdf` — Elternbericht inkl. Prüfungen, Fehlermuster, Transfer
+- Markdown-Export bleibt unter `/report/{profile_id}`
+
+### Phase H — Arbeitsblatt-PDF ✅ *implementiert*
+- `GET /units/{unit_id}/worksheet.pdf` — Lernblöcke + Quizfragen (ohne Lösungen), Antwortzeilen
+- UI: «Arbeitsblatt (PDF)» auf Einheitsseite (wenn Lernblöcke vorhanden)
+
 ## Nächste Schritte (optional)
 
-1. **PDF-Export** — Elternbericht und Arbeitsblatt drucken
-2. **Benachrichtigungen** — E-Mail/Push bei Abschluss oder Prüfungserinnerung
-3. **Datenschutz Prüfungsfotos** — Aufbewahrungsfrist formalisieren
+1. **Benachrichtigungen** — E-Mail/Push bei Abschluss oder Prüfungserinnerung
+2. **Datenschutz Prüfungsfotos** — Aufbewahrungsfrist formalisieren

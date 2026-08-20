@@ -122,6 +122,8 @@ Redis-basiert. Konfiguration in `.env` / `config.py`:
 ### Phase D — Langzeit
 - `GET /dashboard/parent/exam-insights` — Fehlertrends pro Kind
 - `GET /dashboard/parent/report/{profile_id}` — Markdown-Bericht
+- `GET /dashboard/parent/report/{profile_id}/pdf` — Elternbericht als PDF
+- `GET /units/{id}/worksheet.pdf` — Arbeitsblatt (Lernblöcke + Fragen, ohne Lösungen)
 
 ---
 

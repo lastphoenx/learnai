@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import PlainTextResponse, Response
 from sqlalchemy.orm import Session
 from uuid import UUID
 
@@ -8,6 +8,7 @@ from app.core.db import get_db
 from app.models import User
 from app.services.dashboard_service import parent_dashboard
 from app.services.exam_insights_service import child_report_markdown, parent_exam_insights
+from app.services.pdf_export_service import child_report_pdf
 from app.services.profile_service import ProfileError
 from app.services.unit_service import UnitError
 
@@ -47,6 +48,26 @@ def dashboard_child_report(
         return PlainTextResponse(
             content=text,
             media_type="text/markdown; charset=utf-8",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    except ProfileError as exc:
+        code = 403 if exc.code == "forbidden" else 404
+        raise HTTPException(status_code=code, detail=exc.message) from exc
+    except UnitError as exc:
+        raise _http(exc) from exc
+
+
+@router.get("/parent/report/{profile_id}/pdf")
+def dashboard_child_report_pdf(
+    profile_id: UUID,
+    user: User = Depends(get_app_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        pdf_bytes, filename = child_report_pdf(db, user, profile_id)
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
             headers={"Content-Disposition": f'attachment; filename="{filename}"'},
         )
     except ProfileError as exc:

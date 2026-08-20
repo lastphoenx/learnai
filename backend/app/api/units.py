@@ -1,7 +1,7 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from sqlalchemy.orm import Session
 
 from app.core.auth.dependencies import get_app_user
@@ -42,6 +42,7 @@ from app.services.exam_service import (
     update_exam_analysis,
 )
 from app.services.unit_service import UnitError, add_source, add_source_url, assign_unit_to_profiles, create_unit, create_review_from_unit, create_unit_from_record, create_units, delete_source, delete_unit, get_record, get_unit, list_records, list_units, purge_source_file_keep_meta, update_unit, update_unit_flags
+from app.services.pdf_export_service import unit_worksheet_pdf
 from app.ai.task_types import math_focus_public, task_types_public
 
 router = APIRouter(prefix="/units", tags=["units"])
@@ -149,6 +150,23 @@ def units_assign(
 def units_get(unit_id: UUID, user: User = Depends(get_app_user), db: Session = Depends(get_db)):
     try:
         return get_unit(db, user, unit_id)
+    except UnitError as exc:
+        raise _http(exc) from exc
+
+
+@router.get("/{unit_id}/worksheet.pdf")
+def units_worksheet_pdf(
+    unit_id: UUID,
+    user: User = Depends(get_app_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        pdf_bytes, filename = unit_worksheet_pdf(db, user, unit_id)
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
     except UnitError as exc:
         raise _http(exc) from exc
 

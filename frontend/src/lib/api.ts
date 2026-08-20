@@ -590,6 +590,14 @@ export function childReportUrl(profileId: string) {
   return `${API_URL}/api/v1/dashboard/parent/report/${profileId}`;
 }
 
+export function childReportPdfUrl(profileId: string) {
+  return `${API_URL}/api/v1/dashboard/parent/report/${profileId}/pdf`;
+}
+
+export function unitWorksheetPdfUrl(unitId: string) {
+  return `${API_URL}/api/v1/units/${unitId}/worksheet.pdf`;
+}
+
 export const addSourceUrl = (unitId: string, url: string) =>
   apiFetch<UnitSource>(`/api/v1/units/${unitId}/sources/url`, {
     method: "POST",

@@ -20,6 +20,7 @@ import {
   patchUnit,
   purgeSource,
   speak,
+  unitWorksheetPdfUrl,
   uploadSource,
   type LearningUnit,
   type LearnerProfile,
@@ -238,6 +239,12 @@ export default function UnitDetailPage() {
                       : `${moduleCount} Lernblock${moduleCount === 1 ? "" : "e"}`}
                   </span>
                 </Link>
+              )}
+              {(unit.modules || []).length > 0 && (
+                <a className="action-tile" href={unitWorksheetPdfUrl(unit.id)}>
+                  <strong>Arbeitsblatt (PDF)</strong>
+                  <span className="muted">Zum Ausdrucken — ohne Lösungen</span>
+                </a>
               )}
               <button type="button" className="action-tile" onClick={onGenerate} disabled={busy}>
                 <strong>{busy ? "KI arbeitet…" : "Mit KI aufbereiten"}</strong>

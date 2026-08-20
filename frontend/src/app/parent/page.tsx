@@ -7,6 +7,7 @@ import { AppHeader } from "@/components/AppHeader";
 import { TransferComparison } from "@/components/TransferComparison";
 import {
   childReportUrl,
+  childReportPdfUrl,
   createReviewUnit,
   fetchMe,
   fetchParentDashboard,
@@ -78,9 +79,14 @@ export default function ParentDashboardPage() {
                 <div className="section-head">
                   <h2 style={{ margin: 0 }}>{child.display_name}</h2>
                   {exam?.profile_id && (
-                    <a className="btn btn-sm ghost" href={childReportUrl(exam.profile_id)}>
-                      Bericht exportieren
-                    </a>
+                    <>
+                      <a className="btn btn-sm ghost" href={childReportPdfUrl(exam.profile_id)}>
+                        Bericht (PDF)
+                      </a>
+                      <a className="btn btn-sm ghost" href={childReportUrl(exam.profile_id)}>
+                        Bericht (Markdown)
+                      </a>
+                    </>
                   )}
                 </div>
                 <p className="muted" style={{ margin: 0 }}>
