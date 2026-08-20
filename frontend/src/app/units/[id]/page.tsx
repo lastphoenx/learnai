@@ -427,8 +427,14 @@ export default function UnitDetailPage() {
               )}
               {(unit.modules || []).length > 0 && (
                 <a className="action-tile" href={unitWorksheetPdfUrl(unit.id)}>
-                  <strong>Arbeitsblatt (PDF)</strong>
-                  <span className="muted">Zum Ausdrucken — ohne Lösungen</span>
+                  <strong>
+                    {unit.task_type === "interactive" ? "Trainer-Arbeitsblatt (PDF)" : "Arbeitsblatt (PDF)"}
+                  </strong>
+                  <span className="muted">
+                    {unit.task_type === "interactive"
+                      ? "Kernwissen, Lernkarten, Quiz + Lösungen"
+                      : "Zum Ausdrucken — ohne Lösungen"}
+                  </span>
                 </a>
               )}
               {(unit.modules || []).length > 0 && unit.task_type === "interactive" && (
