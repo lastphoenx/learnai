@@ -64,7 +64,7 @@ export default function UnitDetailPage() {
   const [profiles, setProfiles] = useState<LearnerProfile[]>([]);
 
   function reload() {
-    fetchUnit(unitId).then(setUnit).catch(() => setError("Einheit nicht gefunden"));
+    return fetchUnit(unitId).then(setUnit).catch(() => setError("Einheit nicht gefunden"));
   }
 
   useEffect(() => {
@@ -148,8 +148,8 @@ export default function UnitDetailPage() {
     setBusy(true);
     setError(null);
     try {
-      const next = await generateUnit(unitId);
-      setUnit(next);
+      await generateUnit(unitId);
+      await reload();
     } catch (err) {
       setError(err instanceof Error ? err.message : "KI-Aufbereitung fehlgeschlagen");
     } finally {

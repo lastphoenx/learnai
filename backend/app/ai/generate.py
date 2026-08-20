@@ -30,11 +30,66 @@ from app.ai.task_types import AI_TASK_FOR_UNIT, hint_for_task
 _log = logging.getLogger(__name__)
 
 SYSTEM = (
-    "Du bist Lerncoach. Antworte immer mit einem JSON-Objekt, ohne Markdown."
-    " Schema: {\"modules\":[{\"title\":\"...\",\"content\":{\"text\":\"...\"},"
-    "\"quiz\":{\"questions\":[{\"q\":\"...\",\"options\":[\"A\",\"B\",\"C\",\"D\"],\"answer\":0}]}}]}"
-    " 3 bis 6 Module, altersgerecht, Sprache wie vorgegeben. answer ist der Index der richtigen Option."
+    "Du bist Lerncoach. Antworte NUR mit einem JSON-Objekt, ohne Markdown-Umschlag.\n"
+    'Schema: {"modules":[{"title":"...","content":{"text":"..."},'
+    '"quiz":{"questions":[{"q":"...","options":["A","B","C","D"],"answer":0}]}}]}\n'
+    "Regeln:\n"
+    "- 4 bis 6 Module; jedes Modul = ein eigenes Teilthema mit Substanz (kein Ein-Satz-Block).\n"
+    "- content.text: 120–350 Wörter, mehrere Absätze, Beispiele, altersgerecht und konkret.\n"
+    "- quiz: pro Modul 3–5 Multiple-Choice-Fragen, je genau 4 Optionen; answer = 0-basierter Index.\n"
+    "- Kein LaTeX mit Backslashes (statt \\(x\\) normale Schreibweise wie (x) oder x).\n"
+    "- Sprache und Schwierigkeit wie vorgegeben."
 )
+
+_MIN_MODULES: dict[str, int] = {
+    "explain": 3,
+    "quiz": 4,
+    "exam": 4,
+    "review": 4,
+    "vocab": 4,
+}
+_DEFAULT_MIN_MODULES = 4
+
+
+def _word_count(text: str) -> int:
+    return len([w for w in text.split() if w.strip()])
+
+
+def _validate_modules(modules: list, *, task: str) -> None:
+    min_modules = _MIN_MODULES.get(task, _DEFAULT_MIN_MODULES)
+    if len(modules) < min_modules:
+        raise LlmError(
+            f"Zu wenige Module ({len(modules)}, mindestens {min_modules} erwartet)",
+            "thin_content",
+        )
+    min_words = 80 if task in {"quiz", "exam", "review"} else 100
+    min_questions = 4 if task in {"quiz", "exam", "review"} else 2 if task == "explain" else 3
+    for index, raw in enumerate(modules[:8]):
+        if not isinstance(raw, dict):
+            raise LlmError(f"Modul {index + 1} hat ungültiges Format", "bad_json")
+        content = raw.get("content")
+        text = content.get("text", "") if isinstance(content, dict) else str(content or "")
+        if _word_count(str(text)) < min_words:
+            raise LlmError(
+                f"Modul {index + 1} («{raw.get('title', '')}») ist zu kurz — mehr Erklärung nötig",
+                "thin_content",
+            )
+        quiz = raw.get("quiz") if isinstance(raw.get("quiz"), dict) else {}
+        questions = quiz.get("questions") if isinstance(quiz.get("questions"), list) else []
+        if len(questions) < min_questions:
+            raise LlmError(
+                f"Modul {index + 1} hat zu wenige Quizfragen ({len(questions)}, mindestens {min_questions})",
+                "thin_content",
+            )
+        for q_index, q in enumerate(questions):
+            if not isinstance(q, dict):
+                raise LlmError(f"Frage {q_index + 1} in Modul {index + 1} ungültig", "bad_json")
+            options = q.get("options") if isinstance(q.get("options"), list) else []
+            if len(options) < 4:
+                raise LlmError(
+                    f"Frage {q_index + 1} in Modul {index + 1} braucht 4 Antwortoptionen",
+                    "bad_json",
+                )
 
 
 def generate_modules(
@@ -128,36 +183,35 @@ def generate_modules(
         len(result.get("text") or ""),
         int((time.monotonic() - t_chat) * 1000),
     )
-    try:
-        parsed = parse_json_object(result["text"])
-        modules = parsed.get("modules")
-        if not isinstance(modules, list) or not modules:
-            raise LlmError("Keine Module in der Antwort", "bad_json")
-    except LlmError:
-        modules = [
-            {
-                "title": "Lerntext",
-                "content": {"text": result["text"]},
-                "quiz": {"questions": []},
-            }
-        ]
+    parsed = parse_json_object(result["text"])
+    modules = parsed.get("modules")
+    if not isinstance(modules, list) or not modules:
+        raise LlmError("Keine Module in der KI-Antwort", "bad_json")
+    _validate_modules(modules, task=task)
 
-    db.query(UnitModule).filter(UnitModule.unit_id == unit.id).delete()
+    for mod in list(unit.modules):
+        db.delete(mod)
+    db.flush()
+
+    saved: list[UnitModule] = []
     for index, raw in enumerate(modules[:8]):
         if not isinstance(raw, dict):
             continue
         mod_title = str(raw.get("title") or f"Block {index + 1}")[:200]
         content = raw.get("content") if isinstance(raw.get("content"), dict) else {"text": str(raw.get("content") or "")}
         quiz = raw.get("quiz") if isinstance(raw.get("quiz"), dict) else {"questions": []}
-        db.add(
-            UnitModule(
-                unit_id=unit.id,
-                order_index=index,
-                title_encrypted=encrypt_text_master(mod_title),
-                content_encrypted=encrypt_json(content),
-                quiz_encrypted=encrypt_json(quiz),
-            )
+        mod = UnitModule(
+            unit=unit,
+            order_index=index,
+            title_encrypted=encrypt_text_master(mod_title),
+            content_encrypted=encrypt_json(content),
+            quiz_encrypted=encrypt_json(quiz),
         )
+        db.add(mod)
+        saved.append(mod)
+    if not saved:
+        raise LlmError("Keine verwertbaren Module in der KI-Antwort", "bad_json")
+
     unit.status = "ready"
     db.flush()
 
@@ -167,12 +221,12 @@ def generate_modules(
             db,
             record,
             "modules_generated",
-            {"provider": result["provider"], "model": result["model"], "count": len(modules)},
+            {"provider": result["provider"], "model": result["model"], "count": len(saved)},
         )
     _log.info(
         "generate_llm done unit_id=%s modules=%d total_ms=%d",
         unit_id,
-        len(modules),
+        len(saved),
         int((time.monotonic() - t0) * 1000),
     )
     return _dec_unit(unit)

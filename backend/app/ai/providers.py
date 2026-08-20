@@ -17,6 +17,10 @@ from app.config import settings
 
 _log = logging.getLogger(__name__)
 
+_VALID_JSON_ESCAPES = frozenset('"\\/bfnrtu')
+
+
+class LlmResult(dict):
     """provider, model, text"""
 
 
@@ -98,22 +102,39 @@ def describe_image(
     return _anthropic_vision(b64, media, prompt, model=model)
 
 
+def _repair_invalid_json_escapes(raw: str) -> str:
+    """LLMs often emit LaTeX like \\( … \\) — invalid in strict JSON."""
+    return re.sub(
+        r"\\(.)",
+        lambda m: m.group(0) if m.group(1) in _VALID_JSON_ESCAPES else m.group(1),
+        raw,
+    )
+
+
+def _loads_json_object(raw: str) -> dict | None:
+    for candidate in (raw, _repair_invalid_json_escapes(raw)):
+        try:
+            data = json.loads(candidate)
+            if isinstance(data, dict):
+                return data
+        except json.JSONDecodeError:
+            continue
+    return None
+
+
 def parse_json_object(text: str) -> dict:
     raw = text.strip()
     fence = re.search(r"```(?:json)?\s*([\s\S]*?)```", raw)
     if fence:
         raw = fence.group(1).strip()
-    try:
-        data = json.loads(raw)
-        if isinstance(data, dict):
-            return data
-    except json.JSONDecodeError:
-        pass
+    data = _loads_json_object(raw)
+    if data is not None:
+        return data
     start = raw.find("{")
     end = raw.rfind("}")
     if start >= 0 and end > start:
-        data = json.loads(raw[start : end + 1])
-        if isinstance(data, dict):
+        data = _loads_json_object(raw[start : end + 1])
+        if data is not None:
             return data
     raise LlmError("KI-Antwort war kein JSON", "bad_json")
 
