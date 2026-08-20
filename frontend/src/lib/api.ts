@@ -234,8 +234,8 @@ export type ExamAnalysisPatchBody = {
   summary?: string | null;
   strengths?: string[] | null;
   gaps?: string[] | null;
-  error_patterns?: ExamAnalysis["error_patterns"];
-  tasks?: ExamAnalysis["tasks"];
+  error_patterns?: ExamAnalysis["error_patterns"] | null;
+  tasks?: ExamAnalysis["tasks"] | null;
   recommendations?: string[] | null;
 };
 
