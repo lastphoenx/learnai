@@ -527,7 +527,8 @@ def _collect_source_notes(db: Session, unit: LearningUnit, prefs: dict) -> str:
                     int((time.monotonic() - t_vis) * 1000),
                     exc.message,
                 )
-                raise
+                parts.append(f"### {label}\n(Bild — {exc.message})")
+                continue
             _log.info(
                 "generate_llm vision_ok label=%s model=%s chars=%d duration_ms=%d",
                 label,

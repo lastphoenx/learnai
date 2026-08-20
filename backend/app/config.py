@@ -51,8 +51,8 @@ class Settings(BaseSettings):
     llm_provider: str = "ollama"
     ollama_model: str = ""
     ollama_vision_model: str = ""
-    ollama_chat_timeout_sec: int = 300
-    ollama_vision_timeout_sec: int = 600
+    ollama_chat_timeout_sec: int = 900
+    ollama_vision_timeout_sec: int = 900
     openai_model: str = "gpt-4o-mini"
     anthropic_model: str = "claude-sonnet-4-0"
 

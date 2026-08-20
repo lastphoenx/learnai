@@ -260,7 +260,11 @@ export default function UnitDetailPage() {
               <button type="button" className="action-tile" onClick={onGenerate} disabled={busy}>
                 <strong>{busy ? "KI arbeitet…" : "Mit KI aufbereiten"}</strong>
                 <span className="muted">
-                  {sourceCount > 0 ? `${sourceCount} Quelle(n)` : "Aus Titel & Auftrag"}
+                  {unit.task_type === "interactive" && sourceCount > 0
+                    ? `${sourceCount} Quelle(n) — kann 20–40 Min. dauern, Tab offen lassen`
+                    : sourceCount > 0
+                      ? `${sourceCount} Quelle(n)`
+                      : "Aus Titel & Auftrag"}
                 </span>
               </button>
               <button

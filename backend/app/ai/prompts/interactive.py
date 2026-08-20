@@ -61,6 +61,18 @@ def learner_style_hint(*, target_age: str | None, style: str, answer_length: str
     return " ".join(parts)
 
 
+def truncate_material(notes: str, max_chars: int = 48000) -> str:
+    if len(notes) <= max_chars:
+        return notes
+    return notes[:max_chars] + "\n\n[… Material gekürzt — wichtigste Quellen stehen oben …]\n"
+
+
+def truncate_context(context: str, max_chars: int = 14000) -> str:
+    if len(context) <= max_chars:
+        return context
+    return context[:max_chars] + "\n\n[… Kontext gekürzt für diese Teilaufgabe …]\n"
+
+
 def _context_block(
     *,
     title: str,
@@ -114,7 +126,7 @@ def build_interactive_plan_prompt(
             difficulty=difficulty,
             style=style,
             answer_length=answer_length,
-            notes=notes,
+            notes=truncate_material(notes),
         )
         + f"\nZiel: {card_target} Lernkarten und {question_target} Quizfragen gesamt.\n"
         "Verteile cards/questions sinnvoll auf 5–6 Kategorien."
