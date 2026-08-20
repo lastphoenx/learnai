@@ -346,6 +346,29 @@ def flashcard_progress_map(
     }
 
 
+def flashcard_stats_for_unit(
+    db: Session,
+    *,
+    profile_id: uuid.UUID,
+    unit: LearningUnit,
+) -> dict[str, int]:
+    modules = list(unit.modules or [])
+    module_ids = [m.id for m in modules]
+    progress = flashcard_progress_map(db, profile_id=profile_id, module_ids=module_ids)
+    card_count = 0
+    for module in modules:
+        content = decrypt_json(module.content_encrypted) or {}
+        if isinstance(content, dict):
+            card_count += len(content.get("cards") or [])
+    known_cards = sum(1 for p in progress.values() if p.get("status") == "known")
+    review_cards = sum(1 for p in progress.values() if p.get("status") == "review")
+    return {
+        "card_count": card_count,
+        "known_cards": known_cards,
+        "review_cards": review_cards,
+    }
+
+
 def _clear_flashcard_progress(db: Session, record: LearningRecord) -> None:
     db.query(FlashcardProgress).filter(FlashcardProgress.learning_record_id == record.id).delete()
     db.flush()

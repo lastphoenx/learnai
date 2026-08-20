@@ -95,8 +95,50 @@ export default function ParentDashboardPage() {
                   {child.quiz_total > 0
                     ? ` · Quiz ${child.quiz_correct}/${child.quiz_total} (${child.quiz_percent}%)`
                     : ""}
+                  {child.flashcard_total > 0
+                    ? ` · ${child.flashcard_known}/${child.flashcard_total} Karten sicher`
+                    : ""}
                   {exam && exam.exam_count > 0 ? ` · ${exam.exam_count} Schulprüfung(en)` : ""}
                 </p>
+
+                {(child.trainer_units || []).length > 0 && (
+                  <div className="parent-insight-block">
+                    <h3>Lerntrainer</h3>
+                    <ul className="list parent-trainer-list">
+                      {(child.trainer_units || []).map((tu) => {
+                        const pct = tu.card_count
+                          ? Math.round((100 * tu.known_cards) / tu.card_count)
+                          : 0;
+                        return (
+                          <li key={tu.unit_id} className="card parent-trainer-item">
+                            <div className="parent-trainer-head">
+                              <strong>{tu.title}</strong>
+                              <span className="muted">
+                                {tu.known_cards}/{tu.card_count} Karten sicher ({pct}%)
+                              </span>
+                            </div>
+                            <div className="trainer-progress-bar" aria-hidden="true">
+                              <div className="trainer-progress-fill" style={{ width: `${pct}%` }} />
+                            </div>
+                            {tu.review_cards > 0 && (
+                              <p className="muted" style={{ margin: "0.35rem 0 0", fontSize: "0.85rem" }}>
+                                {tu.review_cards} zum Wiederholen markiert
+                              </p>
+                            )}
+                            <p style={{ margin: "0.5rem 0 0", display: "flex", gap: 8, flexWrap: "wrap" }}>
+                              <Link className="btn btn-sm btn-primary" href={`/units/${tu.unit_id}/learn`}>
+                                Trainer öffnen
+                              </Link>
+                              <Link className="btn btn-sm" href={`/units/${tu.unit_id}`}>
+                                Einheit
+                              </Link>
+                            </p>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                )}
 
                 {exam && exam.review_due.length > 0 && (
                   <div className="parent-insight-block">

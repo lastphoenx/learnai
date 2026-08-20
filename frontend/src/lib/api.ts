@@ -132,6 +132,7 @@ export type TrainerOptions = {
   questions: number;
   style: "balanced" | "playful" | "factual";
   answer_length: "short" | "medium" | "long";
+  llm_provider?: string | null;
 };
 
 export type TrainerPayload = {
@@ -647,6 +648,16 @@ export type ChildDashboardStats = {
   quiz_correct: number;
   quiz_total: number;
   quiz_percent: number | null;
+  flashcard_known: number;
+  flashcard_total: number;
+  trainer_units: {
+    unit_id: string;
+    title: string;
+    status: string;
+    known_cards: number;
+    review_cards: number;
+    card_count: number;
+  }[];
   recent: {
     record_id: string;
     unit_id: string | null;

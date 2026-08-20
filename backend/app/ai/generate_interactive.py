@@ -191,6 +191,9 @@ def generate_interactive_modules(
     if not isinstance(recon, dict):
         recon = {}
     options = get_trainer_options(recon)
+    unit_provider = options.get("llm_provider")
+    if provider is None and isinstance(unit_provider, str) and unit_provider.strip():
+        provider = unit_provider.strip()
 
     title = decrypt_text_master(unit.title_encrypted)
     brief = decrypt_text_master(unit.brief_encrypted) if unit.brief_encrypted else ""

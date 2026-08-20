@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.core.crypto import decrypt_text_master
 from app.models import LearningRecord, LearningUnit, User
 from app.services.crypto_json import decrypt_json
+from app.services.learn_service import flashcard_stats_for_unit
 from app.services.profile_service import child_user_ids
 from app.services.unit_service import UnitError
 from app.services.user_service import user_public_dict
@@ -55,6 +56,41 @@ def parent_dashboard(db: Session, user: User) -> dict:
             .count()
         )
 
+        profile_id = child.profile_id
+        trainer_units: list[dict] = []
+        flashcard_known = 0
+        flashcard_total = 0
+        if profile_id:
+            interactive_units = (
+                db.query(LearningUnit)
+                .options(joinedload(LearningUnit.modules))
+                .filter(
+                    LearningUnit.learner_id == child.id,
+                    LearningUnit.tenant_id == user.tenant_id,
+                    LearningUnit.task_type == "interactive",
+                )
+                .order_by(LearningUnit.updated_at.desc())
+                .all()
+            )
+            for iunit in interactive_units:
+                if not iunit.modules:
+                    continue
+                stats = flashcard_stats_for_unit(db, profile_id=profile_id, unit=iunit)
+                if stats["card_count"] <= 0:
+                    continue
+                flashcard_known += stats["known_cards"]
+                flashcard_total += stats["card_count"]
+                trainer_units.append(
+                    {
+                        "unit_id": str(iunit.id),
+                        "title": decrypt_text_master(iunit.title_encrypted),
+                        "status": iunit.status,
+                        "known_cards": stats["known_cards"],
+                        "review_cards": stats["review_cards"],
+                        "card_count": stats["card_count"],
+                    }
+                )
+
         completed = 0
         in_progress = 0
         quiz_correct = 0
@@ -97,6 +133,9 @@ def parent_dashboard(db: Session, user: User) -> dict:
                 "quiz_correct": quiz_correct,
                 "quiz_total": quiz_total,
                 "quiz_percent": round(100 * quiz_correct / quiz_total) if quiz_total else None,
+                "flashcard_known": flashcard_known,
+                "flashcard_total": flashcard_total,
+                "trainer_units": trainer_units,
                 "recent": recent,
             }
         )

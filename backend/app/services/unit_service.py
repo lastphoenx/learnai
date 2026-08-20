@@ -57,6 +57,7 @@ DEFAULT_TRAINER_OPTIONS: dict = {
     "questions": 50,
     "style": "playful",
     "answer_length": "short",
+    "llm_provider": None,
 }
 
 
@@ -650,7 +651,7 @@ def update_unit(
     if trainer_options is not None:
         merged = get_trainer_options(recon)
         for key, value in trainer_options.items():
-            if value is not None and key in DEFAULT_TRAINER_OPTIONS:
+            if key in DEFAULT_TRAINER_OPTIONS:
                 merged[key] = value
         recon["trainer_options"] = merged
 

@@ -37,6 +37,7 @@ export function UnitEditDialog({ unit, open, onClose, onSaved }: Props) {
   const [trainerStyle, setTrainerStyle] = useState<TrainerOptions["style"]>(
     unit.trainer_options?.style ?? "playful",
   );
+  const [trainerProvider, setTrainerProvider] = useState(unit.trainer_options?.llm_provider ?? "");
   const [taskTypes, setTaskTypes] = useState<UnitTaskType[]>(FALLBACK_TASK_TYPES);
   const [mathFocusOptions, setMathFocusOptions] = useState<MathFocusOption[]>(FALLBACK_MATH_FOCUS);
   const [error, setError] = useState<string | null>(null);
@@ -55,6 +56,7 @@ export function UnitEditDialog({ unit, open, onClose, onSaved }: Props) {
     setTrainerCards(unit.trainer_options?.cards ?? 50);
     setTrainerQuestions(unit.trainer_options?.questions ?? 50);
     setTrainerStyle(unit.trainer_options?.style ?? "playful");
+    setTrainerProvider(unit.trainer_options?.llm_provider ?? "");
     setError(null);
   }, [open, unit]);
 
@@ -91,6 +93,7 @@ export function UnitEditDialog({ unit, open, onClose, onSaved }: Props) {
           questions: trainerQuestions,
           style: trainerStyle,
           answer_length: "short",
+          llm_provider: trainerProvider.trim() || null,
         };
       }
       const next = await patchUnit(unit.id, body);
@@ -216,6 +219,15 @@ export function UnitEditDialog({ unit, open, onClose, onSaved }: Props) {
                     <option value="playful">Spielerisch</option>
                     <option value="balanced">Ausgewogen</option>
                     <option value="factual">Sachlich</option>
+                  </select>
+                </label>
+                <label>
+                  KI-Provider
+                  <select value={trainerProvider} onChange={(e) => setTrainerProvider(e.target.value)}>
+                    <option value="">Profil-Standard</option>
+                    <option value="ollama">Lokal (Ollama)</option>
+                    <option value="openai">OpenAI</option>
+                    <option value="anthropic">Anthropic</option>
                   </select>
                 </label>
               </div>

@@ -155,7 +155,7 @@ export default function UnitDetailPage() {
     setError(null);
     setGenerateJob(null);
     try {
-      const started = await generateUnit(unitId);
+      const started = await generateUnit(unitId, unit?.trainer_options?.llm_provider || undefined);
       if (started.mode === "sync") {
         setUnit(started.unit);
         return;
