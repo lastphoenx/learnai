@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
+import { InteractiveTrainer } from "@/components/learn/InteractiveTrainer";
 import {
   completeLearn,
   fetchLearnState,
@@ -306,6 +307,30 @@ export default function UnitLearnPage() {
       <main className="shell shell-wide unit-page learn-page">
         <AppHeader user={user} />
         <p className="muted">Laden…</p>
+      </main>
+    );
+  }
+
+  if (state.unit.task_type === "interactive") {
+    return (
+      <main className="shell shell-wide unit-page learn-page">
+        <AppHeader user={user} />
+        <nav className="breadcrumb" aria-label="Brotkrumen">
+          <Link href="/units">Einheiten</Link>
+          <span aria-hidden="true">›</span>
+          <Link href={`/units/${unitId}`}>{state.unit.title}</Link>
+          <span aria-hidden="true">›</span>
+          <span>Lerntrainer</span>
+        </nav>
+        {error && <p className="err">{error}</p>}
+        <InteractiveTrainer
+          unitId={unitId}
+          state={state}
+          busy={busy}
+          setBusy={setBusy}
+          setError={setError}
+          onStateChange={setState}
+        />
       </main>
     );
   }

@@ -291,6 +291,57 @@ def _generate_modules_content(
     return modules, meta
 
 
+def _save_generated_modules(
+    db: Session,
+    unit: LearningUnit,
+    modules: list,
+    *,
+    result_meta: dict,
+    task: str,
+) -> list[UnitModule]:
+    for mod in list(unit.modules):
+        db.delete(mod)
+    db.flush()
+
+    saved: list[UnitModule] = []
+    for index, raw in enumerate(modules[:8]):
+        if not isinstance(raw, dict):
+            continue
+        mod_title = str(raw.get("title") or f"Block {index + 1}")[:200]
+        content = raw.get("content") if isinstance(raw.get("content"), dict) else {"text": str(raw.get("content") or "")}
+        quiz = raw.get("quiz") if isinstance(raw.get("quiz"), dict) else {"questions": []}
+        mod = UnitModule(
+            unit=unit,
+            order_index=index,
+            title_encrypted=encrypt_text_master(mod_title),
+            content_encrypted=encrypt_json(content),
+            quiz_encrypted=encrypt_json(quiz),
+        )
+        db.add(mod)
+        saved.append(mod)
+    if not saved:
+        raise LlmError("Keine verwertbaren Module in der KI-Antwort", "bad_json")
+
+    unit.status = "ready"
+    db.flush()
+    db.refresh(unit, attribute_names=["modules"])
+
+    record = db.query(LearningRecord).filter(LearningRecord.unit_id == unit.id).first()
+    if record:
+        _add_event(
+            db,
+            record,
+            "modules_generated",
+            {
+                "provider": result_meta.get("provider"),
+                "model": result_meta.get("model"),
+                "count": len(saved),
+                "task_type": task,
+            },
+        )
+    return saved
+
+
 def generate_modules(
     db: Session,
     user: User,
@@ -299,10 +350,15 @@ def generate_modules(
     provider: str | None = None,
 ) -> dict:
     unit = _get_unit_or_404(db, user, unit_id)
+    task = unit.task_type or "mixed"
+    if task == "interactive":
+        from app.ai.generate_interactive import generate_interactive_modules
+
+        return generate_interactive_modules(db, user, unit_id, provider=provider)
+
     from app.services.profile_service import resolve_prefs_for_profile
 
     prefs = resolve_prefs_for_profile(db, unit.profile_id) or get_user_settings(user)
-    task = unit.task_type or "mixed"
     ai_task = AI_TASK_FOR_UNIT.get(task, "mixed")
     name, model = resolve_task_ai(prefs, ai_task, override=provider)
     name = resolve_provider(name)
@@ -386,41 +442,13 @@ def generate_modules(
         int((time.monotonic() - t_chat) * 1000),
     )
 
-    for mod in list(unit.modules):
-        db.delete(mod)
-    db.flush()
-
-    saved: list[UnitModule] = []
-    for index, raw in enumerate(modules[:8]):
-        if not isinstance(raw, dict):
-            continue
-        mod_title = str(raw.get("title") or f"Block {index + 1}")[:200]
-        content = raw.get("content") if isinstance(raw.get("content"), dict) else {"text": str(raw.get("content") or "")}
-        quiz = raw.get("quiz") if isinstance(raw.get("quiz"), dict) else {"questions": []}
-        mod = UnitModule(
-            unit=unit,
-            order_index=index,
-            title_encrypted=encrypt_text_master(mod_title),
-            content_encrypted=encrypt_json(content),
-            quiz_encrypted=encrypt_json(quiz),
-        )
-        db.add(mod)
-        saved.append(mod)
-    if not saved:
-        raise LlmError("Keine verwertbaren Module in der KI-Antwort", "bad_json")
-
-    unit.status = "ready"
-    db.flush()
-    db.refresh(unit, attribute_names=["modules"])
-
-    record = db.query(LearningRecord).filter(LearningRecord.unit_id == unit.id).first()
-    if record:
-        _add_event(
-            db,
-            record,
-            "modules_generated",
-            {"provider": result["provider"], "model": result["model"], "count": len(saved)},
-        )
+    saved = _save_generated_modules(
+        db,
+        unit,
+        modules,
+        result_meta=result,
+        task=task,
+    )
     _log.info(
         "generate_llm done unit_id=%s modules=%d total_ms=%d",
         unit_id,

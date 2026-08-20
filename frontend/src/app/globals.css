@@ -1644,3 +1644,81 @@ button.btn.action-tile {
     --shell-wide-max: 90rem;
   }
 }
+
+/* Interaktiver Lerntrainer */
+.trainer-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 1rem;
+}
+.trainer-tabs button {
+  padding: 0.45rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+.trainer-tabs button.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+.trainer-intro,
+.trainer-knowledge {
+  line-height: 1.55;
+}
+.trainer-knowledge h3 {
+  margin-top: 1.25rem;
+  margin-bottom: 0.35rem;
+  font-size: 1.05rem;
+}
+.trainer-flashcard {
+  perspective: 1200px;
+  margin: 1rem 0;
+}
+.trainer-flashcard-inner {
+  position: relative;
+  min-height: 10rem;
+  transition: transform 0.45s;
+  transform-style: preserve-3d;
+}
+.trainer-flashcard.flipped .trainer-flashcard-inner {
+  transform: rotateY(180deg);
+}
+.trainer-flashcard-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  padding: 1.25rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+.trainer-flashcard-back {
+  transform: rotateY(180deg);
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+}
+.trainer-flashcard-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: center;
+  margin-top: 0.75rem;
+}
+.trainer-progress {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-bottom: 0.5rem;
+}
+.trainer-options-form {
+  padding: 0.75rem;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+}

@@ -127,12 +127,41 @@ export type LearnModule = {
   quiz: { questions?: { q: string; options?: string[] }[] } | null;
 };
 
+export type TrainerOptions = {
+  cards: number;
+  questions: number;
+  style: "balanced" | "playful" | "factual";
+  answer_length: "short" | "medium" | "long";
+};
+
+export type TrainerPayload = {
+  options: TrainerOptions;
+  knowledge: { title: string; text: string; domain?: string; module_id?: string }[];
+  cards: {
+    question: string;
+    answer: string;
+    tip?: string;
+    domain?: string;
+    module_id: string;
+    card_index: number;
+    card_key: string;
+  }[];
+  flashcard_progress: Record<string, { status: string; attempts: number; last_seen_at?: string | null }>;
+  stats: {
+    card_count: number;
+    question_count: number;
+    known_cards: number;
+    review_cards: number;
+  };
+};
+
 export type LearnState = {
   unit: LearningUnit;
   record_id: string;
   modules: LearnModule[];
   progress: LearnProgress;
   summary: LearnSummary;
+  trainer?: TrainerPayload;
 };
 
 export type UnitModule = {
@@ -162,6 +191,7 @@ export type LearningUnit = {
   learn_progress?: LearnSummary;
   profile_id?: string | null;
   learner_name?: string | null;
+  trainer_options?: TrainerOptions;
   sources?: UnitSource[];
   modules?: UnitModule[];
   exams?: ExamResult[];
@@ -406,6 +436,7 @@ export type UnitPatchBody = {
   task_type?: string;
   math_focus?: string | null;
   auto_purge_sources?: boolean;
+  trainer_options?: Partial<TrainerOptions>;
 };
 
 export const patchUnit = (id: string, body: UnitPatchBody) =>
@@ -516,6 +547,16 @@ export const submitLearnAnswer = (
     summary: LearnSummary;
     module_quiz_done: boolean;
   }>(`/api/v1/units/${unitId}/learn/answer`, { method: "POST", json: body });
+
+export const markFlashcardStatus = (
+  unitId: string,
+  body: { module_id: string; card_index: number; status: "known" | "review" | "unseen" },
+) =>
+  apiFetch<{
+    flashcard_progress: TrainerPayload["flashcard_progress"];
+    card_key: string;
+    status: string;
+  }>(`/api/v1/units/${unitId}/learn/flashcard`, { method: "POST", json: body });
 
 export const completeLearn = (unitId: string) =>
   apiFetch<{ progress: LearnProgress; summary: LearnSummary }>(

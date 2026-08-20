@@ -13,6 +13,7 @@ from sqlalchemy import (
     SmallInteger,
     String,
     Text,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
@@ -378,6 +379,45 @@ class UnitModule(Base, TimestampMixin):
     quiz_encrypted: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
 
     unit: Mapped["LearningUnit"] = relationship(back_populates="modules")
+    flashcard_progress: Mapped[list["FlashcardProgress"]] = relationship(
+        back_populates="unit_module", cascade="all, delete-orphan"
+    )
+
+
+class FlashcardProgress(Base, TimestampMixin):
+    """Lernkarten-Fortschritt pro Profil und Karte — gerätübergreifend, nicht localStorage."""
+
+    __tablename__ = "flashcard_progress"
+    __table_args__ = (
+        Index("ix_flashcard_progress_profile_module", "profile_id", "unit_module_id"),
+        UniqueConstraint(
+            "profile_id",
+            "unit_module_id",
+            "card_index",
+            name="uq_flashcard_progress_card",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    profile_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("learning_profiles.id", ondelete="CASCADE"), nullable=False
+    )
+    learning_record_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("learning_records.id", ondelete="CASCADE"), nullable=False
+    )
+    unit_module_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("unit_modules.id", ondelete="CASCADE"), nullable=False
+    )
+    card_index: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    status: Mapped[str] = mapped_column(String(16), default="unseen", nullable=False)
+    attempts: Mapped[int] = mapped_column(SmallInteger, default=0, nullable=False)
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    unit_module: Mapped["UnitModule"] = relationship(back_populates="flashcard_progress")
+    profile: Mapped["LearningProfile"] = relationship(foreign_keys=[profile_id])
+    learning_record: Mapped["LearningRecord"] = relationship(foreign_keys=[learning_record_id])
 
 
 class UnitSource(Base, TimestampMixin):

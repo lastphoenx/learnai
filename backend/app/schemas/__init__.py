@@ -157,6 +157,7 @@ class UnitUpdateRequest(BaseModel):
     task_type: str | None = Field(default=None, max_length=32)
     math_focus: str | None = Field(default=None, max_length=32)
     auto_purge_sources: bool | None = None
+    trainer_options: dict | None = None
 
 
 class UnitGenerateRequest(BaseModel):
@@ -172,6 +173,12 @@ class LearnPositionRequest(BaseModel):
     module_index: int = Field(ge=0)
     phase: Literal["intro", "read", "quiz", "module_done", "complete"]
     question_index: int = Field(default=0, ge=0)
+
+
+class LearnFlashcardRequest(BaseModel):
+    module_id: str
+    card_index: int = Field(ge=0)
+    status: Literal["known", "review", "unseen"]
 
 
 class LearnAnswerRequest(BaseModel):

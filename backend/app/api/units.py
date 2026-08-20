@@ -13,6 +13,7 @@ from app.ai.errors import LlmError
 from app.ai.generate import generate_modules
 from app.schemas import (
     LearnAnswerRequest,
+    LearnFlashcardRequest,
     LearnModuleRequest,
     LearnPositionRequest,
     RecordRebuildRequest,
@@ -28,6 +29,7 @@ from app.services.learn_service import (
     complete_learn,
     get_learn_state,
     mark_text_read,
+    mark_flashcard_status,
     reset_learn_progress,
     save_learn_position,
     submit_quiz_answer,
@@ -221,6 +223,7 @@ def units_patch(
             task_type=body.task_type,
             math_focus=body.math_focus,
             auto_purge_sources=body.auto_purge_sources,
+            trainer_options=body.trainer_options,
         )
         db.commit()
         return result
@@ -561,6 +564,29 @@ def units_learn_answer(
             UUID(body.module_id),
             body.question_index,
             body.selected,
+        )
+        db.commit()
+        return result
+    except UnitError as exc:
+        db.rollback()
+        raise _http(exc) from exc
+
+
+@router.post("/{unit_id}/learn/flashcard")
+def units_learn_flashcard(
+    unit_id: UUID,
+    body: LearnFlashcardRequest,
+    user: User = Depends(get_app_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        result = mark_flashcard_status(
+            db,
+            user,
+            unit_id,
+            UUID(body.module_id),
+            body.card_index,
+            body.status,
         )
         db.commit()
         return result

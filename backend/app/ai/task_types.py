@@ -60,6 +60,15 @@ UNIT_TASK_TYPES: list[dict] = [
         "description": "Fremdsprachen: Wort, Bedeutung, Beispielsatz, Aussprache-Hinweis, Mini-Quiz.",
         "hint": "Sprachkurs/Vokabeln: Wort, Bedeutung, Beispielsatz, Mini-Quiz.",
     },
+    {
+        "key": "interactive",
+        "label": "Interaktiver Lerntrainer",
+        "description": "Wissenskarten, Lernkarten umdrehen, Quiz-Challenge — spielerisch mit Fortschritt.",
+        "hint": (
+            "Interaktiver Lerntrainer: viele Lernkarten und Quizfragen, kurze Antworten, "
+            "Themenbereiche, motivierend und altersgerecht."
+        ),
+    },
 ]
 
 UNIT_TASK_KEYS = frozenset(t["key"] for t in UNIT_TASK_TYPES)
@@ -75,6 +84,7 @@ AI_TASK_FOR_UNIT: dict[str, str] = {
     "review": "quiz",
     "exam": "exam",
     "vocab": "vocab",
+    "interactive": "mixed",
 }
 
 MATH_FOCUS_OPTIONS: list[dict] = [

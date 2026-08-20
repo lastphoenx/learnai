@@ -35,8 +35,9 @@ def reconstruction_payload(
     difficulty: int,
     task_type: str = "mixed",
     math_focus: str | None = None,
+    trainer_options: dict | None = None,
 ) -> dict:
-    return {
+    payload = {
         "title": title,
         "brief": brief or "",
         "subject": subject,
@@ -46,6 +47,30 @@ def reconstruction_payload(
         "task_type": task_type,
         "math_focus": math_focus or "",
     }
+    if trainer_options:
+        payload["trainer_options"] = trainer_options
+    return payload
+
+
+DEFAULT_TRAINER_OPTIONS: dict = {
+    "cards": 50,
+    "questions": 50,
+    "style": "playful",
+    "answer_length": "short",
+}
+
+
+def get_trainer_options(recon: dict | None) -> dict:
+    if not isinstance(recon, dict):
+        return dict(DEFAULT_TRAINER_OPTIONS)
+    raw = recon.get("trainer_options")
+    if not isinstance(raw, dict):
+        return dict(DEFAULT_TRAINER_OPTIONS)
+    merged = dict(DEFAULT_TRAINER_OPTIONS)
+    for key in DEFAULT_TRAINER_OPTIONS:
+        if key in raw and raw[key] is not None:
+            merged[key] = raw[key]
+    return merged
 
 
 def _dec_unit(unit: LearningUnit, *, sources: bool = True, modules: bool = True) -> dict:
@@ -194,6 +219,10 @@ def get_unit(db: Session, user: User, unit_id: uuid.UUID) -> dict:
     prog = learn_progress_for_unit(db, unit.id)
     if prog:
         data["learn_progress"] = prog
+    if record and record.reconstruction_encrypted:
+        recon = decrypt_json(record.reconstruction_encrypted)
+        if isinstance(recon, dict) and unit.task_type == "interactive":
+            data["trainer_options"] = get_trainer_options(recon)
     return data
 
 
@@ -260,6 +289,7 @@ def create_unit(
         difficulty=difficulty,
         task_type=kind,
         math_focus=focus,
+        trainer_options=dict(DEFAULT_TRAINER_OPTIONS) if kind == "interactive" else None,
     )
     unit = LearningUnit(
         tenant_id=user.tenant_id,
@@ -571,6 +601,7 @@ def update_unit(
     task_type: str | None = None,
     math_focus: str | None = None,
     auto_purge_sources: bool | None = None,
+    trainer_options: dict | None = None,
 ) -> dict:
     unit = _get_unit_or_404(db, user, unit_id)
     record = db.query(LearningRecord).filter(LearningRecord.unit_id == unit.id).first()
@@ -616,6 +647,13 @@ def update_unit(
     if auto_purge_sources is not None:
         unit.auto_purge_sources = auto_purge_sources
 
+    if trainer_options is not None:
+        merged = get_trainer_options(recon)
+        for key, value in trainer_options.items():
+            if value is not None and key in DEFAULT_TRAINER_OPTIONS:
+                merged[key] = value
+        recon["trainer_options"] = merged
+
     if record:
         dec_title = decrypt_text_master(unit.title_encrypted)
         dec_brief = decrypt_text_master(unit.brief_encrypted) if unit.brief_encrypted else ""
@@ -633,6 +671,7 @@ def update_unit(
             difficulty=unit.difficulty,
             task_type=unit.task_type,
             math_focus=focus,
+            trainer_options=recon.get("trainer_options") if unit.task_type == "interactive" else None,
         )
         record.reconstruction_encrypted = encrypt_json(recon)
 

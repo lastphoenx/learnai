@@ -65,6 +65,12 @@ const FALLBACK_TASK_TYPES: UnitTaskType[] = [
     description: "Fremdsprachen: Wort, Bedeutung, Beispielsatz.",
     hint: "",
   },
+  {
+    key: "interactive",
+    label: "Interaktiver Lerntrainer",
+    description: "Viele Lernkarten, Quiz-Challenge, Wissens-Hub — spielerisch.",
+    hint: "",
+  },
 ];
 
 const FALLBACK_MATH_FOCUS: MathFocusOption[] = [

@@ -8,9 +8,17 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.models import LearningRecord, LearningUnit, UnitModule, User
+from app.core.crypto import decrypt_text_master
+from app.models import FlashcardProgress, LearningRecord, LearningUnit, UnitModule, User
 from app.services.crypto_json import decrypt_json, encrypt_json
-from app.services.unit_service import UnitError, _add_event, _dec_module, _dec_unit, _get_unit_or_404
+from app.services.unit_service import (
+    UnitError,
+    _add_event,
+    _dec_module,
+    _dec_unit,
+    _get_unit_or_404,
+    get_trainer_options,
+)
 
 
 def _default_learn() -> dict:
@@ -116,13 +124,19 @@ def get_learn_state(db: Session, user: User, unit_id: uuid.UUID) -> dict:
         _add_event(db, record, "learn_started", {"unit_id": str(unit.id)})
 
     unit_data = _dec_unit(unit, sources=False, modules=False)
-    return {
+    payload: dict = {
         "unit": unit_data,
         "record_id": str(record.id),
         "modules": module_payload,
         "progress": learn,
         "summary": _progress_summary(stats, len(modules)),
     }
+    if unit.task_type == "interactive":
+        profile_id = _profile_id_for_learn(unit, record)
+        payload["trainer"] = _interactive_trainer_payload(
+            db, unit, modules, record, profile_id=profile_id
+        )
+    return payload
 
 
 def save_learn_position(
@@ -281,6 +295,7 @@ def reset_learn_progress(db: Session, user: User, unit_id: uuid.UUID) -> dict:
     stats["learn"] = fresh
     stats["modules_done"] = 0
     stats["learn_attempts"] = attempts[-10:]
+    _clear_flashcard_progress(db, record)
     _save_stats(db, record, stats)
     _add_event(db, record, "learn_reset", {"unit_id": str(unit.id)})
     module_count = len(unit.modules)
@@ -292,3 +307,147 @@ def _find_module(unit: LearningUnit, module_id: uuid.UUID) -> UnitModule:
         if m.id == module_id:
             return m
     raise UnitError("Lernblock nicht gefunden", "not_found")
+
+
+def _profile_id_for_learn(unit: LearningUnit, record: LearningRecord) -> uuid.UUID:
+    profile_id = record.profile_id or unit.profile_id
+    if not profile_id:
+        raise UnitError("Kein Lernprofil zugeordnet", "forbidden")
+    return profile_id
+
+
+def _flashcard_key(module_id: uuid.UUID, card_index: int) -> str:
+    return f"{module_id}:{card_index}"
+
+
+def flashcard_progress_map(
+    db: Session,
+    *,
+    profile_id: uuid.UUID,
+    module_ids: list[uuid.UUID],
+) -> dict[str, dict]:
+    if not module_ids:
+        return {}
+    rows = (
+        db.query(FlashcardProgress)
+        .filter(
+            FlashcardProgress.profile_id == profile_id,
+            FlashcardProgress.unit_module_id.in_(module_ids),
+        )
+        .all()
+    )
+    return {
+        _flashcard_key(row.unit_module_id, row.card_index): {
+            "status": row.status,
+            "attempts": row.attempts,
+            "last_seen_at": row.last_seen_at.isoformat() if row.last_seen_at else None,
+        }
+        for row in rows
+    }
+
+
+def _clear_flashcard_progress(db: Session, record: LearningRecord) -> None:
+    db.query(FlashcardProgress).filter(FlashcardProgress.learning_record_id == record.id).delete()
+    db.flush()
+
+
+def mark_flashcard_status(
+    db: Session,
+    user: User,
+    unit_id: uuid.UUID,
+    module_id: uuid.UUID,
+    card_index: int,
+    status: str,
+) -> dict:
+    if status not in {"known", "review", "unseen"}:
+        raise UnitError("Ungültiger Kartenstatus", "invalid_phase")
+    unit = _get_unit_or_404(db, user, unit_id)
+    record = _get_record_for_unit(db, unit.id)
+    module = _find_module(unit, module_id)
+    profile_id = _profile_id_for_learn(unit, record)
+    content = decrypt_json(module.content_encrypted) or {}
+    cards = content.get("cards") if isinstance(content, dict) else []
+    if card_index < 0 or card_index >= len(cards):
+        raise UnitError("Ungültige Lernkarte", "invalid_index")
+
+    row = (
+        db.query(FlashcardProgress)
+        .filter(
+            FlashcardProgress.profile_id == profile_id,
+            FlashcardProgress.unit_module_id == module.id,
+            FlashcardProgress.card_index == card_index,
+        )
+        .first()
+    )
+    now = datetime.now(timezone.utc)
+    if not row:
+        row = FlashcardProgress(
+            profile_id=profile_id,
+            learning_record_id=record.id,
+            unit_module_id=module.id,
+            card_index=card_index,
+            status=status,
+            attempts=1,
+            last_seen_at=now,
+        )
+        db.add(row)
+    else:
+        row.status = status
+        row.attempts = int(row.attempts or 0) + 1
+        row.last_seen_at = now
+
+    db.flush()
+    module_ids = [m.id for m in unit.modules]
+    progress = flashcard_progress_map(db, profile_id=profile_id, module_ids=module_ids)
+    return {"flashcard_progress": progress, "card_key": _flashcard_key(module.id, card_index), "status": status}
+
+
+def _interactive_trainer_payload(
+    db: Session,
+    unit: LearningUnit,
+    modules: list[UnitModule],
+    record: LearningRecord,
+    *,
+    profile_id: uuid.UUID,
+) -> dict:
+    recon = decrypt_json(record.reconstruction_encrypted) if record.reconstruction_encrypted else {}
+    knowledge: list[dict] = []
+    cards: list[dict] = []
+    total_questions = 0
+    for module in modules:
+        content = decrypt_json(module.content_encrypted) or {}
+        if not isinstance(content, dict):
+            continue
+        domain = decrypt_text_master(module.title_encrypted)
+        for item in content.get("knowledge") or []:
+            if isinstance(item, dict):
+                knowledge.append({**item, "domain": domain, "module_id": str(module.id)})
+        for index, card in enumerate(content.get("cards") or []):
+            if isinstance(card, dict):
+                cards.append(
+                    {
+                        **card,
+                        "domain": domain,
+                        "module_id": str(module.id),
+                        "card_index": index,
+                        "card_key": _flashcard_key(module.id, index),
+                    }
+                )
+        quiz = decrypt_json(module.quiz_encrypted) or {}
+        total_questions += len((quiz.get("questions") if isinstance(quiz, dict) else []) or [])
+
+    module_ids = [m.id for m in modules]
+    progress = flashcard_progress_map(db, profile_id=profile_id, module_ids=module_ids)
+    known = sum(1 for p in progress.values() if p.get("status") == "known")
+    return {
+        "options": get_trainer_options(recon if isinstance(recon, dict) else {}),
+        "knowledge": knowledge,
+        "cards": cards,
+        "flashcard_progress": progress,
+        "stats": {
+            "card_count": len(cards),
+            "question_count": total_questions,
+            "known_cards": known,
+            "review_cards": sum(1 for p in progress.values() if p.get("status") == "review"),
+        },
+    }

@@ -31,6 +31,9 @@ export function UnitEditDialog({ unit, open, onClose, onSaved }: Props) {
   const [difficulty, setDifficulty] = useState(unit.difficulty);
   const [taskType, setTaskType] = useState(unit.task_type || "mixed");
   const [mathFocus, setMathFocus] = useState(unit.math_focus || "");
+  const [trainerCards, setTrainerCards] = useState(unit.trainer_options?.cards ?? 50);
+  const [trainerQuestions, setTrainerQuestions] = useState(unit.trainer_options?.questions ?? 50);
+  const [trainerStyle, setTrainerStyle] = useState(unit.trainer_options?.style ?? "playful");
   const [taskTypes, setTaskTypes] = useState<UnitTaskType[]>(FALLBACK_TASK_TYPES);
   const [mathFocusOptions, setMathFocusOptions] = useState<MathFocusOption[]>(FALLBACK_MATH_FOCUS);
   const [error, setError] = useState<string | null>(null);
@@ -46,6 +49,9 @@ export function UnitEditDialog({ unit, open, onClose, onSaved }: Props) {
     setDifficulty(unit.difficulty);
     setTaskType(unit.task_type || "mixed");
     setMathFocus(unit.math_focus || "");
+    setTrainerCards(unit.trainer_options?.cards ?? 50);
+    setTrainerQuestions(unit.trainer_options?.questions ?? 50);
+    setTrainerStyle(unit.trainer_options?.style ?? "playful");
     setError(null);
   }, [open, unit]);
 
@@ -76,6 +82,14 @@ export function UnitEditDialog({ unit, open, onClose, onSaved }: Props) {
         task_type: taskType,
         math_focus: mathFocusVisible && mathFocus ? mathFocus : null,
       };
+      if (taskType === "interactive") {
+        body.trainer_options = {
+          cards: trainerCards,
+          questions: trainerQuestions,
+          style: trainerStyle as "balanced" | "playful" | "factual",
+          answer_length: "short",
+        };
+      }
       const next = await patchUnit(unit.id, body);
       onSaved(next);
       onClose();
@@ -163,6 +177,43 @@ export function UnitEditDialog({ unit, open, onClose, onSaved }: Props) {
                 ))}
               </select>
             </label>
+          )}
+          {taskType === "interactive" && (
+            <div className="stack trainer-options-form">
+              <p className="muted" style={{ margin: 0 }}>
+                Lerntrainer — Ziele für die KI-Generierung
+              </p>
+              <div className="form-row">
+                <label>
+                  Lernkarten
+                  <input
+                    type="number"
+                    min={30}
+                    max={120}
+                    value={trainerCards}
+                    onChange={(e) => setTrainerCards(Number(e.target.value))}
+                  />
+                </label>
+                <label>
+                  Quizfragen
+                  <input
+                    type="number"
+                    min={30}
+                    max={120}
+                    value={trainerQuestions}
+                    onChange={(e) => setTrainerQuestions(Number(e.target.value))}
+                  />
+                </label>
+                <label>
+                  Stil
+                  <select value={trainerStyle} onChange={(e) => setTrainerStyle(e.target.value)}>
+                    <option value="playful">Spielerisch</option>
+                    <option value="balanced">Ausgewogen</option>
+                    <option value="factual">Sachlich</option>
+                  </select>
+                </label>
+              </div>
+            </div>
           )}
           {error && <p className="err">{error}</p>}
           <div className="dialog-actions">
