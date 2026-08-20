@@ -231,13 +231,6 @@ export default function UnitDetailPage() {
     <main className="shell shell-wide unit-page">
       <AppHeader user={user} />
       {error && <p className="err">{error}</p>}
-      {generateJob && (generateJob.status === "queued" || generateJob.status === "running") && (
-        <p className="card generate-progress" role="status">
-          <strong>KI arbeitet…</strong>{" "}
-          {generateJob.message || "Bitte Tab offen lassen."}
-          {typeof generateJob.progress_pct === "number" ? ` (${generateJob.progress_pct}%)` : ""}
-        </p>
-      )}
 
       {unit && (
         <>
@@ -309,17 +302,43 @@ export default function UnitDetailPage() {
                   <span className="muted">Zum Ausdrucken — ohne Lösungen</span>
                 </a>
               )}
-              <button type="button" className="action-tile" onClick={onGenerate} disabled={busy}>
+              <button
+                type="button"
+                className={`action-tile${busy && generateJob ? " action-tile-busy" : ""}`}
+                onClick={onGenerate}
+                disabled={busy}
+                aria-busy={busy}
+              >
                 <strong>{busy ? "KI arbeitet…" : "Mit KI aufbereiten"}</strong>
-                <span className="muted">
-                  {busy && generateJob?.message
-                    ? generateJob.message
-                    : unit.task_type === "interactive" && sourceCount > 0
-                      ? `${sourceCount} Quelle(n) — läuft im Hintergrund, Tab offen lassen`
+                {busy && generateJob ? (
+                  <>
+                    <div
+                      className="generate-progress-bar"
+                      role="progressbar"
+                      aria-valuenow={generateJob.progress_pct ?? 0}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-label={generateJob.message || "KI-Generierung"}
+                    >
+                      <div
+                        className="generate-progress-fill"
+                        style={{ width: `${Math.min(100, Math.max(0, generateJob.progress_pct ?? 0))}%` }}
+                      />
+                    </div>
+                    <span className="muted generate-progress-label">
+                      {generateJob.message || "Bitte Tab offen lassen."}
+                      {typeof generateJob.progress_pct === "number" ? ` · ${generateJob.progress_pct}%` : ""}
+                    </span>
+                  </>
+                ) : (
+                  <span className="muted">
+                    {unit.task_type === "interactive" && sourceCount > 0
+                      ? `${sourceCount} Quelle(n) — läuft im Hintergrund`
                       : sourceCount > 0
                         ? `${sourceCount} Quelle(n)`
                         : "Aus Titel & Auftrag"}
-                </span>
+                  </span>
+                )}
               </button>
               <button
                 type="button"
