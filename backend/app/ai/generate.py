@@ -298,6 +298,7 @@ def _save_generated_modules(
     *,
     result_meta: dict,
     task: str,
+    final: bool = True,
 ) -> list[UnitModule]:
     for mod in list(unit.modules):
         db.delete(mod)
@@ -322,23 +323,24 @@ def _save_generated_modules(
     if not saved:
         raise LlmError("Keine verwertbaren Module in der KI-Antwort", "bad_json")
 
-    unit.status = "ready"
+    unit.status = "ready" if final else "draft"
     db.flush()
     db.refresh(unit, attribute_names=["modules"])
 
-    record = db.query(LearningRecord).filter(LearningRecord.unit_id == unit.id).first()
-    if record:
-        _add_event(
-            db,
-            record,
-            "modules_generated",
-            {
-                "provider": result_meta.get("provider"),
-                "model": result_meta.get("model"),
-                "count": len(saved),
-                "task_type": task,
-            },
-        )
+    if final:
+        record = db.query(LearningRecord).filter(LearningRecord.unit_id == unit.id).first()
+        if record:
+            _add_event(
+                db,
+                record,
+                "modules_generated",
+                {
+                    "provider": result_meta.get("provider"),
+                    "model": result_meta.get("model"),
+                    "count": len(saved),
+                    "task_type": task,
+                },
+            )
     return saved
 
 

@@ -23,7 +23,7 @@ from app.ai.prompts.interactive import (
 )
 from app.ai.providers import complete, parse_json_object, resolve_provider
 from app.ai.task_types import AI_TASK_FOR_UNIT
-from app.ai.validators.interactive import validate_interactive_modules
+from app.ai.validators.interactive import dedupe_interactive_modules, validate_interactive_modules
 from app.core.crypto import decrypt_text_master
 from app.models import LearningRecord, User
 from app.services.crypto_json import decrypt_json
@@ -270,6 +270,7 @@ def generate_interactive_modules(
 
     modules: list[dict] = []
     all_card_questions: list[str] = []
+    all_quiz_questions: list[str] = []
 
     for index, cat in enumerate(categories):
         if progress:
@@ -311,6 +312,7 @@ def generate_interactive_modules(
             category_focus=cat["focus"],
             count=cat["questions"],
             card_summaries=[f"{c['question']} → {c['answer'][:80]}" for c in cards[:6]],
+            existing_questions=all_card_questions + all_quiz_questions,
         )
         quiz_result = _complete_with_retry(
             prompt=quiz_prompt,
@@ -321,6 +323,7 @@ def generate_interactive_modules(
             label=f"quiz_{index + 1}",
         )
         questions = _parse_questions(quiz_result["text"], cat["questions"])
+        all_quiz_questions.extend(q["q"] for q in questions)
 
         modules.append(
             {
@@ -345,6 +348,25 @@ def generate_interactive_modules(
             len(cards),
             len(questions),
         )
+        _save_generated_modules(
+            db,
+            unit,
+            modules,
+            result_meta=plan_result,
+            task="interactive",
+            final=False,
+        )
+        db.commit()
+        _log.info(
+            "generate_interactive category_persisted unit_id=%s index=%d modules=%d",
+            unit_id,
+            index + 1,
+            len(modules),
+        )
+
+    modules, dedupe_warnings = dedupe_interactive_modules(modules)
+    for warning in dedupe_warnings:
+        _log.warning("generate_interactive dedupe unit_id=%s %s", unit_id, warning)
 
     validate_interactive_modules(
         modules,
@@ -363,6 +385,7 @@ def generate_interactive_modules(
         modules,
         result_meta=plan_result,
         task="interactive",
+        final=True,
     )
     _log.info(
         "generate_interactive done unit_id=%s modules=%d cards=%d questions=%d total_ms=%d",

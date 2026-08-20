@@ -15,6 +15,52 @@ def normalize_question(text: str) -> str:
     )
 
 
+def dedupe_interactive_modules(modules: list) -> tuple[list, list[str]]:
+    """Entfernt doppelte Karten-/Quizfragen (behalten: erste). Warnungen statt Abbruch."""
+    warnings: list[str] = []
+    seen: set[str] = set()
+
+    for index, raw in enumerate(modules):
+        if not isinstance(raw, dict):
+            continue
+        content = raw.get("content") if isinstance(raw.get("content"), dict) else {}
+        cards = content.get("cards") if isinstance(content.get("cards"), list) else []
+        quiz = raw.get("quiz") if isinstance(raw.get("quiz"), dict) else {}
+        questions = quiz.get("questions") if isinstance(quiz.get("questions"), list) else []
+
+        kept_cards: list = []
+        for card in cards:
+            if not isinstance(card, dict):
+                kept_cards.append(card)
+                continue
+            norm = normalize_question(str(card.get("question") or ""))
+            if norm in seen:
+                warnings.append(
+                    f"Duplikat Lernkarte entfernt (Bereich {index + 1}): {card.get('question')}"
+                )
+                continue
+            seen.add(norm)
+            kept_cards.append(card)
+        content["cards"] = kept_cards
+
+        kept_questions: list = []
+        for q in questions:
+            if not isinstance(q, dict):
+                kept_questions.append(q)
+                continue
+            norm = normalize_question(str(q.get("q") or ""))
+            if norm in seen:
+                warnings.append(
+                    f"Duplikat Quizfrage entfernt (Bereich {index + 1}): {q.get('q')}"
+                )
+                continue
+            seen.add(norm)
+            kept_questions.append(q)
+        quiz["questions"] = kept_questions
+
+    return modules, warnings
+
+
 def validate_interactive_modules(
     modules: list,
     *,

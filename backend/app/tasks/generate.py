@@ -52,8 +52,41 @@ def generate_unit_task(self, unit_id: str, user_id: str, provider: str | None = 
         _log.warning("generate_unit_task unit_error unit_id=%s msg=%s", unit_id, exc.message)
     except LlmError as exc:
         db.rollback()
-        progress("failed", error=exc.message)
-        _log.warning("generate_unit_task llm_error unit_id=%s code=%s msg=%s", unit_id, exc.code, exc.message)
+        try:
+            unit = _get_unit_or_404(db, user, uuid.UUID(unit_id))
+            module_count = len(unit.modules or [])
+            if module_count >= 4:
+                db.commit()
+                progress(
+                    "done",
+                    message=(
+                        f"Entwurf gespeichert ({module_count} Bereiche). "
+                        f"Validierung: {exc.message}"
+                    ),
+                    modules=module_count,
+                )
+                _log.warning(
+                    "generate_unit_task salvaged unit_id=%s modules=%d validation=%s",
+                    unit_id,
+                    module_count,
+                    exc.message,
+                )
+            else:
+                progress("failed", error=exc.message)
+                _log.warning(
+                    "generate_unit_task llm_error unit_id=%s code=%s msg=%s",
+                    unit_id,
+                    exc.code,
+                    exc.message,
+                )
+        except Exception:
+            progress("failed", error=exc.message)
+            _log.warning(
+                "generate_unit_task llm_error unit_id=%s code=%s msg=%s",
+                unit_id,
+                exc.code,
+                exc.message,
+            )
     except Exception as exc:
         db.rollback()
         progress("failed", error=str(exc) or "Unbekannter Fehler")

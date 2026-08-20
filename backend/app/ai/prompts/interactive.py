@@ -161,14 +161,23 @@ def build_interactive_quiz_prompt(
     category_focus: str,
     count: int,
     card_summaries: list[str],
+    existing_questions: list[str],
 ) -> str:
     cards_hint = ""
     if card_summaries:
         cards_hint = "\nLernkarten dieser Kategorie:\n" + "\n".join(f"- {s}" for s in card_summaries[:12])
+    avoid = ""
+    if existing_questions:
+        sample = existing_questions[:12]
+        avoid = (
+            "\nBereits verwendete Fragen (Karten oder Quiz — nicht wiederholen):\n"
+            + "\n".join(f"- {q}" for q in sample)
+        )
     return (
         f"{context}\n\n"
         f"Kategorie: {category_name}\n"
         f"Lernziel: {category_focus}\n"
         f"Erzeuge genau {count} Quizfragen als JSON.\n"
         f"{cards_hint}"
+        f"{avoid}"
     )
