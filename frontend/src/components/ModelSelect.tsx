@@ -17,12 +17,22 @@ type Props = {
 
 function pickHintMatches(hints: string[], available: string[]): string[] {
   const picked: string[] = [];
+  // Bereits aufgelöste exakte Modellnamen (vom API-Katalog)
   for (const hint of hints) {
+    if (picked.length >= 3) break;
+    const exact = available.find((m) => m === hint);
+    if (exact && !picked.includes(exact)) picked.push(exact);
+  }
+  if (picked.length >= 3) return picked;
+  for (const hint of hints) {
+    if (picked.length >= 3) break;
     const token = hint.split(":")[0].toLowerCase();
     const match = available.find((model) => {
       if (picked.includes(model)) return false;
       const lower = model.toLowerCase();
-      return lower === hint.toLowerCase() || lower.startsWith(token) || lower.includes(token);
+      if (lower === hint.toLowerCase()) return true;
+      if (hint.includes(":")) return false;
+      return lower.startsWith(`${token}:`) || lower.startsWith(`${token}-`);
     });
     if (match) picked.push(match);
   }

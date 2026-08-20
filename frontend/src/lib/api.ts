@@ -611,6 +611,10 @@ export type TaskCatalogItem = {
   default_provider: string;
   local: string[];
   external: string[];
+  /** Bis zu 3 installierte Ollama-Modelle (vom Server aufgelöst) */
+  local_resolved?: string[];
+  /** Bis zu 3 verfügbare Cloud-Modelle (vom Server aufgelöst) */
+  external_resolved?: string[];
 };
 
 export const fetchAiStatus = () =>

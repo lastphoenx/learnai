@@ -160,8 +160,7 @@ COOKIE_SECURE=true
 LOGIN_ALLOWLIST_ONLY=true
 LLM_PROVIDER=ollama
 OLLAMA_URL=http://ollama-host:11434
-OLLAMA_MODEL=qwen2.5:32b
-OLLAMA_VISION_MODEL=qwen2.5vl:7b
+# OLLAMA_MODEL / OLLAMA_VISION_MODEL optional — leer = Katalog + installierte Ollama-Modelle
 ```
 
 ---

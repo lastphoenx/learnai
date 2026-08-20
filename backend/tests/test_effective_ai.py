@@ -16,10 +16,11 @@ def test_effective_uses_profile_by_task():
     assert out["unit_generate"]["mixed"]["effective_model"] == "qwen2.5:32b"
     assert out["unit_generate"]["vision"]["effective_model"] == "qwen2.5vl:7b"
     assert out["env"]["ollama_vision_timeout_sec"] >= 600
+    assert "task_catalog" in out
 
 
-def test_effective_empty_profile_has_env_fallback():
+def test_effective_empty_profile_uses_catalog_fallback():
     out = effective_ai_config({})
     mixed = out["unit_generate"]["mixed"]
     assert mixed["provider"] == "ollama"
-    assert mixed["effective_model"]  # from settings default qwen2.5:32b
+    assert "recommended" in mixed

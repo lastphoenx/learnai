@@ -6,6 +6,13 @@ import type { AiModelCatalog, TaskCatalogItem } from "@/lib/api";
 
 export type TaskRow = { provider: string; model: string };
 
+function modelHints(item: TaskCatalogItem, effectiveProvider: string): string[] {
+  if (effectiveProvider === "ollama") {
+    return item.local_resolved?.length ? item.local_resolved : item.local;
+  }
+  return item.external_resolved?.length ? item.external_resolved : item.external;
+}
+
 type Props = {
   catalog: TaskCatalogItem[];
   configured: { openai: boolean; anthropic: boolean; ollama: boolean };
@@ -103,9 +110,7 @@ export function LearnerSettingsForm({
                           onChange={(model) => setRow(item.key, { model })}
                           ollamaModels={ollamaModels}
                           catalog={modelCatalog}
-                          hints={
-                            effectiveProvider === "ollama" ? item.local : item.external
-                          }
+                          hints={modelHints(item, effectiveProvider)}
                           emptyLabel={
                             item.key === "tts" ? "Standard (tts-1-hd)" : "Empfehlung (automatisch)"
                           }
@@ -150,11 +155,17 @@ export function LearnerSettingsForm({
                 onChange={(model) => onFallbackChange(llmProvider, model)}
                 ollamaModels={ollamaModels}
                 catalog={modelCatalog}
-                hints={
-                  llmProvider === "ollama"
-                    ? catalog.find((c) => c.key === "mixed")?.local || []
-                    : catalog.find((c) => c.key === "mixed")?.external || []
-                }
+                hints={modelHints(
+                  catalog.find((c) => c.key === "mixed") || {
+                    key: "mixed",
+                    label: "",
+                    why: "",
+                    default_provider: "ollama",
+                    local: [],
+                    external: [],
+                  },
+                  llmProvider,
+                )}
               />
             )}
           </label>

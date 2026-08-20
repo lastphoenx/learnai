@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
+from app.ai.model_registry import pick_external_model
+from app.ai.ollama_match import first_ollama_hint, match_ollama_hints
+
+# Je Typ genau 3 Hints in Prioritätsreihenfolge (1. = beste Wahl in der UI).
+# Lokal: möglichst volle Ollama-Tags (z. B. qwen2.5vl:7b), damit nicht qwen2.5vl:72b zuerst matcht.
 TASK_CATALOG: list[dict] = [
     {
         "key": "explain",
         "label": "Erklären / Lerntext",
         "why": "Fließtext, Didaktik. Lokal ist stark; Fotos der Kinder bleiben intern.",
         "default_provider": "ollama",
-        "local": ["qwen2.5:32b", "llama3.3:70b", "gemma3:27b"],
+        "local": ["qwen2.5:32b", "qwen3:32b", "llama3.3:70b"],
         "external": ["claude-sonnet-4-0", "gpt-4o", "gpt-4o-mini"],
     },
     {
@@ -16,7 +21,7 @@ TASK_CATALOG: list[dict] = [
         "label": "Quiz / Verständnis",
         "why": "Strukturierte Fragen. Lokal reicht; weniger Halluzinations-Risiko als freie Essays.",
         "default_provider": "ollama",
-        "local": ["qwen2.5:32b", "llama3.3:70b", "mistral-small"],
+        "local": ["qwen2.5:32b", "qwen3:32b", "qwen2.5:7b-instruct"],
         "external": ["gpt-4o-mini", "claude-sonnet-4-0", "gpt-4o"],
     },
     {
@@ -24,7 +29,7 @@ TASK_CATALOG: list[dict] = [
         "label": "Übungen",
         "why": "Mathe/Deutsch-Aufgaben. Qwen ist lokal oft sehr gut; Privacy bei Kinderheften.",
         "default_provider": "ollama",
-        "local": ["qwen2.5:32b", "llama3.3:70b", "qwen2.5:14b"],
+        "local": ["qwen2.5:32b", "qwen3:32b", "llama3.3:70b"],
         "external": ["gpt-4o", "claude-sonnet-4-0", "gpt-4o-mini"],
     },
     {
@@ -32,7 +37,7 @@ TASK_CATALOG: list[dict] = [
         "label": "Gemischt (Text + Quiz)",
         "why": "Standard-Einheit. Default lokal, außer du merkst Qualitätsbruch.",
         "default_provider": "ollama",
-        "local": ["qwen2.5:32b", "llama3.3:70b", "gemma3:27b"],
+        "local": ["qwen2.5:32b", "qwen3:32b", "llama3.3:70b"],
         "external": ["claude-sonnet-4-0", "gpt-4o", "gpt-4o-mini"],
     },
     {
@@ -40,7 +45,7 @@ TASK_CATALOG: list[dict] = [
         "label": "Kurzprüfung",
         "why": "Noten/Leistung — Datenschutz vor Qualität. Deshalb lokal.",
         "default_provider": "ollama",
-        "local": ["qwen2.5:32b", "llama3.3:70b", "qwen2.5:14b"],
+        "local": ["qwen2.5:32b", "qwen3:32b", "llama3.3:70b"],
         "external": ["claude-sonnet-4-0", "gpt-4o", "gpt-4o-mini"],
     },
     {
@@ -48,15 +53,15 @@ TASK_CATALOG: list[dict] = [
         "label": "Vokabeln / Sprache",
         "why": "Betonung, Idiome, Beispielsätze. Text lieber extern; Vorlesen sowieso OpenAI-TTS.",
         "default_provider": "anthropic",
-        "local": ["qwen2.5:32b", "llama3.3:70b", "mistral-small"],
+        "local": ["qwen2.5:32b", "qwen3:32b", "llama3.3:70b"],
         "external": ["claude-sonnet-4-0", "gpt-4o", "gpt-4o-mini"],
     },
     {
         "key": "vision",
         "label": "Fotos / OCR (Lernmittel)",
-        "why": "Hefte und Arbeitsblätter — hohe Privacy. Vision lokal, außer das Modell versagt.",
+        "why": "Hefte und Arbeitsblätter — hohe Privacy. Kleinere Vision-Modelle zuerst (schneller, weniger Timeout).",
         "default_provider": "ollama",
-        "local": ["qwen2.5vl", "llama3.2-vision", "llava"],
+        "local": ["qwen2.5vl:7b", "qwen2.5vl:32b", "qwen2.5vl:latest"],
         "external": ["gpt-4o", "gpt-4o-mini", "claude-sonnet-4-0"],
     },
     {
@@ -64,7 +69,7 @@ TASK_CATALOG: list[dict] = [
         "label": "Schulprüfung analysieren",
         "why": "Auswertung korrigierter Prüfungen: Fehlermuster und Empfehlungen. Fotos/OCR nutzen zusätzlich «Fotos / OCR».",
         "default_provider": "ollama",
-        "local": ["qwen2.5:32b", "llama3.3:70b", "qwen2.5:14b"],
+        "local": ["qwen2.5:32b", "qwen3:32b", "llama3.3:70b"],
         "external": ["claude-sonnet-4-0", "gpt-4o", "gpt-4o-mini"],
     },
     {
@@ -73,7 +78,7 @@ TASK_CATALOG: list[dict] = [
         "why": "Lokale Stimmen klingen oft falsch. OpenAI TTS ist der Default.",
         "default_provider": "openai",
         "local": ["piper", "kokoro", "xtts"],
-        "external": ["tts-1-hd", "gpt-4o-mini-tts", "tts-1"],
+        "external": ["tts-1-hd", "tts-1", "gpt-4o-mini-tts"],
     },
 ]
 
@@ -81,20 +86,61 @@ TASK_CATALOG: list[dict] = [
 TASK_KEYS = {item["key"] for item in TASK_CATALOG}
 
 
+def task_catalog_entry(task_key: str) -> dict | None:
+    for item in TASK_CATALOG:
+        if item["key"] == task_key:
+            return item
+    return None
+
+
+def local_hints(task_key: str) -> list[str]:
+    item = task_catalog_entry(task_key)
+    return list(item["local"]) if item else []
+
+
+def external_hints(task_key: str) -> list[str]:
+    item = task_catalog_entry(task_key)
+    return list(item["external"]) if item else []
+
+
 def catalog_public() -> list[dict]:
     return TASK_CATALOG
 
 
-def default_for(task_key: str) -> dict:
+def catalog_with_resolved(installed_ollama: list[str] | None = None) -> list[dict]:
+    """Katalog + bis zu 3 aufgelöste Modellnamen je Typ (für UI/API)."""
+    from app.ai.model_registry import pick_external_models
+    from app.ai.providers import ollama_status
+
+    installed = installed_ollama if installed_ollama is not None else (ollama_status().get("models") or [])
+    out: list[dict] = []
     for item in TASK_CATALOG:
-        if item["key"] == task_key:
-            provider = item["default_provider"]
-            if provider == "ollama":
-                model = ""
-            else:
-                model = item["external"][0]
-            return {"provider": provider, "model": model}
-    return {"provider": "ollama", "model": ""}
+        row = {**item}
+        row["local_resolved"] = match_ollama_hints(item["local"], installed, limit=3)
+        row["external_resolved"] = pick_external_models(
+            item["default_provider"],
+            item["external"],
+            task_key=item["key"],
+            limit=3,
+        )
+        out.append(row)
+    return out
+
+
+def default_for(task_key: str, *, installed_ollama: list[str] | None = None) -> dict:
+    item = task_catalog_entry(task_key)
+    if not item:
+        return {"provider": "ollama", "model": ""}
+    provider = item["default_provider"]
+    if provider == "ollama":
+        if installed_ollama is None:
+            from app.ai.providers import ollama_status
+
+            installed_ollama = ollama_status().get("models") or []
+        model = first_ollama_hint(item["local"], installed_ollama)
+    else:
+        model = pick_external_model(provider, item["external"], task_key=task_key)
+    return {"provider": provider, "model": model}
 
 
 def resolve_task_ai(
@@ -102,11 +148,12 @@ def resolve_task_ai(
     task_key: str,
     *,
     override: str | None = None,
+    installed_ollama: list[str] | None = None,
 ) -> tuple[str, str | None]:
     """Provider + optionales Modell für einen Aufgabentyp."""
     by_task = prefs.get("by_task") if isinstance(prefs.get("by_task"), dict) else {}
     row = by_task.get(task_key) if isinstance(by_task.get(task_key), dict) else {}
-    recommended = default_for(task_key)
+    recommended = default_for(task_key, installed_ollama=installed_ollama)
     override_name = (override or "").strip().lower()
 
     if override_name and override_name not in {"default", ""}:

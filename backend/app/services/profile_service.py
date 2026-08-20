@@ -283,6 +283,7 @@ def create_profile(
 
 def apply_recommended_settings(db: Session, profile: LearningProfile) -> dict:
     from app.ai.catalog import catalog_public
+    from app.ai.ollama_match import first_ollama_hint
     from app.ai.providers import ollama_status
 
     ollama_models = ollama_status().get("models") or []
@@ -290,15 +291,7 @@ def apply_recommended_settings(db: Session, profile: LearningProfile) -> dict:
     for item in catalog_public():
         provider = item["default_provider"]
         if provider == "ollama":
-            model = ""
-            for hint in item["local"]:
-                token = hint.split(":")[0].lower()
-                for om in ollama_models:
-                    if om.lower() == hint.lower() or token in om.lower():
-                        model = om
-                        break
-                if model:
-                    break
+            model = first_ollama_hint(item["local"], ollama_models)
         else:
             model = pick_external_model(provider, item["external"], task_key=item["key"])
         by_task[item["key"]] = {"provider": provider, "model": model}

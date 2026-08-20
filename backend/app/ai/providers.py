@@ -8,24 +8,12 @@ import re
 
 import httpx
 
-from app.ai.catalog import catalog_public
+from app.ai.catalog import local_hints
 from app.ai.errors import LlmError
 from app.ai.model_registry import model_catalog
+from app.ai.ollama_match import first_ollama_hint
 from app.config import settings
 
-VISION_NAME_HINTS = (
-    "llava",
-    "vision",
-    "bakllava",
-    "moondream",
-    "minicpm-v",
-    "qwen2.5vl",
-    "qwen2-vl",
-    "llama3.2-vision",
-)
-
-
-class LlmResult(dict):
     """provider, model, text"""
 
 
@@ -55,8 +43,11 @@ def ollama_status() -> dict:
 
 def provider_status() -> dict:
     data = configured_providers()
-    data["ollama"] = {**data["ollama"], **ollama_status()}
-    data["task_catalog"] = catalog_public()
+    ollama = ollama_status()
+    data["ollama"] = {**data["ollama"], **ollama}
+    from app.ai.catalog import catalog_with_resolved
+
+    data["task_catalog"] = catalog_with_resolved(ollama.get("models") or [])
     data["models"] = model_catalog()
     return data
 
@@ -124,8 +115,21 @@ def parse_json_object(text: str) -> dict:
     raise LlmError("KI-Antwort war kein JSON", "bad_json")
 
 
+def _ollama_chat_model(explicit: str | None = None) -> str:
+    name = (explicit or settings.ollama_model or "").strip()
+    if name:
+        return name
+    installed = ollama_status().get("models") or []
+    return first_ollama_hint(local_hints("mixed"), installed)
+
+
 def _ollama_chat(prompt: str, system: str | None = None, model: str | None = None) -> LlmResult:
-    model = (model or settings.ollama_model).strip()
+    model = _ollama_chat_model(model)
+    if not model:
+        raise LlmError(
+            "Kein Ollama-Chat-Modell. OLLAMA_MODEL setzen oder qwen2.5:32b ollama pull.",
+            "no_chat_model",
+        )
     messages = []
     if system:
         messages.append({"role": "system", "content": system})
@@ -138,8 +142,21 @@ def _ollama_chat(prompt: str, system: str | None = None, model: str | None = Non
     return LlmResult(provider="ollama", model=model, text=text.strip())
 
 
+def _ollama_vision_model(explicit: str | None = None) -> str:
+    name = (explicit or settings.ollama_vision_model or "").strip()
+    if name:
+        return name
+    installed = ollama_status().get("models") or []
+    return first_ollama_hint(local_hints("vision"), installed)
+
+
 def _ollama_vision(b64: str, prompt: str, model: str | None = None) -> LlmResult:
-    model = (model or "").strip() or _ollama_vision_model()
+    model = _ollama_vision_model(model)
+    if not model:
+        raise LlmError(
+            "Kein Ollama-Vision-Modell. OLLAMA_VISION_MODEL setzen oder qwen2.5vl:7b pullen.",
+            "no_vision_model",
+        )
     payload = {
         "model": model,
         "messages": [{"role": "user", "content": prompt, "images": [b64]}],
@@ -150,20 +167,6 @@ def _ollama_vision(b64: str, prompt: str, model: str | None = None) -> LlmResult
     if not text.strip():
         raise LlmError("Ollama-Vision lieferte keinen Text", "empty_response")
     return LlmResult(provider="ollama", model=model, text=text.strip())
-
-
-def _ollama_vision_model() -> str:
-    if settings.ollama_vision_model.strip():
-        return settings.ollama_vision_model.strip()
-    status = ollama_status()
-    for name in status.get("models") or []:
-        lower = name.lower()
-        if any(hint in lower for hint in VISION_NAME_HINTS):
-            return name
-    raise LlmError(
-        "Kein Ollama-Vision-Modell gefunden. OLLAMA_VISION_MODEL setzen oder ein llava/vision-Modell pullen.",
-        "no_vision_model",
-    )
 
 
 def _ollama_post(path: str, payload: dict, timeout: float | None = None) -> dict:

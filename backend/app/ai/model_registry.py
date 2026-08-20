@@ -157,13 +157,39 @@ def validate_model(provider: str, model: str, *, task_key: str = "mixed") -> str
 
 
 def pick_external_model(provider: str, hints: list[str], *, task_key: str = "mixed") -> str:
+    models = pick_external_models(provider, hints, task_key=task_key, limit=1)
+    return models[0] if models else ""
+
+
+def pick_external_models(
+    provider: str,
+    hints: list[str],
+    *,
+    task_key: str = "mixed",
+    limit: int = 3,
+) -> list[str]:
     available = allowed_models(provider, task_key=task_key)
     if not available:
-        return ""
+        return []
     lower = [m.lower() for m in available]
+    picked: list[str] = []
+    used: set[str] = set()
     for hint in hints:
-        token = hint.split(":")[0].lower()
+        if len(picked) >= limit:
+            break
+        token = hint.split(":")[0].lower() if ":" not in hint else hint.lower()
         for idx, mid in enumerate(lower):
-            if mid == hint.lower() or mid.startswith(token) or token in mid:
-                return available[idx]
-    return available[0]
+            name = available[idx]
+            if name in used:
+                continue
+            if mid == hint.lower() or (":" in hint and mid == hint.lower()) or mid.startswith(token):
+                picked.append(name)
+                used.add(name)
+                break
+    for name in available:
+        if len(picked) >= limit:
+            break
+        if name not in used:
+            picked.append(name)
+            used.add(name)
+    return picked[:limit]
