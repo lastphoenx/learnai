@@ -8,7 +8,7 @@ import uuid
 from app.ai.errors import LlmError
 from app.core.db.session import SessionLocal
 from app.models import User
-from app.services.generate_job import make_progress_callback, set_generate_job
+from app.services.generate_job import get_generate_job, make_progress_callback, set_generate_job
 from app.services.unit_service import UnitError, _get_unit_or_404
 from app.worker import celery_app
 
@@ -44,7 +44,18 @@ def generate_unit_task(self, unit_id: str, user_id: str, provider: str | None = 
             progress=progress,
         )
         db.commit()
-        progress("done", message="Lernblöcke wurden erstellt.")
+        job = get_generate_job(unit_id) or {}
+        details: list[str] = []
+        if job.get("modules"):
+            details.append(f"{job['modules']} Bereiche")
+        if job.get("cards"):
+            details.append(f"{job['cards']} Karten")
+        if job.get("questions"):
+            details.append(f"{job['questions']} Quizfragen")
+        done_message = "Lernblöcke wurden erstellt."
+        if details:
+            done_message = f"{done_message} ({', '.join(details)})"
+        progress("done", message=done_message)
         _log.info("generate_unit_task done unit_id=%s", unit_id)
     except UnitError as exc:
         db.rollback()

@@ -361,17 +361,34 @@ export default function UnitDetailPage() {
             ) : (
               <ol className="module-list">
                 {(unit.modules || []).map((m, idx) => {
-                  const content = m.content as { text?: string } | null;
+                  const content = m.content as {
+                    text?: string;
+                    intro?: string;
+                    cards?: unknown[];
+                    knowledge?: { title?: string; text?: string }[];
+                  } | null;
                   const quiz = m.quiz as { questions?: { q: string; options?: string[]; answer?: number }[] } | null;
                   const qCount = quiz?.questions?.length ?? 0;
+                  const cardCount = Array.isArray(content?.cards) ? content.cards.length : 0;
+                  const bodyText =
+                    content?.intro?.trim() ||
+                    content?.text?.trim() ||
+                    content?.knowledge?.[0]?.text?.trim() ||
+                    "";
+                  const isInteractive = unit.task_type === "interactive";
                   return (
                     <li key={m.id} className="module-card">
                       <div className="module-head">
                         <span className="module-num">{idx + 1}</span>
                         <h3>{m.title}</h3>
-                        {qCount > 0 && <span className="badge badge-quiz">{qCount} Fragen</span>}
+                        <div className="module-badges">
+                          {isInteractive && cardCount > 0 && (
+                            <span className="badge badge-neutral">{cardCount} Karten</span>
+                          )}
+                          {qCount > 0 && <span className="badge badge-quiz">{qCount} Fragen</span>}
+                        </div>
                       </div>
-                      {content?.text && <div className="module-body">{content.text}</div>}
+                      {bodyText && <div className="module-body">{bodyText}</div>}
                       {qCount > 0 && (
                         <details className="module-quiz">
                           <summary>Quiz anzeigen</summary>

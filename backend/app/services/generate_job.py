@@ -132,16 +132,22 @@ def make_progress_callback(unit_id: str, user_id: str):
             status = "done"
         elif stage == "failed":
             status = "failed"
-            if extra.get("error"):
-                message = str(extra["error"])
 
-        message = STAGE_MESSAGES.get(stage, stage)
-        if stage == "category":
+        custom_message = extra.pop("message", None)
+        if custom_message:
+            message = str(custom_message)
+        elif stage == "failed" and extra.get("error"):
+            message = str(extra["error"])
+        elif stage == "category":
             name = str(extra.get("category") or extra.get("name") or "").strip()
             index = extra.get("index")
             total = extra.get("total")
             if index and total:
                 message = f"Kategorie {index}/{total}" + (f": {name}" if name else "…")
+            else:
+                message = STAGE_MESSAGES.get(stage, stage)
+        else:
+            message = STAGE_MESSAGES.get(stage, stage)
 
         set_generate_job(
             unit_id,

@@ -1027,6 +1027,14 @@ button.btn.action-tile {
   margin: 0;
   flex: 1;
   font-size: 1rem;
+  min-width: 0;
+}
+
+.module-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-left: auto;
 }
 
 .module-body {
@@ -1695,7 +1703,8 @@ button.btn.action-tile {
   gap: 0.35rem;
   margin-bottom: 1rem;
 }
-.trainer-tabs button {
+.trainer-tabs button,
+.trainer-tab {
   padding: 0.45rem 0.85rem;
   border-radius: 999px;
   border: 1px solid var(--border);
@@ -1704,7 +1713,8 @@ button.btn.action-tile {
   font-size: 0.88rem;
   cursor: pointer;
 }
-.trainer-tabs button.active {
+.trainer-tabs button.active,
+.trainer-tab.active {
   background: var(--accent);
   color: #fff;
   border-color: var(--accent);
@@ -1816,6 +1826,62 @@ button.btn.action-tile {
   flex-wrap: wrap;
   gap: 0.35rem;
   margin-bottom: 0.75rem;
+}
+.trainer-knowledge-intro {
+  margin: 0.35rem 0 1rem;
+  max-width: 42rem;
+}
+.trainer-knowledge-list {
+  display: grid;
+  gap: 0.65rem;
+}
+.trainer-knowledge-block {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-2);
+  overflow: hidden;
+}
+.trainer-knowledge-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  cursor: pointer;
+  list-style: none;
+  font-weight: 600;
+}
+.trainer-knowledge-summary::-webkit-details-marker {
+  display: none;
+}
+.trainer-knowledge-summary::before {
+  content: "▸";
+  color: var(--accent);
+  margin-right: 0.45rem;
+  transition: transform 0.15s ease;
+}
+.trainer-knowledge-block[open] > .trainer-knowledge-summary::before {
+  transform: rotate(90deg);
+}
+.trainer-knowledge-domain {
+  flex: 1;
+  min-width: 0;
+}
+.trainer-knowledge-points {
+  margin: 0;
+  padding: 0 1rem 0.85rem 1.65rem;
+  list-style: disc;
+}
+.trainer-knowledge-points li {
+  margin: 0.45rem 0;
+}
+.trainer-knowledge-points p {
+  margin: 0.25rem 0 0;
+  line-height: 1.55;
+  color: var(--muted);
+}
+.interactive-trainer .learn-actions {
+  margin-top: 1.25rem;
 }
 .parent-trainer-list {
   margin: 0;

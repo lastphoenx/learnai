@@ -63,6 +63,16 @@ export function InteractiveTrainer({
 
   const cards = trainer?.cards || [];
   const knowledge = trainer?.knowledge || [];
+  const knowledgeByDomain = useMemo(() => {
+    const map = new Map<string, typeof knowledge>();
+    for (const item of knowledge) {
+      const key = item.domain || "Allgemein";
+      const list = map.get(key) || [];
+      list.push(item);
+      map.set(key, list);
+    }
+    return [...map.entries()];
+  }, [knowledge]);
   const progress = trainer?.flashcard_progress || {};
   const filteredCards = useMemo(() => {
     if (cardFilter === "all") return cards;
@@ -319,15 +329,37 @@ export function InteractiveTrainer({
       {tab === "knowledge" && (
         <>
           <h2>Wissens-Hub</h2>
-          <ul className="trainer-knowledge-list">
-            {knowledge.map((item, i) => (
-              <li key={i} className="trainer-knowledge-item">
-                <span className="badge badge-mode">{item.domain}</span>
-                <strong>{item.title}</strong>
-                <p>{item.text}</p>
-              </li>
-            ))}
-          </ul>
+          <p className="muted trainer-knowledge-intro">
+            Kurzüberblick pro Thema — vor den Lernkarten lesen oder zwischendurch nachschlagen.
+          </p>
+          {knowledgeByDomain.length === 0 ? (
+            <p className="muted">Noch kein Kernwissen vorhanden.</p>
+          ) : (
+            <div className="trainer-knowledge-list">
+              {knowledgeByDomain.map(([domain, items]) => (
+                <details
+                  key={domain}
+                  className="trainer-knowledge-block"
+                  open={knowledgeByDomain.length <= 3}
+                >
+                  <summary className="trainer-knowledge-summary">
+                    <span className="trainer-knowledge-domain">{domain}</span>
+                    <span className="muted">
+                      {items.length} Merkpunkt{items.length === 1 ? "" : "e"}
+                    </span>
+                  </summary>
+                  <ul className="trainer-knowledge-points">
+                    {items.map((item, i) => (
+                      <li key={`${item.module_id}-${i}`}>
+                        {item.title && item.title !== domain && <strong>{item.title}</strong>}
+                        <p>{item.text}</p>
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              ))}
+            </div>
+          )}
         </>
       )}
 

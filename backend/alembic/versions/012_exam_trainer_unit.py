@@ -4,7 +4,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision = "012_exam_trainer_unit"
-down_revision = "011_flashcard_progress"
+down_revision = "011"
 branch_labels = None
 depends_on = None
 
