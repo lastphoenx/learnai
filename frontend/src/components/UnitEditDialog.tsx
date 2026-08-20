@@ -5,6 +5,7 @@ import {
   fetchUnitTaskTypes,
   patchUnit,
   type LearningUnit,
+  type TrainerOptions,
   type UnitPatchBody,
 } from "@/lib/api";
 import {
@@ -33,7 +34,9 @@ export function UnitEditDialog({ unit, open, onClose, onSaved }: Props) {
   const [mathFocus, setMathFocus] = useState(unit.math_focus || "");
   const [trainerCards, setTrainerCards] = useState(unit.trainer_options?.cards ?? 50);
   const [trainerQuestions, setTrainerQuestions] = useState(unit.trainer_options?.questions ?? 50);
-  const [trainerStyle, setTrainerStyle] = useState(unit.trainer_options?.style ?? "playful");
+  const [trainerStyle, setTrainerStyle] = useState<TrainerOptions["style"]>(
+    unit.trainer_options?.style ?? "playful",
+  );
   const [taskTypes, setTaskTypes] = useState<UnitTaskType[]>(FALLBACK_TASK_TYPES);
   const [mathFocusOptions, setMathFocusOptions] = useState<MathFocusOption[]>(FALLBACK_MATH_FOCUS);
   const [error, setError] = useState<string | null>(null);
@@ -86,7 +89,7 @@ export function UnitEditDialog({ unit, open, onClose, onSaved }: Props) {
         body.trainer_options = {
           cards: trainerCards,
           questions: trainerQuestions,
-          style: trainerStyle as "balanced" | "playful" | "factual",
+          style: trainerStyle,
           answer_length: "short",
         };
       }
@@ -206,7 +209,10 @@ export function UnitEditDialog({ unit, open, onClose, onSaved }: Props) {
                 </label>
                 <label>
                   Stil
-                  <select value={trainerStyle} onChange={(e) => setTrainerStyle(e.target.value)}>
+                  <select
+                    value={trainerStyle}
+                    onChange={(e) => setTrainerStyle(e.target.value as TrainerOptions["style"])}
+                  >
                     <option value="playful">Spielerisch</option>
                     <option value="balanced">Ausgewogen</option>
                     <option value="factual">Sachlich</option>
