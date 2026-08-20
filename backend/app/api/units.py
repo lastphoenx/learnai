@@ -1,5 +1,7 @@
 from uuid import UUID
 
+import logging
+
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse, Response
 from sqlalchemy.orm import Session
@@ -44,6 +46,8 @@ from app.services.exam_service import (
 from app.services.unit_service import UnitError, add_source, add_source_url, assign_unit_to_profiles, create_unit, create_review_from_unit, create_unit_from_record, create_units, delete_source, delete_unit, get_record, get_unit, list_records, list_units, purge_source_file_keep_meta, update_unit, update_unit_flags
 from app.services.pdf_export_service import unit_worksheet_pdf
 from app.ai.task_types import math_focus_public, task_types_public
+
+_log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/units", tags=["units"])
 records_router = APIRouter(prefix="/records", tags=["records"])
@@ -187,6 +191,12 @@ def units_generate(
         raise _http(exc) from exc
     except LlmError as exc:
         db.rollback()
+        _log.warning(
+            "generate_llm http_fail unit_id=%s code=%s message=%s",
+            unit_id,
+            exc.code,
+            exc.message,
+        )
         raise HTTPException(status_code=400, detail=exc.message) from exc
 
 

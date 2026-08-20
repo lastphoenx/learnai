@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import json
+import logging
 import re
 
 import httpx
@@ -13,6 +14,8 @@ from app.ai.errors import LlmError
 from app.ai.model_registry import model_catalog
 from app.ai.ollama_match import first_ollama_hint
 from app.config import settings
+
+_log = logging.getLogger(__name__)
 
     """provider, model, text"""
 
@@ -135,6 +138,7 @@ def _ollama_chat(prompt: str, system: str | None = None, model: str | None = Non
         messages.append({"role": "system", "content": system})
     messages.append({"role": "user", "content": prompt})
     payload = {"model": model, "messages": messages, "stream": False}
+    _log.info("ollama_chat start model=%s timeout_s=%d", model, settings.ollama_chat_timeout_sec)
     data = _ollama_post("/api/chat", payload, timeout=float(settings.ollama_chat_timeout_sec))
     text = (data.get("message") or {}).get("content") or ""
     if not text.strip():
@@ -162,6 +166,7 @@ def _ollama_vision(b64: str, prompt: str, model: str | None = None) -> LlmResult
         "messages": [{"role": "user", "content": prompt, "images": [b64]}],
         "stream": False,
     }
+    _log.info("ollama_vision start model=%s timeout_s=%d", model, settings.ollama_vision_timeout_sec)
     data = _ollama_post("/api/chat", payload, timeout=float(settings.ollama_vision_timeout_sec))
     text = (data.get("message") or {}).get("content") or ""
     if not text.strip():
@@ -177,6 +182,7 @@ def _ollama_post(path: str, payload: dict, timeout: float | None = None) -> dict
         response = httpx.post(url, json=payload, timeout=timeout)
     except httpx.TimeoutException as exc:
         model = payload.get("model", "?")
+        _log.warning("ollama_timeout path=%s model=%s timeout_s=%d", path, model, int(timeout))
         raise LlmError(
             f"Ollama Zeitüberschreitung nach {int(timeout)}s "
             f"(Modell {model}) — kleineres Vision-Modell oder OLLAMA_VISION_TIMEOUT_SEC erhöhen",

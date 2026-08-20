@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+import time
 import uuid
 from pathlib import Path
 
@@ -24,6 +26,8 @@ from app.services.unit_service import (
 )
 
 from app.ai.task_types import AI_TASK_FOR_UNIT, hint_for_task
+
+_log = logging.getLogger(__name__)
 
 SYSTEM = (
     "Du bist Lerncoach. Antworte immer mit einem JSON-Objekt, ohne Markdown."
@@ -48,7 +52,26 @@ def generate_modules(
     ai_task = AI_TASK_FOR_UNIT.get(task, "mixed")
     name, model = resolve_task_ai(prefs, ai_task, override=provider)
     name = resolve_provider(name)
+    vision_name, vision_model = resolve_task_ai(prefs, "vision")
+    _log.info(
+        "generate_llm start unit_id=%s task=%s chat=%s/%s vision=%s/%s sources=%s profile_id=%s",
+        unit_id,
+        task,
+        name,
+        model or "(auto)",
+        vision_name,
+        vision_model or "(auto)",
+        len(unit.sources or []),
+        unit.profile_id,
+    )
+    t0 = time.monotonic()
     notes = _collect_source_notes(db, unit, prefs)
+    _log.info(
+        "generate_llm sources_done unit_id=%s duration_ms=%d notes_chars=%d",
+        unit_id,
+        int((time.monotonic() - t0) * 1000),
+        len(notes),
+    )
     hint = hint_for_task(task)
     recon = None
     from app.services.crypto_json import decrypt_json as _dj
@@ -76,7 +99,35 @@ def generate_modules(
         f"Aufgabentyp: {task} — {hint}\n\n"
         f"Material aus den Quellen:\n{notes or '(keine Quellen — nutze nur Titel und Auftrag)'}\n"
     )
-    result = complete(prompt=prompt, provider=name, system=SYSTEM, model=model)
+    _log.info(
+        "generate_llm chat_start unit_id=%s provider=%s model=%s prompt_chars=%d",
+        unit_id,
+        name,
+        model or "(auto)",
+        len(prompt),
+    )
+    t_chat = time.monotonic()
+    try:
+        result = complete(prompt=prompt, provider=name, system=SYSTEM, model=model)
+    except LlmError as exc:
+        _log.warning(
+            "generate_llm chat_fail unit_id=%s provider=%s model=%s code=%s duration_ms=%d msg=%s",
+            unit_id,
+            name,
+            model or "(auto)",
+            exc.code,
+            int((time.monotonic() - t_chat) * 1000),
+            exc.message,
+        )
+        raise
+    _log.info(
+        "generate_llm chat_ok unit_id=%s provider=%s model=%s response_chars=%d duration_ms=%d",
+        unit_id,
+        result.get("provider"),
+        result.get("model"),
+        len(result.get("text") or ""),
+        int((time.monotonic() - t_chat) * 1000),
+    )
     try:
         parsed = parse_json_object(result["text"])
         modules = parsed.get("modules")
@@ -118,6 +169,12 @@ def generate_modules(
             "modules_generated",
             {"provider": result["provider"], "model": result["model"], "count": len(modules)},
         )
+    _log.info(
+        "generate_llm done unit_id=%s modules=%d total_ms=%d",
+        unit_id,
+        len(modules),
+        int((time.monotonic() - t0) * 1000),
+    )
     return _dec_unit(unit)
 
 
@@ -133,7 +190,9 @@ def _collect_source_notes(db: Session, unit: LearningUnit, prefs: dict) -> str:
             else source.kind
         )
         if source.extracted_text_encrypted:
-            parts.append(f"### {label}\n{decrypt_text_master(source.extracted_text_encrypted)}")
+            text = decrypt_text_master(source.extracted_text_encrypted)
+            parts.append(f"### {label}\n{text}")
+            _log.info("generate_llm source_cached kind=%s label=%s chars=%d", source.kind, label, len(text))
             continue
         if source.kind == "url":
             try:
@@ -156,16 +215,43 @@ def _collect_source_notes(db: Session, unit: LearningUnit, prefs: dict) -> str:
                 continue
             mime = source.content_type or "image/jpeg"
             vision_name, vision_model = resolve_task_ai(prefs, "vision")
-            described = describe_image(
-                image_bytes=data,
-                mime=mime,
-                prompt=(
-                    "Das ist ein Foto aus einem Lernmittel. Extrahiere den sichtbaren Text "
-                    "und beschreibe die Aufgabe so, dass man daraus eine Lerneinheit bauen kann. "
-                    f"Sprache: {unit.language}."
-                ),
-                provider=vision_name,
-                model=vision_model,
+            _log.info(
+                "generate_llm vision_start label=%s provider=%s model=%s bytes=%d",
+                label,
+                vision_name,
+                vision_model or "(auto)",
+                len(data),
+            )
+            t_vis = time.monotonic()
+            try:
+                described = describe_image(
+                    image_bytes=data,
+                    mime=mime,
+                    prompt=(
+                        "Das ist ein Foto aus einem Lernmittel. Extrahiere den sichtbaren Text "
+                        "und beschreibe die Aufgabe so, dass man daraus eine Lerneinheit bauen kann. "
+                        f"Sprache: {unit.language}."
+                    ),
+                    provider=vision_name,
+                    model=vision_model,
+                )
+            except LlmError as exc:
+                _log.warning(
+                    "generate_llm vision_fail label=%s provider=%s model=%s code=%s duration_ms=%d msg=%s",
+                    label,
+                    vision_name,
+                    vision_model or "(auto)",
+                    exc.code,
+                    int((time.monotonic() - t_vis) * 1000),
+                    exc.message,
+                )
+                raise
+            _log.info(
+                "generate_llm vision_ok label=%s model=%s chars=%d duration_ms=%d",
+                label,
+                described.get("model"),
+                len(described.get("text") or ""),
+                int((time.monotonic() - t_vis) * 1000),
             )
             source.extracted_text_encrypted = encrypt_text_master(described["text"])
             source.analysis_encrypted = encrypt_text_master(
