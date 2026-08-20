@@ -6,6 +6,7 @@ async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T>
   const { json, headers, ...rest } = options;
   const res = await fetch(`${API_URL}${path}`, {
     ...rest,
+    cache: "no-store",
     credentials: "include",
     headers: {
       ...(json ? { "Content-Type": "application/json" } : {}),

@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
-import { ChangeEvent, FormEvent, useEffect, useState } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { UnitAssignSection } from "@/components/UnitAssignSection";
 import { UnitEditDialog } from "@/components/UnitEditDialog";
@@ -53,6 +53,7 @@ function sourceKindLabel(kind: string) {
 export default function UnitDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const unitId = params.id as string;
   const [user, setUser] = useState<User | null>(null);
   const [unit, setUnit] = useState<LearningUnit | null>(null);
@@ -62,6 +63,7 @@ export default function UnitDetailPage() {
   const [sourceUrl, setSourceUrl] = useState("");
   const [editOpen, setEditOpen] = useState(false);
   const [profiles, setProfiles] = useState<LearnerProfile[]>([]);
+  const autogenStarted = useRef(false);
 
   function reload() {
     return fetchUnit(unitId).then(setUnit).catch(() => setError("Einheit nicht gefunden"));
@@ -148,14 +150,23 @@ export default function UnitDetailPage() {
     setBusy(true);
     setError(null);
     try {
-      await generateUnit(unitId);
-      await reload();
+      const next = await generateUnit(unitId);
+      setUnit(next);
     } catch (err) {
       setError(err instanceof Error ? err.message : "KI-Aufbereitung fehlgeschlagen");
     } finally {
       setBusy(false);
     }
   }
+
+  useEffect(() => {
+    if (searchParams.get("autogen") !== "1" || !unit || busy || autogenStarted.current) return;
+    router.replace(`/units/${unitId}`);
+    if ((unit.modules || []).length > 0) return;
+    autogenStarted.current = true;
+    void onGenerate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [unit?.id, unit?.modules?.length, searchParams, busy]);
 
   if (error && !unit) {
     return (
@@ -257,11 +268,18 @@ export default function UnitDetailPage() {
                 className="action-tile"
                 disabled={busy}
                 onClick={async () => {
+                  if (
+                    !confirm(
+                      "Es wird eine neue Wiederholungs-Einheit angelegt — diese Einheit bleibt unverändert. Die KI erstellt danach neue Aufgaben (dauert einige Minuten). Fortfahren?"
+                    )
+                  ) {
+                    return;
+                  }
                   setBusy(true);
                   setError(null);
                   try {
                     const review = await createReviewUnit(unitId);
-                    router.push(`/units/${review.id}`);
+                    router.push(`/units/${review.id}?autogen=1`);
                   } catch (err) {
                     setError(err instanceof Error ? err.message : "Wiederholung konnte nicht erstellt werden");
                   } finally {
@@ -270,7 +288,7 @@ export default function UnitDetailPage() {
                 }}
               >
                 <strong>Wiederholung</strong>
-                <span className="muted">Festigung mit gleichen Quellen</span>
+                <span className="muted">Neue Einheit · gleiche Quellen · KI generiert neu</span>
               </button>
               <button type="button" className="action-tile" onClick={onSpeak} disabled={busy}>
                 <strong>Vorlesen</strong>
@@ -425,5 +443,4 @@ export default function UnitDetailPage() {
         </>
       )}
     </main>
-  );
-}
+  

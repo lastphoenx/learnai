@@ -72,16 +72,17 @@ def complete(
     provider: str | None = None,
     system: str | None = None,
     model: str | None = None,
+    num_predict: int | None = None,
 ) -> LlmResult:
     name = resolve_provider(provider)
     text = prompt.strip()
     if not text:
         raise LlmError("Leerer Prompt", "empty")
     if name == "ollama":
-        return _ollama_chat(text, system=system, model=model)
+        return _ollama_chat(text, system=system, model=model, num_predict=num_predict)
     if name == "openai":
-        return _openai_chat(text, system=system, model=model)
-    return _anthropic_chat(text, system=system, model=model)
+        return _openai_chat(text, system=system, model=model, max_tokens=num_predict)
+    return _anthropic_chat(text, system=system, model=model, max_tokens=num_predict)
 
 
 def describe_image(
@@ -147,7 +148,13 @@ def _ollama_chat_model(explicit: str | None = None) -> str:
     return first_ollama_hint(local_hints("mixed"), installed)
 
 
-def _ollama_chat(prompt: str, system: str | None = None, model: str | None = None) -> LlmResult:
+def _ollama_chat(
+    prompt: str,
+    system: str | None = None,
+    model: str | None = None,
+    *,
+    num_predict: int | None = None,
+) -> LlmResult:
     model = _ollama_chat_model(model)
     if not model:
         raise LlmError(
@@ -158,8 +165,15 @@ def _ollama_chat(prompt: str, system: str | None = None, model: str | None = Non
     if system:
         messages.append({"role": "system", "content": system})
     messages.append({"role": "user", "content": prompt})
-    payload = {"model": model, "messages": messages, "stream": False}
-    _log.info("ollama_chat start model=%s timeout_s=%d", model, settings.ollama_chat_timeout_sec)
+    payload: dict = {"model": model, "messages": messages, "stream": False}
+    if num_predict:
+        payload["options"] = {"num_predict": num_predict, "temperature": 0.35}
+    _log.info(
+        "ollama_chat start model=%s timeout_s=%d num_predict=%s",
+        model,
+        settings.ollama_chat_timeout_sec,
+        num_predict or "default",
+    )
     data = _ollama_post("/api/chat", payload, timeout=float(settings.ollama_chat_timeout_sec))
     text = (data.get("message") or {}).get("content") or ""
     if not text.strip():
@@ -217,7 +231,13 @@ def _ollama_post(path: str, payload: dict, timeout: float | None = None) -> dict
     return response.json()
 
 
-def _openai_chat(prompt: str, system: str | None = None, model: str | None = None) -> LlmResult:
+def _openai_chat(
+    prompt: str,
+    system: str | None = None,
+    model: str | None = None,
+    *,
+    max_tokens: int | None = None,
+) -> LlmResult:
     if not settings.openai_api_key:
         raise LlmError("OPENAI_API_KEY fehlt", "missing_key")
     model = (model or settings.openai_model).strip()
@@ -225,13 +245,14 @@ def _openai_chat(prompt: str, system: str | None = None, model: str | None = Non
     if system:
         messages.append({"role": "system", "content": system})
     messages.append({"role": "user", "content": prompt})
-    data = _openai_post(
-        {
-            "model": model,
-            "messages": messages,
-            "temperature": 0.3,
-        }
-    )
+    body: dict = {
+        "model": model,
+        "messages": messages,
+        "temperature": 0.3,
+    }
+    if max_tokens:
+        body["max_tokens"] = max_tokens
+    data = _openai_post(body)
     text = (((data.get("choices") or [{}])[0].get("message") or {}).get("content")) or ""
     if not text.strip():
         raise LlmError("OpenAI lieferte keinen Text", "empty_response")
@@ -279,13 +300,19 @@ def _openai_post(payload: dict, timeout: float = 90.0) -> dict:
     return response.json()
 
 
-def _anthropic_chat(prompt: str, system: str | None = None, model: str | None = None) -> LlmResult:
+def _anthropic_chat(
+    prompt: str,
+    system: str | None = None,
+    model: str | None = None,
+    *,
+    max_tokens: int | None = None,
+) -> LlmResult:
     if not settings.anthropic_api_key:
         raise LlmError("ANTHROPIC_API_KEY fehlt", "missing_key")
     model = (model or settings.anthropic_model).strip()
     body: dict = {
         "model": model,
-        "max_tokens": 4096,
+        "max_tokens": max_tokens or 4096,
         "messages": [{"role": "user", "content": prompt}],
     }
     if system:

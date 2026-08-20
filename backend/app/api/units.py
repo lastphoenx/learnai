@@ -183,9 +183,9 @@ def units_generate(
     db: Session = Depends(get_db),
 ):
     try:
-        result = generate_modules(db, user, unit_id, provider=body.provider)
+        generate_modules(db, user, unit_id, provider=body.provider)
         db.commit()
-        return result
+        return get_unit(db, user, unit_id)
     except UnitError as exc:
         db.rollback()
         raise _http(exc) from exc
