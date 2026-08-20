@@ -26,7 +26,7 @@ export default function HistoryPage() {
 
   if (error && !user) {
     return (
-      <main className="shell">
+      <main className="shell shell-wide">
         <p>{error}</p>
         <Link href="/login">Zum Login</Link>
       </main>
@@ -34,7 +34,7 @@ export default function HistoryPage() {
   }
 
   return (
-      <main className="shell">
+      <main className="shell shell-wide">
       <AppHeader user={user} title="Lernverlauf" />
       <p style={{ color: "var(--muted)" }}>
         Was du schon gemacht hast, bleibt – auch wenn die Einheit selbst gelöscht wurde.

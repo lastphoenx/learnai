@@ -156,7 +156,7 @@ export default function AdminUsersPage() {
   const adults = users.filter((u) => !u.is_child);
 
   return (
-    <main className="shell">
+    <main className="shell shell-wide admin-page">
       <AppHeader user={user} title="Benutzer" />
       <p className="muted">
         Accounts für Login und 2FA. Lerner-Einstellungen (KI je Typ) unter Einstellungen →
@@ -164,7 +164,8 @@ export default function AdminUsersPage() {
       </p>
       {error && <p className="err">{error}</p>}
 
-      <form onSubmit={onCreate} className="card stack" style={{ marginBottom: "1.5rem" }}>
+      <div className="admin-forms-grid">
+      <form onSubmit={onCreate} className="card stack">
         <h2>Neuen Benutzer anlegen</h2>
         <label>
           Anzeigename
@@ -184,11 +185,11 @@ export default function AdminUsersPage() {
             onChange={(e) => setPassword(e.target.value)}
           />
         </label>
-        <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <label className="checkbox-row">
           <input type="checkbox" checked={makeAdmin} onChange={(e) => setMakeAdmin(e.target.checked)} />
           Admin
         </label>
-        <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <label className="checkbox-row">
           <input
             type="checkbox"
             checked={totpRequired}
@@ -199,7 +200,7 @@ export default function AdminUsersPage() {
         <button type="submit">Benutzer anlegen</button>
       </form>
 
-      <form onSubmit={onCreateChild} className="card stack" style={{ marginBottom: "1.5rem" }}>
+      <form onSubmit={onCreateChild} className="card stack">
         <h2>Kind anlegen</h2>
         <p className="muted">
           Kind-Account mit Lerner-Profil. Beide Eltern sehen Einheiten und Verlauf des Kindes und
@@ -235,18 +236,11 @@ export default function AdminUsersPage() {
         />
         <button type="submit">Kind anlegen</button>
       </form>
+      </div>
 
-      <ul style={{ listStyle: "none", padding: 0 }}>
+      <ul className="admin-user-list">
         {users.map((u) => (
-          <li
-            key={u.id}
-            style={{
-              border: "1px solid var(--border)",
-              borderRadius: 8,
-              padding: "1rem",
-              marginBottom: 8,
-            }}
-          >
+          <li key={u.id} className="admin-user-card">
             <InlineEditName
               value={u.display_name || ""}
               emptyLabel="ohne Namen"
@@ -255,7 +249,7 @@ export default function AdminUsersPage() {
                 load();
               }}
             />
-            <p style={{ margin: "0.4rem 0" }}>
+            <p className="admin-user-meta">
               {u.is_admin ? "Admin" : u.is_child ? "Kind" : "Benutzer"} · 2FA{" "}
               {u.totp_enabled ? "aktiv" : "nicht eingerichtet"}
               {u.ki_summary || formatKiSummary(u.by_task)
@@ -270,7 +264,7 @@ export default function AdminUsersPage() {
             {u.is_child && (
               <ChildGuardianEditor user={u} adults={adults} onSaved={load} onError={setError} />
             )}
-            <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <label className="checkbox-row">
               <input
                 type="checkbox"
                 checked={u.totp_required}
@@ -335,7 +329,7 @@ function ChildGuardianEditor({
   }
 
   return (
-    <div className="stack" style={{ marginBottom: "0.75rem", maxWidth: 360 }}>
+    <div className="stack admin-guardian-edit">
       <ParentSelects
         adults={adults}
         parent1={parent1}

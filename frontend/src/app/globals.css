@@ -12,6 +12,13 @@
   --warn: #9a6700;
   --shadow: 0 18px 40px rgba(48, 32, 16, 0.08);
   --radius: 16px;
+  /* Responsive layout — skaliert mit Viewport */
+  --page-pad: 1rem;
+  --shell-max: 44rem;
+  --shell-wide-max: 52rem;
+  --shell-narrow-max: 26rem;
+  --text-base: 17px;
+  --touch-min: 2.75rem;
 }
 
 [data-theme="dark"] {
@@ -43,7 +50,7 @@ body {
     var(--bg);
   color: var(--fg);
   font-family: var(--font-sans), "Segoe UI", sans-serif;
-  font-size: 17px;
+  font-size: var(--text-base);
   line-height: 1.5;
 }
 
@@ -56,12 +63,12 @@ h2,
 }
 
 h1 {
-  font-size: 2rem;
+  font-size: clamp(1.75rem, 1.2rem + 1.5vw, 2.5rem);
   margin: 0;
 }
 
 h2 {
-  font-size: 1.15rem;
+  font-size: clamp(1.05rem, 0.95rem + 0.35vw, 1.35rem);
   margin: 0 0 0.75rem;
 }
 
@@ -78,19 +85,19 @@ a:hover {
 .shell {
   display: block;
   box-sizing: border-box;
-  width: min(44rem, calc(100% - 3rem));
+  width: min(var(--shell-max), calc(100% - var(--page-pad) * 2));
   margin-left: auto;
   margin-right: auto;
-  padding-top: 2.5rem;
-  padding-bottom: 4rem;
+  padding-top: 1.5rem;
+  padding-bottom: 3rem;
 }
 
 .shell-wide {
-  width: min(52rem, calc(100% - 2rem));
+  width: min(var(--shell-wide-max), calc(100% - var(--page-pad) * 2));
 }
 
 .shell-narrow {
-  width: min(26rem, calc(100% - 3rem));
+  width: min(var(--shell-narrow-max), calc(100% - var(--page-pad) * 2));
 }
 
 .card {
@@ -1189,6 +1196,61 @@ button:disabled {
   border-radius: 8px;
 }
 
+/* —— Login —— */
+.login-page .app-header h1 {
+  font-family: var(--font-display), Georgia, serif;
+}
+
+.login-page .card {
+  margin-top: 0.5rem;
+}
+
+.login-page button[type="submit"] {
+  width: 100%;
+  margin-top: 0.25rem;
+}
+
+/* —— Admin —— */
+.admin-forms-grid {
+  display: grid;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.admin-user-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.admin-user-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.15rem;
+  background: var(--card);
+}
+
+.admin-user-meta {
+  margin: 0.4rem 0;
+  font-size: 0.95rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.admin-guardian-edit {
+  margin-bottom: 0.75rem;
+  max-width: 100%;
+}
+
+.checkbox-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  font-weight: 500;
+}
+
 .dialog-backdrop {
   position: fixed;
   inset: 0;
@@ -1229,4 +1291,334 @@ button:disabled {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
   gap: 0.75rem;
+}
+
+/* —— Responsive: Smartphone → Tablet → Desktop → grosser Monitor —— */
+
+/* Smartphone */
+@media (max-width: 639px) {
+  :root {
+    --page-pad: 0.85rem;
+    --text-base: 16px;
+  }
+
+  .app-nav a {
+    padding: 0.45rem 0.85rem;
+    font-size: 0.95rem;
+  }
+
+  button,
+  .btn,
+  .action-tile {
+    min-height: var(--touch-min);
+  }
+
+  .btn-sm {
+    min-height: 2.5rem;
+    padding: 0.5rem 0.85rem;
+    font-size: 0.95rem;
+  }
+
+  input:not([type="checkbox"]),
+  select,
+  textarea {
+    font-size: 16px;
+    padding: 0.75rem 0.9rem;
+  }
+
+  .card {
+    padding: 1.1rem;
+  }
+
+  .unit-hero {
+    padding: 1.1rem 1.15rem;
+  }
+
+  .action-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .header-user {
+    display: none;
+  }
+
+  .learn-module-stepper {
+    gap: 0.35rem;
+  }
+
+  .learn-step {
+    font-size: 0.82rem;
+    padding: 0.35rem 0.6rem;
+  }
+
+  .learn-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .learn-actions .btn,
+  .learn-actions button {
+    width: 100%;
+  }
+
+  .admin-forms-grid {
+    gap: 1rem;
+  }
+}
+
+/* Tablet */
+@media (min-width: 640px) {
+  :root {
+    --page-pad: 1.25rem;
+    --shell-max: 48rem;
+    --shell-wide-max: 58rem;
+    --text-base: 18px;
+  }
+
+  .shell {
+    padding-top: 2rem;
+    padding-bottom: 3.5rem;
+  }
+
+  button,
+  .btn {
+    padding: 0.65rem 1.15rem;
+    font-size: 1rem;
+  }
+
+  .badge {
+    font-size: 0.85rem;
+    padding: 0.28rem 0.7rem;
+  }
+
+  .app-nav a {
+    padding: 0.4rem 0.9rem;
+    font-size: 1rem;
+  }
+
+  .action-grid {
+    grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+    gap: 0.85rem;
+  }
+
+  .action-tile {
+    padding: 1rem 1.15rem;
+  }
+
+  .action-tile strong {
+    font-size: 1.05rem;
+  }
+
+  .unit-section h2 {
+    font-size: 1.15rem;
+  }
+
+  :root {
+    --shell-narrow-max: 30rem;
+  }
+
+  .login-page .card {
+    padding: 1.5rem 1.65rem;
+  }
+
+  .admin-user-card {
+    padding: 1.1rem 1.2rem;
+  }
+}
+
+/* Desktop (24") */
+@media (min-width: 1024px) {
+  :root {
+    --page-pad: 1.75rem;
+    --shell-max: 56rem;
+    --shell-wide-max: 72rem;
+    --text-base: 18px;
+  }
+
+  .shell {
+    padding-top: 2.25rem;
+    padding-bottom: 4rem;
+  }
+
+  .card {
+    padding: 1.65rem 1.75rem;
+  }
+
+  .brand {
+    font-size: 1.35rem;
+  }
+
+  .page-heading h1 {
+    font-size: clamp(1.85rem, 1.5rem + 0.8vw, 2.35rem);
+  }
+
+  .unit-title {
+    font-size: clamp(1.85rem, 1.4rem + 1.2vw, 2.5rem);
+  }
+
+  .unit-brief {
+    font-size: 1.05rem;
+    line-height: 1.6;
+    max-width: 52rem;
+  }
+
+  .action-grid {
+    grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+    gap: 1rem;
+  }
+
+  .learn-text-body {
+    font-size: 1.08rem;
+    line-height: 1.65;
+  }
+
+  .learn-quiz-question {
+    font-size: 1.15rem;
+  }
+
+  .learn-quiz-option {
+    padding: 0.85rem 1rem;
+    font-size: 1.02rem;
+  }
+
+  .unit-list {
+    grid-template-columns: repeat(auto-fill, minmax(22rem, 1fr));
+    gap: 1rem;
+  }
+
+  .unit-list-title {
+    font-size: 1.25rem;
+  }
+
+  .unit-list-brief {
+    font-size: 1rem;
+  }
+
+  .unit-list-link {
+    padding: 1.15rem 1.25rem 0.6rem;
+  }
+
+  /* Einheitsdetail: Aktionen rechts, Inhalt links auf breiten Screens */
+  .unit-page:has(.unit-hero) {
+    grid-template-columns: minmax(0, 1fr) minmax(16rem, 22rem);
+    gap: 1.25rem 1.5rem;
+    align-items: start;
+  }
+
+  .unit-page:has(.unit-hero) .app-header,
+  .unit-page:has(.unit-hero) > .err,
+  .unit-page:has(.unit-hero) > .breadcrumb,
+  .unit-page:has(.unit-hero) > .unit-hero {
+    grid-column: 1 / -1;
+  }
+
+  .unit-page:has(.unit-hero) > .card.unit-section:has(.action-grid) {
+    grid-column: 2;
+    grid-row: 4 / span 20;
+    position: sticky;
+    top: 1rem;
+  }
+
+  .unit-page:has(.unit-hero) > .card.unit-section:not(:has(.action-grid)) {
+    grid-column: 1;
+  }
+
+  /* Lernmodus: Lesbarkeit auf breiten Screens */
+  .learn-page .learn-hero {
+    padding: 1.5rem 1.75rem;
+  }
+
+  .learn-page .learn-phase-card {
+    max-width: 56rem;
+    margin-left: auto;
+    margin-right: auto;
+    width: 100%;
+    padding: 1.65rem 1.85rem;
+  }
+
+  .learn-phase-card h2 {
+    font-size: 1.4rem;
+  }
+
+  .learn-module-stepper {
+    gap: 0.55rem;
+  }
+
+  .learn-step {
+    font-size: 0.88rem;
+    padding: 0.35rem 0.75rem;
+  }
+
+  .learn-complete-stats {
+    grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+    gap: 0.85rem;
+  }
+
+  .learn-stat-tile {
+    padding: 1rem 1.1rem;
+  }
+
+  .learn-stat-tile strong {
+    font-size: 1.5rem;
+  }
+
+  /* Admin: Formulare nebeneinander, Benutzerkarten im Grid */
+  .admin-forms-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 1.25rem;
+  }
+
+  .admin-user-list {
+    grid-template-columns: repeat(auto-fill, minmax(22rem, 1fr));
+    gap: 1rem;
+  }
+
+  .admin-user-card {
+    padding: 1.25rem 1.35rem;
+  }
+
+  .admin-user-meta {
+    font-size: 1rem;
+  }
+
+  .admin-guardian-edit {
+    max-width: 28rem;
+  }
+
+  :root {
+    --shell-narrow-max: 32rem;
+  }
+
+  .login-page .card {
+    padding: 1.85rem 2rem;
+  }
+}
+
+/* Grosser Monitor (27"+) */
+@media (min-width: 1440px) {
+  :root {
+    --page-pad: 2rem;
+    --shell-max: 60rem;
+    --shell-wide-max: 84rem;
+    --text-base: 19px;
+  }
+
+  .action-grid {
+    grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+  }
+
+  .parent-child-card {
+    padding: 1.75rem 2rem;
+  }
+
+  .admin-user-list {
+    grid-template-columns: repeat(auto-fill, minmax(24rem, 1fr));
+  }
+}
+
+/* Sehr breit — Inhalt nicht endlos strecken */
+@media (min-width: 1920px) {
+  :root {
+    --shell-wide-max: 90rem;
+  }
 }

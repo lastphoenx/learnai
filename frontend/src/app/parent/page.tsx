@@ -58,7 +58,7 @@ export default function ParentDashboardPage() {
   }
 
   return (
-    <main className="shell">
+    <main className="shell shell-wide">
       <AppHeader user={user} title="Kinder-Übersicht" />
       <p className="muted">
         Lernfortschritt, Prüfungstrends, Wiederholungs-Erinnerungen und Berichte für Elterngespräche.

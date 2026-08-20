@@ -58,7 +58,7 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="shell shell-narrow">
+    <main className="shell shell-narrow login-page">
       <header className="app-header">
         <h1>Anmelden</h1>
         <ThemeToggle />

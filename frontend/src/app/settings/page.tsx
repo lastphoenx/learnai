@@ -124,7 +124,7 @@ export default function SettingsPage() {
 
   if (error && !user) {
     return (
-      <main className="shell">
+      <main className="shell shell-wide">
         <p>{error}</p>
         <Link href="/login">Zum Login</Link>
       </main>
@@ -132,7 +132,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <main className="shell">
+    <main className="shell shell-wide">
       <AppHeader user={user} title="Einstellungen" />
       {user?.must_enroll_2fa && (
         <p className="warn">Für diesen Account ist 2FA Pflicht. Bitte jetzt einrichten.</p>
