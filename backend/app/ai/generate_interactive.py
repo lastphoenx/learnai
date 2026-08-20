@@ -169,10 +169,21 @@ def generate_interactive_modules(
     t0 = time.monotonic()
     notes = _collect_source_notes(db, unit, prefs)
 
+    math_focus = (recon or {}).get("math_focus") if isinstance(recon, dict) else None
+    math_focus_label: str | None = None
+    if math_focus:
+        from app.ai.task_types import MATH_FOCUS_OPTIONS
+
+        math_focus_label = next(
+            (o["label"] for o in MATH_FOCUS_OPTIONS if o["key"] == math_focus),
+            str(math_focus),
+        )
+
     context_prompt = build_interactive_plan_prompt(
         title=title,
         brief=brief,
         subject=unit.subject,
+        math_focus=math_focus_label,
         language=unit.language,
         target_age=unit.target_age,
         difficulty=unit.difficulty,

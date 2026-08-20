@@ -66,6 +66,7 @@ def _context_block(
     title: str,
     brief: str,
     subject: str | None,
+    math_focus: str | None,
     language: str,
     target_age: str | None,
     difficulty: int,
@@ -77,7 +78,8 @@ def _context_block(
         f"Thema/Titel: {title}\n"
         f"Auftrag: {brief or '(kein Extra-Auftrag)'}\n"
         f"Fach: {subject or 'offen'}\n"
-        f"Sprache: {language}\n"
+        + (f"Mathe-Schwerpunkt: {math_focus}\n" if math_focus else "")
+        + f"Sprache: {language}\n"
         f"Zielalter: {target_age or 'offen'}\n"
         f"Schwierigkeit 1-5: {difficulty}\n"
         f"{learner_style_hint(target_age=target_age, style=style, answer_length=answer_length)}\n\n"
@@ -91,6 +93,7 @@ def build_interactive_plan_prompt(
     title: str,
     brief: str,
     subject: str | None,
+    math_focus: str | None,
     language: str,
     target_age: str | None,
     difficulty: int,
@@ -105,6 +108,7 @@ def build_interactive_plan_prompt(
             title=title,
             brief=brief,
             subject=subject,
+            math_focus=math_focus,
             language=language,
             target_age=target_age,
             difficulty=difficulty,
