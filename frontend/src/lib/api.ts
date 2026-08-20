@@ -511,11 +511,77 @@ export const createRemediationFromExam = (unitId: string, examId: string) =>
     method: "POST",
   });
 
-export const generateUnit = (unitId: string, provider?: string) =>
-  apiFetch<LearningUnit>(`/api/v1/units/${unitId}/generate`, {
+export type GenerateJobStatus = {
+  status: "idle" | "queued" | "running" | "done" | "failed";
+  stage?: string | null;
+  message?: string | null;
+  progress_pct?: number | null;
+  error?: string | null;
+  started_at?: string | null;
+  updated_at?: string | null;
+  modules?: number | null;
+  cards?: number | null;
+  questions?: number | null;
+};
+
+export type GenerateStartResponse = {
+  async_job: boolean;
+  job: GenerateJobStatus;
+};
+
+export type GenerateStatusResponse = {
+  job: GenerateJobStatus;
+  unit?: LearningUnit | null;
+};
+
+export type GenerateUnitResult =
+  | { mode: "sync"; unit: LearningUnit }
+  | { mode: "async"; job: GenerateJobStatus };
+
+export async function generateUnit(unitId: string, provider?: string): Promise<GenerateUnitResult> {
+  const res = await fetch(`${API_URL}/api/v1/units/${unitId}/generate`, {
     method: "POST",
-    json: { provider: provider ?? null },
+    credentials: "include",
+    cache: "no-store",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ provider: provider ?? null }),
   });
+  const body = await res.json().catch(() => ({}));
+  if (res.status === 202) {
+    const payload = body as GenerateStartResponse;
+    return { mode: "async", job: payload.job };
+  }
+  if (!res.ok) {
+    const detail = typeof body.detail === "string" ? body.detail : `API ${res.status}`;
+    throw new Error(detail);
+  }
+  return { mode: "sync", unit: body as LearningUnit };
+}
+
+export const fetchGenerateStatus = (unitId: string) =>
+  apiFetch<GenerateStatusResponse>(`/api/v1/units/${unitId}/generate/status`);
+
+export async function waitForGenerateJob(
+  unitId: string,
+  onUpdate?: (job: GenerateJobStatus) => void,
+  intervalMs = 3000,
+): Promise<LearningUnit> {
+  for (;;) {
+    const res = await fetchGenerateStatus(unitId);
+    onUpdate?.(res.job);
+    if (res.job.status === "done") {
+      if (res.unit) return res.unit;
+      return fetchUnit(unitId);
+    }
+    if (res.job.status === "failed") {
+      throw new Error(res.job.error || res.job.message || "KI-Aufbereitung fehlgeschlagen");
+    }
+    if (res.job.status === "idle") {
+      throw new Error("Kein laufender Generierungsjob");
+    }
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+}
 
 export const fetchLearnState = (unitId: string) =>
   apiFetch<LearnState>(`/api/v1/units/${unitId}/learn`);

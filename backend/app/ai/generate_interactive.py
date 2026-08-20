@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import time
 import uuid
+from collections.abc import Callable
 
 from sqlalchemy.orm import Session
 
@@ -177,6 +178,7 @@ def generate_interactive_modules(
     unit_id: uuid.UUID,
     *,
     provider: str | None = None,
+    progress: Callable[..., None] | None = None,
 ) -> dict:
     unit = _get_unit_or_404(db, user, unit_id)
     prefs = resolve_prefs_for_profile(db, unit.profile_id) or get_user_settings(user)
@@ -207,6 +209,8 @@ def generate_interactive_modules(
         len(unit.sources or []),
     )
     t0 = time.monotonic()
+    if progress:
+        progress("extracting_sources")
     notes = _collect_source_notes(db, unit, prefs)
     db.commit()
     _log.info(
@@ -242,6 +246,8 @@ def generate_interactive_modules(
     )
     batch_context = truncate_context(context_prompt)
 
+    if progress:
+        progress("planning")
     plan_result = _complete_with_retry(
         prompt=context_prompt,
         provider=name,
@@ -266,6 +272,13 @@ def generate_interactive_modules(
     all_card_questions: list[str] = []
 
     for index, cat in enumerate(categories):
+        if progress:
+            progress(
+                "category",
+                index=index + 1,
+                total=len(categories),
+                category=cat["name"],
+            )
         _log.info(
             "generate_interactive category_start unit_id=%s index=%d name=%s cards=%d questions=%d",
             unit_id,
@@ -342,6 +355,8 @@ def generate_interactive_modules(
     total_cards = sum(len(m["content"]["cards"]) for m in modules)
     total_questions = sum(len(m["quiz"]["questions"]) for m in modules)
 
+    if progress:
+        progress("saving", cards=total_cards, questions=total_questions)
     _save_generated_modules(
         db,
         unit,
@@ -357,4 +372,6 @@ def generate_interactive_modules(
         total_questions,
         int((time.monotonic() - t0) * 1000),
     )
+    if progress:
+        progress("done", cards=total_cards, questions=total_questions, modules=len(modules))
     return _dec_unit(unit)

@@ -348,13 +348,16 @@ def generate_modules(
     unit_id: uuid.UUID,
     *,
     provider: str | None = None,
+    progress: Callable[..., None] | None = None,
 ) -> dict:
     unit = _get_unit_or_404(db, user, unit_id)
     task = unit.task_type or "mixed"
     if task == "interactive":
         from app.ai.generate_interactive import generate_interactive_modules
 
-        return generate_interactive_modules(db, user, unit_id, provider=provider)
+        return generate_interactive_modules(
+            db, user, unit_id, provider=provider, progress=progress
+        )
 
     from app.services.profile_service import resolve_prefs_for_profile
 

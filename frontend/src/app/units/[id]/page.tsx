@@ -17,6 +17,9 @@ import {
   fetchUnit,
   fetchUnitTaskTypes,
   generateUnit,
+  fetchGenerateStatus,
+  waitForGenerateJob,
+  type GenerateJobStatus,
   patchUnit,
   purgeSource,
   speak,
@@ -62,6 +65,7 @@ export default function UnitDetailPage() {
   const [busy, setBusy] = useState(false);
   const [sourceUrl, setSourceUrl] = useState("");
   const [editOpen, setEditOpen] = useState(false);
+  const [generateJob, setGenerateJob] = useState<GenerateJobStatus | null>(null);
   const [profiles, setProfiles] = useState<LearnerProfile[]>([]);
   const autogenStarted = useRef(false);
 
@@ -149,15 +153,56 @@ export default function UnitDetailPage() {
   async function onGenerate() {
     setBusy(true);
     setError(null);
+    setGenerateJob(null);
     try {
-      const next = await generateUnit(unitId);
+      const started = await generateUnit(unitId);
+      if (started.mode === "sync") {
+        setUnit(started.unit);
+        return;
+      }
+      setGenerateJob(started.job);
+      const next = await waitForGenerateJob(unitId, setGenerateJob);
       setUnit(next);
+      setGenerateJob(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "KI-Aufbereitung fehlgeschlagen");
     } finally {
       setBusy(false);
     }
   }
+
+  useEffect(() => {
+    if (!unit || unit.task_type !== "interactive" || (unit.modules || []).length > 0 || busy) return;
+    let cancelled = false;
+    fetchGenerateStatus(unitId)
+      .then((res) => {
+        if (cancelled) return;
+        if (res.job.status === "queued" || res.job.status === "running") {
+          setBusy(true);
+          setGenerateJob(res.job);
+          return waitForGenerateJob(unitId, setGenerateJob)
+            .then((next) => {
+              if (!cancelled) setUnit(next);
+            })
+            .catch((err) => {
+              if (!cancelled) {
+                setError(err instanceof Error ? err.message : "KI-Aufbereitung fehlgeschlagen");
+              }
+            })
+            .finally(() => {
+              if (!cancelled) {
+                setBusy(false);
+                setGenerateJob(null);
+              }
+            });
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [unit?.id, unit?.task_type, unit?.modules?.length]);
 
   useEffect(() => {
     if (searchParams.get("autogen") !== "1" || !unit || busy || autogenStarted.current) return;
@@ -186,6 +231,13 @@ export default function UnitDetailPage() {
     <main className="shell shell-wide unit-page">
       <AppHeader user={user} />
       {error && <p className="err">{error}</p>}
+      {generateJob && (generateJob.status === "queued" || generateJob.status === "running") && (
+        <p className="card generate-progress" role="status">
+          <strong>KI arbeitet…</strong>{" "}
+          {generateJob.message || "Bitte Tab offen lassen."}
+          {typeof generateJob.progress_pct === "number" ? ` (${generateJob.progress_pct}%)` : ""}
+        </p>
+      )}
 
       {unit && (
         <>
@@ -260,11 +312,13 @@ export default function UnitDetailPage() {
               <button type="button" className="action-tile" onClick={onGenerate} disabled={busy}>
                 <strong>{busy ? "KI arbeitet…" : "Mit KI aufbereiten"}</strong>
                 <span className="muted">
-                  {unit.task_type === "interactive" && sourceCount > 0
-                    ? `${sourceCount} Quelle(n) — kann 20–40 Min. dauern, Tab offen lassen`
-                    : sourceCount > 0
-                      ? `${sourceCount} Quelle(n)`
-                      : "Aus Titel & Auftrag"}
+                  {busy && generateJob?.message
+                    ? generateJob.message
+                    : unit.task_type === "interactive" && sourceCount > 0
+                      ? `${sourceCount} Quelle(n) — läuft im Hintergrund, Tab offen lassen`
+                      : sourceCount > 0
+                        ? `${sourceCount} Quelle(n)`
+                        : "Aus Titel & Auftrag"}
                 </span>
               </button>
               <button

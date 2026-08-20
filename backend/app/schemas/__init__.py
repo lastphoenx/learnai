@@ -164,6 +164,29 @@ class UnitGenerateRequest(BaseModel):
     provider: str | None = Field(default=None, max_length=32)
 
 
+class GenerateJobStatus(BaseModel):
+    status: Literal["idle", "queued", "running", "done", "failed"] = "idle"
+    stage: str | None = None
+    message: str | None = None
+    progress_pct: int | None = None
+    error: str | None = None
+    started_at: str | None = None
+    updated_at: str | None = None
+    modules: int | None = None
+    cards: int | None = None
+    questions: int | None = None
+
+
+class GenerateStartResponse(BaseModel):
+    async_job: bool = True
+    job: GenerateJobStatus
+
+
+class GenerateStatusResponse(BaseModel):
+    job: GenerateJobStatus
+    unit: dict | None = None
+
+
 class RecordRebuildRequest(BaseModel):
     difficulty: int | None = Field(default=None, ge=1, le=5)
     task_type: str | None = Field(default=None, max_length=32)

@@ -3,7 +3,7 @@ from uuid import UUID
 import logging
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response
 from sqlalchemy.orm import Session
 
 from app.core.auth.dependencies import get_app_user
@@ -23,8 +23,13 @@ from app.schemas import (
     UnitAssignRequest,
     UnitCreateRequest,
     UnitGenerateRequest,
+    GenerateStartResponse,
+    GenerateStatusResponse,
+    GenerateJobStatus,
     UnitUpdateRequest,
 )
+from app.services.generate_job import get_generate_job, job_is_active, set_generate_job
+from app.tasks.generate import generate_unit_task
 from app.services.learn_service import (
     complete_learn,
     get_learn_state,
@@ -45,7 +50,7 @@ from app.services.exam_service import (
     update_exam,
     update_exam_analysis,
 )
-from app.services.unit_service import UnitError, add_source, add_source_url, assign_unit_to_profiles, create_unit, create_review_from_unit, create_unit_from_record, create_units, delete_source, delete_unit, get_record, get_unit, list_records, list_units, purge_source_file_keep_meta, update_unit, update_unit_flags
+from app.services.unit_service import UnitError, _get_unit_or_404, add_source, add_source_url, assign_unit_to_profiles, create_unit, create_review_from_unit, create_unit_from_record, create_units, delete_source, delete_unit, get_record, get_unit, list_records, list_units, purge_source_file_keep_meta, update_unit, update_unit_flags
 from app.services.pdf_export_service import unit_worksheet_pdf
 from app.ai.task_types import math_focus_public, task_types_public
 
@@ -185,6 +190,25 @@ def units_generate(
     db: Session = Depends(get_db),
 ):
     try:
+        unit = _get_unit_or_404(db, user, unit_id)
+        if (unit.task_type or "mixed") == "interactive":
+            uid = str(unit_id)
+            existing = get_generate_job(uid)
+            if job_is_active(existing) and existing.get("user_id") == str(user.id):
+                job = GenerateJobStatus.model_validate(existing)
+                return JSONResponse(
+                    status_code=status.HTTP_202_ACCEPTED,
+                    content=GenerateStartResponse(async_job=True, job=job).model_dump(),
+                )
+            set_generate_job(uid, user_id=str(user.id), status="queued", stage="queued")
+            generate_unit_task.delay(uid, str(user.id), body.provider)
+            job_raw = get_generate_job(uid) or {"status": "queued", "stage": "queued"}
+            job = GenerateJobStatus.model_validate(job_raw)
+            return JSONResponse(
+                status_code=status.HTTP_202_ACCEPTED,
+                content=GenerateStartResponse(async_job=True, job=job).model_dump(),
+            )
+
         generate_modules(db, user, unit_id, provider=body.provider)
         db.commit()
         return get_unit(db, user, unit_id)
@@ -200,6 +224,24 @@ def units_generate(
             exc.message,
         )
         raise HTTPException(status_code=400, detail=exc.message) from exc
+
+
+@router.get("/{unit_id}/generate/status", response_model=GenerateStatusResponse)
+def units_generate_status(
+    unit_id: UUID,
+    user: User = Depends(get_app_user),
+    db: Session = Depends(get_db),
+):
+    _get_unit_or_404(db, user, unit_id)
+    uid = str(unit_id)
+    raw = get_generate_job(uid)
+    if not raw:
+        return GenerateStatusResponse(job=GenerateJobStatus(status="idle"))
+    if raw.get("user_id") != str(user.id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Kein Zugriff")
+    job = GenerateJobStatus.model_validate(raw)
+    unit_payload = get_unit(db, user, unit_id) if job.status == "done" else None
+    return GenerateStatusResponse(job=job, unit=unit_payload)
 
 
 @router.patch("/{unit_id}")
