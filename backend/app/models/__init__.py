@@ -414,6 +414,8 @@ class FlashcardProgress(Base, TimestampMixin):
     status: Mapped[str] = mapped_column(String(16), default="unseen", nullable=False)
     attempts: Mapped[int] = mapped_column(SmallInteger, default=0, nullable=False)
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    next_review_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    interval_days: Mapped[int] = mapped_column(SmallInteger, default=0, nullable=False)
 
     unit_module: Mapped["UnitModule"] = relationship(back_populates="flashcard_progress")
     profile: Mapped["LearningProfile"] = relationship(foreign_keys=[profile_id])

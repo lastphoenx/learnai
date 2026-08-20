@@ -53,6 +53,7 @@ export function InteractiveTrainer({
   const [quizIndex, setQuizIndex] = useState(0);
   const [quizChallenge, setQuizChallenge] = useState(false);
   const [quizDeck, setQuizDeck] = useState<QuizItem[]>([]);
+  const [cardFilter, setCardFilter] = useState<"due" | "all">("due");
   const [selected, setSelected] = useState<number | null>(null);
   const [answerResult, setAnswerResult] = useState<{
     correct: boolean;
@@ -62,6 +63,17 @@ export function InteractiveTrainer({
 
   const cards = trainer?.cards || [];
   const knowledge = trainer?.knowledge || [];
+  const progress = trainer?.flashcard_progress || {};
+  const filteredCards = useMemo(() => {
+    if (cardFilter === "all") return cards;
+    return cards.filter((card) => progress[card.card_key]?.due !== false);
+  }, [cards, cardFilter, progress]);
+
+  useEffect(() => {
+    setCardIndex(0);
+    setFlipped(false);
+  }, [cardFilter]);
+
   const allQuestions = useMemo(
     () =>
       (state.modules || []).flatMap((mod) => {
@@ -79,14 +91,11 @@ export function InteractiveTrainer({
   );
 
   const activeQuestions = quizDeck.length > 0 ? quizDeck : allQuestions;
-  const currentCard = cards[cardIndex];
+  const currentCard = filteredCards[cardIndex];
   const currentQuestion = activeQuestions[quizIndex];
-  const progress = trainer?.flashcard_progress || {};
 
   const stats = trainer?.stats;
-  const openCards = stats
-    ? Math.max(0, stats.card_count - stats.known_cards - stats.review_cards)
-    : 0;
+  const dueCards = stats?.due_cards ?? filteredCards.length;
   const cardPercent = stats?.card_count
     ? Math.round((100 * stats.known_cards) / stats.card_count)
     : 0;
@@ -97,16 +106,16 @@ export function InteractiveTrainer({
 
   const goToCard = useCallback(
     (index: number) => {
-      if (index < 0 || index >= cards.length) return;
+      if (index < 0 || index >= filteredCards.length) return;
       setCardIndex(index);
       setFlipped(false);
     },
-    [cards.length],
+    [filteredCards.length],
   );
 
   const markCard = useCallback(
     async (status: "known" | "review") => {
-      const card = cards[cardIndex];
+      const card = filteredCards[cardIndex];
       if (!card) return;
       setBusy(true);
       setError(null);
@@ -128,19 +137,22 @@ export function InteractiveTrainer({
                     .length,
                   review_cards: Object.values(res.flashcard_progress).filter((p) => p.status === "review")
                     .length,
+                  due_cards: state.trainer.cards.filter(
+                    (c) => res.flashcard_progress[c.card_key]?.due !== false,
+                  ).length,
                 },
               }
             : state.trainer,
         });
         setFlipped(false);
-        if (cardIndex + 1 < cards.length) setCardIndex(cardIndex + 1);
+        if (cardIndex + 1 < filteredCards.length) setCardIndex(cardIndex + 1);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Speichern fehlgeschlagen");
       } finally {
         setBusy(false);
       }
     },
-    [cardIndex, cards, onStateChange, setBusy, setError, state, unitId],
+    [cardIndex, filteredCards, onStateChange, setBusy, setError, state, unitId],
   );
 
   useEffect(() => {
@@ -261,16 +273,16 @@ export function InteractiveTrainer({
               <span> sicher</span>
             </div>
             <div className="trainer-stat">
+              <strong>{dueCards}</strong>
+              <span> fällig</span>
+            </div>
+            <div className="trainer-stat">
               <strong>{stats.review_cards}</strong>
               <span> wiederholen</span>
             </div>
             <div className="trainer-stat">
-              <strong>{openCards}</strong>
-              <span> offen</span>
-            </div>
-            <div className="trainer-stat">
               <strong>{stats.card_count}</strong>
-              <span> Karten gesamt</span>
+              <span> gesamt</span>
             </div>
           </div>
           <div className="trainer-progress-wrap">
@@ -279,12 +291,20 @@ export function InteractiveTrainer({
             </div>
             <p className="trainer-progress-label muted">
               {stats.known_cards}/{stats.card_count} Karten sicher ({cardPercent}%)
+              {dueCards > 0 ? ` · ${dueCards} heute fällig` : ""}
               {quizPercent !== null ? ` · Quiz ${state.summary.quiz_correct}/${state.summary.quiz_total} (${quizPercent}%)` : ""}
             </p>
           </div>
           <div className="learn-actions">
-            <button type="button" className="btn-primary" onClick={() => setTab("cards")}>
-              Lernkarten starten
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => {
+                setCardFilter(dueCards > 0 ? "due" : "all");
+                setTab("cards");
+              }}
+            >
+              {dueCards > 0 ? "Fällige Karten" : "Lernkarten starten"}
             </button>
             <button type="button" className="ghost" onClick={() => openQuiz(true)}>
               Quiz-Challenge
@@ -313,8 +333,24 @@ export function InteractiveTrainer({
 
       {tab === "cards" && currentCard && (
         <>
+          <div className="trainer-card-filter">
+            <button
+              type="button"
+              className={cardFilter === "due" ? "trainer-tab active" : "trainer-tab"}
+              onClick={() => setCardFilter("due")}
+            >
+              Fällig ({dueCards})
+            </button>
+            <button
+              type="button"
+              className={cardFilter === "all" ? "trainer-tab active" : "trainer-tab"}
+              onClick={() => setCardFilter("all")}
+            >
+              Alle ({stats.card_count})
+            </button>
+          </div>
           <p className="learn-quiz-meta muted">
-            Karte {cardIndex + 1} von {cards.length}
+            Karte {cardIndex + 1} von {filteredCards.length}
             {progress[currentCard.card_key]?.status === "known"
               ? " · gewusst"
               : progress[currentCard.card_key]?.status === "review"
@@ -343,6 +379,14 @@ export function InteractiveTrainer({
             </button>
           </div>
         </>
+      )}
+
+      {tab === "cards" && !currentCard && (
+        <p className="muted">
+          {cardFilter === "due"
+            ? "Keine fälligen Karten — alles erledigt für heute."
+            : "Keine Lernkarten vorhanden."}
+        </p>
       )}
 
       {tab === "quiz" && currentQuestion && (

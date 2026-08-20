@@ -1811,6 +1811,12 @@ button.btn.action-tile {
   font-size: 0.82rem;
   text-align: center;
 }
+.trainer-card-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.75rem;
+}
 .parent-trainer-list {
   margin: 0;
 }

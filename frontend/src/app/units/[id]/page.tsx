@@ -24,6 +24,7 @@ import {
   purgeSource,
   speak,
   unitWorksheetPdfUrl,
+  unitTrainerExportUrl,
   uploadSource,
   type LearningUnit,
   type LearnerProfile,
@@ -428,6 +429,12 @@ export default function UnitDetailPage() {
                 <a className="action-tile" href={unitWorksheetPdfUrl(unit.id)}>
                   <strong>Arbeitsblatt (PDF)</strong>
                   <span className="muted">Zum Ausdrucken — ohne Lösungen</span>
+                </a>
+              )}
+              {(unit.modules || []).length > 0 && unit.task_type === "interactive" && (
+                <a className="action-tile" href={unitTrainerExportUrl(unit.id)}>
+                  <strong>Offline-Export (JSON)</strong>
+                  <span className="muted">LearnAI + Bio-Ranger Format</span>
                 </a>
               )}
               <button

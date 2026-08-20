@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
-import { fetchMe, fetchUnits, type LearningUnit, type User } from "@/lib/api";
+import { fetchMe, fetchUnits, importTrainerJson, type LearningUnit, type User } from "@/lib/api";
 import { FALLBACK_TASK_TYPES, languageLabel, taskTypeLabel } from "@/lib/taskTypes";
 
 function statusBadge(status: string) {
@@ -106,11 +106,34 @@ export default function UnitsPage() {
           Jede Einheit ist ein eigenes Gefäss: Inhalt und Dateien kannst du später löschen. Verlauf
           und Ergebnisse bleiben.
         </p>
-        <p style={{ margin: 0 }}>
+        <p style={{ margin: 0, display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "center" }}>
           <Link className="btn btn-primary" href="/units/new">
             Neue Einheit
           </Link>
+          <label className="btn ghost" style={{ cursor: "pointer", margin: 0 }}>
+            Trainer importieren (JSON)
+            <input
+              type="file"
+              accept="application/json,.json"
+              hidden
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                try {
+                  const text = await file.text();
+                  const payload = JSON.parse(text) as unknown;
+                  const unit = await importTrainerJson(payload);
+                  window.location.href = `/units/${unit.id}`;
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : "Import fehlgeschlagen");
+                } finally {
+                  e.target.value = "";
+                }
+              }}
+            />
+          </label>
         </p>
+        {error && <p className="err">{error}</p>}
       </section>
 
       {units.length > 0 && (

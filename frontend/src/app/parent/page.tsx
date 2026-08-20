@@ -115,6 +115,7 @@ export default function ParentDashboardPage() {
                               <strong>{tu.title}</strong>
                               <span className="muted">
                                 {tu.known_cards}/{tu.card_count} Karten sicher ({pct}%)
+                                {(tu.due_cards ?? 0) > 0 ? ` · ${tu.due_cards} fällig` : ""}
                               </span>
                             </div>
                             <div className="trainer-progress-bar" aria-hidden="true">

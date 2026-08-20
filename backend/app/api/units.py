@@ -53,6 +53,7 @@ from app.services.exam_service import (
 )
 from app.services.unit_service import UnitError, _get_unit_or_404, add_source, add_source_url, assign_unit_to_profiles, create_unit, create_review_from_unit, create_unit_from_record, create_units, delete_source, delete_unit, get_record, get_unit, list_records, list_units, purge_source_file_keep_meta, update_unit, update_unit_flags
 from app.services.pdf_export_service import unit_worksheet_pdf
+from app.services.trainer_export_service import export_trainer_json, import_trainer_json
 from app.ai.task_types import math_focus_public, task_types_public
 
 _log = logging.getLogger(__name__)
@@ -180,6 +181,37 @@ def units_worksheet_pdf(
             headers={"Content-Disposition": f'attachment; filename="{filename}"'},
         )
     except UnitError as exc:
+        raise _http(exc) from exc
+
+
+@router.get("/{unit_id}/export/trainer.json")
+def units_export_trainer_json(
+    unit_id: UUID,
+    user: User = Depends(get_app_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        payload, filename = export_trainer_json(db, user, unit_id)
+        return JSONResponse(
+            content=payload,
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    except UnitError as exc:
+        raise _http(exc) from exc
+
+
+@router.post("/import/trainer", status_code=status.HTTP_201_CREATED)
+def units_import_trainer(
+    body: dict,
+    user: User = Depends(get_app_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        result = import_trainer_json(db, user, body)
+        db.commit()
+        return result
+    except UnitError as exc:
+        db.rollback()
         raise _http(exc) from exc
 
 

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -320,6 +320,42 @@ def _flashcard_key(module_id: uuid.UUID, card_index: int) -> str:
     return f"{module_id}:{card_index}"
 
 
+def _apply_spaced_schedule(row: FlashcardProgress, status: str, now: datetime) -> None:
+    if status == "review":
+        row.interval_days = 1
+        row.next_review_at = now + timedelta(days=1)
+    elif status == "known":
+        prev = int(row.interval_days or 0)
+        row.interval_days = 3 if prev < 3 else min(prev * 2, 30)
+        row.next_review_at = now + timedelta(days=row.interval_days)
+    else:
+        row.interval_days = 0
+        row.next_review_at = None
+
+
+def _flashcard_is_due(row: FlashcardProgress | None, *, now: datetime) -> bool:
+    if row is None:
+        return True
+    if row.status == "review":
+        return True
+    if row.status != "known":
+        return True
+    if row.next_review_at is None:
+        return True
+    return row.next_review_at <= now
+
+
+def _progress_entry(row: FlashcardProgress, *, now: datetime) -> dict[str, Any]:
+    return {
+        "status": row.status,
+        "attempts": row.attempts,
+        "last_seen_at": row.last_seen_at.isoformat() if row.last_seen_at else None,
+        "next_review_at": row.next_review_at.isoformat() if row.next_review_at else None,
+        "interval_days": int(row.interval_days or 0),
+        "due": _flashcard_is_due(row, now=now),
+    }
+
+
 def flashcard_progress_map(
     db: Session,
     *,
@@ -336,12 +372,9 @@ def flashcard_progress_map(
         )
         .all()
     )
+    now = datetime.now(timezone.utc)
     return {
-        _flashcard_key(row.unit_module_id, row.card_index): {
-            "status": row.status,
-            "attempts": row.attempts,
-            "last_seen_at": row.last_seen_at.isoformat() if row.last_seen_at else None,
-        }
+        _flashcard_key(row.unit_module_id, row.card_index): _progress_entry(row, now=now)
         for row in rows
     }
 
@@ -362,10 +395,20 @@ def flashcard_stats_for_unit(
             card_count += len(content.get("cards") or [])
     known_cards = sum(1 for p in progress.values() if p.get("status") == "known")
     review_cards = sum(1 for p in progress.values() if p.get("status") == "review")
+    due_cards = 0
+    for module in modules:
+        content = decrypt_json(module.content_encrypted) or {}
+        if not isinstance(content, dict):
+            continue
+        for index in range(len(content.get("cards") or [])):
+            key = _flashcard_key(module.id, index)
+            if progress.get(key, {}).get("due", True):
+                due_cards += 1
     return {
         "card_count": card_count,
         "known_cards": known_cards,
         "review_cards": review_cards,
+        "due_cards": due_cards,
     }
 
 
@@ -419,6 +462,8 @@ def mark_flashcard_status(
         row.attempts = int(row.attempts or 0) + 1
         row.last_seen_at = now
 
+    _apply_spaced_schedule(row, status, now)
+
     db.flush()
     module_ids = [m.id for m in unit.modules]
     progress = flashcard_progress_map(db, profile_id=profile_id, module_ids=module_ids)
@@ -462,6 +507,7 @@ def _interactive_trainer_payload(
     module_ids = [m.id for m in modules]
     progress = flashcard_progress_map(db, profile_id=profile_id, module_ids=module_ids)
     known = sum(1 for p in progress.values() if p.get("status") == "known")
+    due_cards = sum(1 for card in cards if progress.get(card["card_key"], {}).get("due", True))
     return {
         "options": get_trainer_options(recon if isinstance(recon, dict) else {}),
         "knowledge": knowledge,
@@ -472,5 +518,6 @@ def _interactive_trainer_payload(
             "question_count": total_questions,
             "known_cards": known,
             "review_cards": sum(1 for p in progress.values() if p.get("status") == "review"),
+            "due_cards": due_cards,
         },
     }

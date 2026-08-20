@@ -87,6 +87,7 @@ def parent_dashboard(db: Session, user: User) -> dict:
                         "status": iunit.status,
                         "known_cards": stats["known_cards"],
                         "review_cards": stats["review_cards"],
+                        "due_cards": stats.get("due_cards", stats["card_count"]),
                         "card_count": stats["card_count"],
                     }
                 )

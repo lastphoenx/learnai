@@ -147,12 +147,20 @@ export type TrainerPayload = {
     card_index: number;
     card_key: string;
   }[];
-  flashcard_progress: Record<string, { status: string; attempts: number; last_seen_at?: string | null }>;
+  flashcard_progress: Record<string, {
+    status: string;
+    attempts: number;
+    last_seen_at?: string | null;
+    next_review_at?: string | null;
+    interval_days?: number;
+    due?: boolean;
+  }>;
   stats: {
     card_count: number;
     question_count: number;
     known_cards: number;
     review_cards: number;
+    due_cards: number;
   };
 };
 
@@ -662,6 +670,7 @@ export type ChildDashboardStats = {
     status: string;
     known_cards: number;
     review_cards: number;
+    due_cards: number;
     card_count: number;
   }[];
   recent: {
@@ -722,6 +731,13 @@ export function childReportPdfUrl(profileId: string) {
 export function unitWorksheetPdfUrl(unitId: string) {
   return `${API_URL}/api/v1/units/${unitId}/worksheet.pdf`;
 }
+
+export function unitTrainerExportUrl(unitId: string) {
+  return `${API_URL}/api/v1/units/${unitId}/export/trainer.json`;
+}
+
+export const importTrainerJson = (payload: unknown) =>
+  apiFetch<LearningUnit>("/api/v1/units/import/trainer", { method: "POST", json: payload });
 
 export const addSourceUrl = (unitId: string, url: string) =>
   apiFetch<UnitSource>(`/api/v1/units/${unitId}/sources/url`, {
