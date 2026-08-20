@@ -1,14 +1,21 @@
-"""KI-Endpunkte: Status, Test-Complete, TTS."""
+"""KI-Endpunkte: Status, Test-Complete, TTS, Diagnose."""
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
 
 from app.ai.catalog import resolve_task_ai
+from app.ai.effective import effective_ai_config
 from app.ai.errors import LlmError
 from app.ai.providers import complete, provider_status
 from app.ai.tts import TtsError, synthesize_openai
 from app.core.auth.dependencies import get_app_user
-from app.models import User
+from app.core.db import get_db
+from app.models import LearningProfile, User
+from app.services.profile_service import ProfileError, get_profile_for_actor, resolve_prefs_for_profile
+from app.services.unit_service import UnitError, get_unit
 from app.services.user_service import get_user_settings
 
 router = APIRouter(prefix="/ai", tags=["ai"])
@@ -28,6 +35,48 @@ class CompleteRequest(BaseModel):
 def status(user: User = Depends(get_app_user)):
     del user
     return provider_status()
+
+
+@router.get("/effective")
+def ai_effective(
+    user: User = Depends(get_app_user),
+    db: Session = Depends(get_db),
+    unit_id: UUID | None = Query(default=None),
+    profile_id: UUID | None = Query(default=None),
+):
+    """Aufgelöste KI-Modelle: .env-Fallback + Lerner-Profil (optional für Einheit/Profil)."""
+    prefs: dict = {}
+    context: dict = {"unit_id": str(unit_id) if unit_id else None, "profile_id": str(profile_id) if profile_id else None}
+
+    if unit_id:
+        try:
+            unit_data = get_unit(db, user, unit_id)
+            context["unit_title"] = unit_data.get("title")
+            pid = unit_data.get("profile_id")
+            if pid:
+                context["profile_id"] = pid
+                prefs = resolve_prefs_for_profile(db, UUID(pid))
+        except UnitError as exc:
+            raise HTTPException(status_code=404, detail=exc.message) from exc
+    elif profile_id:
+        try:
+            profile = get_profile_for_actor(db, user, profile_id)
+            context["profile_name"] = profile.display_name
+            prefs = resolve_prefs_for_profile(db, profile_id)
+        except ProfileError as exc:
+            code = 404 if exc.code == "not_found" else 403
+            raise HTTPException(status_code=code, detail=exc.message) from exc
+    else:
+        prefs = get_user_settings(user)
+        profile = db.get(LearningProfile, user.profile_id) if user.profile_id else None
+        if profile:
+            prefs = resolve_prefs_for_profile(db, profile.id)
+            context["profile_id"] = str(profile.id)
+            context["profile_name"] = profile.display_name
+
+    out = effective_ai_config(prefs)
+    out["context"] = context
+    return out
 
 
 @router.post("/complete")

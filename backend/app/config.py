@@ -49,8 +49,10 @@ class Settings(BaseSettings):
     ollama_url: str = "http://host.docker.internal:11434"
     tts_provider: str = "openai"
     llm_provider: str = "ollama"
-    ollama_model: str = "llama3.2"
-    ollama_vision_model: str = ""
+    ollama_model: str = "qwen2.5:32b"
+    ollama_vision_model: str = "qwen2.5vl:7b"
+    ollama_chat_timeout_sec: int = 300
+    ollama_vision_timeout_sec: int = 600
     openai_model: str = "gpt-4o-mini"
     anthropic_model: str = "claude-sonnet-4-0"
 

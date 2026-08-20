@@ -131,7 +131,7 @@ def _ollama_chat(prompt: str, system: str | None = None, model: str | None = Non
         messages.append({"role": "system", "content": system})
     messages.append({"role": "user", "content": prompt})
     payload = {"model": model, "messages": messages, "stream": False}
-    data = _ollama_post("/api/chat", payload)
+    data = _ollama_post("/api/chat", payload, timeout=float(settings.ollama_chat_timeout_sec))
     text = (data.get("message") or {}).get("content") or ""
     if not text.strip():
         raise LlmError("Ollama lieferte keinen Text", "empty_response")
@@ -145,7 +145,7 @@ def _ollama_vision(b64: str, prompt: str, model: str | None = None) -> LlmResult
         "messages": [{"role": "user", "content": prompt, "images": [b64]}],
         "stream": False,
     }
-    data = _ollama_post("/api/chat", payload, timeout=180.0)
+    data = _ollama_post("/api/chat", payload, timeout=float(settings.ollama_vision_timeout_sec))
     text = (data.get("message") or {}).get("content") or ""
     if not text.strip():
         raise LlmError("Ollama-Vision lieferte keinen Text", "empty_response")
@@ -166,14 +166,24 @@ def _ollama_vision_model() -> str:
     )
 
 
-def _ollama_post(path: str, payload: dict, timeout: float = 120.0) -> dict:
+def _ollama_post(path: str, payload: dict, timeout: float | None = None) -> dict:
+    if timeout is None:
+        timeout = float(settings.ollama_chat_timeout_sec)
     url = settings.ollama_url.rstrip("/") + path
     try:
         response = httpx.post(url, json=payload, timeout=timeout)
+    except httpx.TimeoutException as exc:
+        model = payload.get("model", "?")
+        raise LlmError(
+            f"Ollama Zeitüberschreitung nach {int(timeout)}s "
+            f"(Modell {model}) — kleineres Vision-Modell oder OLLAMA_VISION_TIMEOUT_SEC erhöhen",
+            "ollama_timeout",
+        ) from exc
     except httpx.HTTPError as exc:
         raise LlmError(f"Ollama nicht erreichbar ({settings.ollama_url})", "ollama_down") from exc
     if response.status_code >= 400:
-        raise LlmError(f"Ollama Fehler ({response.status_code})", "provider")
+        body = (response.text or "")[:200]
+        raise LlmError(f"Ollama Fehler ({response.status_code}): {body}", "provider")
     return response.json()
 
 

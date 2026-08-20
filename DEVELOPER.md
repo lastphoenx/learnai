@@ -131,7 +131,7 @@ Redis-basiert. Konfiguration in `.env` / `config.py`:
 
 Provider: `LLM_PROVIDER=ollama|openai|anthropic`. Pro Lernprofil überschreibbar (Einstellungen).
 
-Endpoints: `GET /api/v1/ai/status`, `POST /api/v1/ai/complete`, `POST /units/{id}/generate`.
+Endpoints: `GET /api/v1/ai/status`, `GET /api/v1/ai/effective`, `POST /api/v1/ai/complete`, `POST /units/{id}/generate`.
 
 ---
 
@@ -160,6 +160,8 @@ COOKIE_SECURE=true
 LOGIN_ALLOWLIST_ONLY=true
 LLM_PROVIDER=ollama
 OLLAMA_URL=http://ollama-host:11434
+OLLAMA_MODEL=qwen2.5:32b
+OLLAMA_VISION_MODEL=qwen2.5vl:7b
 ```
 
 ---
