@@ -150,7 +150,7 @@ export function UnitEditDialog({ unit, open, onClose, onSaved }: Props) {
             <select value={taskType} onChange={(e) => setTaskType(e.target.value)}>
               {taskTypes.map((t) => (
                 <option key={t.key} value={t.key}>
-                  {t.label}
+                  {t.select_label || t.label}
                 </option>
               ))}
             </select>

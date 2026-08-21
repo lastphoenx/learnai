@@ -507,7 +507,7 @@ export const applyProfileRecommendations = (id: string) =>
 export const fetchUnits = () => apiFetch<LearningUnit[]>("/api/v1/units");
 
 export type UnitTaskTypesResponse = {
-  task_types: { key: string; label: string; description: string; hint: string }[];
+  task_types: { key: string; label: string; select_label?: string; description: string; hint: string }[];
   math_focus: { key: string; label: string }[];
 };
 

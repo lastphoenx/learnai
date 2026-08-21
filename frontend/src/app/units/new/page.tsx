@@ -179,7 +179,7 @@ export default function NewUnitPage() {
           <select value={taskType} onChange={(e) => setTaskType(e.target.value)}>
             {taskTypes.map((t) => (
               <option key={t.key} value={t.key}>
-                {t.label}
+                {t.select_label || t.label}
               </option>
             ))}
           </select>
