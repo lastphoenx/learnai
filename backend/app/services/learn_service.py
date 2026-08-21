@@ -22,7 +22,9 @@ from app.services.unit_service import (
     create_unit,
     get_trainer_options,
 )
+from app.ai.error_tags import aggregate_quiz_error_tags, infer_quiz_error_tags, label_for_tag
 from app.services.audit import log_event
+from app.services.exam_insights_service import exam_learning_entry_for_unit
 
 
 def _default_learn() -> dict:
@@ -164,6 +166,7 @@ def get_learn_state(db: Session, user: User, unit_id: uuid.UUID) -> dict:
             db, unit, modules, record, profile_id=profile_id
         )
     payload["quiz_weaknesses"] = collect_quiz_weaknesses(db, user, unit_id, stats=stats, unit=unit, record=record)
+    payload["exam_entry"] = exam_learning_entry_for_unit(db, user.tenant_id, unit)
     return payload
 
 
@@ -685,7 +688,7 @@ def maybe_auto_quiz_trainer(
     try:
         result = create_interactive_trainer_from_quiz(db, user, unit.id)
         trainer_id = str(result["unit"]["id"])
-        _enqueue_trainer_generate(trainer_id, user)
+        enqueue_trainer_generate(trainer_id, user)
         return {
             "auto_trainer_unit_id": trainer_id,
             "auto_trainer_started": True,
@@ -694,7 +697,7 @@ def maybe_auto_quiz_trainer(
         return {}
 
 
-def _enqueue_trainer_generate(unit_id: str, user: User) -> None:
+def enqueue_trainer_generate(unit_id: str, user: User) -> None:
     from app.services.generate_job import get_generate_job, job_is_active, set_generate_job
     from app.services.generate_limits import acquire_generate_slot
     from app.tasks.generate import generate_unit_task
@@ -738,6 +741,8 @@ def collect_quiz_weaknesses(
     learn = stats.get("learn") or {}
     modules = sorted(unit.modules or [], key=lambda m: m.order_index)
     weaknesses: list[dict[str, Any]] = []
+    recon = _parent_recon(record)
+    math_focus = (recon.get("math_focus") or "").strip() if isinstance(recon.get("math_focus"), str) else ""
 
     for module in modules:
         mod_key = str(module.id)
@@ -759,32 +764,85 @@ def collect_quiz_weaknesses(
             if selected == correct_index:
                 continue
             options = q.get("options") or []
+            question_text = str(q.get("q", ""))
+            explanation = str(q.get("explanation") or "")
+            error_tags = infer_quiz_error_tags(
+                question=question_text,
+                module_title=module_title,
+                explanation=explanation,
+                math_focus=math_focus,
+            )
             weaknesses.append(
                 {
                     "module_id": mod_key,
                     "module_title": module_title,
                     "question_index": i,
-                    "question": q.get("q", ""),
+                    "question": question_text,
                     "selected": selected,
                     "selected_label": options[selected] if 0 <= selected < len(options) else None,
                     "correct_index": correct_index,
                     "correct_label": options[correct_index] if 0 <= correct_index < len(options) else None,
                     "explanation": q.get("explanation"),
+                    "error_tags": error_tags,
                 }
             )
 
-    recon = _parent_recon(record)
     quiz_correct = int(learn.get("quiz_correct", 0))
     quiz_total = int(learn.get("quiz_total", 0))
+    error_tags = aggregate_quiz_error_tags(weaknesses)
     return {
         "quiz_correct": quiz_correct,
         "quiz_total": quiz_total,
         "wrong_count": len(weaknesses),
         "weaknesses": weaknesses,
+        "error_tags": error_tags,
         "remediation_unit_id": recon.get("quiz_remediation_unit_id"),
         "trainer_unit_id": recon.get("quiz_trainer_unit_id"),
         "can_remediate": len(weaknesses) > 0 and quiz_total > 0,
     }
+
+
+def _append_weakness_details(lines: list[str], weakness_data: dict, *, max_per_module: int) -> None:
+    tag_rows = weakness_data.get("error_tags") or []
+    if tag_rows:
+        lines.append("\nFehlermuster (Tags):")
+        for row in tag_rows[:12]:
+            label = row.get("label") or label_for_tag(str(row.get("tag") or ""))
+            count = row.get("count", 1)
+            lines.append(f"- {label} ({row.get('tag')}): {count}×")
+    by_module: dict[str, list[dict]] = {}
+    for item in weakness_data.get("weaknesses") or []:
+        title = (item.get("module_title") or "Thema").strip()
+        by_module.setdefault(title, []).append(item)
+    for mod_title, items in by_module.items():
+        lines.append(f"\nThema «{mod_title}» ({len(items)} Fehler):")
+        for w in items[:max_per_module]:
+            tag_hint = ", ".join(w.get("error_tags") or []) or "—"
+            lines.append(f"- Frage: {w.get('question', '').strip()} [{tag_hint}]")
+            if w.get("selected_label"):
+                lines.append(f"  Gewählt: {w['selected_label']}")
+            if w.get("correct_label"):
+                lines.append(f"  Richtig: {w['correct_label']}")
+            if w.get("explanation"):
+                lines.append(f"  Erklärung: {w['explanation']}")
+
+
+def build_review_brief_from_quiz_weaknesses(
+    weakness_data: dict,
+    *,
+    unit_title: str,
+    unit_brief: str | None,
+) -> str:
+    lines = [
+        "Wiederholung/Festigung mit Fokus auf Quiz-Schwächen aus der App.",
+        f"Ursprungseinheit: {unit_title}.",
+        f"Quiz-Ergebnis: {weakness_data['quiz_correct']}/{weakness_data['quiz_total']} richtig.",
+        "Erstelle 2–3 kurze Module nur zu den unten genannten Fehlern — keine 1:1-Neugenerierung des ganzen Stoffs.",
+    ]
+    _append_weakness_details(lines, weakness_data, max_per_module=8)
+    if unit_brief and unit_brief.strip():
+        lines.append(f"\nHintergrund: {unit_brief.strip()[:600]}")
+    return "\n".join(lines)
 
 
 def _build_quiz_remediation_brief(
@@ -800,20 +858,7 @@ def _build_quiz_remediation_brief(
         "Erstelle 1–2 kurze Lernmodule (Tutorial-Stil): Einstieg erklären, dann Verständnisfragen.",
         "Fokus nur auf die unten genannten Fehler — keine Wiederholung des ganzen Stoffs.",
     ]
-    by_module: dict[str, list[dict]] = {}
-    for item in weakness_data.get("weaknesses") or []:
-        title = (item.get("module_title") or "Thema").strip()
-        by_module.setdefault(title, []).append(item)
-    for mod_title, items in by_module.items():
-        lines.append(f"\nThema «{mod_title}» ({len(items)} Fehler):")
-        for w in items[:8]:
-            lines.append(f"- Frage: {w.get('question', '').strip()}")
-            if w.get("selected_label"):
-                lines.append(f"  Gewählt: {w['selected_label']}")
-            if w.get("correct_label"):
-                lines.append(f"  Richtig: {w['correct_label']}")
-            if w.get("explanation"):
-                lines.append(f"  Erklärung: {w['explanation']}")
+    _append_weakness_details(lines, weakness_data, max_per_module=8)
     if unit_brief and unit_brief.strip():
         lines.append(f"\nHintergrund: {unit_brief.strip()[:600]}")
     return "\n".join(lines)
@@ -832,16 +877,7 @@ def _build_quiz_trainer_brief(
         f"Ursprungseinheit: {unit_title}.",
         f"Quiz-Ergebnis: {weakness_data['quiz_correct']}/{weakness_data['quiz_total']} richtig.",
     ]
-    by_module: dict[str, list[dict]] = {}
-    for item in weakness_data.get("weaknesses") or []:
-        title = (item.get("module_title") or "Thema").strip()
-        by_module.setdefault(title, []).append(item)
-    for mod_title, items in by_module.items():
-        lines.append(f"\nSchwäche «{mod_title}» ({len(items)} Fehler):")
-        for w in items[:10]:
-            lines.append(f"- {w.get('question', '').strip()}")
-            if w.get("explanation"):
-                lines.append(f"  → {w['explanation']}")
+    _append_weakness_details(lines, weakness_data, max_per_module=10)
     if unit_brief and unit_brief.strip():
         lines.append(f"\nKontext: {unit_brief.strip()[:400]}")
     return "\n".join(lines)

@@ -179,6 +179,7 @@ export type LearnState = {
   summary: LearnSummary;
   trainer?: TrainerPayload;
   quiz_weaknesses?: QuizWeaknesses;
+  exam_entry?: ExamLearnEntry | null;
 };
 
 export type QuizWeaknessItem = {
@@ -191,6 +192,26 @@ export type QuizWeaknessItem = {
   correct_index: number;
   correct_label?: string | null;
   explanation?: string | null;
+  error_tags?: string[];
+};
+
+export type QuizErrorTagRow = {
+  tag: string;
+  label: string;
+  count: number;
+};
+
+export type ExamLearnEntry = {
+  exam_id: string;
+  source_unit_id?: string | null;
+  source_unit_title?: string | null;
+  taken_at?: string | null;
+  summary?: string | null;
+  gaps?: string[];
+  error_tags?: { tag: string; label: string }[];
+  remediation_unit_id?: string | null;
+  trainer_unit_id?: string | null;
+  match?: "same_unit" | "same_subject";
 };
 
 export type QuizWeaknesses = {
@@ -198,6 +219,7 @@ export type QuizWeaknesses = {
   quiz_total: number;
   wrong_count: number;
   weaknesses: QuizWeaknessItem[];
+  error_tags?: QuizErrorTagRow[];
   remediation_unit_id?: string | null;
   trainer_unit_id?: string | null;
   can_remediate: boolean;
@@ -839,7 +861,14 @@ export const rebuildFromRecord = (recordId: string, difficulty?: number, task_ty
   });
 
 export const createReviewUnit = (unitId: string) =>
-  apiFetch<LearningUnit>(`/api/v1/units/${unitId}/review`, { method: "POST" });
+  apiFetch<LearningUnit & { review_mode?: string }>(`/api/v1/units/${unitId}/review`, { method: "POST" });
+
+export function reviewUnitHref(unit: { id: string; review_mode?: string; task_type?: string | null }) {
+  if (unit.review_mode === "quiz_trainer" || unit.task_type === "interactive") {
+    return `/units/${unit.id}/learn?autogen=1`;
+  }
+  return `/units/${unit.id}?autogen=1`;
+}
 
 export async function speak(text: string, lang = "de"): Promise<Blob> {
   const res = await fetch(`${API_URL}/api/v1/ai/tts`, {

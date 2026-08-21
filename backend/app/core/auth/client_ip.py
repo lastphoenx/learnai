@@ -66,10 +66,12 @@ def is_public_client_ip(ip: str | None) -> bool:
 
 
 def _pick_from_forwarded(forwarded: str, *, public_only: bool = False) -> str | None:
-    # Links = ursprünglicher Client (nginx setzt $proxy_add_x_forwarded_for)
-    for part in forwarded.split(","):
-        candidate = part.strip()
+    # Rechts nach links: erste IP, die kein vertrauenswürdiger Proxy ist (RFC 7239 / nginx-Standard).
+    parts = [part.strip() for part in forwarded.split(",") if part.strip()]
+    for candidate in reversed(parts):
         if not _parse_ip(candidate):
+            continue
+        if _is_trusted_proxy(candidate):
             continue
         if public_only and not is_public_client_ip(candidate):
             continue
@@ -89,7 +91,7 @@ def get_client_ip(request: Request) -> str | None:
 
     if peer and _is_trusted_proxy(peer):
         real = (request.headers.get("x-real-ip") or "").strip()
-        if real and _parse_ip(real):
+        if real and _parse_ip(real) and not _is_trusted_proxy(real):
             return real
 
         forwarded = (request.headers.get("x-forwarded-for") or "").strip()

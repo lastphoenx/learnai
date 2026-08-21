@@ -75,6 +75,15 @@ export function QuizWeaknessPanel({ unitId, data, compact = false, onCreated }: 
       <p className="muted section-lead">
         Die KI kann gezielt Nacharbeit und einen Trainer zu genau diesen Fehlern erstellen.
       </p>
+      {(data.error_tags || []).length > 0 && (
+        <div className="badge-row quiz-weakness-tags">
+          {(data.error_tags || []).slice(0, 5).map((t) => (
+            <span key={t.tag} className="badge badge-neutral" title={t.tag}>
+              {t.label} ({t.count})
+            </span>
+          ))}
+        </div>
+      )}
       <ul className="quiz-weakness-list">
         {preview.map((w) => (
           <li key={`${w.module_id}-${w.question_index}`}>

@@ -603,19 +603,57 @@ def _copy_template_metadata(
 
 
 def create_review_from_unit(db: Session, user: User, unit_id: uuid.UUID) -> dict:
-    """Wiederholung/Festigung aus bestehender Einheit (Quellen werden mitkopiert)."""
+    """Wiederholung — bei Quiz-Schwächen Trainer-Pfad, sonst fehlerbasierte Review oder Quellen-Kopie."""
+    from app.services.learn_service import (
+        build_review_brief_from_quiz_weaknesses,
+        collect_quiz_weaknesses,
+        create_interactive_trainer_from_quiz,
+        enqueue_trainer_generate,
+    )
+
     unit = _get_unit_or_404(db, user, unit_id)
+    src_record = db.query(LearningRecord).filter(LearningRecord.unit_id == unit.id).first()
+    weakness_data = collect_quiz_weaknesses(
+        db, user, unit_id, unit=unit, record=src_record
+    )
+
+    if weakness_data.get("can_remediate"):
+        trainer_result = create_interactive_trainer_from_quiz(db, user, unit_id)
+        trainer_unit = trainer_result["unit"]
+        enqueue_trainer_generate(str(trainer_unit["id"]), user)
+        log_event(
+            db,
+            tenant_id=user.tenant_id,
+            actor_id=user.id,
+            action="unit.review_create",
+            resource_type="learning_unit",
+            resource_id=uuid.UUID(trainer_unit["id"]),
+            detail=f"from={unit.id} mode=quiz_trainer wrong={weakness_data['wrong_count']}",
+        )
+        return {**trainer_unit, "review_mode": "quiz_trainer"}
+
     title = decrypt_text_master(unit.title_encrypted)
     if not title.lower().startswith("wiederholung"):
         title = f"Wiederholung: {title}"
     brief = decrypt_text_master(unit.brief_encrypted) if unit.brief_encrypted else ""
     math_focus = None
-    src_record = db.query(LearningRecord).filter(LearningRecord.unit_id == unit.id).first()
+    difficulty = unit.difficulty
+    quiz_error_tags: list[dict] = []
     if src_record and src_record.reconstruction_encrypted:
         src_recon = decrypt_json(src_record.reconstruction_encrypted)
         if isinstance(src_recon, dict):
             focus = (src_recon.get("math_focus") or "").strip()
             math_focus = focus or None
+
+    if weakness_data.get("wrong_count", 0) > 0 and weakness_data.get("quiz_total", 0) > 0:
+        brief = build_review_brief_from_quiz_weaknesses(
+            weakness_data,
+            unit_title=decrypt_text_master(unit.title_encrypted),
+            unit_brief=brief or None,
+        )
+        quiz_error_tags = weakness_data.get("error_tags") or []
+        difficulty = min(unit.difficulty + 1, 5)
+
     result = create_unit(
         db,
         user,
@@ -624,7 +662,7 @@ def create_review_from_unit(db: Session, user: User, unit_id: uuid.UUID) -> dict
         subject=unit.subject,
         language=unit.language,
         target_age=unit.target_age,
-        difficulty=unit.difficulty,
+        difficulty=difficulty,
         task_type="review",
         math_focus=math_focus,
         profile_id=unit.profile_id,
@@ -632,6 +670,17 @@ def create_review_from_unit(db: Session, user: User, unit_id: uuid.UUID) -> dict
     new_unit = db.get(LearningUnit, uuid.UUID(result["id"]))
     if new_unit:
         _copy_sources(db, unit, new_unit)
+        if quiz_error_tags and src_record:
+            new_record = db.query(LearningRecord).filter(LearningRecord.unit_id == new_unit.id).first()
+            if new_record:
+                recon = decrypt_json(new_record.reconstruction_encrypted) or {}
+                if not isinstance(recon, dict):
+                    recon = {}
+                recon["quiz_error_tags"] = quiz_error_tags
+                recon["review_source_unit_id"] = str(unit.id)
+                recon["review_from_quiz_weaknesses"] = True
+                new_record.reconstruction_encrypted = encrypt_json(recon)
+                db.flush()
     log_event(
         db,
         tenant_id=user.tenant_id,
@@ -851,8 +900,20 @@ def add_source(
     content_type: str | None,
     data: bytes,
 ) -> dict:
+    from app.core.upload_validation import UploadValidationError, validate_upload_bytes
+
     unit = _get_unit_or_404(db, user, unit_id)
-    kind = _kind_from_content(filename, content_type)
+    try:
+        detected = validate_upload_bytes(
+            data,
+            filename=filename,
+            declared_content_type=content_type,
+            allow_audio=True,
+        )
+    except UploadValidationError as exc:
+        raise UnitError(str(exc), exc.code) from exc
+    kind = detected.kind
+    content_type = detected.content_type
     source = UnitSource(
         unit_id=unit.id,
         kind=kind,

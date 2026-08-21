@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _ROOT_ENV = Path(__file__).resolve().parents[2] / ".env"
@@ -22,8 +23,9 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:3000"
     default_tenant_slug: str = "default"
     allow_registration: bool = False
+    app_env: str = "development"
     cookie_name: str = "learn_session"
-    cookie_secure: bool = False
+    cookie_secure: bool = True
     cookie_samesite: str = "lax"
     login_challenge_ttl_sec: int = 300
     challenge_cookie_name: str = "learn_2fa_challenge"
@@ -62,6 +64,16 @@ class Settings(BaseSettings):
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+    @property
+    def is_production(self) -> bool:
+        return self.app_env.strip().lower() == "production"
+
+    @model_validator(mode="after")
+    def enforce_production_defaults(self) -> "Settings":
+        if self.is_production and not self.cookie_secure:
+            object.__setattr__(self, "cookie_secure", True)
+        return self
 
 
 settings = Settings()

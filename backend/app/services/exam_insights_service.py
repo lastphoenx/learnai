@@ -144,6 +144,69 @@ def exam_insights_for_profile(db: Session, tenant_id: uuid.UUID, profile_id: uui
     }
 
 
+def exam_learning_entry_for_unit(
+    db: Session,
+    tenant_id: uuid.UUID,
+    unit: LearningUnit,
+) -> dict | None:
+    """Kurzbericht aus letzter Prüfung als Lern-Einstieg (gleiche Einheit oder Fach)."""
+    if not unit.profile_id:
+        return None
+
+    exams = (
+        db.query(ExamResult)
+        .filter(
+            ExamResult.tenant_id == tenant_id,
+            ExamResult.profile_id == unit.profile_id,
+            ExamResult.analysis_encrypted.isnot(None),
+        )
+        .order_by(ExamResult.taken_at.desc().nullslast(), ExamResult.created_at.desc())
+        .all()
+    )
+    if not exams:
+        return None
+
+    subject = (unit.subject or "").strip().lower()
+    chosen: ExamResult | None = None
+    match = "same_subject"
+
+    for exam in exams:
+        analysis = decrypt_json(exam.analysis_encrypted)
+        if not isinstance(analysis, dict) or not (analysis.get("summary") or "").strip():
+            continue
+        if exam.unit_id == unit.id:
+            chosen = exam
+            match = "same_unit"
+            break
+        if chosen is None and subject and exam.unit_id:
+            exam_unit = db.get(LearningUnit, exam.unit_id)
+            if exam_unit and (exam_unit.subject or "").strip().lower() == subject:
+                chosen = exam
+
+    if not chosen:
+        return None
+
+    analysis = decrypt_json(chosen.analysis_encrypted) or {}
+    if not isinstance(analysis, dict):
+        return None
+    tags = collect_tags_from_analysis(analysis)[:8]
+    gaps = [str(g).strip() for g in (analysis.get("gaps") or []) if str(g).strip()][:5]
+    taken = chosen.taken_at.isoformat() if chosen.taken_at else chosen.created_at.isoformat()
+
+    return {
+        "exam_id": str(chosen.id),
+        "source_unit_id": str(chosen.unit_id) if chosen.unit_id else None,
+        "source_unit_title": _unit_title(db, chosen.unit_id),
+        "taken_at": taken,
+        "summary": analysis.get("summary"),
+        "gaps": gaps,
+        "error_tags": [{"tag": tag, "label": label_for_tag(tag)} for tag in tags],
+        "remediation_unit_id": str(chosen.remediation_unit_id) if chosen.remediation_unit_id else None,
+        "trainer_unit_id": str(chosen.trainer_unit_id) if chosen.trainer_unit_id else None,
+        "match": match,
+    }
+
+
 def child_report_markdown(
     db: Session,
     user: User,

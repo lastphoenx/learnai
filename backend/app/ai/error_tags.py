@@ -48,6 +48,77 @@ def label_for_tag(tag: str) -> str:
     return key.replace("_", " ").capitalize()
 
 
+_QUIZ_TAG_KEYWORDS: dict[str, tuple[str, ...]] = {
+    "fractions_denominator": ("nenner", "bruch", "brüche", "bruchrechnung", "bruchteil"),
+    "fractions_numerator": ("zähler",),
+    "fractions_simplify": ("kürzen", "erweitern", "vereinfachen"),
+    "fractions_compare": ("vergleichen", "ordnen", "größer", "kleiner"),
+    "fractions_add_sub": ("addieren", "subtrahieren", "plus", "minus", "summe"),
+    "fractions_mul_div": ("multiplizieren", "dividieren", "mal", "geteilt"),
+    "decimals_place": ("dezimal", "kommazahl", "stellenwert", "nachkomma"),
+    "decimals_round": ("runden", "gerundet"),
+    "place_value": ("stellenwert", "hunderter", "zehner", "einer"),
+    "unit_conversion": ("umrechnen", "einheit", "umrechnung"),
+    "measures_length": ("meter", "zentimeter", "kilometer", "länge", "km", "cm", "mm"),
+    "measures_mass": ("gramm", "kilogramm", "masse", "kg", "g "),
+    "measures_volume": ("liter", "milliliter", "volumen", "ml"),
+    "measures_area": ("quadrat", "fläche", "m²", "cm²"),
+    "measures_time": ("stunde", "minute", "sekunde", "uhrzeit", "zeit"),
+    "addition_carry": ("übertrag", "addition", "plus rechnen"),
+    "subtraction_borrow": ("entlehnen", "subtraktion", "minus rechnen"),
+    "multiplication_table": ("einmaleins", "malreihe", "multiplikation"),
+    "division_remainder": ("rest", "division", "teilen"),
+    "geometry_area": ("flächeninhalt", "fläche berechnen"),
+    "geometry_perimeter": ("umfang", "perimeter"),
+    "geometry_angle": ("winkel", "grad"),
+    "percent_calc": ("prozent", "%", "prozentrechnung"),
+    "ratio_proportion": ("dreisatz", "verhältnis", "proportional"),
+    "negative_sign": ("negative", "vorzeichen", "minuszahl"),
+    "order_of_operations": ("klammer", "punkt", "strich", "rechenreihenfolge"),
+    "reading_comprehension": ("text", "leseverstehen", "absatz"),
+    "spelling": ("rechtschreibung", "schreibweise"),
+    "grammar": ("grammatik", "zeitform", "satz"),
+    "vocabulary": ("wortschatz", "bedeutung", "synonym"),
+}
+
+
+def infer_quiz_error_tags(
+    *,
+    question: str = "",
+    module_title: str = "",
+    explanation: str = "",
+    math_focus: str = "",
+) -> list[str]:
+    """Heuristische Fehler-Tags aus Quiz-Frage/Modul (analog zu Prüfungs-error_tags)."""
+    blob = " ".join([question, module_title, explanation, math_focus]).lower()
+    if not blob.strip():
+        return ["method_missing"]
+    tags: list[str] = []
+    for tag, keywords in _QUIZ_TAG_KEYWORDS.items():
+        if any(kw in blob for kw in keywords):
+            tags.append(tag)
+    if not tags:
+        if any(w in blob for w in ("rechnen", "berechnen", "ergebnis", "zahl")):
+            tags.append("calculation_error")
+        else:
+            tags.append("method_missing")
+    return tags[:6]
+
+
+def aggregate_quiz_error_tags(weaknesses: list[dict]) -> list[dict]:
+    """Tags aus Schwächen zählen → [{tag, label, count}]."""
+    counts: dict[str, int] = {}
+    for item in weaknesses:
+        for tag in item.get("error_tags") or []:
+            key = str(tag).strip().lower()
+            if key:
+                counts[key] = counts.get(key, 0) + 1
+    return [
+        {"tag": tag, "label": label_for_tag(tag), "count": count}
+        for tag, count in sorted(counts.items(), key=lambda x: (-x[1], x[0]))
+    ]
+
+
 def collect_tags_from_analysis(analysis: dict | None) -> list[str]:
     """Alle Tags aus error_patterns und tasks[].error_tags sammeln."""
     if not isinstance(analysis, dict):

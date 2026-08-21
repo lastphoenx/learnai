@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { InteractiveTrainer } from "@/components/learn/InteractiveTrainer";
 import { QuizWeaknessPanel } from "@/components/QuizWeaknessPanel";
+import { LearnExamEntryBrief } from "@/components/LearnExamEntryBrief";
 import { PracticeExercise } from "@/components/learn/PracticeExercise";
 import {
   completeLearn,
@@ -431,6 +432,7 @@ export default function UnitLearnPage() {
           <span>Lerntrainer</span>
         </nav>
         {error && <p className="err">{error}</p>}
+        {state.exam_entry && <LearnExamEntryBrief unitId={unitId} entry={state.exam_entry} />}
       {autoTrainerNotice && (
         <p className="auto-trainer-notice">
           Schwächen erkannt — KI-Trainer wird erstellt.{" "}
@@ -526,6 +528,9 @@ export default function UnitLearnPage() {
       </section>
 
       {error && <p className="err">{error}</p>}
+      {state.exam_entry && phase === "intro" && (
+        <LearnExamEntryBrief unitId={unitId} entry={state.exam_entry} />
+      )}
       {autoTrainerNotice && (
         <p className="auto-trainer-notice">
           Schwächen erkannt — KI-Trainer wird erstellt.{" "}
