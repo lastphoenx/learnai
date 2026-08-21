@@ -10,6 +10,8 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.core.crypto import decrypt_text_master
+from app.core.card_answer import grade_input_card
+from app.core.content_analysis import analyze_interactive_modules
 from app.core.quiz_explanation import enrich_quiz_explanation
 from app.core.quiz_numeric import is_quiz_selection_correct, resolve_quiz_correct_index
 from app.models import FlashcardProgress, LearningRecord, LearningUnit, UnitModule, User
@@ -534,6 +536,92 @@ def submit_practice_answer(
     }
 
 
+def submit_card_input_answer(
+    db: Session,
+    user: User,
+    unit_id: uuid.UUID,
+    module_id: uuid.UUID,
+    card_index: int,
+    answer_text: str,
+    worked_solution: str | None = None,
+) -> dict:
+    unit = _get_unit_or_404(db, user, unit_id)
+    record = _get_record_for_unit(db, unit.id)
+    module = _find_module(unit, module_id)
+    profile_id = _profile_id_for_learn(unit, record)
+    content = decrypt_json(module.content_encrypted) or {}
+    cards = content.get("cards") if isinstance(content, dict) else []
+    if card_index < 0 or card_index >= len(cards):
+        raise UnitError("Ungültige Lernkarte", "invalid_index")
+    card = cards[card_index]
+    if not isinstance(card, dict):
+        raise UnitError("Ungültige Lernkarte", "invalid_index")
+    kind = str(card.get("kind") or "mental").strip().lower()
+    if kind != "input":
+        raise UnitError("Diese Karte erwartet keine Eingabe", "invalid_phase")
+    expected = str(card.get("answer") or "").strip()
+    if not expected:
+        raise UnitError("Karte ohne Lösung", "invalid_question")
+
+    graded = grade_input_card(
+        question=str(card.get("question") or ""),
+        expected_answer=expected,
+        user_answer=answer_text,
+        worked_solution=worked_solution,
+    )
+
+    mod_key = str(module.id)
+    stats = _get_stats(record)
+    learn = stats["learn"]
+    mod_prog = learn["modules"].setdefault(
+        mod_key,
+        {"text_read": True, "answers": [], "correct": 0, "total": 0, "done": False},
+    )
+    card_inputs: list[dict | None] = mod_prog.setdefault("card_input_answers", [])
+    while len(card_inputs) <= card_index:
+        card_inputs.append(None)
+    card_inputs[card_index] = {
+        "answer": answer_text.strip(),
+        "worked_solution": (worked_solution or "").strip() or None,
+        "correct": bool(graded["correct"]),
+        "result_correct": bool(graded["result_correct"]),
+        "worked_correct": graded.get("worked_correct"),
+    }
+    mod_prog["card_input_answers"] = card_inputs
+    stats["learn"] = learn
+    _save_stats(db, record, stats)
+
+    if graded["correct"]:
+        flash = mark_flashcard_status(
+            db,
+            user,
+            unit_id,
+            module_id,
+            card_index,
+            "known",
+        )
+    else:
+        flash = {"card_key": _flashcard_key(module.id, card_index)}
+
+    _add_event(
+        db,
+        record,
+        "card_input_answer",
+        {
+            "module_id": mod_key,
+            "card_index": card_index,
+            "correct": graded["correct"],
+        },
+    )
+    return {
+        **graded,
+        "progress": learn,
+        "summary": _progress_summary(stats, len(unit.modules)),
+        "card_key": flash.get("card_key", _flashcard_key(module.id, card_index)),
+        "flashcard_progress": flash.get("flashcard_progress"),
+    }
+
+
 def complete_learn(db: Session, user: User, unit_id: uuid.UUID) -> dict:
     unit = _get_unit_or_404(db, user, unit_id)
     record = _get_record_for_unit(db, unit.id)
@@ -795,6 +883,7 @@ def _interactive_trainer_payload(
                 cards.append(
                     {
                         **card,
+                        "kind": str(card.get("kind") or "mental"),
                         "domain": domain,
                         "module_id": str(module.id),
                         "card_index": index,
@@ -808,18 +897,39 @@ def _interactive_trainer_payload(
     progress = flashcard_progress_map(db, profile_id=profile_id, module_ids=module_ids)
     known = sum(1 for p in progress.values() if p.get("status") == "known")
     due_cards = sum(1 for card in cards if progress.get(card["card_key"], {}).get("due", True))
+    module_payloads = []
+    for module in modules:
+        content = decrypt_json(module.content_encrypted) or {}
+        quiz = decrypt_json(module.quiz_encrypted) or {}
+        module_payloads.append(
+            {
+                "title": decrypt_text_master(module.title_encrypted),
+                "content": content if isinstance(content, dict) else {},
+                "quiz": quiz if isinstance(quiz, dict) else {},
+            }
+        )
+    content_analysis = analyze_interactive_modules(module_payloads)
+    card_kind_counts = {
+        "merk": sum(1 for c in cards if c.get("kind") == "merk"),
+        "mental": sum(1 for c in cards if c.get("kind") in (None, "mental")),
+        "input": sum(1 for c in cards if c.get("kind") == "input"),
+    }
     return {
         "options": get_trainer_options(recon if isinstance(recon, dict) else {}),
         "knowledge": knowledge,
         "knowledge_sections": knowledge_sections,
         "cards": cards,
         "flashcard_progress": progress,
+        "content_analysis": content_analysis,
         "stats": {
             "card_count": len(cards),
             "question_count": total_questions,
             "known_cards": known,
             "review_cards": sum(1 for p in progress.values() if p.get("status") == "review"),
             "due_cards": due_cards,
+            "merk_cards": card_kind_counts["merk"],
+            "mental_cards": card_kind_counts["mental"],
+            "input_cards": card_kind_counts["input"],
         },
     }
 
