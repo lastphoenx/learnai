@@ -22,9 +22,16 @@ nginx auf CT 108 nutzt bereits `snippets/proxy-headers.conf` — **kein** separa
 ```bash
 cd /opt/learnai
 git pull origin feature/interactive-trainer-v1
+docker compose restart api worker    # nur backend/app (Volume)
+docker compose build frontend && docker compose up -d frontend
+curl -sS https://learn.santinel.li/api/v1/health
+```
+
+Vollständiger Rebuild (requirements, API-Image):
+
+```bash
 docker compose build api worker frontend
 docker compose up -d api worker frontend
-curl -sS https://learn.santinel.li/api/v1/health
 ```
 
 Nach Compose-Änderungen an Ports:
@@ -159,4 +166,5 @@ bash scripts/backup-db.sh   # falls konfiguriert
 ## Branch & Releases
 
 Aktueller Feature-Branch: `feature/interactive-trainer-v1`  
-Merge nach `main` wenn Bruchrechnen/Trainer end-to-end stabil.
+Stand 22.08.2026: Lerntrainer v1, Fach-Schwerpunkte, Feld-Vorlagen, STT auf Eingabe-Karten.  
+Siehe `docs/UNIT_CREATION.md`. Merge nach `main` wenn Trainer end-to-end stabil.

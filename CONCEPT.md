@@ -21,9 +21,9 @@ Lernen in der App (Quiz, Blöcke) ≠ echte Schulprüfung. Beides muss verbunden
 ## Ist-Stand (implementiert)
 
 ### Lernen
-- Lerneinheit anlegen (Modi, Mathe-Schwerpunkt, Quellen: Foto/PDF/Audio/URL)
-- KI-Aufbereitung → Lernblöcke + Quiz (Aufgabentypen: mixed, explain, quiz, practice, math, workbook, review, exam, **interactive**)
-- Interaktiver Lernmodus mit Fortschritt, Pause, TTS, Übungsaufgaben, didaktische Trainer-Phasen
+- Lerneinheit anlegen (Modi mit Dropdown-Erklärung, **Fach-Schwerpunkte**, Feld-Vorlagen für KI-Auftrag, Quellen)
+- KI-Aufbereitung → Lernblöcke + Quiz (Aufgabentypen: mixed, explain, quiz, practice, math, workbook, review, exam, **interactive** / Lerntrainer)
+- **Lerntrainer:** Karten (Merk/Kopf/Eingabe), Check (~50 Fragen), Wissens-Hub, Inhalts-Analyse; STT auf Eingabe-Karten (Whisper/Browser)
 - **Quiz-Schwächen** → Nacharbeit / Trainer-Einheit (manuell + Auto-Schwelle)
 - **Wiederholung** bei Quiz-Fehlern → Trainer-Pfad statt generischer Neugenerierung
 - **Prüfungs-Kurzbericht** als Lern-Einstieg (`exam_entry` beim Start)

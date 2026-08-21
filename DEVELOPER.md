@@ -35,7 +35,7 @@ learnai/
 ├── backend/
 │   ├── app/
 │   │   ├── api/          # routes, units, dashboard, profiles, health
-│   │   ├── ai/           # generate, extract, exam_analyze, providers, task_types
+│   │   ├── ai/           # generate, extract, subject_focus, task_types, exam_analyze
 │   │   ├── core/auth/    # sessions, bruteforce, client_ip, dependencies
 │   │   ├── models/       # SQLAlchemy
 │   │   ├── services/     # unit, learn, exam, exam_insights, dashboard, profile
@@ -148,6 +148,8 @@ Magic-Byte-Prüfung für Quellen (PDF, Bilder, Audio) und Prüfungen (PDF, Bilde
 Provider: `LLM_PROVIDER=ollama|openai|anthropic`. Pro Lernprofil überschreibbar (Einstellungen).
 
 Endpoints: `GET /api/v1/ai/status`, `GET /api/v1/ai/effective`, `POST /api/v1/ai/complete`, `POST /units/{id}/generate`.
+
+**Einheit anlegen:** `GET /api/v1/units/task-types` liefert `task_types`, `focus_groups`, `math_focus` (flat). Schwerpunkte in `backend/app/ai/subject_focus.py`. UI-Hinweise: `frontend/src/lib/unitFieldHints.ts`. Siehe [docs/UNIT_CREATION.md](docs/UNIT_CREATION.md).
 
 ---
 
