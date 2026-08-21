@@ -173,34 +173,82 @@ def _sub_steps(a: float, b: float, result: float) -> str:
     return _join_variants(primary, alt)
 
 
-def _div_alternative_steps(a: float, b: float, result: float) -> str | None:
+def _reihe_label(divisor: int) -> str:
+    return f"{divisor}er-Reihe"
+
+
+def _place_unit(decimals: int) -> str:
+    return {1: "Zehntel", 2: "Hundertstel", 3: "Tausendstel"}.get(decimals, f"10⁻{decimals}-tel")
+
+
+def _div_steps_reihen(a: float, b: float, result: float) -> str | None:
+    """Zerlegung am Komma + Einmaleins-Reihe des Divisors."""
+    if abs(b - round(b)) >= 1e-6:
+        return None
+    b_int = int(round(b))
+    if b_int <= 0:
+        return None
+
+    whole = int(a) if a >= 0 else -int(-a)
+    frac = round(a - whole, 10)
+    decimals = _decimal_places(a)
+    reihe = _reihe_label(b_int)
+    a_s, r_s = _fmt_num(a), _fmt_num(result)
+
+    if decimals <= 0 or frac <= 0:
+        if whole % b_int != 0:
+            return None
+        q = whole // b_int
+        return (
+            f"Variante 1 (Reihen): {a_s} ÷ {b_int}. "
+            f"Aus der {reihe}: {_fmt_num(float(whole))} ÷ {b_int} = {_fmt_num(float(q))}."
+        )
+
+    scaled = int(round(frac * (10**decimals)))
+    if scaled <= 0 or scaled % b_int != 0:
+        return None
+    if whole > 0 and whole % b_int != 0:
+        return None
+
+    q_whole = whole // b_int if whole > 0 else 0
+    q_scaled = scaled // b_int
+    v_frac = q_scaled / (10**decimals)
+    unit = _place_unit(decimals)
+
+    if whole > 0:
+        return (
+            f"Variante 1 (Reihen & Zerlegung): {a_s} = {_fmt_num(float(whole))} + {_fmt_num(frac)}. "
+            f"Aus der {reihe}: {_fmt_num(float(whole))} ÷ {b_int} = {_fmt_num(float(q_whole))}. "
+            f"Den Rest in {unit}: {scaled} ÷ {b_int} = {q_scaled} (wieder {reihe}). "
+            f"{q_scaled} {unit} = {_fmt_num(v_frac)} — Komma {decimals} Stelle{'n' if decimals > 1 else ''} nach links. "
+            f"Addiere: {_fmt_num(float(q_whole))} + {_fmt_num(v_frac)} = {r_s}."
+        )
+    return (
+        f"Variante 1 (Reihen): {a_s} in {scaled} {unit}. "
+        f"Aus der {reihe}: {scaled} ÷ {b_int} = {q_scaled}. "
+        f"Komma {decimals} Stelle{'n' if decimals > 1 else ''} nach links: {_fmt_num(v_frac)}."
+    )
+
+
+def _div_steps_stellenwert(a: float, b: float, result: float) -> str | None:
     if abs(b - round(b)) >= 1e-6:
         return None
     b_int = int(round(b))
     if b_int == 0:
         return None
     decimals = _decimal_places(a)
-    if decimals <= 0:
+    if decimals <= 0 or abs(a - round(a)) < 1e-6:
         return None
     scaled = int(round(a * (10**decimals)))
-    for part_scaled in range(b_int, scaled, b_int):
-        rest_scaled = scaled - part_scaled
-        if rest_scaled <= 0 or rest_scaled % b_int != 0:
-            continue
-        part_a = part_scaled / (10**decimals)
-        rest_a = rest_scaled / (10**decimals)
-        part_q = part_scaled // b_int
-        rest_q = rest_scaled // b_int
-        v1 = part_q / (10**decimals)
-        v2 = rest_q / (10**decimals)
-        if abs(v1 + v2 - result) > 1e-5:
-            continue
-        return (
-            f"Variante 2 (Zerlegung): {_fmt_num(a)} = {_fmt_num(part_a)} + {_fmt_num(rest_a)}. "
-            f"{_fmt_num(part_a)} ÷ {b_int} = {_fmt_num(v1)}, {_fmt_num(rest_a)} ÷ {b_int} = {_fmt_num(v2)}. "
-            f"Addiere: {_fmt_num(v1)} + {_fmt_num(v2)} = {_fmt_num(result)}."
-        )
-    return None
+    if scaled % b_int != 0:
+        return None
+    unit = _place_unit(decimals)
+    quotient = scaled // b_int
+    return (
+        f"Variante 2 (Komma verschieben): {_fmt_num(a)} = {scaled} {unit}. "
+        f"Teile: {scaled} ÷ {b_int} = {quotient}. "
+        f"Komma {decimals} Stelle{'n' if decimals > 1 else ''} zurück: {_fmt_num(result)}."
+    )
 
 
 def _div_steps(a: float, b: float, result: float) -> str:
@@ -210,21 +258,22 @@ def _div_steps(a: float, b: float, result: float) -> str:
     b_int = int(round(b))
     if b_int == 0:
         return f"Variante 1: {a_s} ÷ {b_s} = {r_s}."
-    decimals = _decimal_places(a)
-    if decimals > 0 and abs(a - round(a)) >= 1e-6:
-        scaled = int(round(a * (10**decimals)))
-        unit = {1: "Zehntel", 2: "Hundertstel", 3: "Tausendstel"}.get(decimals, f"10⁻{decimals}-tel")
-        quotient = scaled / b_int
-        primary = (
-            f"Variante 1 (Stellenwert): {a_s} = {scaled} {unit}. "
-            f"Teile: {scaled} ÷ {b_int} = {_fmt_num(quotient)}. "
-            f"Komma {decimals} Stelle{'n' if decimals > 1 else ''} zurück: {r_s}."
-        )
-        alt = _div_alternative_steps(a, b, result)
+
+    primary = _div_steps_reihen(a, b, result)
+    alt = _div_steps_stellenwert(a, b, result)
+    if primary and alt:
         return _join_variants(primary, alt)
-    primary = f"Variante 1: {a_s} ÷ {b_s} = {r_s}."
-    alt = _div_alternative_steps(a, b, result)
-    return _join_variants(primary, alt)
+    if primary:
+        return primary
+    if alt:
+        return alt
+    if abs(a - round(a)) < 1e-6 and int(round(a)) % b_int == 0:
+        q = int(round(a)) // b_int
+        return (
+            f"Variante 1 (Reihen): {_fmt_num(a)} ÷ {b_int}. "
+            f"Aus der {_reihe_label(b_int)}: {_fmt_num(float(int(round(a))))} ÷ {b_int} = {_fmt_num(float(q))}."
+        )
+    return f"Variante 1: {a_s} ÷ {b_s} = {r_s}."
 
 
 def _mul_alternative_steps(a: float, b: float, result: float) -> str | None:

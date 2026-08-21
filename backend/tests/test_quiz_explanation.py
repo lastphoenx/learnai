@@ -43,8 +43,17 @@ def test_division_colon_worked_solution():
     text = build_worked_solution("Was ist das Ergebnis von 2.76 : 3?", 0.92)
     assert text is not None
     assert "Variante 1" in text
-    assert "276" in text
+    assert "3er-Reihe" in text
     assert "0,92" in text
+
+
+def test_division_reihen_832():
+    text = build_worked_solution("Was ergibt 8.32 : 4?", 2.08)
+    assert text is not None
+    assert "4er-Reihe" in text
+    assert "8 ÷ 4 = 2" in text.replace(",", ".") or "8 ÷ 4 = 2" in text
+    assert "32 ÷ 4 = 8" in text.replace(",", ".") or "32 ÷ 4 = 8" in text
+    assert "2,08" in text
     assert "Variante 2" in text
 
 
