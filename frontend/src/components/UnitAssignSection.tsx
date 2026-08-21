@@ -33,7 +33,12 @@ export function UnitAssignSection({ unitId, currentProfileId, profiles, onAssign
     setError(null);
     try {
       const res = await assignUnitToProfiles(unitId, ids);
-      setMessage(`${res.created_count} Kopie(n) für andere Kinder erstellt.`);
+      const withBlocks = (res.units || []).filter((u) => (u.module_count || 0) > 0).length;
+      const blockHint =
+        withBlocks > 0
+          ? ` — ${withBlocks} mit Lernblöcken, sofort lernbereit`
+          : "";
+      setMessage(`${res.created_count} Kopie(n) erstellt${blockHint}.`);
       setOpen(false);
       setSelected([]);
       onAssigned();
@@ -48,7 +53,8 @@ export function UnitAssignSection({ unitId, currentProfileId, profiles, onAssign
     <section className="card unit-section">
       <h2>Weitere Kinder zuweisen</h2>
       <p className="muted section-lead">
-        Erstellt eine Kopie dieser Einheit (inkl. Quellen) für ausgewählte Kinder.
+        Erstellt eine vollständige Kopie für andere Kinder: Quellen, Lernblöcke und Trainer-Inhalte —
+        ohne erneute KI-Generierung. Jedes Kind hat eigenen Lernfortschritt.
       </p>
       {message && <p className="muted">{message}</p>}
       {!open ? (

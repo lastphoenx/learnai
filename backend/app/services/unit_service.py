@@ -416,7 +416,7 @@ def assign_unit_to_profiles(
     unit_id: uuid.UUID,
     profile_ids: list[uuid.UUID],
 ) -> list[dict]:
-    """Kopie der Einheit (inkl. Quellen) für weitere Kinder-Profile."""
+    """Vollständige Vorlage-Kopie für weitere Kinder: Quellen + Lernblöcke + Trainer-Metadaten."""
     unit = _get_unit_or_404(db, user, unit_id)
     if not profile_ids:
         raise UnitError("Keine Profile gewählt", "invalid_profile")
@@ -431,6 +431,7 @@ def assign_unit_to_profiles(
             focus = (src_recon.get("math_focus") or "").strip()
             math_focus = focus or None
 
+    template_modules = len(unit.modules or [])
     created: list[dict] = []
     seen: set[uuid.UUID | None] = {unit.profile_id}
     for pid in profile_ids:
@@ -447,7 +448,7 @@ def assign_unit_to_profiles(
             language=unit.language,
             target_age=unit.target_age,
             difficulty=unit.difficulty,
-            task_type=unit.task_type,
+            task_type=unit.task_type or "mixed",
             math_focus=math_focus,
             auto_purge_sources=unit.auto_purge_sources,
             profile_id=pid,
@@ -455,6 +456,16 @@ def assign_unit_to_profiles(
         new_unit = db.get(LearningUnit, uuid.UUID(result["id"]))
         if new_unit:
             _copy_sources(db, unit, new_unit)
+            new_record = db.query(LearningRecord).filter(LearningRecord.unit_id == new_unit.id).first()
+            if new_record:
+                _copy_template_metadata(
+                    db,
+                    from_unit=unit,
+                    from_record=src_record,
+                    to_unit=new_unit,
+                    to_record=new_record,
+                )
+            db.refresh(new_unit, attribute_names=["modules", "sources", "status"])
             created.append(_dec_unit(new_unit))
         else:
             created.append(result)
@@ -467,7 +478,7 @@ def assign_unit_to_profiles(
         action="unit.assign",
         resource_type="learning_unit",
         resource_id=unit.id,
-        detail=f"copies={len(created)}",
+        detail=f"copies={len(created)} modules_template={template_modules}",
     )
     return created
 
@@ -535,6 +546,60 @@ def _copy_sources(db: Session, from_unit: LearningUnit, to_unit: LearningUnit) -
                 shutil.copy2(old_path, dest)
                 new_src.storage_path = rel
         db.flush()
+
+
+def _copy_modules(db: Session, from_unit: LearningUnit, to_unit: LearningUnit) -> int:
+    """Kopiert Lernblöcke 1:1 (verschlüsselte Inhalte) — Vorlage für weiteres Kind."""
+    modules = sorted(from_unit.modules or [], key=lambda m: m.order_index)
+    for mod in modules:
+        db.add(
+            UnitModule(
+                unit_id=to_unit.id,
+                order_index=mod.order_index,
+                title_encrypted=mod.title_encrypted,
+                content_encrypted=mod.content_encrypted,
+                quiz_encrypted=mod.quiz_encrypted,
+            )
+        )
+    if modules:
+        to_unit.status = from_unit.status if from_unit.status in {"ready", "draft"} else "ready"
+    db.flush()
+    return len(modules)
+
+
+def _copy_template_metadata(
+    db: Session,
+    *,
+    from_unit: LearningUnit,
+    from_record: LearningRecord | None,
+    to_unit: LearningUnit,
+    to_record: LearningRecord,
+) -> int:
+    """Quellen-Inhalt ist separat; hier Module + Trainer-Metadaten aus der Vorlage."""
+    module_count = _copy_modules(db, from_unit, to_unit)
+    if from_record and from_record.reconstruction_encrypted:
+        src_recon = decrypt_json(from_record.reconstruction_encrypted)
+        if isinstance(src_recon, dict):
+            dst_recon = decrypt_json(to_record.reconstruction_encrypted) or {}
+            if not isinstance(dst_recon, dict):
+                dst_recon = {}
+            trainer_options = src_recon.get("trainer_options")
+            if isinstance(trainer_options, dict) and trainer_options:
+                dst_recon["trainer_options"] = dict(trainer_options)
+            math_focus = (src_recon.get("math_focus") or "").strip()
+            if math_focus:
+                dst_recon["math_focus"] = math_focus
+            dst_recon["template_unit_id"] = str(from_unit.id)
+            to_record.reconstruction_encrypted = encrypt_json(dst_recon)
+    if module_count:
+        _add_event(
+            db,
+            to_record,
+            "unit_template_copied",
+            {"source_unit_id": str(from_unit.id), "module_count": module_count},
+        )
+    db.flush()
+    return module_count
 
 
 def create_review_from_unit(db: Session, user: User, unit_id: uuid.UUID) -> dict:
