@@ -97,6 +97,38 @@ def _div_steps(a: float, b: float, result: float) -> str:
     return f"Rechnung: {a_s} ÷ {b_s} = {r_s}."
 
 
+def _mul_alternative_steps(a: float, b: float, result: float) -> str | None:
+    """Zweiter Weg über Stellenwert-Zerlegung, z. B. 250,1 → (20+5)×10 + 0,1."""
+    if abs(a - round(a)) >= 1e-6:
+        return None
+    a_int = int(round(a))
+    if abs(b - round(b)) < 1e-6:
+        return None
+    whole = int(b) if b >= 0 else -int(-b)
+    frac = round(b - whole, 10)
+    if frac <= 0 or whole < 100 or whole % 10 != 0:
+        return None
+    tens_group = whole // 10
+    t_high = (tens_group // 10) * 10
+    t_low = tens_group - t_high
+    if t_low <= 0 or t_high <= 0:
+        return None
+
+    p_high = a_int * t_high
+    p_low = a_int * t_low
+    sub_sum = p_high + p_low
+    prod_whole = sub_sum * 10
+    p_frac = a_int * frac
+    a_s = _fmt_num(float(a_int))
+    return (
+        f"Variante 2 (Stellenwert): {_fmt_num(b)} = {_fmt_num(t_high)}×10 + {_fmt_num(t_low)}×10 + {_fmt_num(frac)}. "
+        f"{a_s}×{_fmt_num(t_high)}={_fmt_num(p_high)}, {a_s}×{_fmt_num(t_low)}={_fmt_num(p_low)}, "
+        f"{_fmt_num(p_high)}+{_fmt_num(p_low)}={_fmt_num(sub_sum)}, {_fmt_num(sub_sum)}×10={_fmt_num(prod_whole)}. "
+        f"Dann {a_s}×{_fmt_num(frac)}={_fmt_num(p_frac)}, "
+        f"{_fmt_num(prod_whole)}+{_fmt_num(p_frac)}={_fmt_num(result)}."
+    )
+
+
 def _mul_steps(a: float, b: float, result: float) -> str:
     a_s, b_s, r_s = _fmt_num(a), _fmt_num(b), _fmt_num(result)
     if abs(b - round(b)) < 1e-6:
@@ -108,12 +140,16 @@ def _mul_steps(a: float, b: float, result: float) -> str:
             return f"Rechnung: {a_s} × {b_s} = {r_s}."
         part_whole = a * whole
         part_frac = a * frac
-        return (
-            f"Rechnung: {a_s} × {b_s}. "
+        primary = (
+            f"Variante 1 (Ganzes + Dezimal): {a_s} × {b_s}. "
             f"Zuerst {a_s} × {_fmt_num(whole)} = {_fmt_num(part_whole)}. "
             f"Dann {a_s} × {_fmt_num(frac)} = {_fmt_num(part_frac)}. "
             f"Addiere: {_fmt_num(part_whole)} + {_fmt_num(part_frac)} = {r_s}."
         )
+        alt = _mul_alternative_steps(a, b, result)
+        if alt:
+            return f"{primary} {alt}"
+        return primary
     return f"Rechnung: {a_s} × {b_s} = {r_s}."
 
 
@@ -149,11 +185,9 @@ def build_worked_solution(question: str, expected: float | None = None) -> str |
 
 
 def enrich_quiz_explanation(q: dict) -> str:
-    original = str(q.get("explanation") or "").strip()
     question = str(q.get("q") or "")
-    if not explanation_is_weak(original, question):
-        return original
     worked = build_worked_solution(question)
     if worked:
         return worked
+    original = str(q.get("explanation") or "").strip()
     return original

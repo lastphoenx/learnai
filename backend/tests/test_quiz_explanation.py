@@ -9,6 +9,15 @@ def test_weak_explanation_detected():
 
 
 def test_multiply_worked_solution():
+    text = build_worked_solution("Was ist das Produkt von 8 · 250.1?", 2000.8)
+    assert text is not None
+    assert "Variante 1" in text
+    assert "Variante 2" in text
+    assert "8×20=160" in text.replace(",", ".") or "8×20=160" in text
+    assert "2000,8" in text
+
+
+def test_multiply_simple():
     text = build_worked_solution("Was ergibt sich aus der Multiplikation von 9 · 5.82?", 52.38)
     assert text is not None
     assert "Zuerst" in text
