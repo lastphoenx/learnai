@@ -1,4 +1,4 @@
-"""Web Speech API hook for answer dictation."""
+/** Web Speech API hook for answer dictation. */
 
 import { useCallback, useRef, useState } from "react";
 
