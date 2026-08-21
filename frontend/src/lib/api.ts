@@ -178,6 +178,7 @@ export type TrainerPayload = {
     known_cards: number;
     review_cards: number;
     due_cards: number;
+    new_cards?: number;
   };
 };
 

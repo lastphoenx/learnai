@@ -146,8 +146,26 @@ export function InteractiveTrainer({
   const currentCard = filteredCards[cardIndex];
   const currentQuestion = activeQuestions[quizIndex];
 
+  function isQuizQuestionAnswered(q: QuizItem): boolean {
+    const answers = state.progress.modules?.[q.module_id]?.answers ?? [];
+    return answers[q.question_index] != null;
+  }
+
+  function firstUnansweredQuizIndex(deck: QuizItem[]): number {
+    const idx = deck.findIndex((q) => !isQuizQuestionAnswered(q));
+    return idx >= 0 ? idx : 0;
+  }
+
   const stats = trainer?.stats;
+  const newCards = stats?.new_cards ?? Math.max(0, (stats?.card_count ?? 0) - (stats?.known_cards ?? 0) - (stats?.review_cards ?? 0));
+  const reviewDueCards = Math.max(0, (stats?.due_cards ?? 0) - newCards);
   const dueCards = stats?.due_cards ?? filteredCards.length;
+  const quizAnsweredCount = useMemo(
+    () => activeQuestions.filter((q) => isQuizQuestionAnswered(q)).length,
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by progress answers
+    [activeQuestions, state.progress.modules],
+  );
+
   const cardPercent = stats?.card_count
     ? Math.round((100 * stats.known_cards) / stats.card_count)
     : 0;
@@ -258,7 +276,7 @@ export function InteractiveTrainer({
     let deck = weakOnly ? weakQuestions : allQuestions;
     if (challenge) deck = shuffle(deck);
     setQuizDeck(deck);
-    setQuizIndex(0);
+    setQuizIndex(challenge || weakOnly ? 0 : firstUnansweredQuizIndex(deck));
     setSelected(null);
     setAnswerResult(null);
     setTab("quiz");
@@ -354,8 +372,8 @@ export function InteractiveTrainer({
               <span> sicher</span>
             </div>
             <div className="trainer-stat">
-              <strong>{dueCards}</strong>
-              <span> fällig</span>
+              <strong>{newCards > 0 ? newCards : reviewDueCards}</strong>
+              <span>{newCards > 0 ? " offen" : " fällig"}</span>
             </div>
             <div className="trainer-stat">
               <strong>{stats.review_cards}</strong>
@@ -372,7 +390,11 @@ export function InteractiveTrainer({
             </div>
             <p className="trainer-progress-label muted">
               {stats.known_cards}/{stats.card_count} Karten sicher ({cardPercent}%)
-              {dueCards > 0 ? ` · ${dueCards} heute fällig` : ""}
+              {newCards > 0
+                ? ` · ${newCards} Karten noch nicht geübt`
+                : reviewDueCards > 0
+                  ? ` · ${reviewDueCards} heute fällig`
+                  : ""}
               {quizPercent !== null ? ` · Quiz ${state.summary.quiz_correct}/${state.summary.quiz_total} (${quizPercent}%)` : ""}
             </p>
           </div>
@@ -385,17 +407,19 @@ export function InteractiveTrainer({
               Tutorial: Verstehen
             </button>
             <button type="button" className="ghost" onClick={() => openQuiz({})}>
-              Check: Quiz starten
+              {quizAnsweredCount > 0 && quizAnsweredCount < allQuestions.length
+                ? `Check: weiter bei Frage ${quizAnsweredCount + 1}`
+                : "Check: Quiz starten"}
             </button>
             <button
               type="button"
               className="btn-primary"
               onClick={() => {
-                setCardFilter(dueCards > 0 ? "due" : "all");
+                setCardFilter(newCards > 0 ? "all" : dueCards > 0 ? "due" : "all");
                 setTab("cards");
               }}
             >
-              {dueCards > 0 ? "Üben: fällige Karten" : "Üben: Lernkarten"}
+              {newCards > 0 ? "Üben: Lernkarten starten" : dueCards > 0 ? "Üben: fällige Karten" : "Üben: Lernkarten"}
             </button>
             {weakQuestions.length > 0 && (
               <button type="button" className="ghost" onClick={() => openQuiz({ weakOnly: true })}>
@@ -460,7 +484,7 @@ export function InteractiveTrainer({
               className={cardFilter === "due" ? "trainer-tab active" : "trainer-tab"}
               onClick={() => setCardFilter("due")}
             >
-              Fällig ({dueCards})
+              Fällig ({reviewDueCards > 0 ? reviewDueCards : newCards})
             </button>
             <button
               type="button"
@@ -577,6 +601,9 @@ export function InteractiveTrainer({
           <p className="learn-quiz-meta muted">
             Frage {quizIndex + 1} von {activeQuestions.length} · {currentQuestion.domain}
             {quizChallenge ? " · Challenge" : quizWeakOnly ? " · nur Schwächen" : " · Check"}
+            {!quizChallenge && !quizWeakOnly && quizAnsweredCount > 0
+              ? ` · ${quizAnsweredCount}/${activeQuestions.length} beantwortet`
+              : ""}
           </p>
           <p className="learn-quiz-question">{currentQuestion.q}</p>
           <div>
