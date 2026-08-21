@@ -15,6 +15,7 @@ from app.models import User
 from app.services.exam_insights_service import exam_insights_for_profile
 from app.services.profile_service import get_profile_for_actor
 from app.services.unit_service import UnitError, _get_unit_or_404, get_unit
+from app.core.quiz_numeric import resolve_quiz_correct_index, strip_option_label
 
 _PDF_CSS = """
 body { font-family: sans-serif; font-size: 11pt; line-height: 1.45; color: #1a1a1a; }
@@ -238,7 +239,8 @@ def _append_quiz_questions_html(
             parts.append("<ul>")
             for oi, opt in enumerate(options):
                 letter = chr(ord("a") + oi)
-                parts.append(f"<li>{letter}) {_esc(str(opt))}</li>")
+                label = strip_option_label(str(opt))
+                parts.append(f"<li>{letter}) {_esc(label)}</li>")
             parts.append("</ul>")
         for _ in range(max(1, answer_lines)):
             parts.append('<div class="answer-line"></div>')
@@ -346,10 +348,10 @@ def build_interactive_trainer_worksheet_html(unit: dict) -> str:
                     continue
                 num = before + qi
                 options = q.get("options") or []
-                answer_idx = int(q.get("answer") or 0)
+                answer_idx = resolve_quiz_correct_index(q)
                 if isinstance(options, list) and 0 <= answer_idx < len(options):
                     letter = chr(ord("a") + answer_idx)
-                    quiz_solutions.append(f"{num}. {letter}) {_esc(str(options[answer_idx]))}")
+                    quiz_solutions.append(f"{num}. {letter}) {_esc(strip_option_label(str(options[answer_idx])))}")
                 else:
                     quiz_solutions.append(f"{num}. —")
         parts.append("</div>")

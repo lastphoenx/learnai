@@ -1,0 +1,61 @@
+from app.core.quiz_numeric import (
+    is_quiz_selection_correct,
+    parse_expected_from_explanation,
+    parse_quiz_numeric,
+    repair_quiz_question,
+    resolve_quiz_correct_index,
+    resolve_quiz_expected_value,
+    strip_option_label,
+    try_compute_from_question,
+)
+
+
+def test_parse_quiz_numeric():
+    assert parse_quiz_numeric("10") == 10.0
+    assert parse_quiz_numeric("A) 10.0") == 10.0
+    assert parse_quiz_numeric("3,8") == 3.8
+    assert parse_quiz_numeric("Paris") is None
+
+
+def test_strip_option_label():
+    assert strip_option_label("A) 10.0") == "10.0"
+
+
+def test_expected_from_explanation_and_question():
+    assert parse_expected_from_explanation("Die Addition von 1.6 und 8.4 ergibt 10.0.") == 10.0
+    assert try_compute_from_question("Wie lautet das Ergebnis der Addition von 1.6 und 8.4?") == 10.0
+
+
+def test_resolve_wrong_stored_answer():
+    q = {
+        "q": "Wie lautet das Ergebnis der Addition von 1.6 und 8.4?",
+        "options": ["A) 9", "A) 9.0", "A) 10", "A) 10.0"],
+        "answer": 1,
+        "explanation": "Die Addition von 1.6 und 8.4 ergibt 10.0.",
+    }
+    assert resolve_quiz_correct_index(q) == 3
+    assert is_quiz_selection_correct(q, 2)
+    assert is_quiz_selection_correct(q, 3)
+    assert not is_quiz_selection_correct(q, 1)
+
+
+def test_repair_quiz_question():
+    q = {
+        "q": "Addition von 1.6 und 8.4?",
+        "options": ["9", "9.0", "10", "10.0"],
+        "answer": 1,
+        "explanation": "ergibt 10.0",
+    }
+    repaired = repair_quiz_question(q)
+    assert repaired["answer"] == 3
+
+
+def test_is_quiz_selection_correct_accepts_numeric_equivalent():
+    q = {
+        "q": "Was ist 3.8 + 6.2?",
+        "options": ["10", "10.0", "10.1", "9.9"],
+        "answer": 1,
+        "explanation": "Die Addition ergibt 10.0.",
+    }
+    assert is_quiz_selection_correct(q, 0)
+    assert is_quiz_selection_correct(q, 1)

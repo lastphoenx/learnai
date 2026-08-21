@@ -24,6 +24,7 @@ import {
   type User,
 } from "@/lib/api";
 import { languageLabel, taskTypeLabel } from "@/lib/taskTypes";
+import { formatQuizOption, quizOptionClassName } from "@/lib/quizOption";
 
 type AnswerResult = {
   correct: boolean;
@@ -691,26 +692,17 @@ export default function UnitLearnPage() {
                   </p>
                   <p className="learn-quiz-question">{q.q}</p>
                   <div>
-                    {(q.options || []).map((opt, i) => {
-                      let cls = "learn-quiz-option";
-                      if (answerResult) {
-                        if (i === answerResult.correct_index) cls += " correct";
-                        else if (i === selectedOption) cls += " wrong";
-                      } else if (i === selectedOption) {
-                        cls += " selected";
-                      }
-                      return (
-                        <button
-                          key={i}
-                          type="button"
-                          className={cls}
-                          disabled={busy || Boolean(answerResult)}
-                          onClick={() => onSelectAnswer(i)}
-                        >
-                          {opt}
-                        </button>
-                      );
-                    })}
+                    {(q.options || []).map((opt, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        className={quizOptionClassName(i, selectedOption, answerResult)}
+                        disabled={busy || Boolean(answerResult)}
+                        onClick={() => onSelectAnswer(i)}
+                      >
+                        {formatQuizOption(opt, i)}
+                      </button>
+                    ))}
                   </div>
                   {answerResult && (
                     <div className={`learn-feedback ${answerResult.correct ? "ok" : "bad"}`}>

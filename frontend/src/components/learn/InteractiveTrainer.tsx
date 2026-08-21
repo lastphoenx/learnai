@@ -10,6 +10,7 @@ import {
 } from "@/lib/api";
 import { QuizWeaknessPanel } from "@/components/QuizWeaknessPanel";
 import { PracticeExercise } from "@/components/learn/PracticeExercise";
+import { formatQuizOption, quizOptionClassName } from "@/lib/quizOption";
 
 type Tab = "home" | "knowledge" | "cards" | "quiz";
 
@@ -583,24 +584,23 @@ export function InteractiveTrainer({
               <button
                 key={i}
                 type="button"
-                className={`learn-quiz-option${selected === i ? " selected" : ""}${
-                  answerResult
-                    ? i === answerResult.correct_index
-                      ? " correct"
-                      : i === selected
-                        ? " wrong"
-                        : ""
-                    : ""
-                }`}
+                className={quizOptionClassName(i, selected, answerResult)}
                 disabled={busy || Boolean(answerResult)}
                 onClick={() => setSelected(i)}
               >
-                {opt}
+                {formatQuizOption(opt, i)}
               </button>
             ))}
           </div>
-          {answerResult && answerResult.explanation && (
-            <p className="muted">{answerResult.explanation}</p>
+          {answerResult && (
+            <div className={`learn-feedback ${answerResult.correct ? "ok" : "bad"}`}>
+              {answerResult.correct ? (
+                <strong style={{ color: "var(--accent)" }}>Richtig!</strong>
+              ) : (
+                <strong style={{ color: "var(--danger)" }}>Nicht ganz — schau nochmal hin.</strong>
+              )}
+              {answerResult.explanation && <p className="muted">{answerResult.explanation}</p>}
+            </div>
           )}
           <div className="learn-actions">
             {!answerResult ? (
