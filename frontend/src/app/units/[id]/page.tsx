@@ -348,73 +348,12 @@ export default function UnitDetailPage() {
             disabled={busy}
           />
 
-          <section className="card unit-section">
-            <div className="section-head">
-              <h2>Lernblöcke</h2>
-              <span className="badge badge-neutral">{moduleCount}</span>
-            </div>
-            {moduleCount === 0 ? (
-              <p className="muted empty-hint">
-                Noch keine Blöcke — Quellen hochladen und «Mit KI aufbereiten». Ohne Quellen nutzt die KI Titel
-                und Auftrag.
-              </p>
-            ) : (
-              <ol className="module-list">
-                {(unit.modules || []).map((m, idx) => {
-                  const content = m.content as {
-                    text?: string;
-                    intro?: string;
-                    cards?: unknown[];
-                    knowledge?: { title?: string; text?: string }[];
-                  } | null;
-                  const quiz = m.quiz as { questions?: { q: string; options?: string[]; answer?: number }[] } | null;
-                  const qCount = quiz?.questions?.length ?? 0;
-                  const cardCount = Array.isArray(content?.cards) ? content.cards.length : 0;
-                  const bodyText =
-                    content?.intro?.trim() ||
-                    content?.text?.trim() ||
-                    content?.knowledge?.[0]?.text?.trim() ||
-                    "";
-                  const isInteractive = unit.task_type === "interactive";
-                  return (
-                    <li key={m.id} className="module-card">
-                      <div className="module-head">
-                        <span className="module-num">{idx + 1}</span>
-                        <h3>{m.title}</h3>
-                        <div className="module-badges">
-                          {isInteractive && cardCount > 0 && (
-                            <span className="badge badge-neutral">{cardCount} Karten</span>
-                          )}
-                          {qCount > 0 && <span className="badge badge-quiz">{qCount} Fragen</span>}
-                        </div>
-                      </div>
-                      {bodyText && <div className="module-body">{bodyText}</div>}
-                      {qCount > 0 && (
-                        <details className="module-quiz">
-                          <summary>Quiz anzeigen</summary>
-                          <ol>
-                            {(quiz?.questions || []).map((q, i) => (
-                              <li key={i}>
-                                {q.q}
-                                <ul className="quiz-options">
-                                  {(q.options || []).map((opt, j) => (
-                                    <li key={j} className={j === q.answer ? "quiz-correct" : undefined}>
-                                      {opt}
-                                      {j === q.answer ? " ✓" : ""}
-                                    </li>
-                                  ))}
-                                </ul>
-                              </li>
-                            ))}
-                          </ol>
-                        </details>
-                      )}
-                    </li>
-                  );
-                })}
-              </ol>
-            )}
-          </section>
+          {moduleCount === 0 && (
+            <p className="muted empty-hint card unit-section">
+              Noch keine Lernblöcke — Quellen hochladen und «Mit KI aufbereiten» in der Seitenleiste. Ohne Quellen
+              nutzt die KI Titel und Auftrag.
+            </p>
+          )}
 
           <section className="unit-danger-zone">
             <button type="button" className="btn-sm ghost danger-text" onClick={onDeleteUnit}>
@@ -425,9 +364,14 @@ export default function UnitDetailPage() {
 
           <aside className="card unit-section unit-page-aside">
             <h2>Aktionen</h2>
-            <div className="action-grid action-grid-aside">
-              {(unit.modules || []).length > 0 && (
-                <Link className="btn btn-primary action-tile" href={`/units/${unit.id}/learn`}>
+
+            {moduleCount > 0 && (
+              <section className="unit-aside-learn" aria-labelledby="aside-learn-heading">
+                <h3 id="aside-learn-heading" className="aside-subhead">
+                  Lernen
+                  <span className="badge badge-neutral">{moduleCount}</span>
+                </h3>
+                <Link className="btn btn-primary action-tile unit-learn-cta" href={`/units/${unit.id}/learn`}>
                   <strong>
                     {unit.learn_progress?.status === "in_progress"
                       ? "Weiterlernen"
@@ -441,7 +385,42 @@ export default function UnitDetailPage() {
                       : `${moduleCount} Lernblock${moduleCount === 1 ? "" : "e"}`}
                   </span>
                 </Link>
-              )}
+                <ol className="module-compact-list">
+                  {(unit.modules || []).map((m, idx) => {
+                    const content = m.content as { cards?: unknown[] } | null;
+                    const quiz = m.quiz as { questions?: unknown[] } | null;
+                    const qCount = quiz?.questions?.length ?? 0;
+                    const cardCount = Array.isArray(content?.cards) ? content.cards.length : 0;
+                    const isInteractive = unit.task_type === "interactive";
+                    const metaParts: string[] = [];
+                    if (isInteractive && cardCount > 0) metaParts.push(`${cardCount} Karten`);
+                    if (qCount > 0) metaParts.push(`${qCount} Fragen`);
+                    return (
+                      <li key={m.id}>
+                        <Link href={`/units/${unit.id}/learn`} className="module-compact-link">
+                          <span className="module-num">{idx + 1}</span>
+                          <span className="module-compact-body">
+                            <strong>{m.title}</strong>
+                            {metaParts.length > 0 && (
+                              <span className="muted module-compact-meta">{metaParts.join(" · ")}</span>
+                            )}
+                          </span>
+                          <span className="module-compact-go" aria-hidden="true">
+                            ›
+                          </span>
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ol>
+                {unit.task_type === "interactive" && (
+                  <p className="muted aside-hint">Im Lerntrainer: Wissen, Karten und Quiz — alle Blöcke nacheinander.</p>
+                )}
+              </section>
+            )}
+
+            <h3 className="aside-subhead">Einheit</h3>
+            <div className="action-grid action-grid-aside">
               {(unit.modules || []).length > 0 && (
                 <a className="action-tile" href={unitWorksheetPdfUrl(unit.id)}>
                   <strong>
