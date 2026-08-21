@@ -5,9 +5,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   markFlashcardStatus,
   submitLearnAnswer,
+  submitPracticeAnswer,
   type LearnState,
 } from "@/lib/api";
 import { QuizWeaknessPanel } from "@/components/QuizWeaknessPanel";
+import { PracticeExercise } from "@/components/learn/PracticeExercise";
 
 type Tab = "home" | "knowledge" | "cards" | "quiz";
 
@@ -55,7 +57,14 @@ export function InteractiveTrainer({
   const [quizChallenge, setQuizChallenge] = useState(false);
   const [quizWeakOnly, setQuizWeakOnly] = useState(false);
   const [quizDeck, setQuizDeck] = useState<QuizItem[]>([]);
-  const [cardFilter, setCardFilter] = useState<"due" | "all">("due");
+  const [cardFilter, setCardFilter] = useState<"due" | "all" | "practice">("due");
+  const [practiceIndex, setPracticeIndex] = useState(0);
+  const [practiceResult, setPracticeResult] = useState<{
+    correct: boolean;
+    hint?: string | null;
+    expected?: string | null;
+  } | null>(null);
+  const [autoTrainerId, setAutoTrainerId] = useState<string | null>(null);
   const [selected, setSelected] = useState<number | null>(null);
   const [answerResult, setAnswerResult] = useState<{
     correct: boolean;
@@ -78,8 +87,25 @@ export function InteractiveTrainer({
   const progress = trainer?.flashcard_progress || {};
   const filteredCards = useMemo(() => {
     if (cardFilter === "all") return cards;
+    if (cardFilter === "practice") return [];
     return cards.filter((card) => progress[card.card_key]?.due !== false);
   }, [cards, cardFilter, progress]);
+
+  const practiceExercises = useMemo(
+    () =>
+      (state.modules || []).flatMap((mod) => {
+        const items = (mod.content as { practice?: { prompt: string; hint?: string; answer_type?: string }[] })
+          ?.practice;
+        return (items || []).map((exercise, exerciseIndex) => ({
+          ...exercise,
+          module_id: mod.id,
+          exercise_index: exerciseIndex,
+          domain: mod.title,
+        }));
+      }),
+    [state.modules],
+  );
+  const currentPractice = practiceExercises[practiceIndex];
 
   useEffect(() => {
     setCardIndex(0);
@@ -258,6 +284,9 @@ export function InteractiveTrainer({
         summary: res.summary,
         quiz_weaknesses: res.quiz_weaknesses ?? state.quiz_weaknesses,
       });
+      if (res.auto_trainer_unit_id) {
+        setAutoTrainerId(res.auto_trainer_unit_id);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Antwort fehlgeschlagen");
     } finally {
@@ -271,6 +300,12 @@ export function InteractiveTrainer({
 
   return (
     <section className="card learn-phase-card stack interactive-trainer">
+      {autoTrainerId && (
+        <p className="auto-trainer-notice">
+          Schwächen erkannt — KI-Trainer wird erstellt.{" "}
+          <Link href={`/units/${autoTrainerId}/learn`}>Zum Trainer</Link>
+        </p>
+      )}
       <div className="trainer-tabs">
         {(
           [
@@ -416,7 +451,7 @@ export function InteractiveTrainer({
         </>
       )}
 
-      {tab === "cards" && currentCard && (
+      {tab === "cards" && (
         <>
           <div className="trainer-card-filter">
             <button
@@ -433,45 +468,107 @@ export function InteractiveTrainer({
             >
               Alle ({stats.card_count})
             </button>
+            {practiceExercises.length > 0 && (
+              <button
+                type="button"
+                className={cardFilter === "practice" ? "trainer-tab active" : "trainer-tab"}
+                onClick={() => {
+                  setCardFilter("practice");
+                  setPracticeIndex(0);
+                  setPracticeResult(null);
+                }}
+              >
+                Aufgaben ({practiceExercises.length})
+              </button>
+            )}
           </div>
-          <p className="learn-quiz-meta muted">
-            Karte {cardIndex + 1} von {filteredCards.length}
-            {progress[currentCard.card_key]?.status === "known"
-              ? " · gewusst"
-              : progress[currentCard.card_key]?.status === "review"
-                ? " · wiederholen"
-                : ""}
-          </p>
-          <button
-            type="button"
-            className={`trainer-flashcard${flipped ? " flipped" : ""}`}
-            onClick={() => setFlipped(!flipped)}
-          >
-            <span className="trainer-flashcard-label">{flipped ? "Antwort" : "Frage"}</span>
-            <p>{flipped ? currentCard.answer : currentCard.question}</p>
-            {flipped && currentCard.tip && <p className="muted">{currentCard.tip}</p>}
-          </button>
-          <p className="trainer-shortcuts muted">Space = umdrehen · ← → = Karte · G = gewusst · N = nochmal</p>
-          <div className="learn-actions">
-            <button type="button" className="ghost" disabled={busy || cardIndex === 0} onClick={() => goToCard(cardIndex - 1)}>
-              Zurück
-            </button>
-            <button type="button" className="ghost" disabled={busy} onClick={() => void markCard("review")}>
-              Wiederholen (N)
-            </button>
-            <button type="button" className="btn-primary" disabled={busy} onClick={() => void markCard("known")}>
-              Gewusst (G)
-            </button>
-          </div>
-        </>
-      )}
 
-      {tab === "cards" && !currentCard && (
-        <p className="muted">
-          {cardFilter === "due"
-            ? "Keine fälligen Karten — alles erledigt für heute."
-            : "Keine Lernkarten vorhanden."}
-        </p>
+          {cardFilter === "practice" && currentPractice && (
+            <>
+              <p className="muted">{currentPractice.domain}</p>
+              <PracticeExercise
+                exercise={currentPractice}
+                exerciseIndex={practiceIndex}
+                total={practiceExercises.length}
+                busy={busy}
+                result={practiceResult}
+                onSubmit={async (answer) => {
+                  setBusy(true);
+                  setError(null);
+                  try {
+                    const res = await submitPracticeAnswer(unitId, {
+                      module_id: currentPractice.module_id,
+                      exercise_index: currentPractice.exercise_index,
+                      answer,
+                    });
+                    onStateChange({ ...state, progress: res.progress, summary: res.summary });
+                    setPracticeResult({
+                      correct: res.correct,
+                      hint: res.hint,
+                      expected: res.expected,
+                    });
+                  } catch (err) {
+                    setError(err instanceof Error ? err.message : "Antwort fehlgeschlagen");
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+                onContinue={() => {
+                  setPracticeResult(null);
+                  if (practiceIndex + 1 < practiceExercises.length) {
+                    setPracticeIndex(practiceIndex + 1);
+                  }
+                }}
+              />
+            </>
+          )}
+
+          {cardFilter === "practice" && !currentPractice && (
+            <p className="muted">Keine Übungsaufgaben in dieser Einheit — nach «Mit KI aufbereiten» neu generieren.</p>
+          )}
+
+          {cardFilter !== "practice" && currentCard && (
+            <>
+              <p className="learn-quiz-meta muted">
+                Karte {cardIndex + 1} von {filteredCards.length}
+                {progress[currentCard.card_key]?.status === "known"
+                  ? " · gewusst"
+                  : progress[currentCard.card_key]?.status === "review"
+                    ? " · wiederholen"
+                    : ""}
+              </p>
+              <button
+                type="button"
+                className={`trainer-flashcard${flipped ? " flipped" : ""}`}
+                onClick={() => setFlipped(!flipped)}
+              >
+                <span className="trainer-flashcard-label">{flipped ? "Antwort" : "Frage"}</span>
+                <p>{flipped ? currentCard.answer : currentCard.question}</p>
+                {flipped && currentCard.tip && <p className="muted">{currentCard.tip}</p>}
+              </button>
+              <p className="trainer-shortcuts muted">Space = umdrehen · ← → = Karte · G = gewusst · N = nochmal</p>
+              <div className="learn-actions">
+                <button type="button" className="ghost" disabled={busy || cardIndex === 0} onClick={() => goToCard(cardIndex - 1)}>
+                  Zurück
+                </button>
+                <button type="button" className="ghost" disabled={busy} onClick={() => void markCard("review")}>
+                  Wiederholen (N)
+                </button>
+                <button type="button" className="btn-primary" disabled={busy} onClick={() => void markCard("known")}>
+                  Gewusst (G)
+                </button>
+              </div>
+            </>
+          )}
+
+          {cardFilter !== "practice" && !currentCard && (
+            <p className="muted">
+              {cardFilter === "due"
+                ? "Keine fälligen Karten — alles erledigt für heute."
+                : "Keine Lernkarten vorhanden."}
+            </p>
+          )}
+        </>
       )}
 
       {tab === "quiz" && currentQuestion && (

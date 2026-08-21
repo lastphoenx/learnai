@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { InteractiveTrainer } from "@/components/learn/InteractiveTrainer";
 import { QuizWeaknessPanel } from "@/components/QuizWeaknessPanel";
+import { PracticeExercise } from "@/components/learn/PracticeExercise";
 import {
   completeLearn,
   fetchLearnState,
@@ -15,6 +16,7 @@ import {
   saveLearnPosition,
   speak,
   submitLearnAnswer,
+  submitPracticeAnswer,
   type LearnModule,
   type LearnProgress,
   type LearnState,
@@ -29,6 +31,12 @@ type AnswerResult = {
   module_quiz_done: boolean;
 };
 
+type PracticeResult = {
+  correct: boolean;
+  hint?: string | null;
+  expected?: string | null;
+};
+
 export default function UnitLearnPage() {
   const params = useParams();
   const unitId = params.id as string;
@@ -38,6 +46,8 @@ export default function UnitLearnPage() {
   const [busy, setBusy] = useState(false);
   const [answerResult, setAnswerResult] = useState<AnswerResult | null>(null);
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
+  const [practiceResult, setPracticeResult] = useState<PracticeResult | null>(null);
+  const [autoTrainerNotice, setAutoTrainerNotice] = useState<string | null>(null);
 
   const load = useCallback(() => {
     fetchLearnState(unitId)
@@ -45,6 +55,7 @@ export default function UnitLearnPage() {
         setState(s);
         setAnswerResult(null);
         setSelectedOption(null);
+        setPracticeResult(null);
       })
       .catch((e: Error) => setError(e.message));
   }, [unitId]);
@@ -77,6 +88,7 @@ export default function UnitLearnPage() {
       });
       setAnswerResult(null);
       setSelectedOption(null);
+      setPracticeResult(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Speichern fehlgeschlagen");
     } finally {
@@ -114,6 +126,13 @@ export default function UnitLearnPage() {
         await goTo(i, "read");
         return;
       }
+      const practice = modulePractice(m);
+      if (practice.length > 0) {
+        const answers = prog?.practice_answers || [];
+        const nextEx = answers.findIndex((a) => a === null || a === undefined);
+        await goTo(i, "practice", nextEx >= 0 ? nextEx : 0);
+        return;
+      }
       if (hasQuiz) {
         const answers = prog?.answers || [];
         const nextQ = answers.findIndex((a) => a === null || a === undefined);
@@ -130,9 +149,12 @@ export default function UnitLearnPage() {
     const mod = state?.modules[0];
     if (!mod) return;
     const hasText = Boolean(mod.content?.text?.trim());
+    const practice = modulePractice(mod);
     const hasQuiz = (mod.quiz?.questions?.length || 0) > 0;
     if (hasText) {
       await goTo(0, "read");
+    } else if (practice.length > 0) {
+      await goTo(0, "practice", 0);
     } else if (hasQuiz) {
       await goTo(0, "quiz", 0);
     } else {
@@ -148,8 +170,11 @@ export default function UnitLearnPage() {
     try {
       const res = await markLearnTextRead(unitId, mod.id);
       setState({ ...state, progress: res.progress, summary: res.summary });
+      const practice = modulePractice(mod);
       const hasQuiz = (mod.quiz?.questions?.length || 0) > 0;
-      if (hasQuiz) {
+      if (practice.length > 0) {
+        await goTo(state.progress.module_index, "practice", 0);
+      } else if (hasQuiz) {
         await goTo(state.progress.module_index, "quiz", 0);
       } else {
         await goTo(state.progress.module_index, "module_done");
@@ -179,16 +204,62 @@ export default function UnitLearnPage() {
         summary: res.summary,
         quiz_weaknesses: res.quiz_weaknesses ?? state.quiz_weaknesses,
       });
+      setAnswerResult({
         correct: res.correct,
         correct_index: res.correct_index,
         explanation: res.explanation,
         module_quiz_done: res.module_quiz_done,
       });
+      if (res.auto_trainer_unit_id) {
+        setAutoTrainerNotice(res.auto_trainer_unit_id);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Antwort fehlgeschlagen");
       setSelectedOption(null);
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function onPracticeSubmit(answer: string) {
+    if (!state || practiceResult) return;
+    const mod = currentModule(state);
+    if (!mod) return;
+    setBusy(true);
+    try {
+      const res = await submitPracticeAnswer(unitId, {
+        module_id: mod.id,
+        exercise_index: state.progress.question_index,
+        answer,
+      });
+      setState({ ...state, progress: res.progress, summary: res.summary });
+      setPracticeResult({
+        correct: res.correct,
+        hint: res.hint,
+        expected: res.expected,
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Antwort fehlgeschlagen");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onPracticeNext() {
+    if (!state) return;
+    const mod = currentModule(state);
+    if (!mod) return;
+    const exercises = modulePractice(mod);
+    const nextEx = state.progress.question_index + 1;
+    if (nextEx < exercises.length) {
+      await goTo(state.progress.module_index, "practice", nextEx);
+    } else {
+      const hasQuiz = (mod.quiz?.questions?.length || 0) > 0;
+      if (hasQuiz) {
+        await goTo(state.progress.module_index, "quiz", 0);
+      } else {
+        await goTo(state.progress.module_index, "module_done");
+      }
     }
   }
 
@@ -212,7 +283,15 @@ export default function UnitLearnPage() {
       setBusy(true);
       try {
         const res = await completeLearn(unitId);
-        setState({ ...state, progress: res.progress, summary: res.summary });
+        setState({
+          ...state,
+          progress: res.progress,
+          summary: res.summary,
+          quiz_weaknesses: res.quiz_weaknesses ?? state.quiz_weaknesses,
+        });
+        if (res.auto_trainer_unit_id) {
+          setAutoTrainerNotice(res.auto_trainer_unit_id);
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Abschluss fehlgeschlagen");
       } finally {
@@ -222,9 +301,12 @@ export default function UnitLearnPage() {
     }
     const next = state.modules[nextIndex];
     const hasText = Boolean(next.content?.text?.trim());
+    const practice = modulePractice(next);
     const hasQuiz = (next.quiz?.questions?.length || 0) > 0;
     if (hasText) {
       await goTo(nextIndex, "read");
+    } else if (practice.length > 0) {
+      await goTo(nextIndex, "practice", 0);
     } else if (hasQuiz) {
       await goTo(nextIndex, "quiz", 0);
     } else {
@@ -262,6 +344,24 @@ export default function UnitLearnPage() {
     }
     if (phase === "quiz") {
       const mod = state.modules[module_index];
+      const practice = modulePractice(mod);
+      if (practice.length > 0) {
+        await goTo(module_index, "practice", practice.length - 1);
+      } else if (mod.content?.text?.trim()) {
+        await goTo(module_index, "read");
+      } else if (module_index === 0) {
+        await goTo(0, "intro");
+      } else {
+        await goTo(module_index - 1, "module_done");
+      }
+      return;
+    }
+    if (phase === "practice" && question_index > 0) {
+      await goTo(module_index, "practice", question_index - 1);
+      return;
+    }
+    if (phase === "practice") {
+      const mod = state.modules[module_index];
       if (mod.content?.text?.trim()) {
         await goTo(module_index, "read");
       } else if (module_index === 0) {
@@ -276,6 +376,9 @@ export default function UnitLearnPage() {
       const questions = mod.quiz?.questions || [];
       if (questions.length > 0) {
         await goTo(module_index, "quiz", questions.length - 1);
+      } else if (modulePractice(mod).length > 0) {
+        const ex = modulePractice(mod);
+        await goTo(module_index, "practice", ex.length - 1);
       } else if (mod.content?.text?.trim()) {
         await goTo(module_index, "read");
       } else if (module_index === 0) {
@@ -328,6 +431,12 @@ export default function UnitLearnPage() {
           <span>Lerntrainer</span>
         </nav>
         {error && <p className="err">{error}</p>}
+      {autoTrainerNotice && (
+        <p className="auto-trainer-notice">
+          Schwächen erkannt — KI-Trainer wird erstellt.{" "}
+          <Link href={`/units/${autoTrainerNotice}/learn`}>Zum Trainer</Link>
+        </p>
+      )}
         <InteractiveTrainer
           unitId={unitId}
           state={state}
@@ -358,6 +467,8 @@ export default function UnitLearnPage() {
         ? "Einstieg"
         : phase === "read"
           ? "Verstehen"
+          : phase === "practice"
+            ? "Üben"
           : phase === "quiz"
             ? "Check"
             : phase === "module_done"
@@ -415,6 +526,12 @@ export default function UnitLearnPage() {
       </section>
 
       {error && <p className="err">{error}</p>}
+      {autoTrainerNotice && (
+        <p className="auto-trainer-notice">
+          Schwächen erkannt — KI-Trainer wird erstellt.{" "}
+          <Link href={`/units/${autoTrainerNotice}/learn`}>Zum Trainer</Link>
+        </p>
+      )}
 
       <section className="card learn-phase-card stack">
         {phase === "intro" && (
@@ -472,7 +589,44 @@ export default function UnitLearnPage() {
                 Vorlesen
               </button>
               <button type="button" className="btn-primary" onClick={onTextContinue} disabled={busy}>
-                {(mod.quiz?.questions?.length || 0) > 0 ? "Weiter zum Quiz" : "Weiter"}
+                {modulePractice(mod).length > 0
+                  ? "Weiter zu Übungen"
+                  : (mod.quiz?.questions?.length || 0) > 0
+                    ? "Weiter zum Check"
+                    : "Weiter"}
+              </button>
+              <Link href={`/units/${unitId}`} className="muted">
+                Pause
+              </Link>
+            </div>
+          </>
+        )}
+
+        {phase === "practice" && mod && (
+          <>
+            <p className="learn-phase-kicker">
+              Block {progress.module_index + 1} von {totalModules} · Üben
+            </p>
+            <h2>{mod.title}</h2>
+            {(() => {
+              const exercises = modulePractice(mod);
+              const exercise = exercises[progress.question_index];
+              if (!exercise) return <p className="muted">Keine Übung.</p>;
+              return (
+                <PracticeExercise
+                  exercise={exercise}
+                  exerciseIndex={progress.question_index}
+                  total={exercises.length}
+                  busy={busy}
+                  result={practiceResult}
+                  onSubmit={onPracticeSubmit}
+                  onContinue={onPracticeNext}
+                />
+              );
+            })()}
+            <div className="learn-actions">
+              <button type="button" className="ghost" onClick={onBack} disabled={busy}>
+                Zurück
               </button>
               <Link href={`/units/${unitId}`} className="muted">
                 Pause
@@ -628,6 +782,12 @@ export default function UnitLearnPage() {
             {state.quiz_weaknesses && (
               <QuizWeaknessPanel unitId={unitId} data={state.quiz_weaknesses} />
             )}
+            {autoTrainerNotice && (
+              <p className="auto-trainer-notice">
+                KI-Trainer zu deinen Schwächen wurde gestartet.{" "}
+                <Link href={`/units/${autoTrainerNotice}/learn`}>Zum Trainer</Link>
+              </p>
+            )}
           </>
         )}
       </section>
@@ -637,4 +797,8 @@ export default function UnitLearnPage() {
 
 function currentModule(state: LearnState): LearnModule | null {
   return state.modules[state.progress.module_index] ?? null;
+}
+
+function modulePractice(mod: LearnModule) {
+  return mod.content?.practice || [];
 }

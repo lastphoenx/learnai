@@ -92,13 +92,14 @@ export type UnitSource = {
 export type LearnProgress = {
   status: "not_started" | "in_progress" | "completed";
   module_index: number;
-  phase: "intro" | "read" | "quiz" | "module_done" | "complete";
+  phase: "intro" | "read" | "practice" | "quiz" | "module_done" | "complete";
   question_index: number;
   modules: Record<
     string,
     {
       text_read?: boolean;
       answers?: (number | null)[];
+      practice_answers?: ({ answer: string; correct: boolean } | null)[];
       correct?: number;
       total?: number;
       done?: boolean;
@@ -123,8 +124,14 @@ export type LearnModule = {
   id: string;
   order_index: number;
   title: string;
-  content: { text?: string } | null;
+  content: { text?: string; practice?: PracticeItem[] } | null;
   quiz: { questions?: { q: string; options?: string[] }[] } | null;
+};
+
+export type PracticeItem = {
+  prompt: string;
+  hint?: string | null;
+  answer_type?: "text" | "number" | string;
 };
 
 export type TrainerOptions = {
@@ -651,7 +658,22 @@ export const submitLearnAnswer = (
     summary: LearnSummary;
     module_quiz_done: boolean;
     quiz_weaknesses?: QuizWeaknesses;
+    auto_trainer_unit_id?: string | null;
+    auto_trainer_started?: boolean;
   }>(`/api/v1/units/${unitId}/learn/answer`, { method: "POST", json: body });
+
+export const submitPracticeAnswer = (
+  unitId: string,
+  body: { module_id: string; exercise_index: number; answer: string },
+) =>
+  apiFetch<{
+    correct: boolean;
+    hint?: string | null;
+    expected?: string | null;
+    progress: LearnProgress;
+    summary: LearnSummary;
+    practice_done: boolean;
+  }>(`/api/v1/units/${unitId}/learn/practice`, { method: "POST", json: body });
 
 export const markFlashcardStatus = (
   unitId: string,
@@ -664,10 +686,13 @@ export const markFlashcardStatus = (
   }>(`/api/v1/units/${unitId}/learn/flashcard`, { method: "POST", json: body });
 
 export const completeLearn = (unitId: string) =>
-  apiFetch<{ progress: LearnProgress; summary: LearnSummary }>(
-    `/api/v1/units/${unitId}/learn/complete`,
-    { method: "POST" },
-  );
+  apiFetch<{
+    progress: LearnProgress;
+    summary: LearnSummary;
+    quiz_weaknesses?: QuizWeaknesses;
+    auto_trainer_unit_id?: string | null;
+    auto_trainer_started?: boolean;
+  }>(`/api/v1/units/${unitId}/learn/complete`, { method: "POST" });
 
 export const resetLearnProgress = (unitId: string) =>
   apiFetch<{ progress: LearnProgress; summary: LearnSummary }>(

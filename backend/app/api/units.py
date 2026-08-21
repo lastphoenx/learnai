@@ -13,6 +13,7 @@ from app.ai.errors import LlmError
 from app.ai.generate import generate_modules
 from app.schemas import (
     LearnAnswerRequest,
+    LearnPracticeRequest,
     LearnFlashcardRequest,
     LearnModuleRequest,
     LearnPositionRequest,
@@ -42,6 +43,7 @@ from app.services.learn_service import (
     reset_learn_progress,
     save_learn_position,
     submit_quiz_answer,
+    submit_practice_answer,
 )
 from app.services.exam_service import (
     analyze_exam,
@@ -677,6 +679,29 @@ def units_learn_answer(
             UUID(body.module_id),
             body.question_index,
             body.selected,
+        )
+        db.commit()
+        return result
+    except UnitError as exc:
+        db.rollback()
+        raise _http(exc) from exc
+
+
+@router.post("/{unit_id}/learn/practice")
+def units_learn_practice(
+    unit_id: UUID,
+    body: LearnPracticeRequest,
+    user: User = Depends(get_app_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        result = submit_practice_answer(
+            db,
+            user,
+            unit_id,
+            UUID(body.module_id),
+            body.exercise_index,
+            body.answer,
         )
         db.commit()
         return result

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+import re
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -78,8 +79,31 @@ def _strip_quiz_answers(quiz: dict | None) -> dict | None:
     return {"questions": questions}
 
 
+def _strip_practice_answers(content: dict | None) -> dict | None:
+    if not content or not isinstance(content, dict):
+        return content
+    out = {k: v for k, v in content.items() if k != "practice"}
+    practice = []
+    for item in content.get("practice") or []:
+        if not isinstance(item, dict):
+            continue
+        practice.append(
+            {
+                "prompt": item.get("prompt", ""),
+                "hint": item.get("hint"),
+                "answer_type": item.get("answer_type") or "text",
+            }
+        )
+    if practice:
+        out["practice"] = practice
+    return out
+
+
 def _module_for_learn(module: UnitModule) -> dict:
     data = _dec_module(module)
+    content = data.get("content")
+    if isinstance(content, dict):
+        data["content"] = _strip_practice_answers(content)
     data["quiz"] = _strip_quiz_answers(data.get("quiz"))
     return data
 
@@ -159,7 +183,7 @@ def save_learn_position(
     module_count = len(unit.modules)
     if module_index < 0 or module_index >= module_count:
         raise UnitError("Ungültiger Modul-Index", "invalid_index")
-    if phase not in {"intro", "read", "quiz", "module_done", "complete"}:
+    if phase not in {"intro", "read", "practice", "quiz", "module_done", "complete"}:
         raise UnitError("Ungültige Phase", "invalid_phase")
     learn["module_index"] = module_index
     learn["phase"] = phase
@@ -260,6 +284,103 @@ def submit_quiz_answer(
         "summary": _progress_summary(stats, len(unit.modules)),
         "module_quiz_done": all_answered,
         "quiz_weaknesses": collect_quiz_weaknesses(db, user, unit_id, stats=stats, unit=unit, record=record),
+        **maybe_auto_quiz_trainer(db, user, unit, record),
+    }
+
+
+def _practice_items(module: UnitModule) -> list[dict]:
+    content = decrypt_json(module.content_encrypted) or {}
+    if not isinstance(content, dict):
+        return []
+    items = content.get("practice") or []
+    return [item for item in items if isinstance(item, dict) and str(item.get("prompt", "")).strip()]
+
+
+def _normalize_practice_answer(text: str, answer_type: str) -> str:
+    raw = str(text or "").strip().lower()
+    raw = raw.replace(",", ".")
+    if answer_type == "number":
+        compact = re.sub(r"\s+", "", raw)
+        if "/" in compact:
+            parts = compact.split("/", 1)
+            try:
+                return str(float(parts[0]) / float(parts[1]))
+            except (ValueError, ZeroDivisionError):
+                pass
+        match = re.search(r"-?\d+(?:\.\d+)?", compact)
+        if match:
+            return match.group(0)
+    return " ".join(raw.split())
+
+
+def _practice_answers_match(user_text: str, expected: str, answer_type: str) -> bool:
+    user_norm = _normalize_practice_answer(user_text, answer_type)
+    expected_norm = _normalize_practice_answer(expected, answer_type)
+    if answer_type == "number":
+        try:
+            return abs(float(user_norm) - float(expected_norm)) < 1e-6
+        except ValueError:
+            return user_norm == expected_norm
+    return user_norm == expected_norm
+
+
+def submit_practice_answer(
+    db: Session,
+    user: User,
+    unit_id: uuid.UUID,
+    module_id: uuid.UUID,
+    exercise_index: int,
+    answer_text: str,
+) -> dict:
+    unit = _get_unit_or_404(db, user, unit_id)
+    record = _get_record_for_unit(db, unit.id)
+    module = _find_module(unit, module_id)
+    items = _practice_items(module)
+    if exercise_index < 0 or exercise_index >= len(items):
+        raise UnitError("Ungültige Übung", "invalid_index")
+    item = items[exercise_index]
+    answer_type = str(item.get("answer_type") or "text").strip().lower() or "text"
+    expected = str(item.get("answer") or "").strip()
+    if not expected:
+        raise UnitError("Übung ohne Lösung", "invalid_question")
+    is_correct = _practice_answers_match(answer_text, expected, answer_type)
+
+    stats = _get_stats(record)
+    learn = stats["learn"]
+    mod_key = str(module.id)
+    mod_prog = learn["modules"].setdefault(
+        mod_key,
+        {"text_read": True, "answers": [], "practice_answers": [], "correct": 0, "total": 0, "done": False},
+    )
+    practice_answers: list[dict | None] = mod_prog.setdefault("practice_answers", [])
+    while len(practice_answers) <= exercise_index:
+        practice_answers.append(None)
+    if practice_answers[exercise_index] is None:
+        practice_answers[exercise_index] = {
+            "answer": answer_text.strip(),
+            "correct": is_correct,
+        }
+    mod_prog["practice_answers"] = practice_answers
+    stats["learn"] = learn
+    _save_stats(db, record, stats)
+    _add_event(
+        db,
+        record,
+        "practice_answer",
+        {
+            "module_id": mod_key,
+            "exercise_index": exercise_index,
+            "correct": is_correct,
+        },
+    )
+    return {
+        "correct": is_correct,
+        "hint": item.get("hint"),
+        "expected": expected if not is_correct else None,
+        "progress": learn,
+        "summary": _progress_summary(stats, len(unit.modules)),
+        "practice_done": len(practice_answers) >= len(items)
+        and all(a is not None for a in practice_answers[: len(items)]),
     }
 
 
@@ -274,7 +395,13 @@ def complete_learn(db: Session, user: User, unit_id: uuid.UUID) -> dict:
     stats["learn"] = learn
     _save_stats(db, record, stats)
     _add_event(db, record, "learn_completed", {"unit_id": str(unit.id)})
-    return {"progress": learn, "summary": _progress_summary(stats, len(unit.modules))}
+    auto = maybe_auto_quiz_trainer(db, user, unit, record)
+    return {
+        "progress": learn,
+        "summary": _progress_summary(stats, len(unit.modules)),
+        "quiz_weaknesses": collect_quiz_weaknesses(db, user, unit_id, stats=stats, unit=unit, record=record),
+        **auto,
+    }
 
 
 def reset_learn_progress(db: Session, user: User, unit_id: uuid.UUID) -> dict:
@@ -534,6 +661,56 @@ QUIZ_TRAINER_OPTIONS: dict[str, int | str] = {
     "style": "playful",
     "answer_length": "short",
 }
+
+AUTO_REMEDIATION_MIN_WRONG = 3
+AUTO_REMEDIATION_MIN_TOTAL = 3
+AUTO_REMEDIATION_MIN_RATIO = 0.25
+
+
+def maybe_auto_quiz_trainer(
+    db: Session,
+    user: User,
+    unit: LearningUnit,
+    record: LearningRecord,
+) -> dict[str, Any]:
+    weakness_data = collect_quiz_weaknesses(db, user, unit.id, unit=unit, record=record)
+    if weakness_data.get("trainer_unit_id"):
+        return {}
+    wrong = int(weakness_data.get("wrong_count") or 0)
+    total = int(weakness_data.get("quiz_total") or 0)
+    if wrong < AUTO_REMEDIATION_MIN_WRONG or total < AUTO_REMEDIATION_MIN_TOTAL:
+        return {}
+    if wrong / total < AUTO_REMEDIATION_MIN_RATIO:
+        return {}
+    try:
+        result = create_interactive_trainer_from_quiz(db, user, unit.id)
+        trainer_id = str(result["unit"]["id"])
+        _enqueue_trainer_generate(trainer_id, user)
+        return {
+            "auto_trainer_unit_id": trainer_id,
+            "auto_trainer_started": True,
+        }
+    except UnitError:
+        return {}
+
+
+def _enqueue_trainer_generate(unit_id: str, user: User) -> None:
+    from app.services.generate_job import get_generate_job, job_is_active, set_generate_job
+    from app.services.generate_limits import acquire_generate_slot
+    from app.tasks.generate import generate_unit_task
+
+    if job_is_active(get_generate_job(unit_id)):
+        return
+    try:
+        acquire_generate_slot(
+            user_id=str(user.id),
+            tenant_id=str(user.tenant_id),
+            unit_id=unit_id,
+        )
+    except Exception:
+        return
+    set_generate_job(unit_id, user_id=str(user.id), status="queued", stage="queued")
+    generate_unit_task.delay(unit_id, str(user.id), None)
 
 
 def _parent_recon(record: LearningRecord) -> dict:

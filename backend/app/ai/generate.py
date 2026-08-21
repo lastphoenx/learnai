@@ -50,12 +50,16 @@ OUTLINE_SYSTEM = (
 
 MODULE_SYSTEM = (
     "Du schreibst genau EIN Modul einer Lerneinheit. Antworte NUR mit JSON:\n"
-    '{"title":"...","content":{"text":"..."},'
+    '{"title":"...","content":{"text":"...","practice":[{"prompt":"...","answer":"...","hint":"...","answer_type":"number"}]},'
     '"quiz":{"questions":[{"q":"...","options":["A","B","C","D"],"answer":0,"explanation":"..."}]}}\n'
     "content.text: 150–280 Wörter, didaktisch, mit Beispielen aus dem Material.\n"
+    "content.practice: 2–3 Übungsaufgaben zum Selberlösen (optional bei reinem Erklärmodus, sonst Pflicht bei Mathe/Übungen).\n"
+    "  answer_type: number (Brüche als Dezimal oder Bruch im answer-Feld) oder text.\n"
     "quiz: genau 4 Multiple-Choice-Fragen, je 4 Optionen, answer=Index, explanation in 1 Satz.\n"
     "Keine Trivialfragen. Kein LaTeX mit Backslashes."
 )
+
+_PRACTICE_TASKS = {"math", "practice", "workbook", "mixed", "review"}
 
 SOURCE_RULES = (
     "Quellen-Regeln:\n"

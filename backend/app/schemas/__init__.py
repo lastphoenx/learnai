@@ -215,7 +215,7 @@ class RecordRebuildRequest(BaseModel):
 
 class LearnPositionRequest(BaseModel):
     module_index: int = Field(ge=0)
-    phase: Literal["intro", "read", "quiz", "module_done", "complete"]
+    phase: Literal["intro", "read", "practice", "quiz", "module_done", "complete"]
     question_index: int = Field(default=0, ge=0)
 
 
@@ -229,6 +229,12 @@ class LearnAnswerRequest(BaseModel):
     module_id: str
     question_index: int = Field(ge=0)
     selected: int = Field(ge=0)
+
+
+class LearnPracticeRequest(BaseModel):
+    module_id: str
+    exercise_index: int = Field(ge=0)
+    answer: str = Field(min_length=1, max_length=512)
 
 
 class LearnModuleRequest(BaseModel):

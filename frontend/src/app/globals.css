@@ -2045,3 +2045,35 @@ button.btn.action-tile {
 .trainer-didactic-path li {
   margin-bottom: 0.35rem;
 }
+
+.auto-trainer-notice {
+  margin: 0 0 0.85rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg-2));
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+  font-size: 0.9rem;
+}
+
+.practice-form {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: 0.75rem;
+}
+
+.practice-input {
+  flex: 1;
+  min-width: 12rem;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  color: inherit;
+  font-size: 1rem;
+}
+
+.practice-hint {
+  font-size: 0.88rem;
+}
