@@ -11,7 +11,7 @@ import {
 } from "@/lib/api";
 import { QuizWeaknessPanel } from "@/components/QuizWeaknessPanel";
 import { PracticeExercise } from "@/components/learn/PracticeExercise";
-import { formatQuizOption, quizOptionClassName } from "@/lib/quizOption";
+import { formatQuizOption, formatQuizExplanation, quizOptionClassName } from "@/lib/quizOption";
 import {
   countAnsweredInDeck,
   firstOpenQuizIndex,
@@ -755,7 +755,9 @@ export function InteractiveTrainer({
               ) : (
                 <strong style={{ color: "var(--danger)" }}>Nicht ganz — schau nochmal hin.</strong>
               )}
-              {answerResult.explanation && <p className="muted">{answerResult.explanation}</p>}
+              {answerResult.explanation && (
+                <p className="muted quiz-explanation-text">{formatQuizExplanation(answerResult.explanation)}</p>
+              )}
             </div>
           )}
           <div className="learn-actions">

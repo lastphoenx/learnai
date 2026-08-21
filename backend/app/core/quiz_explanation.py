@@ -76,7 +76,10 @@ def explanation_is_weak(explanation: str, question: str) -> bool:
     return False
 
 
-def _add_alternative_steps(a: float, b: float, result: float) -> str | None:
+def _join_variants(primary: str, alt: str | None) -> str:
+    if alt:
+        return f"{primary}\n\n{alt}"
+    return primary
     """Zerlegung in Ganze + Dezimalteile."""
     if abs(a - round(a)) >= 1e-6 or abs(b - round(b)) >= 1e-6:
         a_whole = int(a) if a >= 0 else -int(-a)
@@ -127,7 +130,7 @@ def _add_steps(a: float, b: float, result: float) -> str:
         f"Addiere die Zahlen (Dezimalstellen untereinander): {a_s} + {b_s} = {r_s}."
     )
     alt = _add_alternative_steps(a, b, result)
-    return f"{primary} {alt}" if alt else primary
+    return _join_variants(primary, alt)
 
 
 def _sub_steps(a: float, b: float, result: float) -> str:
@@ -137,7 +140,7 @@ def _sub_steps(a: float, b: float, result: float) -> str:
         f"Subtrahiere (Dezimalstellen untereinander): {a_s} − {b_s} = {r_s}."
     )
     alt = _sub_alternative_steps(a, b, result)
-    return f"{primary} {alt}" if alt else primary
+    return _join_variants(primary, alt)
 
 
 def _div_steps(a: float, b: float, result: float) -> str:
@@ -196,7 +199,7 @@ def _mul_steps(a: float, b: float, result: float) -> str:
         )
         alt = _mul_alternative_steps(a, b, result)
         if alt:
-            return f"{primary} {alt}"
+            return _join_variants(primary, alt)
         return primary
     return f"Rechnung: {a_s} × {b_s} = {r_s}."
 

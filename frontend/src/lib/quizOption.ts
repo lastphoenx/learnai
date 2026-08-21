@@ -5,7 +5,12 @@ export function formatQuizOption(option: string, index: number): string {
   return `${letter}) ${label}`;
 }
 
-export function quizOptionClassName(
+/** Zeilenumbrüche zwischen Rechenweg-Varianten sichtbar machen. */
+export function formatQuizExplanation(text: string): string {
+  return text
+    .replace(/\. Variante /g, ".\n\nVariante ")
+    .replace(/ (?=Variante [2-9])/g, "\n\n");
+}
   index: number,
   selected: number | null,
   answerResult: { correct: boolean; correct_index: number } | null,
