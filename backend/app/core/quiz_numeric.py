@@ -23,6 +23,10 @@ _DIVISION = re.compile(
     r"(?:division\s+von|dividiere)\s+(-?\d+(?:[.,]\d+)?)\s+(?:durch|und)\s+(-?\d+(?:[.,]\d+)?)",
     re.I,
 )
+_MULT_DOT = re.compile(
+    r"(-?\d+(?:[.,]\d+)?)\s*[·×*]\s*(-?\d+(?:[.,]\d+)?)",
+    re.I,
+)
 
 
 def strip_option_label(text: str) -> str:
@@ -66,6 +70,9 @@ def try_compute_from_question(question: str) -> float | None:
     match = _SUBTRACTION.search(text)
     if match:
         return float(match.group(1)) - float(match.group(2))
+    match = _MULT_DOT.search(text)
+    if match:
+        return float(match.group(1).replace(",", ".")) * float(match.group(2).replace(",", "."))
     match = _MULTIPLICATION.search(text)
     if match:
         return float(match.group(1)) * float(match.group(2))

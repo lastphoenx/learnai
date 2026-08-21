@@ -57,7 +57,8 @@ MODULE_SYSTEM = (
     "content.text: 150–280 Wörter, didaktisch, mit Beispielen aus dem Material.\n"
     "content.practice: 2–3 Übungsaufgaben zum Selberlösen (optional bei reinem Erklärmodus, sonst Pflicht bei Mathe/Übungen).\n"
     "  answer_type: number (Brüche als Dezimal oder Bruch im answer-Feld) oder text.\n"
-    "quiz: genau 4 Multiple-Choice-Fragen, je 4 Optionen, answer=Index, explanation in 1 Satz.\n"
+    "quiz: genau 4 Multiple-Choice-Fragen, je 4 Optionen, answer=Index.\n"
+    "  explanation: bei Rechenaufgaben 2–3 Sätze mit Lösungsweg (Zwischenschritte); sonst 1–2 Sätze.\n"
     "Keine Trivialfragen. Kein LaTeX mit Backslashes."
 )
 
