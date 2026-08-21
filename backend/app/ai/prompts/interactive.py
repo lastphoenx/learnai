@@ -33,7 +33,8 @@ QUIZ_SYSTEM = (
     "Regeln:\n"
     "- Genau die geforderte Anzahl Fragen.\n"
     "- Je 4 plausible Optionen, answer = 0-basierter Index.\n"
-    "- explanation: 1 Satz warum die Antwort stimmt.\n"
+    "- explanation: Bei Rechenaufgaben 2–3 Sätze mit kurzem Lösungsweg (Zwischenschritte, nicht nur Endergebnis).\n"
+    "- Bei anderen Fragen: 1–2 Sätze warum die Antwort stimmt.\n"
     "- Bei Zahlenantworten: answer-Index muss exakt zur explanation passen; Optionen auch numerisch verschieden (nicht 10 und 10.0).\n"
     "- Keine Trivialfragen, keine Scherzantworten."
 )

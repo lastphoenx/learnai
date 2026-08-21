@@ -10,6 +10,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.core.crypto import decrypt_text_master
+from app.core.quiz_explanation import enrich_quiz_explanation
 from app.core.quiz_numeric import is_quiz_selection_correct, resolve_quiz_correct_index
 from app.models import FlashcardProgress, LearningRecord, LearningUnit, UnitModule, User
 from app.services.crypto_json import decrypt_json, encrypt_json
@@ -319,7 +320,7 @@ def submit_quiz_answer(
     return {
         "correct": is_correct,
         "correct_index": correct_index,
-        "explanation": q.get("explanation"),
+        "explanation": enrich_quiz_explanation(q),
         "progress": learn,
         "summary": _progress_summary(stats, len(unit.modules)),
         "module_quiz_done": all_answered,
@@ -824,7 +825,7 @@ def collect_quiz_weaknesses(
                     "selected_label": options[selected] if 0 <= selected < len(options) else None,
                     "correct_index": correct_index,
                     "correct_label": options[correct_index] if 0 <= correct_index < len(options) else None,
-                    "explanation": q.get("explanation"),
+                    "explanation": enrich_quiz_explanation(q),
                     "error_tags": error_tags,
                 }
             )
