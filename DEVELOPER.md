@@ -179,6 +179,7 @@ TRUSTED_PROXY_CIDRS=192.168.131.105/32
 LOGIN_ALLOWLIST_ONLY=true
 LLM_PROVIDER=ollama
 OLLAMA_URL=http://192.168.131.60:11434
+WHISPER_URL=http://192.168.131.60:9000
 ```
 
 `.env` ohne Secrets prüfen: `bash scripts/check-env-safe.sh .env`  

@@ -77,9 +77,17 @@ print(urllib.request.urlopen(url, timeout=5).read()[:200].decode())
 
 ```env
 OLLAMA_URL=http://192.168.131.60:11434
+WHISPER_URL=http://192.168.131.60:9000
 ```
 
 `extra_hosts: host.docker.internal:host-gateway` ist in `docker-compose.yml` für api/worker gesetzt.
+
+**Whisper (Audio-Quellen):** faster-whisper auf GMKtec (`gmk-evo`), Port 9000. LearnAI nutzt `WHISPER_URL` vor `OPENAI_API_KEY`.
+
+```bash
+# Von CT 135 (LearnAI):
+curl -sS -m 10 http://192.168.131.60:9000/health
+```
 
 ---
 

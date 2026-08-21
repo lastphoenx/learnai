@@ -48,6 +48,9 @@ class Settings(BaseSettings):
     trusted_proxy_cidrs: str = "127.0.0.0/8,172.16.0.0/12,10.0.0.0/8,192.168.0.0/16"
     openai_api_key: str = ""
     anthropic_api_key: str = ""
+    # Lokaler Whisper (OpenAI-kompatibel), z. B. faster-whisper auf GMKtec :9000
+    whisper_url: str = ""
+    whisper_api_key: str = ""
     ollama_url: str = "http://host.docker.internal:11434"
     tts_provider: str = "openai"
     llm_provider: str = "ollama"

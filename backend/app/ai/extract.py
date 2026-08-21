@@ -85,9 +85,41 @@ def _pdf_vision_fallback(path: Path, *, max_pages: int = 5) -> str:
     return "\n\n".join(parts).strip() or "(PDF konnte nicht gelesen werden)"
 
 
+def _whisper_transcription_url() -> str | None:
+    base = (settings.whisper_url or "").strip().rstrip("/")
+    if not base:
+        return None
+    if base.endswith("/audio/transcriptions"):
+        return base
+    if base.endswith("/v1"):
+        return f"{base}/audio/transcriptions"
+    return f"{base}/v1/audio/transcriptions"
+
+
 def transcribe_audio(path: Path, *, language: str = "de") -> str:
+    whisper_url = _whisper_transcription_url()
+    if whisper_url:
+        headers: dict[str, str] = {}
+        if settings.whisper_api_key:
+            headers["Authorization"] = f"Bearer {settings.whisper_api_key}"
+        with path.open("rb") as handle:
+            response = httpx.post(
+                whisper_url,
+                headers=headers,
+                files={"file": (path.name, handle, "application/octet-stream")},
+                data={"model": "whisper-1", "language": language[:2]},
+                timeout=300.0,
+            )
+        if response.status_code >= 400:
+            raise LlmError(f"Whisper-Fehler: {response.text[:200]}", "whisper_error")
+        payload = response.json()
+        return str(payload.get("text") or "").strip()
+
     if not settings.openai_api_key:
-        raise LlmError("OpenAI API-Key fehlt für Audio-Transkription", "no_openai")
+        raise LlmError(
+            "Audio-Transkription: WHISPER_URL oder OpenAI API-Key fehlt",
+            "no_transcription",
+        )
     with path.open("rb") as handle:
         response = httpx.post(
             "https://api.openai.com/v1/audio/transcriptions",
