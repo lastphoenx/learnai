@@ -11,6 +11,8 @@ export function formatQuizExplanation(text: string): string {
     .replace(/\. Variante /g, ".\n\nVariante ")
     .replace(/ (?=Variante [2-9])/g, "\n\n");
 }
+
+export function quizOptionClassName(
   index: number,
   selected: number | null,
   answerResult: { correct: boolean; correct_index: number } | null,
