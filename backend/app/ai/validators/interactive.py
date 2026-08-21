@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from app.ai.errors import LlmError
+from app.core.quiz_numeric import parse_quiz_numeric, resolve_quiz_expected_value
 
 IMPORT_MAX_MODULES = 8
 IMPORT_MAX_CARDS = 150
@@ -63,7 +64,25 @@ def _validate_quiz_item(q: dict, q_index: int, area_index: int) -> None:
         normalized_opts.append(text.lower())
     if len(set(normalized_opts)) < 4:
         raise LlmError(f"{label}: Antwortoptionen müssen verschieden sein", "bad_json")
+    numeric_values: list[float] = []
+    for opt in options:
+        parsed = parse_quiz_numeric(str(opt))
+        if parsed is not None:
+            numeric_values.append(parsed)
+    for i, left in enumerate(numeric_values):
+        for right in numeric_values[i + 1 :]:
+            if abs(left - right) < 1e-6:
+                raise LlmError(
+                    f"{label}: Antwortoptionen müssen auch numerisch verschieden sein",
+                    "bad_json",
+                )
     parse_quiz_answer(q, label=label)
+    expected = resolve_quiz_expected_value(q)
+    if expected is not None:
+        answer_idx = int(q.get("answer", -1))
+        answer_val = parse_quiz_numeric(str(options[answer_idx]))
+        if answer_val is None or abs(answer_val - expected) >= 1e-6:
+            raise LlmError(f"{label}: answer passt nicht zur Erklärung oder Aufgabe", "bad_json")
 
 
 def validate_interactive_structure(

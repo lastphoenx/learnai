@@ -11,6 +11,8 @@ from sqlalchemy.orm import Session
 from app.core.crypto import decrypt_text_master, encrypt_text_master
 from app.models import LearningRecord, LearningUnit, UnitModule, User
 from app.services.crypto_json import decrypt_json, encrypt_json
+from app.ai.quiz_shuffle import shuffle_quiz_block
+from app.core.quiz_numeric import repair_quiz_block
 from app.ai.validators.interactive import validate_interactive_import
 from app.services.unit_service import (
     UnitError,
@@ -233,7 +235,7 @@ def import_trainer_json(db: Session, user: User, payload: dict) -> dict:
             order_index=index,
             title_encrypted=encrypt_text_master(raw["title"]),
             content_encrypted=encrypt_json(raw["content"]),
-            quiz_encrypted=encrypt_json(raw["quiz"]),
+            quiz_encrypted=encrypt_json(shuffle_quiz_block(repair_quiz_block(raw["quiz"]))),
         )
         db.add(mod)
 

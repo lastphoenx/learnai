@@ -10,6 +10,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.core.crypto import decrypt_text_master
+from app.core.quiz_numeric import is_quiz_selection_correct, resolve_quiz_correct_index
 from app.models import FlashcardProgress, LearningRecord, LearningUnit, UnitModule, User
 from app.services.crypto_json import decrypt_json, encrypt_json
 from app.services.unit_service import (
@@ -236,8 +237,8 @@ def submit_quiz_answer(
     if question_index < 0 or question_index >= len(questions):
         raise UnitError("Ungültige Frage", "invalid_question")
     q = questions[question_index]
-    correct_index = int(q.get("answer", -1))
-    is_correct = selected == correct_index
+    correct_index = resolve_quiz_correct_index(q)
+    is_correct = is_quiz_selection_correct(q, selected)
 
     stats = _get_stats(record)
     learn = stats["learn"]
@@ -760,8 +761,8 @@ def collect_quiz_weaknesses(
             q = questions[i]
             if not isinstance(q, dict):
                 continue
-            correct_index = int(q.get("answer", -1))
-            if selected == correct_index:
+            correct_index = resolve_quiz_correct_index(q)
+            if is_quiz_selection_correct(q, selected):
                 continue
             options = q.get("options") or []
             question_text = str(q.get("q", ""))

@@ -26,6 +26,8 @@ from app.services.unit_service import (
 )
 
 from app.ai.task_types import AI_TASK_FOR_UNIT, hint_for_task
+from app.ai.quiz_shuffle import shuffle_quiz_block
+from app.core.quiz_numeric import repair_quiz_block
 
 _log = logging.getLogger(__name__)
 
@@ -318,7 +320,8 @@ def _save_generated_modules(
             continue
         mod_title = str(raw.get("title") or f"Block {index + 1}")[:200]
         content = raw.get("content") if isinstance(raw.get("content"), dict) else {"text": str(raw.get("content") or "")}
-        quiz = raw.get("quiz") if isinstance(raw.get("quiz"), dict) else {"questions": []}
+        quiz_raw = raw.get("quiz") if isinstance(raw.get("quiz"), dict) else {"questions": []}
+        quiz = shuffle_quiz_block(repair_quiz_block(quiz_raw))
         mod = UnitModule(
             unit=unit,
             order_index=index,
