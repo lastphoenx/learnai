@@ -7,6 +7,7 @@ import {
   submitLearnAnswer,
   type LearnState,
 } from "@/lib/api";
+import { QuizWeaknessPanel } from "@/components/QuizWeaknessPanel";
 
 type Tab = "home" | "knowledge" | "cards" | "quiz";
 
@@ -52,6 +53,7 @@ export function InteractiveTrainer({
   const [flipped, setFlipped] = useState(false);
   const [quizIndex, setQuizIndex] = useState(0);
   const [quizChallenge, setQuizChallenge] = useState(false);
+  const [quizWeakOnly, setQuizWeakOnly] = useState(false);
   const [quizDeck, setQuizDeck] = useState<QuizItem[]>([]);
   const [cardFilter, setCardFilter] = useState<"due" | "all">("due");
   const [selected, setSelected] = useState<number | null>(null);
@@ -98,6 +100,19 @@ export function InteractiveTrainer({
         }));
       }),
     [state.modules],
+  );
+
+  const weakKeys = useMemo(() => {
+    const keys = new Set<string>();
+    for (const w of state.quiz_weaknesses?.weaknesses || []) {
+      keys.add(`${w.module_id}:${w.question_index}`);
+    }
+    return keys;
+  }, [state.quiz_weaknesses]);
+
+  const weakQuestions = useMemo(
+    () => allQuestions.filter((q) => weakKeys.has(`${q.module_id}:${q.question_index}`)),
+    [allQuestions, weakKeys],
   );
 
   const activeQuestions = quizDeck.length > 0 ? quizDeck : allQuestions;
@@ -208,9 +223,14 @@ export function InteractiveTrainer({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [tab, busy, cardIndex, goToCard, markCard]);
 
-  function openQuiz(challenge: boolean) {
+  function openQuiz(options: { challenge?: boolean; weakOnly?: boolean } = {}) {
+    const challenge = Boolean(options.challenge);
+    const weakOnly = Boolean(options.weakOnly);
     setQuizChallenge(challenge);
-    setQuizDeck(challenge ? shuffle(allQuestions) : allQuestions);
+    setQuizWeakOnly(weakOnly);
+    let deck = weakOnly ? weakQuestions : allQuestions;
+    if (challenge) deck = shuffle(deck);
+    setQuizDeck(deck);
     setQuizIndex(0);
     setSelected(null);
     setAnswerResult(null);
@@ -236,6 +256,7 @@ export function InteractiveTrainer({
         ...state,
         progress: res.progress,
         summary: res.summary,
+        quiz_weaknesses: res.quiz_weaknesses ?? state.quiz_weaknesses,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Antwort fehlgeschlagen");
@@ -253,10 +274,10 @@ export function InteractiveTrainer({
       <div className="trainer-tabs">
         {(
           [
-            ["home", "Start"],
-            ["knowledge", "Wissen"],
-            ["cards", "Lernkarten"],
-            ["quiz", "Quiz"],
+            ["home", "Einstieg"],
+            ["knowledge", "Verstehen"],
+            ["cards", "Üben"],
+            ["quiz", "Check"],
           ] as const
         ).map(([key, label]) => (
           <button
@@ -264,7 +285,7 @@ export function InteractiveTrainer({
             type="button"
             className={tab === key ? "trainer-tab active" : "trainer-tab"}
             onClick={() => {
-              if (key === "quiz") openQuiz(false);
+              if (key === "quiz") openQuiz({});
               else setTab(key);
             }}
           >
@@ -276,7 +297,21 @@ export function InteractiveTrainer({
       {tab === "home" && (
         <>
           <h2>{state.unit.title}</h2>
-          <p className="muted">Interaktiver Lerntrainer</p>
+          <p className="muted">Lernpfad: Verstehen → Check → Üben → Vertiefen bei Schwächen</p>
+          <ol className="trainer-didactic-path muted">
+            <li>
+              <strong>Verstehen</strong> — Wissens-Hub als Tutorial-Einstieg
+            </li>
+            <li>
+              <strong>Check</strong> — erste Lernkontrolle im Quiz
+            </li>
+            <li>
+              <strong>Üben</strong> — Lernkarten mit Wiederholung
+            </li>
+            <li>
+              <strong>Vertiefen</strong> — bei Fehlern Nacharbeit oder Schwächen-Trainer
+            </li>
+          </ol>
           <div className="trainer-stat-grid">
             <div className="trainer-stat">
               <strong>{stats.known_cards}</strong>
@@ -309,20 +344,38 @@ export function InteractiveTrainer({
             <button
               type="button"
               className="btn-primary"
+              onClick={() => setTab("knowledge")}
+            >
+              Tutorial: Verstehen
+            </button>
+            <button type="button" className="ghost" onClick={() => openQuiz({})}>
+              Check: Quiz starten
+            </button>
+            <button
+              type="button"
+              className="btn-primary"
               onClick={() => {
                 setCardFilter(dueCards > 0 ? "due" : "all");
                 setTab("cards");
               }}
             >
-              {dueCards > 0 ? "Fällige Karten" : "Lernkarten starten"}
+              {dueCards > 0 ? "Üben: fällige Karten" : "Üben: Lernkarten"}
             </button>
-            <button type="button" className="ghost" onClick={() => openQuiz(true)}>
+            {weakQuestions.length > 0 && (
+              <button type="button" className="ghost" onClick={() => openQuiz({ weakOnly: true })}>
+                Check: nur Schwächen ({weakQuestions.length})
+              </button>
+            )}
+            <button type="button" className="ghost" onClick={() => openQuiz({ challenge: true })}>
               Quiz-Challenge
             </button>
             <Link href={`/units/${unitId}`} className="btn ghost">
               Pause
             </Link>
           </div>
+          {state.quiz_weaknesses && (
+            <QuizWeaknessPanel unitId={unitId} data={state.quiz_weaknesses} compact />
+          )}
         </>
       )}
 
@@ -330,7 +383,7 @@ export function InteractiveTrainer({
         <>
           <h2>Wissens-Hub</h2>
           <p className="muted trainer-knowledge-intro">
-            Kurzüberblick pro Thema — vor den Lernkarten lesen oder zwischendurch nachschlagen.
+            Schritt 1 — Heranführung: Kurzüberblick pro Thema, tutorial-artig vor Check und Üben.
           </p>
           {knowledgeByDomain.length === 0 ? (
             <p className="muted">Noch kein Kernwissen vorhanden.</p>
@@ -425,7 +478,7 @@ export function InteractiveTrainer({
         <>
           <p className="learn-quiz-meta muted">
             Frage {quizIndex + 1} von {activeQuestions.length} · {currentQuestion.domain}
-            {quizChallenge ? " · Challenge" : ""}
+            {quizChallenge ? " · Challenge" : quizWeakOnly ? " · nur Schwächen" : " · Check"}
           </p>
           <p className="learn-quiz-question">{currentQuestion.q}</p>
           <div>

@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { InteractiveTrainer } from "@/components/learn/InteractiveTrainer";
+import { QuizWeaknessPanel } from "@/components/QuizWeaknessPanel";
 import {
   completeLearn,
   fetchLearnState,
@@ -172,8 +173,12 @@ export default function UnitLearnPage() {
         question_index: state.progress.question_index,
         selected: optionIndex,
       });
-      setState({ ...state, progress: res.progress, summary: res.summary });
-      setAnswerResult({
+      setState({
+        ...state,
+        progress: res.progress,
+        summary: res.summary,
+        quiz_weaknesses: res.quiz_weaknesses ?? state.quiz_weaknesses,
+      });
         correct: res.correct,
         correct_index: res.correct_index,
         explanation: res.explanation,
@@ -620,6 +625,9 @@ export default function UnitLearnPage() {
                 Verlauf
               </Link>
             </div>
+            {state.quiz_weaknesses && (
+              <QuizWeaknessPanel unitId={unitId} data={state.quiz_weaknesses} />
+            )}
           </>
         )}
       </section>

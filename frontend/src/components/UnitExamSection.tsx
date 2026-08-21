@@ -16,6 +16,7 @@ import {
   type ExamPatchBody,
 } from "@/lib/api";
 import { ExamAnalysisEditor } from "@/components/ExamAnalysisEditor";
+import { ExamLearningEntry } from "@/components/ExamLearningEntry";
 import { TransferComparison } from "@/components/TransferComparison";
 import { labelForErrorTag } from "@/lib/examErrorTags";
 
@@ -166,6 +167,9 @@ export function UnitExamSection({ unitId, exams, onChange, disabled }: Props) {
                 <>
                   {exam.notes && <p className="exam-notes muted">{exam.notes}</p>}
                   {exam.transfer && <TransferComparison transfer={exam.transfer} />}
+                  {exam.analysis && editingAnalysisId !== exam.id && (
+                    <ExamLearningEntry unitId={unitId} exam={exam} />
+                  )}
                   {exam.analysis && editingAnalysisId === exam.id ? (
                     <ExamAnalysisEditor
                       analysis={exam.analysis}

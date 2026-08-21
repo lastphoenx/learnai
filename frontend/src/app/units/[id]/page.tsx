@@ -19,6 +19,7 @@ import {
   generateUnit,
   fetchGenerateStatus,
   waitForGenerateJob,
+  fetchQuizWeaknesses,
   type GenerateJobStatus,
   patchUnit,
   purgeSource,
@@ -28,8 +29,10 @@ import {
   uploadSource,
   type LearningUnit,
   type LearnerProfile,
+  type QuizWeaknesses,
   type User,
 } from "@/lib/api";
+import { QuizWeaknessPanel } from "@/components/QuizWeaknessPanel";
 import {
   languageLabel,
   mathFocusLabel,
@@ -68,6 +71,7 @@ export default function UnitDetailPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [generateJob, setGenerateJob] = useState<GenerateJobStatus | null>(null);
   const [profiles, setProfiles] = useState<LearnerProfile[]>([]);
+  const [quizWeaknesses, setQuizWeaknesses] = useState<QuizWeaknesses | null>(null);
   const autogenStarted = useRef(false);
 
   function reload() {
@@ -93,6 +97,16 @@ export default function UnitDetailPage() {
     if (unitId) reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [unitId]);
+
+  useEffect(() => {
+    if (!unitId || !unit?.module_count) {
+      setQuizWeaknesses(null);
+      return;
+    }
+    fetchQuizWeaknesses(unitId)
+      .then(setQuizWeaknesses)
+      .catch(() => setQuizWeaknesses(null));
+  }, [unitId, unit?.module_count, unit?.learn_progress?.quiz_total, unit?.learn_progress?.status]);
 
   async function onFiles(e: ChangeEvent<HTMLInputElement>) {
     const files = e.target.files;
@@ -417,6 +431,18 @@ export default function UnitDetailPage() {
                   <p className="muted aside-hint">Im Lerntrainer: Wissen, Karten und Quiz — alle Blöcke nacheinander.</p>
                 )}
               </section>
+            )}
+
+            {quizWeaknesses && (
+              <QuizWeaknessPanel
+                unitId={unitId}
+                data={quizWeaknesses}
+                compact
+                onCreated={() => {
+                  reload();
+                  fetchQuizWeaknesses(unitId).then(setQuizWeaknesses).catch(() => undefined);
+                }}
+              />
             )}
 
             <h3 className="aside-subhead">Einheit</h3>

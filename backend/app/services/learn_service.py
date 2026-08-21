@@ -14,11 +14,14 @@ from app.services.crypto_json import decrypt_json, encrypt_json
 from app.services.unit_service import (
     UnitError,
     _add_event,
+    _copy_sources,
     _dec_module,
     _dec_unit,
     _get_unit_or_404,
+    create_unit,
     get_trainer_options,
 )
+from app.services.audit import log_event
 
 
 def _default_learn() -> dict:
@@ -136,6 +139,7 @@ def get_learn_state(db: Session, user: User, unit_id: uuid.UUID) -> dict:
         payload["trainer"] = _interactive_trainer_payload(
             db, unit, modules, record, profile_id=profile_id
         )
+    payload["quiz_weaknesses"] = collect_quiz_weaknesses(db, user, unit_id, stats=stats, unit=unit, record=record)
     return payload
 
 
@@ -255,6 +259,7 @@ def submit_quiz_answer(
         "progress": learn,
         "summary": _progress_summary(stats, len(unit.modules)),
         "module_quiz_done": all_answered,
+        "quiz_weaknesses": collect_quiz_weaknesses(db, user, unit_id, stats=stats, unit=unit, record=record),
     }
 
 
@@ -521,3 +526,293 @@ def _interactive_trainer_payload(
             "due_cards": due_cards,
         },
     }
+
+
+QUIZ_TRAINER_OPTIONS: dict[str, int | str] = {
+    "cards": 20,
+    "questions": 15,
+    "style": "playful",
+    "answer_length": "short",
+}
+
+
+def _parent_recon(record: LearningRecord) -> dict:
+    recon = decrypt_json(record.reconstruction_encrypted) if record.reconstruction_encrypted else {}
+    return recon if isinstance(recon, dict) else {}
+
+
+def _save_parent_recon(db: Session, record: LearningRecord, recon: dict) -> None:
+    record.reconstruction_encrypted = encrypt_json(recon)
+    db.flush()
+
+
+def collect_quiz_weaknesses(
+    db: Session,
+    user: User,
+    unit_id: uuid.UUID,
+    *,
+    stats: dict | None = None,
+    unit: LearningUnit | None = None,
+    record: LearningRecord | None = None,
+) -> dict:
+    unit = unit or _get_unit_or_404(db, user, unit_id)
+    record = record or _get_record_for_unit(db, unit.id)
+    stats = stats or _get_stats(record)
+    learn = stats.get("learn") or {}
+    modules = sorted(unit.modules or [], key=lambda m: m.order_index)
+    weaknesses: list[dict[str, Any]] = []
+
+    for module in modules:
+        mod_key = str(module.id)
+        mod_prog = (learn.get("modules") or {}).get(mod_key) or {}
+        answers = mod_prog.get("answers") or []
+        quiz = decrypt_json(module.quiz_encrypted) or {}
+        questions = quiz.get("questions") if isinstance(quiz, dict) else []
+        if not isinstance(questions, list):
+            questions = []
+        module_title = decrypt_text_master(module.title_encrypted)
+
+        for i, selected in enumerate(answers):
+            if i >= len(questions) or selected is None:
+                continue
+            q = questions[i]
+            if not isinstance(q, dict):
+                continue
+            correct_index = int(q.get("answer", -1))
+            if selected == correct_index:
+                continue
+            options = q.get("options") or []
+            weaknesses.append(
+                {
+                    "module_id": mod_key,
+                    "module_title": module_title,
+                    "question_index": i,
+                    "question": q.get("q", ""),
+                    "selected": selected,
+                    "selected_label": options[selected] if 0 <= selected < len(options) else None,
+                    "correct_index": correct_index,
+                    "correct_label": options[correct_index] if 0 <= correct_index < len(options) else None,
+                    "explanation": q.get("explanation"),
+                }
+            )
+
+    recon = _parent_recon(record)
+    quiz_correct = int(learn.get("quiz_correct", 0))
+    quiz_total = int(learn.get("quiz_total", 0))
+    return {
+        "quiz_correct": quiz_correct,
+        "quiz_total": quiz_total,
+        "wrong_count": len(weaknesses),
+        "weaknesses": weaknesses,
+        "remediation_unit_id": recon.get("quiz_remediation_unit_id"),
+        "trainer_unit_id": recon.get("quiz_trainer_unit_id"),
+        "can_remediate": len(weaknesses) > 0 and quiz_total > 0,
+    }
+
+
+def _build_quiz_remediation_brief(
+    weakness_data: dict,
+    *,
+    unit_title: str,
+    unit_brief: str | None,
+) -> str:
+    lines = [
+        "Nacharbeit basierend auf falschen Quiz-Antworten in der App.",
+        f"Ursprungseinheit: {unit_title}.",
+        f"Quiz-Ergebnis: {weakness_data['quiz_correct']}/{weakness_data['quiz_total']} richtig.",
+        "Erstelle 1–2 kurze Lernmodule (Tutorial-Stil): Einstieg erklären, dann Verständnisfragen.",
+        "Fokus nur auf die unten genannten Fehler — keine Wiederholung des ganzen Stoffs.",
+    ]
+    by_module: dict[str, list[dict]] = {}
+    for item in weakness_data.get("weaknesses") or []:
+        title = (item.get("module_title") or "Thema").strip()
+        by_module.setdefault(title, []).append(item)
+    for mod_title, items in by_module.items():
+        lines.append(f"\nThema «{mod_title}» ({len(items)} Fehler):")
+        for w in items[:8]:
+            lines.append(f"- Frage: {w.get('question', '').strip()}")
+            if w.get("selected_label"):
+                lines.append(f"  Gewählt: {w['selected_label']}")
+            if w.get("correct_label"):
+                lines.append(f"  Richtig: {w['correct_label']}")
+            if w.get("explanation"):
+                lines.append(f"  Erklärung: {w['explanation']}")
+    if unit_brief and unit_brief.strip():
+        lines.append(f"\nHintergrund: {unit_brief.strip()[:600]}")
+    return "\n".join(lines)
+
+
+def _build_quiz_trainer_brief(
+    weakness_data: dict,
+    *,
+    unit_title: str,
+    unit_brief: str | None,
+) -> str:
+    lines = [
+        "Interaktiver Lerntrainer — gezielt zu Quiz-Schwächen aus der App.",
+        "Erstelle Lernkarten und Quiz NUR zu den unten genannten Fehlern.",
+        "Didaktik: kurzes Kernwissen (Tutorial), dann Karten zum Üben, dann Check-Fragen.",
+        f"Ursprungseinheit: {unit_title}.",
+        f"Quiz-Ergebnis: {weakness_data['quiz_correct']}/{weakness_data['quiz_total']} richtig.",
+    ]
+    by_module: dict[str, list[dict]] = {}
+    for item in weakness_data.get("weaknesses") or []:
+        title = (item.get("module_title") or "Thema").strip()
+        by_module.setdefault(title, []).append(item)
+    for mod_title, items in by_module.items():
+        lines.append(f"\nSchwäche «{mod_title}» ({len(items)} Fehler):")
+        for w in items[:10]:
+            lines.append(f"- {w.get('question', '').strip()}")
+            if w.get("explanation"):
+                lines.append(f"  → {w['explanation']}")
+    if unit_brief and unit_brief.strip():
+        lines.append(f"\nKontext: {unit_brief.strip()[:400]}")
+    return "\n".join(lines)
+
+
+def create_remediation_from_quiz(db: Session, user: User, unit_id: uuid.UUID) -> dict:
+    unit = _get_unit_or_404(db, user, unit_id)
+    record = _get_record_for_unit(db, unit.id)
+    weakness_data = collect_quiz_weaknesses(db, user, unit_id, unit=unit, record=record)
+    if not weakness_data["can_remediate"]:
+        raise UnitError("Keine Quiz-Schwächen — zuerst lernen und Fragen beantworten.", "no_weaknesses")
+
+    recon = _parent_recon(record)
+    existing_id = recon.get("quiz_remediation_unit_id")
+    if existing_id:
+        existing = db.get(LearningUnit, uuid.UUID(str(existing_id)))
+        if existing and existing.tenant_id == user.tenant_id:
+            return {"weaknesses": weakness_data, "unit": _dec_unit(existing)}
+
+    title = decrypt_text_master(unit.title_encrypted)
+    if not title.lower().startswith("nacharbeit"):
+        title = f"Nacharbeit (Quiz): {title}"
+    unit_brief = decrypt_text_master(unit.brief_encrypted) if unit.brief_encrypted else None
+    brief = _build_quiz_remediation_brief(
+        weakness_data,
+        unit_title=decrypt_text_master(unit.title_encrypted),
+        unit_brief=unit_brief,
+    )
+
+    parent_focus = None
+    if recon.get("math_focus"):
+        parent_focus = str(recon.get("math_focus")).strip() or None
+    new_difficulty = min(unit.difficulty + 1, 5)
+
+    result = create_unit(
+        db,
+        user,
+        title=title,
+        brief=brief,
+        subject=unit.subject,
+        language=unit.language,
+        target_age=unit.target_age,
+        difficulty=new_difficulty,
+        task_type="review",
+        math_focus=parent_focus,
+        profile_id=unit.profile_id,
+    )
+    new_unit = db.get(LearningUnit, uuid.UUID(result["id"]))
+    if not new_unit:
+        raise UnitError("Nacharbeit konnte nicht erstellt werden", "create_failed")
+    _copy_sources(db, unit, new_unit)
+
+    recon["quiz_remediation_unit_id"] = str(new_unit.id)
+    _save_parent_recon(db, record, recon)
+    _add_event(
+        db,
+        record,
+        "quiz_remediation_created",
+        {
+            "remediation_unit_id": str(new_unit.id),
+            "source_unit_id": str(unit.id),
+            "wrong_count": weakness_data["wrong_count"],
+        },
+    )
+    log_event(
+        db,
+        tenant_id=user.tenant_id,
+        actor_id=user.id,
+        action="learn.quiz_remediation_create",
+        resource_type="learning_unit",
+        resource_id=unit.id,
+        detail=f"remediation={new_unit.id}",
+    )
+    return {"weaknesses": weakness_data, "unit": _dec_unit(new_unit)}
+
+
+def create_interactive_trainer_from_quiz(db: Session, user: User, unit_id: uuid.UUID) -> dict:
+    unit = _get_unit_or_404(db, user, unit_id)
+    record = _get_record_for_unit(db, unit.id)
+    weakness_data = collect_quiz_weaknesses(db, user, unit_id, unit=unit, record=record)
+    if not weakness_data["can_remediate"]:
+        raise UnitError("Keine Quiz-Schwächen — zuerst lernen und Fragen beantworten.", "no_weaknesses")
+
+    recon = _parent_recon(record)
+    existing_id = recon.get("quiz_trainer_unit_id")
+    if existing_id:
+        existing = db.get(LearningUnit, uuid.UUID(str(existing_id)))
+        if existing and existing.tenant_id == user.tenant_id:
+            return {"weaknesses": weakness_data, "unit": _dec_unit(existing)}
+
+    title = decrypt_text_master(unit.title_encrypted)
+    if not title.lower().startswith("trainer:"):
+        title = f"Trainer (Quiz): {title}"
+    unit_brief = decrypt_text_master(unit.brief_encrypted) if unit.brief_encrypted else None
+    brief = _build_quiz_trainer_brief(
+        weakness_data,
+        unit_title=decrypt_text_master(unit.title_encrypted),
+        unit_brief=unit_brief,
+    )
+
+    parent_focus = None
+    if recon.get("math_focus"):
+        parent_focus = str(recon.get("math_focus")).strip() or None
+
+    result = create_unit(
+        db,
+        user,
+        title=title,
+        brief=brief,
+        subject=unit.subject,
+        language=unit.language,
+        target_age=unit.target_age,
+        difficulty=unit.difficulty,
+        task_type="interactive",
+        math_focus=parent_focus,
+        profile_id=unit.profile_id,
+    )
+    new_unit = db.get(LearningUnit, uuid.UUID(result["id"]))
+    if not new_unit:
+        raise UnitError("Trainer-Einheit konnte nicht erstellt werden", "create_failed")
+    _copy_sources(db, unit, new_unit)
+
+    new_record = db.query(LearningRecord).filter(LearningRecord.unit_id == new_unit.id).first()
+    if new_record:
+        child_recon = _parent_recon(new_record)
+        child_recon["source_unit_id"] = str(unit.id)
+        child_recon["trainer_options"] = dict(QUIZ_TRAINER_OPTIONS)
+        new_record.reconstruction_encrypted = encrypt_json(child_recon)
+
+    recon["quiz_trainer_unit_id"] = str(new_unit.id)
+    _save_parent_recon(db, record, recon)
+    _add_event(
+        db,
+        record,
+        "quiz_trainer_created",
+        {
+            "trainer_unit_id": str(new_unit.id),
+            "source_unit_id": str(unit.id),
+            "wrong_count": weakness_data["wrong_count"],
+        },
+    )
+    log_event(
+        db,
+        tenant_id=user.tenant_id,
+        actor_id=user.id,
+        action="learn.quiz_trainer_create",
+        resource_type="learning_unit",
+        resource_id=unit.id,
+        detail=f"trainer={new_unit.id}",
+    )
+    return {"weaknesses": weakness_data, "unit": _dec_unit(new_unit)}

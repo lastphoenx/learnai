@@ -32,7 +32,10 @@ from app.services.generate_job import get_generate_job, job_is_active, set_gener
 from app.services.generate_limits import acquire_generate_slot, release_generate_slot
 from app.tasks.generate import generate_unit_task
 from app.services.learn_service import (
+    collect_quiz_weaknesses,
     complete_learn,
+    create_interactive_trainer_from_quiz,
+    create_remediation_from_quiz,
     get_learn_state,
     mark_text_read,
     mark_flashcard_status,
@@ -77,7 +80,7 @@ def _http(exc: UnitError) -> HTTPException:
         "bad_url": status.HTTP_400_BAD_REQUEST,
         "invalid_exam_type": status.HTTP_400_BAD_REQUEST,
         "invalid_score": status.HTTP_400_BAD_REQUEST,
-        "invalid_profile": status.HTTP_400_BAD_REQUEST,
+        "no_weaknesses": status.HTTP_400_BAD_REQUEST,
         "already_assigned": status.HTTP_400_BAD_REQUEST,
         "rate_limited": status.HTTP_429_TOO_MANY_REQUESTS,
         "no_file": status.HTTP_400_BAD_REQUEST,
@@ -720,6 +723,41 @@ def units_learn_complete(unit_id: UUID, user: User = Depends(get_app_user), db: 
 def units_learn_reset(unit_id: UUID, user: User = Depends(get_app_user), db: Session = Depends(get_db)):
     try:
         result = reset_learn_progress(db, user, unit_id)
+        db.commit()
+        return result
+    except UnitError as exc:
+        db.rollback()
+        raise _http(exc) from exc
+
+
+@router.get("/{unit_id}/learn/weaknesses")
+def units_learn_weaknesses(unit_id: UUID, user: User = Depends(get_app_user), db: Session = Depends(get_db)):
+    try:
+        result = collect_quiz_weaknesses(db, user, unit_id)
+        db.commit()
+        return result
+    except UnitError as exc:
+        db.rollback()
+        raise _http(exc) from exc
+
+
+@router.post("/{unit_id}/learn/remediation")
+def units_learn_remediation(unit_id: UUID, user: User = Depends(get_app_user), db: Session = Depends(get_db)):
+    try:
+        result = create_remediation_from_quiz(db, user, unit_id)
+        db.commit()
+        return result
+    except UnitError as exc:
+        db.rollback()
+        raise _http(exc) from exc
+
+
+@router.post("/{unit_id}/learn/interactive-trainer")
+def units_learn_interactive_trainer(
+    unit_id: UUID, user: User = Depends(get_app_user), db: Session = Depends(get_db)
+):
+    try:
+        result = create_interactive_trainer_from_quiz(db, user, unit_id)
         db.commit()
         return result
     except UnitError as exc:

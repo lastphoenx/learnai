@@ -1976,3 +1976,72 @@ button.btn.action-tile {
   gap: 0.35rem 1rem;
   margin-bottom: 0.45rem;
 }
+
+.quiz-weakness-panel {
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent) 4%, var(--bg-2));
+}
+
+.quiz-weakness-panel-compact {
+  padding: 0.85rem;
+}
+
+.quiz-weakness-panel h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.quiz-weakness-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.75rem 0;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.quiz-weakness-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+}
+
+.quiz-weakness-list strong {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.exam-learning-entry {
+  margin: 0.75rem 0;
+  padding: 1rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent) 6%, var(--bg-2));
+}
+
+.exam-learning-entry h3 {
+  margin: 0.25rem 0 0.5rem;
+  font-size: 1.05rem;
+}
+
+.exam-learning-summary {
+  margin: 0 0 0.75rem;
+  line-height: 1.5;
+}
+
+.trainer-didactic-path {
+  margin: 0.75rem 0 1rem;
+  padding-left: 1.2rem;
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+
+.trainer-didactic-path li {
+  margin-bottom: 0.35rem;
+}

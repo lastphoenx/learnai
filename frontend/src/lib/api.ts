@@ -171,6 +171,29 @@ export type LearnState = {
   progress: LearnProgress;
   summary: LearnSummary;
   trainer?: TrainerPayload;
+  quiz_weaknesses?: QuizWeaknesses;
+};
+
+export type QuizWeaknessItem = {
+  module_id: string;
+  module_title: string;
+  question_index: number;
+  question: string;
+  selected: number;
+  selected_label?: string | null;
+  correct_index: number;
+  correct_label?: string | null;
+  explanation?: string | null;
+};
+
+export type QuizWeaknesses = {
+  quiz_correct: number;
+  quiz_total: number;
+  wrong_count: number;
+  weaknesses: QuizWeaknessItem[];
+  remediation_unit_id?: string | null;
+  trainer_unit_id?: string | null;
+  can_remediate: boolean;
 };
 
 export type UnitModule = {
@@ -627,6 +650,7 @@ export const submitLearnAnswer = (
     progress: LearnProgress;
     summary: LearnSummary;
     module_quiz_done: boolean;
+    quiz_weaknesses?: QuizWeaknesses;
   }>(`/api/v1/units/${unitId}/learn/answer`, { method: "POST", json: body });
 
 export const markFlashcardStatus = (
@@ -650,6 +674,19 @@ export const resetLearnProgress = (unitId: string) =>
     `/api/v1/units/${unitId}/learn/reset`,
     { method: "POST" },
   );
+
+export const fetchQuizWeaknesses = (unitId: string) =>
+  apiFetch<QuizWeaknesses>(`/api/v1/units/${unitId}/learn/weaknesses`);
+
+export type QuizRemediationResponse = { weaknesses: QuizWeaknesses; unit: LearningUnit };
+
+export const createRemediationFromQuiz = (unitId: string) =>
+  apiFetch<QuizRemediationResponse>(`/api/v1/units/${unitId}/learn/remediation`, { method: "POST" });
+
+export const createInteractiveTrainerFromQuiz = (unitId: string) =>
+  apiFetch<QuizRemediationResponse>(`/api/v1/units/${unitId}/learn/interactive-trainer`, {
+    method: "POST",
+  });
 
 export type ChildDashboardStats = {
   user_id: string;
