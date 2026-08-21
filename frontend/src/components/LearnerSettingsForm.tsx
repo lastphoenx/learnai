@@ -133,8 +133,8 @@ export function LearnerSettingsForm({
       <div className="stack" style={{ marginTop: "1rem" }}>
         <h3 style={{ margin: 0 }}>Sprache zu Text (Diktat)</h3>
         <p className="muted" style={{ margin: 0 }}>
-          Für Mikrofon-Buttons beim Anlegen von Einheiten. «Lokal» nutzt den Whisper-Dienst auf dem
-          GMKtec (privat). «Browser» nutzt Chrome/Edge-Spracherkennung.
+          Für Mikrofon-Buttons beim Anlegen von Einheiten und bei Eingabe-Karten im Üben. «Lokal» nutzt den
+          Whisper-Dienst auf dem GMKtec (privat). «Browser» nutzt Chrome/Edge-Spracherkennung.
         </p>
         <label>
           STT-Engine

@@ -2014,6 +2014,12 @@ button.btn.action-tile {
   font-size: 0.9rem;
   color: var(--muted);
 }
+.card-input-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
 .card-input-row {
   display: flex;
   gap: 0.5rem;
