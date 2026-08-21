@@ -111,6 +111,40 @@ def _module_for_learn(module: UnitModule) -> dict:
     return data
 
 
+def _recompute_quiz_stats(learn: dict, modules: list[UnitModule]) -> None:
+    """Quiz-Zähler aus gespeicherten Antworten neu berechnen (z. B. nach Korrektur der Bewertung)."""
+    global_correct = 0
+    global_total = 0
+    mod_map = learn.setdefault("modules", {})
+    for module in sorted(modules, key=lambda m: m.order_index):
+        mod_key = str(module.id)
+        mod_prog = mod_map.get(mod_key)
+        if not isinstance(mod_prog, dict):
+            continue
+        answers = mod_prog.get("answers") or []
+        quiz = decrypt_json(module.quiz_encrypted) or {}
+        questions = quiz.get("questions") if isinstance(quiz, dict) else []
+        if not isinstance(questions, list):
+            questions = []
+        mod_correct = 0
+        mod_total = 0
+        for i, selected in enumerate(answers):
+            if i >= len(questions) or selected is None:
+                continue
+            q = questions[i]
+            if not isinstance(q, dict):
+                continue
+            mod_total += 1
+            if is_quiz_selection_correct(q, int(selected)):
+                mod_correct += 1
+        mod_prog["correct"] = mod_correct
+        mod_prog["total"] = mod_total
+        global_correct += mod_correct
+        global_total += mod_total
+    learn["quiz_correct"] = global_correct
+    learn["quiz_total"] = global_total
+
+
 def _progress_summary(stats: dict, module_count: int) -> dict:
     learn = stats.get("learn") or {}
     modules_done = sum(1 for m in (learn.get("modules") or {}).values() if m.get("done"))
@@ -152,6 +186,13 @@ def get_learn_state(db: Session, user: User, unit_id: uuid.UUID) -> dict:
         stats["learn"] = learn
         _save_stats(db, record, stats)
         _add_event(db, record, "learn_started", {"unit_id": str(unit.id)})
+
+    prev_correct = int(learn.get("quiz_correct", 0))
+    prev_total = int(learn.get("quiz_total", 0))
+    _recompute_quiz_stats(learn, modules)
+    if int(learn.get("quiz_correct", 0)) != prev_correct or int(learn.get("quiz_total", 0)) != prev_total:
+        stats["learn"] = learn
+        _save_stats(db, record, stats)
 
     unit_data = _dec_unit(unit, sources=False, modules=False)
     payload: dict = {
@@ -250,14 +291,9 @@ def submit_quiz_answer(
     answers: list[int | None] = mod_prog.setdefault("answers", [])
     while len(answers) <= question_index:
         answers.append(None)
-    if answers[question_index] is None:
-        learn["quiz_total"] = int(learn.get("quiz_total", 0)) + 1
-        if is_correct:
-            learn["quiz_correct"] = int(learn.get("quiz_correct", 0)) + 1
-            mod_prog["correct"] = int(mod_prog.get("correct", 0)) + 1
-        mod_prog["total"] = int(mod_prog.get("total", 0)) + 1
     answers[question_index] = selected
     mod_prog["answers"] = answers
+    _recompute_quiz_stats(learn, unit.modules)
 
     all_answered = len(answers) >= len(questions) and all(a is not None for a in answers[: len(questions)])
     if all_answered:
@@ -532,19 +568,24 @@ def flashcard_stats_for_unit(
     known_cards = sum(1 for p in progress.values() if p.get("status") == "known")
     review_cards = sum(1 for p in progress.values() if p.get("status") == "review")
     due_cards = 0
+    new_cards = 0
     for module in modules:
         content = decrypt_json(module.content_encrypted) or {}
         if not isinstance(content, dict):
             continue
         for index in range(len(content.get("cards") or [])):
             key = _flashcard_key(module.id, index)
-            if progress.get(key, {}).get("due", True):
+            entry = progress.get(key)
+            if entry is None or entry.get("status") not in {"known", "review"}:
+                new_cards += 1
+            if entry is None or entry.get("due", True):
                 due_cards += 1
     return {
         "card_count": card_count,
         "known_cards": known_cards,
         "review_cards": review_cards,
         "due_cards": due_cards,
+        "new_cards": new_cards,
     }
 
 
