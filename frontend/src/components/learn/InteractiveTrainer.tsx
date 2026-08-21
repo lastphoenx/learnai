@@ -805,9 +805,15 @@ export function InteractiveTrainer({
                 )}
               </>
             ) : isReviewMode ? (
-              <button type="button" className="btn-primary" onClick={() => skipToNextOpen()}>
-                Nächste offene Frage
-              </button>
+              nextOpenQuizIndex(activeQuestions, learnProgress, quizIndex) != null ? (
+                <button type="button" className="btn-primary" onClick={() => skipToNextOpen()}>
+                  Nächste offene Frage
+                </button>
+              ) : (
+                <button type="button" className="btn-primary" onClick={finishQuiz}>
+                  Zurück zum Einstieg
+                </button>
+              )
             ) : (
               <button
                 type="button"
