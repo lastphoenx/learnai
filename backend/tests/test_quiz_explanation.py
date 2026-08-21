@@ -39,6 +39,15 @@ def test_enrich_replaces_weak():
     assert enriched != q["explanation"]
 
 
+def test_division_colon_worked_solution():
+    text = build_worked_solution("Was ist das Ergebnis von 2.76 : 3?", 0.92)
+    assert text is not None
+    assert "Variante 1" in text
+    assert "276" in text
+    assert "0,92" in text
+    assert "Variante 2" in text
+
+
 def test_add_has_two_variants():
     text = build_worked_solution("Wie berechnest du die Summe von 3,2 und 4,8?", 8.0)
     assert text is not None
