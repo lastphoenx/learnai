@@ -74,6 +74,22 @@ export function nextOpenQuizIndex<T extends QuizQuestionRef>(
   return order.find((idx) => idx !== currentIndex) ?? null;
 }
 
+export function countOpenInDeck<T extends QuizQuestionRef>(
+  deck: T[],
+  progress: LearnProgress,
+): number {
+  return deck.filter((q) => !isQuizAnswered(progress, q)).length;
+}
+
+/** Gibt es eine andere offene Frage als die aktuelle? */
+export function hasOtherOpenQuizQuestions<T extends QuizQuestionRef>(
+  deck: T[],
+  progress: LearnProgress,
+  currentIndex: number,
+): boolean {
+  return buildOpenQuizIndices(deck, progress).some((idx) => idx !== currentIndex);
+}
+
 export function countAnsweredInDeck<T extends QuizQuestionRef>(
   deck: T[],
   progress: LearnProgress,

@@ -16,6 +16,7 @@ import {
   countAnsweredInDeck,
   firstOpenQuizIndex,
   getStoredQuizAnswer,
+  hasOtherOpenQuizQuestions,
   isQuizAnswered,
   isQuizDeferred,
   nextOpenQuizIndex,
@@ -179,6 +180,11 @@ export function InteractiveTrainer({
     () => countAnsweredInDeck(activeQuestions, learnProgress),
     [activeQuestions, learnProgress],
   );
+  const canSkipOrDefer = useMemo(() => {
+    if (!currentQuestion || quizChallenge || quizWeakOnly) return false;
+    if (isQuizAnswered(learnProgress, currentQuestion)) return false;
+    return hasOtherOpenQuizQuestions(activeQuestions, learnProgress, quizIndex);
+  }, [currentQuestion, quizChallenge, quizWeakOnly, learnProgress, activeQuestions, quizIndex]);
 
   const cardPercent = stats?.card_count
     ? Math.round((100 * stats.known_cards) / stats.card_count)
@@ -347,6 +353,14 @@ export function InteractiveTrainer({
     }
   }
 
+  function finishQuiz() {
+    setTab("home");
+    setQuizDeck([]);
+    setAnswerResult(null);
+    setSelected(null);
+    setLastSubmittedKey(null);
+  }
+
   function skipToNextOpen() {
     const next = nextOpenQuizIndex(activeQuestions, learnProgress, quizIndex);
     if (next != null) goToQuizQuestion(next);
@@ -355,8 +369,7 @@ export function InteractiveTrainer({
   function advanceAfterAnswer(progress = learnProgress) {
     const next = nextOpenQuizIndex(activeQuestions, progress, quizIndex);
     if (next == null) {
-      setAnswerResult(null);
-      setSelected(null);
+      finishQuiz();
       return;
     }
     const q = activeQuestions[next];
@@ -494,9 +507,11 @@ export function InteractiveTrainer({
               Tutorial: Verstehen
             </button>
             <button type="button" className="ghost" onClick={() => openQuiz({})}>
-              {quizAnsweredCount > 0 && quizAnsweredCount < allQuestions.length
-                ? `Check: weiter bei Frage ${quizAnsweredCount + 1}`
-                : "Check: Quiz starten"}
+              {quizAnsweredCount >= allQuestions.length && allQuestions.length > 0
+                ? "Check: abgeschlossen — ansehen"
+                : quizAnsweredCount > 0 && quizAnsweredCount < allQuestions.length
+                  ? `Check: weiter bei Frage ${quizAnsweredCount + 1}`
+                  : "Check: Quiz starten"}
             </button>
             <button
               type="button"
@@ -766,12 +781,24 @@ export function InteractiveTrainer({
                 <button type="button" className="btn-primary" disabled={busy || selected === null} onClick={submitQuiz}>
                   Antwort prüfen
                 </button>
-                {!quizChallenge && !quizWeakOnly && (
+                {canSkipOrDefer && (
                   <>
-                    <button type="button" className="ghost" disabled={busy} onClick={skipToNextOpen}>
+                    <button
+                      type="button"
+                      className="ghost"
+                      disabled={busy}
+                      title="Zur nächsten offenen Frage — diese bleibt offen"
+                      onClick={skipToNextOpen}
+                    >
                       Überspringen
                     </button>
-                    <button type="button" className="ghost" disabled={busy} onClick={() => void deferCurrentQuestion()}>
+                    <button
+                      type="button"
+                      className="ghost"
+                      disabled={busy}
+                      title="Diese Frage ans Ende der offenen Liste legen"
+                      onClick={() => void deferCurrentQuestion()}
+                    >
                       Später lösen
                     </button>
                   </>

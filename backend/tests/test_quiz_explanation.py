@@ -47,6 +47,15 @@ def test_division_colon_worked_solution():
     assert "0,92" in text
 
 
+def test_division_reihen_2468():
+    text = build_worked_solution("Was ist das Ergebnis von 24.68 : 8?", 3.085)
+    assert text is not None
+    assert "8er-Reihe" in text
+    assert "Variante 2" in text
+    assert "24 ÷ 8 = 3" in text.replace(",", ".") or "24 ÷ 8 = 3" in text
+    assert "680" in text or "24680" in text
+
+
 def test_division_reihen_832():
     text = build_worked_solution("Was ergibt 8.32 : 4?", 2.08)
     assert text is not None
@@ -55,6 +64,16 @@ def test_division_reihen_832():
     assert "32 ÷ 4 = 8" in text.replace(",", ".") or "32 ÷ 4 = 8" in text
     assert "2,08" in text
     assert "Variante 2" in text
+
+
+def test_division_72_by_9_has_both_variants():
+    text = build_worked_solution("Wie berechnest du 7.2 : 9?", 0.8)
+    assert text is not None
+    assert "Variante 1 (Reihen)" in text
+    assert "Variante 2 (Komma verschieben)" in text
+    assert "9er-Reihe" in text
+    assert "72" in text
+    assert "0,8" in text
 
 
 def test_add_has_two_variants():
