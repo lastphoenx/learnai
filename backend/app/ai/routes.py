@@ -1,14 +1,17 @@
-"""KI-Endpunkte: Status, Test-Complete, TTS, Diagnose."""
+"""KI-Endpunkte: Status, Test-Complete, TTS, STT, Diagnose."""
 
+import tempfile
+from pathlib import Path
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.ai.catalog import resolve_task_ai
 from app.ai.effective import effective_ai_config
 from app.ai.errors import LlmError
+from app.ai.extract import STT_PROVIDERS, effective_stt_provider, transcribe_audio
 from app.ai.providers import complete, provider_status
 from app.ai.tts import TtsError, synthesize_openai
 from app.core.auth.dependencies import get_app_user
@@ -29,6 +32,11 @@ class TtsRequest(BaseModel):
 class CompleteRequest(BaseModel):
     prompt: str = Field(min_length=1, max_length=4000)
     provider: str | None = Field(default=None, max_length=32)
+
+
+class TranscribeResponse(BaseModel):
+    text: str
+    provider: str
 
 
 @router.get("/status")
@@ -102,3 +110,55 @@ def tts(body: TtsRequest, user: User = Depends(get_app_user)):
         return Response(content=audio, media_type="audio/mpeg")
     except TtsError as exc:
         raise HTTPException(status_code=400, detail=exc.message) from exc
+
+
+@router.post("/transcribe", response_model=TranscribeResponse)
+async def transcribe_speech(
+    file: UploadFile = File(...),
+    language: str = Form(default="de"),
+    profile_id: UUID | None = Form(default=None),
+    user: User = Depends(get_app_user),
+    db: Session = Depends(get_db),
+):
+    prefs: dict = {}
+    if profile_id:
+        try:
+            get_profile_for_actor(db, user, profile_id)
+            prefs = resolve_prefs_for_profile(db, profile_id)
+        except ProfileError as exc:
+            code = 404 if exc.code == "not_found" else 403
+            raise HTTPException(status_code=code, detail=exc.message) from exc
+    else:
+        prefs = get_user_settings(user)
+        if user.profile_id:
+            prefs = resolve_prefs_for_profile(db, user.profile_id)
+
+    stt = str(prefs.get("stt_provider") or "browser").strip().lower()
+    if stt not in STT_PROVIDERS:
+        stt = "browser"
+    if stt == "browser":
+        raise HTTPException(
+            status_code=400,
+            detail="Sprache-zu-Text ist auf Browser eingestellt — Mikrofon nutzt die Browser-Erkennung.",
+        )
+
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="Leere Audiodatei")
+    if len(data) > 25 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Audiodatei zu gross (max. 25 MB)")
+
+    suffix = Path(file.filename or "recording.webm").suffix or ".webm"
+    try:
+        provider = effective_stt_provider(prefs)
+        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+            tmp.write(data)
+            tmp_path = Path(tmp.name)
+        try:
+            text = transcribe_audio(tmp_path, language=language, provider=provider)
+        finally:
+            tmp_path.unlink(missing_ok=True)
+    except LlmError as exc:
+        raise HTTPException(status_code=400, detail=exc.message) from exc
+
+    return TranscribeResponse(text=text, provider=provider)

@@ -18,6 +18,8 @@ import {
   updateProfile,
   type AiModelCatalog,
   type LearnerProfile,
+  type SttProvider,
+  type SttStatus,
   type TaskCatalogItem,
   type User,
 } from "@/lib/api";
@@ -49,6 +51,8 @@ export default function SettingsPage() {
   const [modelCatalog, setModelCatalog] = useState<AiModelCatalog>(EMPTY_CATALOG);
   const [ollamaModels, setOllamaModels] = useState<string[]>([]);
   const [configured, setConfigured] = useState({ openai: false, anthropic: false, ollama: false });
+  const [sttProvider, setSttProvider] = useState<SttProvider>("browser");
+  const [sttStatus, setSttStatus] = useState<SttStatus | undefined>(undefined);
 
   const selected = profiles.find((p) => p.id === selectedId) ?? null;
   const readOnly = Boolean(user?.is_child);
@@ -57,6 +61,7 @@ export default function SettingsPage() {
     setByTask(profile.by_task || {});
     setLlmProvider(profile.llm_provider || "default");
     setLlmModel(profile.llm_model || "");
+    setSttProvider((profile.stt_provider as SttProvider) || "browser");
   }
 
   useEffect(() => {
@@ -88,6 +93,7 @@ export default function SettingsPage() {
         });
         setCatalog(s.task_catalog || []);
         setModelCatalog(s.models || EMPTY_CATALOG);
+        setSttStatus(s.stt);
       })
       .catch(() => undefined);
   }, []);
@@ -186,6 +192,7 @@ export default function SettingsPage() {
                   llm_provider: llmProvider,
                   llm_model: llmModel,
                   by_task: byTask,
+                  stt_provider: sttProvider,
                 });
                 setProfiles((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
                 setSaved(true);
@@ -220,6 +227,9 @@ export default function SettingsPage() {
                 setProfiles((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
                 loadProfileForm(updated);
               }}
+              sttProvider={sttProvider}
+              sttStatus={sttStatus}
+              onSttProviderChange={setSttProvider}
             />
             <button type="submit">Lerner-Einstellungen speichern</button>
             {saved && <p>Gespeichert.</p>}

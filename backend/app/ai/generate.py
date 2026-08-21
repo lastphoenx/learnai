@@ -472,7 +472,7 @@ def generate_modules(
 
 
 def _collect_source_notes(db: Session, unit: LearningUnit, prefs: dict) -> str:
-    from app.ai.extract import extract_pdf_text, fetch_url_text, transcribe_audio
+    from app.ai.extract import extract_pdf_text, fetch_url_text, effective_stt_provider, transcribe_audio
     from app.ai.errors import LlmError
 
     parts: list[str] = []
@@ -578,7 +578,11 @@ def _collect_source_notes(db: Session, unit: LearningUnit, prefs: dict) -> str:
                 path = upload_dir() / source.storage_path
             if path.is_file():
                 try:
-                    text = transcribe_audio(path, language=unit.language or "de")
+                    text = transcribe_audio(
+                        path,
+                        language=unit.language or "de",
+                        provider=effective_stt_provider(prefs),
+                    )
                     source.extracted_text_encrypted = encrypt_text_master(text)
                     source.analysis_encrypted = encrypt_text_master("whisper-1")
                     maybe_auto_purge_after_extract(db, unit, source)

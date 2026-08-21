@@ -53,10 +53,20 @@ export type LearnerProfile = {
   llm_provider: string;
   llm_model: string;
   by_task: Record<string, { provider: string; model: string }>;
+  stt_provider: string;
   default_language: string;
   target_age: string;
   auto_purge_sources: boolean;
   created_at: string;
+};
+
+export type SttProvider = "browser" | "local" | "openai" | "anthropic";
+
+export type SttStatus = {
+  browser: { configured: boolean };
+  local: { configured: boolean };
+  openai: { configured: boolean };
+  anthropic: { configured: boolean };
 };
 
 export type AiModelCatalog = {
@@ -444,6 +454,7 @@ export const updateProfile = (
     default_language?: string;
     target_age?: string;
     auto_purge_sources?: boolean;
+    stt_provider?: SttProvider;
   },
 ) => apiFetch<LearnerProfile>(`/api/v1/profiles/${id}`, { method: "PATCH", json: body });
 export const applyProfileRecommendations = (id: string) =>
@@ -851,9 +862,31 @@ export const fetchAiStatus = () =>
     anthropic: { configured: boolean };
     ollama: { ok?: boolean; configured?: boolean; url: string; models?: string[]; error?: string };
     tts: { provider: string; configured: boolean };
+    stt?: SttStatus;
     task_catalog?: TaskCatalogItem[];
     models?: AiModelCatalog;
   }>("/api/v1/ai/status");
+
+export async function transcribeSpeech(
+  blob: Blob,
+  language: string,
+  profileId?: string,
+): Promise<{ text: string; provider: string }> {
+  const form = new FormData();
+  form.append("file", blob, "recording.webm");
+  form.append("language", language);
+  if (profileId) form.append("profile_id", profileId);
+  const res = await fetch(`${API_URL}/api/v1/ai/transcribe`, {
+    method: "POST",
+    credentials: "include",
+    body: form,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(typeof err.detail === "string" ? err.detail : `API ${res.status}`);
+  }
+  return res.json();
+}
 
 export const fetchRecords = () => apiFetch<LearningRecord[]>("/api/v1/records");
 export const rebuildFromRecord = (recordId: string, difficulty?: number, task_type?: string) =>

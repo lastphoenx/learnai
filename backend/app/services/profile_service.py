@@ -7,6 +7,7 @@ import uuid
 from sqlalchemy.orm import Session
 
 from app.ai.catalog import TASK_KEYS
+from app.ai.extract import STT_PROVIDERS
 from app.ai.model_registry import pick_external_model, validate_model
 from app.models import ChildGuardian, LearningProfile, User
 from app.services.audit import log_event
@@ -37,11 +38,15 @@ def _normalize_settings(raw: dict | None) -> dict:
             elif p not in {"ollama", "openai", "anthropic"}:
                 continue
             by_task[str(key)] = {"provider": p, "model": str(row.get("model") or "").strip()[:80]}
+    stt = str(data.get("stt_provider") or "").strip().lower()
+    if stt not in STT_PROVIDERS:
+        stt = "browser"
     return {
         "display_name": str(data.get("display_name") or "").strip()[:80],
         "llm_provider": provider,
         "llm_model": str(data.get("llm_model") or "").strip()[:80],
         "by_task": by_task,
+        "stt_provider": stt,
         "default_language": str(data.get("default_language") or "de").strip()[:8] or "de",
         "target_age": str(data.get("target_age") or "").strip()[:32],
         "auto_purge_sources": bool(data.get("auto_purge_sources")),
@@ -96,6 +101,11 @@ def set_profile_settings(db: Session, profile: LearningProfile, settings: dict) 
         current["llm_model"] = str(settings["llm_model"]).strip()[:80]
     if "by_task" in settings and settings["by_task"] is not None:
         current["by_task"] = incoming["by_task"]
+    if "stt_provider" in settings and settings["stt_provider"] is not None:
+        name = str(settings["stt_provider"]).strip().lower()
+        if name not in STT_PROVIDERS:
+            raise ProfileError("Unbekannter STT-Provider", "bad_stt_provider")
+        current["stt_provider"] = name
     for field in ("default_language", "target_age", "auto_purge_sources"):
         if field in settings and settings[field] is not None:
             current[field] = incoming[field]
@@ -116,6 +126,7 @@ def profile_public_dict(profile: LearningProfile) -> dict:
         "llm_provider": prefs.get("llm_provider") or "",
         "llm_model": prefs.get("llm_model") or "",
         "by_task": prefs.get("by_task") or {},
+        "stt_provider": prefs.get("stt_provider") or "browser",
         "default_language": prefs.get("default_language") or "de",
         "target_age": prefs.get("target_age") or "",
         "auto_purge_sources": bool(prefs.get("auto_purge_sources")),

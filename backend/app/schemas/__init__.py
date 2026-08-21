@@ -65,6 +65,7 @@ class ProfileResponse(BaseModel):
     default_language: str = "de"
     target_age: str = ""
     auto_purge_sources: bool = False
+    stt_provider: str = "browser"
     created_at: str
 
 
@@ -81,6 +82,7 @@ class ProfileSettingsUpdateRequest(BaseModel):
     default_language: str | None = Field(default=None, max_length=8)
     target_age: str | None = Field(default=None, max_length=32)
     auto_purge_sources: bool | None = None
+    stt_provider: str | None = Field(default=None, max_length=32)
 
 
 class ChildCreateRequest(BaseModel):

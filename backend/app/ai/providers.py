@@ -34,6 +34,12 @@ def configured_providers() -> dict:
             "provider": settings.tts_provider,
             "configured": settings.tts_provider == "openai" and bool(settings.openai_api_key),
         },
+        "stt": {
+            "browser": {"configured": True},
+            "local": {"configured": bool((settings.whisper_url or "").strip())},
+            "openai": {"configured": bool(settings.openai_api_key)},
+            "anthropic": {"configured": False},
+        },
     }
 
 
