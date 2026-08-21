@@ -4,11 +4,13 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   deferLearnQuestion,
+  fetchProfile,
   markFlashcardStatus,
   submitCardInputAnswer,
   submitLearnAnswer,
   submitPracticeAnswer,
   type LearnState,
+  type SttProvider,
 } from "@/lib/api";
 import { CardInputExercise } from "@/components/learn/CardInputExercise";
 import { QuizWeaknessPanel } from "@/components/QuizWeaknessPanel";
@@ -100,6 +102,7 @@ export function InteractiveTrainer({
     explanation?: string;
   } | null>(null);
   const [lastSubmittedKey, setLastSubmittedKey] = useState<string | null>(null);
+  const [sttProvider, setSttProvider] = useState<SttProvider>("browser");
 
   const cards = trainer?.cards || [];
   const knowledge = trainer?.knowledge || [];
@@ -140,6 +143,14 @@ export function InteractiveTrainer({
     [state.modules],
   );
   const currentPractice = practiceExercises[practiceIndex];
+
+  useEffect(() => {
+    const profileId = state.unit.profile_id;
+    if (!profileId) return;
+    fetchProfile(profileId)
+      .then((profile) => setSttProvider((profile.stt_provider as SttProvider) || "browser"))
+      .catch(() => setSttProvider("browser"));
+  }, [state.unit.profile_id]);
 
   useEffect(() => {
     setCardIndex(0);
@@ -856,8 +867,12 @@ export function InteractiveTrainer({
               cardIndex={cardIndex}
               total={filteredCards.length}
               domain={currentCard.domain}
+              language={state.unit.language || "de"}
+              sttProvider={sttProvider}
+              profileId={state.unit.profile_id || undefined}
               busy={busy}
               result={cardInputResult}
+              onSpeechError={setError}
               onSubmit={async (answer, workedSolution) => {
                 setBusy(true);
                 setError(null);
