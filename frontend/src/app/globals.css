@@ -1169,6 +1169,12 @@ button.btn.action-tile {
 
 .unit-list-card {
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  cursor: pointer;
+}
+
+.unit-list-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .unit-list-card:hover {
@@ -1179,9 +1185,7 @@ button.btn.action-tile {
 .unit-list-link {
   display: block;
   padding: 1rem 1.1rem 0.5rem;
-  text-decoration: none;
   color: inherit;
-  cursor: pointer;
 }
 
 .unit-list-open-hint {

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { fetchMe, fetchUnits, importTrainerJson, type LearningUnit, type User } from "@/lib/api";
@@ -15,6 +16,7 @@ function statusBadge(status: string) {
 type ProgressFilter = "all" | "not_started" | "in_progress" | "completed" | "no_modules";
 
 export default function UnitsPage() {
+  const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [units, setUnits] = useState<LearningUnit[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -209,8 +211,24 @@ export default function UnitsPage() {
             {filtered.map((u) => {
               const badge = statusBadge(u.status);
               return (
-                <li key={u.id} className="unit-list-item card unit-list-card">
-                  <Link href={`/units/${u.id}`} className="unit-list-link" aria-label={`Einheit öffnen: ${u.title}`}>
+                <li
+                  key={u.id}
+                  className="unit-list-item card unit-list-card"
+                  onClick={(e) => {
+                    if ((e.target as HTMLElement).closest("a, button, input, label")) return;
+                    router.push(`/units/${u.id}`);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key !== "Enter" && e.key !== " ") return;
+                    if ((e.target as HTMLElement).closest("a, button")) return;
+                    e.preventDefault();
+                    router.push(`/units/${u.id}`);
+                  }}
+                  role="link"
+                  tabIndex={0}
+                  aria-label={`Einheit öffnen: ${u.title}`}
+                >
+                  <div className="unit-list-link">
                     <div className="unit-list-head">
                       <span className="unit-list-title">{u.title}</span>
                       <span className={badge.className}>{badge.label}</span>
@@ -231,7 +249,7 @@ export default function UnitsPage() {
                       )}
                     </div>
                     {u.brief && <p className="unit-list-brief">{u.brief}</p>}
-                  </Link>
+                  </div>
                   {u.module_count > 0 && (
                     <div className="unit-list-actions">
                       <Link

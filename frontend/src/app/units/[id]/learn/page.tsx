@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useParams, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { InteractiveTrainer } from "@/components/learn/InteractiveTrainer";
 import { QuizWeaknessPanel } from "@/components/QuizWeaknessPanel";
@@ -40,6 +40,7 @@ type PracticeResult = {
 
 export default function UnitLearnPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const unitId = params.id as string;
   const [user, setUser] = useState<User | null>(null);
   const [state, setState] = useState<LearnState | null>(null);
@@ -49,6 +50,7 @@ export default function UnitLearnPage() {
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [practiceResult, setPracticeResult] = useState<PracticeResult | null>(null);
   const [autoTrainerNotice, setAutoTrainerNotice] = useState<string | null>(null);
+  const moduleJumpDone = useRef(false);
 
   const load = useCallback(() => {
     fetchLearnState(unitId)
@@ -67,6 +69,38 @@ export default function UnitLearnPage() {
       .catch(() => setError("Nicht angemeldet"));
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (!state || moduleJumpDone.current) return;
+    const raw = searchParams.get("module");
+    if (raw === null || raw === "") return;
+    const idx = Number.parseInt(raw, 10);
+    if (Number.isNaN(idx) || idx < 0 || idx >= state.modules.length) return;
+    moduleJumpDone.current = true;
+    void (async () => {
+      setBusy(true);
+      try {
+        const res = await saveLearnPosition(unitId, {
+          module_index: idx,
+          phase: "intro",
+          question_index: 0,
+        });
+        setState((prev) =>
+          prev
+            ? {
+                ...prev,
+                progress: res.progress,
+                summary: res.summary,
+              }
+            : prev,
+        );
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Block konnte nicht geöffnet werden");
+      } finally {
+        setBusy(false);
+      }
+    })();
+  }, [state, searchParams, unitId]);
 
   async function goTo(
     moduleIndex: number,

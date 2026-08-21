@@ -412,7 +412,7 @@ export default function UnitDetailPage() {
                     if (qCount > 0) metaParts.push(`${qCount} Fragen`);
                     return (
                       <li key={m.id}>
-                        <Link href={`/units/${unit.id}/learn`} className="module-compact-link">
+                        <Link href={`/units/${unit.id}/learn?module=${idx}`} className="module-compact-link">
                           <span className="module-num">{idx + 1}</span>
                           <span className="module-compact-body">
                             <strong>{m.title}</strong>

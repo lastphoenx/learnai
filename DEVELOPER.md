@@ -95,9 +95,13 @@ Redis-basiert. Konfiguration in `.env` / `config.py`:
 
 ### Client-IP (`core/auth/client_ip.py`)
 
-- Hinter vertrauenswürdigem Proxy: `X-Real-IP` / `X-Forwarded-For`
-- Private LAN-IPs werden für Rate-Limits genutzt; öffentliche IPs für IP-Sperren
+- Hinter vertrauenswürdigem Proxy: `X-Real-IP` (wenn nicht Trusted-Proxy-IP), sonst `X-Forwarded-For` **rechts nach links** (Trusted-Proxy-Hops überspringen)
+- Produktion: `TRUSTED_PROXY_CIDRS` auf nginx-IP `/32` einschränken (z. B. `192.168.131.105/32`)
 - Diagnose: `login_ip_debug` INFO-Log bei Login
+
+### Uploads (`core/upload_validation.py`)
+
+Magic-Byte-Prüfung für Quellen (PDF, Bilder, Audio) und Prüfungen (PDF, Bilder). Client-`Content-Type` nur als Familien-Check.
 
 ### Verschlüsselung
 
@@ -118,6 +122,18 @@ Redis-basiert. Konfiguration in `.env` / `config.py`:
 
 ### Phase C — Nacharbeit
 - `POST /units/{id}/exams/{exam_id}/remediation` — neue Einheit (Modus `review`)
+- `POST /units/{id}/learn/remediation` — Nacharbeit aus **App-Quiz-Schwächen**
+- `POST /units/{id}/learn/interactive-trainer` — Trainer aus Quiz-Schwächen
+- `POST /units/{id}/review` — Wiederholung; bei Quiz-Schwächen → Trainer-Pfad
+
+### Lernmodus (Auszug)
+
+| Endpunkt | Beschreibung |
+|----------|--------------|
+| `GET /units/{id}/learn` | State inkl. `quiz_weaknesses`, `exam_entry` |
+| `GET /units/{id}/learn/weaknesses` | Schwächen-Übersicht |
+| `POST /units/{id}/learn/answer` | Quiz-Antwort |
+| `POST /units/{id}/learn/practice` | Übungsaufgabe |
 
 ### Phase D — Langzeit
 - `GET /dashboard/parent/exam-insights` — Fehlertrends pro Kind
@@ -155,13 +171,18 @@ Präfix: `/api/v1`. OpenAPI: `/api/docs`.
 Siehe `.env.example`. Wichtig für Produktion:
 
 ```env
-CORS_ORIGINS=https://your-domain.example
+APP_ENV=production
+CORS_ORIGINS=https://learn.santinel.li
 COOKIE_SECURE=true
+PUBLISH_BIND=192.168.131.45   # LAN-IP wenn nginx auf anderem Host (CT 108)
+TRUSTED_PROXY_CIDRS=192.168.131.105/32
 LOGIN_ALLOWLIST_ONLY=true
 LLM_PROVIDER=ollama
-OLLAMA_URL=http://ollama-host:11434
-# OLLAMA_MODEL / OLLAMA_VISION_MODEL optional — leer = Katalog + installierte Ollama-Modelle
+OLLAMA_URL=http://192.168.131.60:11434
 ```
+
+`.env` ohne Secrets prüfen: `bash scripts/check-env-safe.sh .env`  
+Betrieb: [docs/RUNBOOK.md](docs/RUNBOOK.md)
 
 ---
 

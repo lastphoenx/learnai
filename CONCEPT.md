@@ -22,10 +22,12 @@ Lernen in der App (Quiz, Blöcke) ≠ echte Schulprüfung. Beides muss verbunden
 
 ### Lernen
 - Lerneinheit anlegen (Modi, Mathe-Schwerpunkt, Quellen: Foto/PDF/Audio/URL)
-- KI-Aufbereitung → Lernblöcke + Quiz (Aufgabentypen: mixed, explain, quiz, practice, math, workbook, review, exam)
-- Interaktiver Lernmodus mit Fortschritt, Pause, TTS, Wiederholung
-- Verlauf + «ähnlich nochmal» / Wiederholungseinheit
-- Einheiten mehreren Lernprofilen zuweisen
+- KI-Aufbereitung → Lernblöcke + Quiz (Aufgabentypen: mixed, explain, quiz, practice, math, workbook, review, exam, **interactive**)
+- Interaktiver Lernmodus mit Fortschritt, Pause, TTS, Übungsaufgaben, didaktische Trainer-Phasen
+- **Quiz-Schwächen** → Nacharbeit / Trainer-Einheit (manuell + Auto-Schwelle)
+- **Wiederholung** bei Quiz-Fehlern → Trainer-Pfad statt generischer Neugenerierung
+- **Prüfungs-Kurzbericht** als Lern-Einstieg (`exam_entry` beim Start)
+- Verlauf + Wiederholungseinheit; Zuweisung inkl. **Vorlagen-Kopie** (Quellen + Lernblöcke)
 
 ### Rollen & Profile
 - Eltern-Dashboard (Kinder-Übersicht, Prüfungstrends, Markdown-Bericht)
@@ -42,7 +44,9 @@ Lernen in der App (Quiz, Blöcke) ≠ echte Schulprüfung. Beides muss verbunden
 ### Sicherheit
 - Login + TOTP-2FA + Recovery Codes; 2FA-Pflicht pro Account (Admin)
 - Redis Brute-Force-Schutz (Rate-Limits, E-Mail-/IP-Sperren, Allowlist-only)
-- Client-IP hinter nginx (X-Real-IP); Login-IP-Debug-Logging
+- Client-IP hinter nginx (X-Real-IP, XFF rechts-trusted); `TRUSTED_PROXY_CIDRS`
+- SSRF-Guard für URL-Quellen; Magic-Byte-Validierung bei Uploads
+- `APP_ENV=production` + `COOKIE_SECURE`; Security-Header in FastAPI
 
 ---
 
@@ -57,11 +61,13 @@ Lernen in der App (Quiz, Blöcke) ≠ echte Schulprüfung. Beides muss verbunden
 | Fehlermuster über mehrere Prüfungen | ✅ | Aggregation im Eltern-Dashboard (Phase D) |
 | Manuelle Korrektur der KI-Analyse | ✅ | PATCH analysis + UI «Analyse bearbeiten» |
 | Vergleich App-Quiz vs. Schulprüfung | ✅ | `transfer` pro Prüfung (Einheit + Eltern-Dashboard) |
-| Spaced Repetition / Erinnerungsplan | teilweise | Wiederholungs-Hinweis nach 7 Tagen (Kinder-Übersicht) |
-| Offline / Druck | ✅ | Arbeitsblatt-PDF pro Einheit; Elternbericht-PDF |
-| Mehrere Kinder gleiche Einheit | teilweise | Zuweisung an Profile; kein «Vorlage duplizieren» |
+| Spaced Repetition / Erinnerungsplan | teilweise | Lernkarten im Trainer; 7-Tage-Hinweis Eltern-Dashboard |
+| Offline / Druck | ✅ | Arbeitsblatt-PDF; Trainer-Export JSON |
+| Mehrere Kinder gleiche Einheit | ✅ | Zuweisung kopiert Quellen + Lernblöcke |
+| App-Quiz → adaptive Nacharbeit | ✅ | `error_tags`, Nacharbeit/Trainer, Auto-Trainer |
 | Benachrichtigungen | fehlt | «Kind hat Einheit abgeschlossen» |
 | Datenschutz Prüfungsfotos | zu klären | Klassifizierung, Aufbewahrungsfrist, Löschen |
+| Redis fail-closed / TOTP-Replay | offen | Security-Härtung mittlere Priorität |
 
 ---
 
