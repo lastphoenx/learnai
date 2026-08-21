@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
-import { fetchMe, fetchRecords, rebuildFromRecord, createReviewUnit, type LearningRecord, type User } from "@/lib/api";
+import { fetchMe, fetchRecords, rebuildFromRecord, createReviewUnit, reviewUnitHref, type LearningRecord, type User } from "@/lib/api";
 
 export default function HistoryPage() {
   const router = useRouter();
@@ -99,7 +99,7 @@ export default function HistoryPage() {
                     type="button"
                     onClick={async () => {
                       const unit = await createReviewUnit(r.unit_id!);
-                      router.push(`/units/${unit.id}`);
+                      router.push(reviewUnitHref(unit));
                     }}
                   >
                     Wiederholung

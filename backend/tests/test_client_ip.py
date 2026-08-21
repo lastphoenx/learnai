@@ -26,6 +26,19 @@ def test_trusted_proxy_uses_forwarded_for():
     assert get_client_ip(req) == "203.0.113.51"
 
 
+def test_trusted_proxy_ignores_spoofed_left_xff():
+    req = _request(
+        peer="10.0.0.5",
+        headers={"x-forwarded-for": "1.2.3.4, 203.0.113.51"},
+    )
+    assert get_client_ip(req) == "203.0.113.51"
+
+
+def test_trusted_proxy_ignores_spoofed_x_real_ip():
+    req = _request(peer="10.0.0.5", headers={"x-real-ip": "10.0.0.1", "x-forwarded-for": "203.0.113.52"})
+    assert get_client_ip(req) == "203.0.113.52"
+
+
 def test_trusted_proxy_without_client_ip_returns_none():
     req = _request(peer="172.18.0.6", headers={})
     assert get_client_ip(req) is None

@@ -273,6 +273,19 @@ def create_exam(
     if score is not None and max_score is not None and score > max_score:
         raise UnitError("Erreichte Punkte dürfen Maximalpunkte nicht überschreiten", "invalid_score")
 
+    from app.core.upload_validation import UploadValidationError, validate_upload_bytes
+
+    try:
+        detected = validate_upload_bytes(
+            data,
+            filename=filename,
+            declared_content_type=content_type,
+            allow_audio=False,
+        )
+    except UploadValidationError as exc:
+        raise UnitError(str(exc), exc.code) from exc
+    content_type = detected.content_type
+
     taken_dt = None
     if taken_at:
         taken_dt = datetime.combine(taken_at, datetime.min.time(), tzinfo=timezone.utc)

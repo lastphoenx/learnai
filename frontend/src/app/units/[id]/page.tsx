@@ -10,6 +10,7 @@ import { UnitExamSection } from "@/components/UnitExamSection";
 import {
   addSourceUrl,
   createReviewUnit,
+  reviewUnitHref,
   deleteSource,
   deleteUnit,
   fetchMe,
@@ -521,7 +522,7 @@ export default function UnitDetailPage() {
                   setError(null);
                   try {
                     const review = await createReviewUnit(unitId);
-                    router.push(`/units/${review.id}?autogen=1`);
+                    router.push(reviewUnitHref(review));
                   } catch (err) {
                     setError(err instanceof Error ? err.message : "Wiederholung konnte nicht erstellt werden");
                   } finally {
@@ -530,7 +531,9 @@ export default function UnitDetailPage() {
                 }}
               >
                 <strong>Wiederholung</strong>
-                <span className="muted">Neue Einheit · gleiche Quellen · KI generiert neu</span>
+                <span className="muted">
+                  Bei Quiz-Fehlern: Trainer · sonst neue Einheit mit gleichen Quellen
+                </span>
               </button>
               <button type="button" className="action-tile" onClick={onSpeak} disabled={busy}>
                 <strong>Vorlesen</strong>

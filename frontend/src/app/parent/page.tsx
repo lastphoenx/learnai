@@ -9,6 +9,7 @@ import {
   childReportUrl,
   childReportPdfUrl,
   createReviewUnit,
+  reviewUnitHref,
   fetchMe,
   fetchParentDashboard,
   fetchParentExamInsights,
@@ -163,7 +164,7 @@ export default function ParentDashboardPage() {
                                   onClick={async () => {
                                     try {
                                       const unit = await createReviewUnit(r.unit_id!);
-                                      router.push(`/units/${unit.id}`);
+                                      router.push(reviewUnitHref(unit));
                                     } catch (e) {
                                       alert(e instanceof Error ? e.message : "Wiederholung fehlgeschlagen");
                                     }
