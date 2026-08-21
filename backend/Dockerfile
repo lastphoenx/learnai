@@ -13,7 +13,13 @@ COPY alembic.ini .
 COPY alembic ./alembic
 COPY app ./app
 COPY docker-entrypoint.sh .
-RUN chmod +x docker-entrypoint.sh
+RUN chmod +x docker-entrypoint.sh \
+ && groupadd --system --gid 1001 learnai \
+ && useradd --system --uid 1001 --gid 1001 --home /app learnai \
+ && mkdir -p /app/uploads/_tmp \
+ && chown -R learnai:learnai /app
+
+USER learnai
 
 EXPOSE 8000
 

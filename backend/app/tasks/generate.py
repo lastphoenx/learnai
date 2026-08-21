@@ -9,6 +9,7 @@ from app.ai.errors import LlmError
 from app.core.db.session import SessionLocal
 from app.models import User
 from app.services.generate_job import get_generate_job, make_progress_callback, set_generate_job
+from app.services.generate_limits import release_generate_slot
 from app.services.unit_service import UnitError, _get_unit_or_404
 from app.worker import celery_app
 
@@ -21,6 +22,7 @@ _GENERIC_GENERATE_ERROR = "Generierung fehlgeschlagen. Bitte erneut versuchen."
 def generate_unit_task(self, unit_id: str, user_id: str, provider: str | None = None) -> None:
     db = SessionLocal()
     progress = make_progress_callback(unit_id, user_id)
+    tenant_id: str | None = None
     try:
         user = db.query(User).filter(User.id == uuid.UUID(user_id)).first()
         if not user:
@@ -33,6 +35,7 @@ def generate_unit_task(self, unit_id: str, user_id: str, provider: str | None = 
             )
             return
 
+        tenant_id = str(user.tenant_id)
         unit = _get_unit_or_404(db, user, uuid.UUID(unit_id))
         set_generate_job(unit_id, user_id=user_id, status="running", stage="extracting_sources")
 
@@ -105,4 +108,6 @@ def generate_unit_task(self, unit_id: str, user_id: str, provider: str | None = 
         _log.exception("generate_unit_task failed unit_id=%s", unit_id)
         progress("failed", error=_GENERIC_GENERATE_ERROR)
     finally:
+        if tenant_id:
+            release_generate_slot(user_id=user_id, tenant_id=tenant_id, unit_id=unit_id)
         db.close()

@@ -6,7 +6,6 @@ import re
 from html.parser import HTMLParser
 from io import BytesIO
 from pathlib import Path
-from urllib.parse import urlparse
 
 import httpx
 
@@ -104,24 +103,38 @@ def transcribe_audio(path: Path, *, language: str = "de") -> str:
 
 
 def fetch_url_text(url: str, *, max_bytes: int = 2_000_000) -> str:
-    parsed = urlparse(url.strip())
-    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-        raise LlmError("Ungültige URL (nur http/https)", "bad_url")
+    from app.core.url_safety import validate_public_http_url
 
-    response = httpx.get(
-        url.strip(),
-        follow_redirects=True,
-        timeout=20.0,
-        headers={"User-Agent": "LearnAI/1.0 (educational fetch)"},
-    )
+    safe_url = validate_public_http_url(url)
+    max_redirects = 5
+    current = safe_url
+
+    with httpx.Client(follow_redirects=False, timeout=20.0) as client:
+        for _ in range(max_redirects + 1):
+            validate_public_http_url(current)
+            response = client.get(
+                current,
+                headers={"User-Agent": "LearnAI/1.0 (educational fetch)"},
+            )
+            if response.status_code in {301, 302, 303, 307, 308}:
+                location = response.headers.get("location")
+                if not location:
+                    raise LlmError("Ungültige Weiterleitung", "fetch_failed")
+                current = httpx.URL(current).join(location).human_repr()
+                continue
+            break
+        else:
+            raise LlmError("Zu viele Weiterleitungen", "fetch_failed")
+
     if response.status_code >= 400:
         raise LlmError(f"URL nicht erreichbar ({response.status_code})", "fetch_failed")
 
     content_type = (response.headers.get("content-type") or "").lower()
     data = response.content[:max_bytes]
+    final_url = str(response.url)
 
-    if "pdf" in content_type or url.lower().endswith(".pdf"):
-        tmp = Path(settings.upload_dir) / "_tmp" / f"url-{abs(hash(url))}.pdf"
+    if "pdf" in content_type or final_url.lower().endswith(".pdf"):
+        tmp = Path(settings.upload_dir) / "_tmp" / f"url-{abs(hash(final_url))}.pdf"
         tmp.parent.mkdir(parents=True, exist_ok=True)
         tmp.write_bytes(data)
         try:

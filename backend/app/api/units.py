@@ -29,6 +29,7 @@ from app.schemas import (
     UnitUpdateRequest,
 )
 from app.services.generate_job import get_generate_job, job_is_active, set_generate_job
+from app.services.generate_limits import acquire_generate_slot, release_generate_slot
 from app.tasks.generate import generate_unit_task
 from app.services.learn_service import (
     complete_learn,
@@ -78,6 +79,7 @@ def _http(exc: UnitError) -> HTTPException:
         "invalid_score": status.HTTP_400_BAD_REQUEST,
         "invalid_profile": status.HTTP_400_BAD_REQUEST,
         "already_assigned": status.HTTP_400_BAD_REQUEST,
+        "rate_limited": status.HTTP_429_TOO_MANY_REQUESTS,
         "no_file": status.HTTP_400_BAD_REQUEST,
         "analysis_failed": status.HTTP_400_BAD_REQUEST,
         "not_analyzed": status.HTTP_400_BAD_REQUEST,
@@ -233,6 +235,11 @@ def units_generate(
                     status_code=status.HTTP_202_ACCEPTED,
                     content=GenerateStartResponse(async_job=True, job=job).model_dump(),
                 )
+            acquire_generate_slot(
+                user_id=str(user.id),
+                tenant_id=str(user.tenant_id),
+                unit_id=uid,
+            )
             set_generate_job(uid, user_id=str(user.id), status="queued", stage="queued")
             generate_unit_task.delay(uid, str(user.id), body.provider)
             job_raw = get_generate_job(uid) or {"status": "queued", "stage": "queued"}
@@ -242,9 +249,21 @@ def units_generate(
                 content=GenerateStartResponse(async_job=True, job=job).model_dump(),
             )
 
-        generate_modules(db, user, unit_id, provider=body.provider)
-        db.commit()
-        return get_unit(db, user, unit_id)
+        acquire_generate_slot(
+            user_id=str(user.id),
+            tenant_id=str(user.tenant_id),
+            unit_id=str(unit_id),
+        )
+        try:
+            generate_modules(db, user, unit_id, provider=body.provider)
+            db.commit()
+            return get_unit(db, user, unit_id)
+        finally:
+            release_generate_slot(
+                user_id=str(user.id),
+                tenant_id=str(user.tenant_id),
+                unit_id=str(unit_id),
+            )
     except UnitError as exc:
         db.rollback()
         raise _http(exc) from exc

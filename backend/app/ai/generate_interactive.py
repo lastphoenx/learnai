@@ -365,31 +365,33 @@ def generate_interactive_modules(
             len(cards),
             len(questions),
         )
-        _save_generated_modules(
-            db,
-            unit,
-            modules,
-            result_meta=plan_result,
-            task="interactive",
-            final=False,
-        )
-        db.commit()
-        _log.info(
-            "generate_interactive category_persisted unit_id=%s index=%d modules=%d",
-            unit_id,
-            index + 1,
-            len(modules),
-        )
 
     modules, dedupe_warnings = dedupe_interactive_modules(modules)
     for warning in dedupe_warnings:
         _log.warning("generate_interactive dedupe unit_id=%s %s", unit_id, warning)
 
-    validate_interactive_modules(
-        modules,
-        min_cards=_MIN_CARDS,
-        min_questions=_MIN_QUESTIONS,
-    )
+    try:
+        validate_interactive_modules(
+            modules,
+            min_cards=_MIN_CARDS,
+            min_questions=_MIN_QUESTIONS,
+        )
+    except LlmError:
+        if len(modules) >= 4:
+            total_cards = sum(len(m["content"]["cards"]) for m in modules)
+            total_questions = sum(len(m["quiz"]["questions"]) for m in modules)
+            if progress:
+                progress("saving", cards=total_cards, questions=total_questions)
+            _save_generated_modules(
+                db,
+                unit,
+                modules,
+                result_meta=plan_result,
+                task="interactive",
+                final=False,
+            )
+            db.commit()
+        raise
 
     total_cards = sum(len(m["content"]["cards"]) for m in modules)
     total_questions = sum(len(m["quiz"]["questions"]) for m in modules)
