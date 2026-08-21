@@ -1946,6 +1946,55 @@ button.btn.action-tile {
   font-size: 0.82rem;
   color: var(--muted);
 }
+.trainer-home-hero {
+  margin: 1rem 0 1.25rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--accent) 6%, var(--surface));
+}
+.trainer-home-phase {
+  margin: 0 0 0.35rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+}
+.trainer-home-hint {
+  margin: 0 0 0.85rem;
+  line-height: 1.5;
+}
+.trainer-home-primary {
+  margin: 0;
+}
+.trainer-stat-panel {
+  margin-bottom: 1rem;
+  padding: 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.trainer-stat-heading {
+  margin: 0 0 0.65rem;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+.trainer-more-actions {
+  margin: 0.5rem 0 1rem;
+  padding: 0.65rem 0.85rem;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+}
+.trainer-more-actions summary {
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: var(--muted);
+  user-select: none;
+}
+.trainer-more-actions .learn-actions {
+  margin-top: 0.75rem;
+}
 .trainer-progress-wrap {
   margin-bottom: 1rem;
 }
@@ -2019,7 +2068,15 @@ button.btn.action-tile {
 .trainer-knowledge-points {
   margin: 0;
   padding: 0 1rem 0.85rem 1.65rem;
-  list-style: disc;
+  list-style: decimal;
+}
+.trainer-knowledge-intro-block {
+  margin: 0 1rem 0.5rem;
+  padding: 0.65rem 0.85rem;
+  border-left: 3px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 5%, var(--surface));
+  line-height: 1.5;
+  font-size: 0.95rem;
 }
 .trainer-knowledge-points li {
   margin: 0.45rem 0;

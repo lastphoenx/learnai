@@ -767,6 +767,7 @@ def _interactive_trainer_payload(
 ) -> dict:
     recon = decrypt_json(record.reconstruction_encrypted) if record.reconstruction_encrypted else {}
     knowledge: list[dict] = []
+    knowledge_sections: list[dict] = []
     cards: list[dict] = []
     total_questions = 0
     for module in modules:
@@ -774,9 +775,21 @@ def _interactive_trainer_payload(
         if not isinstance(content, dict):
             continue
         domain = decrypt_text_master(module.title_encrypted)
+        section_items: list[dict] = []
         for item in content.get("knowledge") or []:
             if isinstance(item, dict):
-                knowledge.append({**item, "domain": domain, "module_id": str(module.id)})
+                enriched = {**item, "domain": domain, "module_id": str(module.id)}
+                knowledge.append(enriched)
+                section_items.append(item)
+        if section_items or content.get("intro"):
+            knowledge_sections.append(
+                {
+                    "domain": domain,
+                    "module_id": str(module.id),
+                    "intro": str(content.get("intro") or "")[:500],
+                    "items": section_items,
+                }
+            )
         for index, card in enumerate(content.get("cards") or []):
             if isinstance(card, dict):
                 cards.append(
@@ -798,6 +811,7 @@ def _interactive_trainer_payload(
     return {
         "options": get_trainer_options(recon if isinstance(recon, dict) else {}),
         "knowledge": knowledge,
+        "knowledge_sections": knowledge_sections,
         "cards": cards,
         "flashcard_progress": progress,
         "stats": {

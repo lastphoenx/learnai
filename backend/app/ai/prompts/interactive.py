@@ -39,6 +39,18 @@ QUIZ_SYSTEM = (
     "- Keine Trivialfragen, keine Scherzantworten."
 )
 
+KNOWLEDGE_SYSTEM = (
+    "Du schreibst didaktisches Kernwissen für Schüler vor einem Quiz. Antworte NUR mit JSON.\n"
+    'Schema: {"knowledge":[{"title":"Kurztitel","text":"2-4 Sätze"}]}\n'
+    "Regeln:\n"
+    "- Genau 4 bis 5 Einträge.\n"
+    "- Abdeckung: Kernregel/Konzept, Schritt-für-Schritt-Vorgehen, konkretes Mini-Beispiel mit Rechenweg, "
+    "typischer Fehler oder Merksatz, optional Bezug zum Alltag.\n"
+    "- Kurze Sätze, altersgerecht, verständlich — wie ein Mini-Tutorial, nicht wie eine Karteikarte.\n"
+    "- Ergänze die Lernkarten didaktisch; wiederhole sie nicht wörtlich.\n"
+    "- Keine Quiz-Spoiler, kein ISBN/Buchcover-Meta."
+)
+
 
 def learner_style_hint(*, target_age: str | None, style: str, answer_length: str) -> str:
     age = (target_age or "").strip()
@@ -153,6 +165,27 @@ def build_interactive_card_prompt(
         f"Lernziel: {category_focus}\n"
         f"Erzeuge genau {count} Lernkarten als JSON.\n"
         f"{avoid}"
+    )
+
+
+def build_interactive_knowledge_prompt(
+    *,
+    context: str,
+    category_name: str,
+    category_focus: str,
+    card_summaries: list[str],
+) -> str:
+    cards_hint = ""
+    if card_summaries:
+        cards_hint = "\nLernkarten dieser Kategorie (nur als Kontext, nicht wiederholen):\n" + "\n".join(
+            f"- {s}" for s in card_summaries[:10]
+        )
+    return (
+        f"{context}\n\n"
+        f"Kategorie: {category_name}\n"
+        f"Lernziel: {category_focus}\n"
+        f"Erzeuge 4 bis 5 Wissens-Einträge als JSON für den Wissens-Hub (Schritt «Verstehen»).\n"
+        f"{cards_hint}"
     )
 
 

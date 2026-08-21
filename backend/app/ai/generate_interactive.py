@@ -14,9 +14,11 @@ from app.ai.errors import LlmError
 from app.ai.generate import _collect_source_notes, _save_generated_modules
 from app.ai.prompts.interactive import (
     CARDS_SYSTEM,
+    KNOWLEDGE_SYSTEM,
     PLAN_SYSTEM,
     QUIZ_SYSTEM,
     build_interactive_card_prompt,
+    build_interactive_knowledge_prompt,
     build_interactive_plan_prompt,
     build_interactive_quiz_prompt,
     truncate_context,
@@ -114,6 +116,66 @@ def _parse_cards(text: str, expected: int) -> list[dict]:
     if len(out) < expected:
         _log.warning("generate_interactive cards_short got=%d expected=%d", len(out), expected)
     return out[:expected] if len(out) >= expected else out
+
+
+def _parse_knowledge(text: str, *, fallback_focus: str, category_name: str) -> list[dict]:
+    parsed = parse_json_object(text)
+    items = parsed.get("knowledge")
+    if not isinstance(items, list):
+        raise LlmError("Kein Wissens-Hub in der Antwort", "bad_json")
+    out: list[dict] = []
+    for raw in items:
+        if not isinstance(raw, dict):
+            continue
+        title = str(raw.get("title") or "").strip()
+        body = str(raw.get("text") or "").strip()
+        if not title or not body:
+            continue
+        out.append({"title": title[:120], "text": body[:900]})
+    if len(out) < 2:
+        focus = fallback_focus or f"Kernwissen zu {category_name}."
+        return [{"title": "Überblick", "text": focus[:900]}]
+    return out[:6]
+
+
+def _generate_knowledge(
+    *,
+    batch_context: str,
+    cat: dict,
+    cards: list[dict],
+    provider: str,
+    model: str | None,
+    index: int,
+) -> list[dict]:
+    card_summaries = [f"{c['question']} → {c['answer'][:80]}" for c in cards[:8]]
+    knowledge_prompt = build_interactive_knowledge_prompt(
+        context=batch_context,
+        category_name=cat["name"],
+        category_focus=cat["focus"],
+        card_summaries=card_summaries,
+    )
+    try:
+        knowledge_result = _complete_with_retry(
+            prompt=knowledge_prompt,
+            provider=provider,
+            system=KNOWLEDGE_SYSTEM,
+            model=model,
+            num_predict=4096,
+            label=f"knowledge_{index + 1}",
+        )
+        return _parse_knowledge(
+            knowledge_result["text"],
+            fallback_focus=cat.get("focus") or "",
+            category_name=cat["name"],
+        )
+    except LlmError as exc:
+        _log.warning(
+            "generate_interactive knowledge_fallback category=%s code=%s",
+            cat["name"],
+            exc.code,
+        )
+        focus = str(cat.get("focus") or f"Kernwissen zu {cat['name']}.")
+        return [{"title": "Überblick", "text": focus[:900]}]
 
 
 def _parse_questions(text: str, expected: int) -> list[dict]:
@@ -323,6 +385,15 @@ def generate_interactive_modules(
         cards = _parse_cards(cards_result["text"], cat["cards"])
         all_card_questions.extend(c["question"] for c in cards)
 
+        knowledge = _generate_knowledge(
+            batch_context=batch_context,
+            cat=cat,
+            cards=cards,
+            provider=name,
+            model=model,
+            index=index,
+        )
+
         quiz_prompt = build_interactive_quiz_prompt(
             context=batch_context,
             category_name=cat["name"],
@@ -347,12 +418,7 @@ def generate_interactive_modules(
                 "title": cat["name"],
                 "content": {
                     "intro": cat["focus"] or "",
-                    "knowledge": [
-                        {
-                            "title": cat["name"],
-                            "text": cat["focus"] or f"Kernwissen zu {cat['name']}.",
-                        }
-                    ],
+                    "knowledge": knowledge,
                     "cards": cards,
                 },
                 "quiz": {"questions": questions},
