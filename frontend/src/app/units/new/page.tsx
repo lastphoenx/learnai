@@ -6,6 +6,7 @@ import Link from "next/link";
 import { AppHeader } from "@/components/AppHeader";
 import { LabelWithSpeech } from "@/components/LabelWithSpeech";
 import { LearnerMultiSelect } from "@/components/LearnerMultiSelect";
+import { UnitFieldGuide } from "@/components/UnitFieldGuide";
 import {
   createUnit,
   fetchMe,
@@ -24,6 +25,7 @@ import {
   type MathFocusOption,
   type UnitTaskType,
 } from "@/lib/taskTypes";
+import { getUnitFieldGuide } from "@/lib/unitFieldHints";
 
 export default function NewUnitPage() {
   const router = useRouter();
@@ -56,6 +58,16 @@ export default function NewUnitPage() {
   );
 
   const mathFocusVisible = showMathFocus(taskType, subject);
+
+  const fieldCtx = useMemo(
+    () => ({ taskType, mathFocus, subject }),
+    [taskType, mathFocus, subject],
+  );
+
+  const titleGuide = useMemo(() => getUnitFieldGuide("title", fieldCtx), [fieldCtx]);
+  const briefGuide = useMemo(() => getUnitFieldGuide("brief", fieldCtx), [fieldCtx]);
+  const subjectGuide = useMemo(() => getUnitFieldGuide("subject", fieldCtx), [fieldCtx]);
+  const targetAgeGuide = useMemo(() => getUnitFieldGuide("targetAge", fieldCtx), [fieldCtx]);
 
   useEffect(() => {
     if (activeSpeechProfile) {
@@ -151,58 +163,17 @@ export default function NewUnitPage() {
             }
           }}
         >
-          <input
-            required
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="z.B. Einstieg ins Bruchrechnen"
-          />
+          <>
+            <input
+              required
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder={titleGuide.placeholder}
+            />
+            <UnitFieldGuide tip={titleGuide.tip} show={!title.trim()} />
+          </>
         </LabelWithSpeech>
-        <LabelWithSpeech
-          label="Beschreibung / Auftrag an die KI"
-          language={language}
-          continuous
-          sttProvider={sttProvider}
-          profileId={speechProfileId}
-          onError={(msg) => setError(msg)}
-          onTranscript={(text, final) => {
-            if (final) {
-              setBrief((prev) => `${prev}${prev && !prev.endsWith(" ") ? " " : ""}${text.trim()}`);
-            }
-          }}
-        >
-          <textarea
-            value={brief}
-            onChange={(e) => setBrief(e.target.value)}
-            rows={5}
-            placeholder="Was soll gelernt werden? Fotos vom Lernmittel kannst du danach hochladen — oder per Mikro diktieren."
-          />
-        </LabelWithSpeech>
-        <label>
-          Fach / Thema
-          <input
-            value={subject}
-            onChange={(e) => setSubject(e.target.value)}
-            placeholder="Mathematik, Französisch, Grammatik…"
-          />
-        </label>
-        <label>
-          Sprache
-          <select value={language} onChange={(e) => setLanguage(e.target.value)}>
-            <option value="de">Deutsch</option>
-            <option value="fr">Französisch</option>
-            <option value="it">Italienisch</option>
-            <option value="en">Englisch</option>
-          </select>
-        </label>
-        <label>
-          Zielalter
-          <input
-            value={targetAge}
-            onChange={(e) => setTargetAge(e.target.value)}
-            placeholder="z.B. 10-14"
-          />
-        </label>
+
         <label>
           Aufgabentyp
           <select value={taskType} onChange={(e) => setTaskType(e.target.value)}>
@@ -218,6 +189,7 @@ export default function NewUnitPage() {
             {selectedType.description}
           </p>
         )}
+
         {mathFocusVisible && (
           <label>
             Mathe-Schwerpunkt
@@ -228,12 +200,65 @@ export default function NewUnitPage() {
                 </option>
               ))}
             </select>
-            <span className="muted" style={{ fontWeight: 400, fontSize: "0.85rem" }}>
-              Kein eigener Modus pro Rechenart — der Schwerpunkt steuert die KI (Bruchrechnen, Geometrie,
-              Einheiten …). Details im Auftrag ergänzen.
-            </span>
+            <UnitFieldGuide
+              tip="Steuert die Vorlagen unten — Details und Ausnahmen im Auftrag formulieren."
+              show={!mathFocus}
+            />
           </label>
         )}
+
+        <label className="unit-field-wrap">
+          Fach / Thema
+          <input
+            value={subject}
+            onChange={(e) => setSubject(e.target.value)}
+            placeholder={subjectGuide.placeholder}
+          />
+          <UnitFieldGuide tip={subjectGuide.tip} show={!subject.trim()} />
+        </label>
+
+        <LabelWithSpeech
+          label="Beschreibung / Auftrag an die KI"
+          language={language}
+          continuous
+          sttProvider={sttProvider}
+          profileId={speechProfileId}
+          onError={(msg) => setError(msg)}
+          onTranscript={(text, final) => {
+            if (final) {
+              setBrief((prev) => `${prev}${prev && !prev.endsWith(" ") ? " " : ""}${text.trim()}`);
+            }
+          }}
+        >
+          <>
+            <textarea
+              value={brief}
+              onChange={(e) => setBrief(e.target.value)}
+              rows={8}
+              placeholder={briefGuide.placeholder}
+            />
+            <UnitFieldGuide tip={briefGuide.tip} show={!brief.trim()} />
+          </>
+        </LabelWithSpeech>
+
+        <label>
+          Sprache
+          <select value={language} onChange={(e) => setLanguage(e.target.value)}>
+            <option value="de">Deutsch</option>
+            <option value="fr">Französisch</option>
+            <option value="it">Italienisch</option>
+            <option value="en">Englisch</option>
+          </select>
+        </label>
+        <label className="unit-field-wrap">
+          Zielalter
+          <input
+            value={targetAge}
+            onChange={(e) => setTargetAge(e.target.value)}
+            placeholder={targetAgeGuide.placeholder}
+          />
+          <UnitFieldGuide tip={targetAgeGuide.tip} show={!targetAge.trim()} />
+        </label>
         {!user?.is_child && profiles.length > 0 && (
           <LearnerMultiSelect
             profiles={profiles}

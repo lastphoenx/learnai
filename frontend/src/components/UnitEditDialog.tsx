@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
   fetchUnitTaskTypes,
   patchUnit,
@@ -8,6 +8,7 @@ import {
   type TrainerOptions,
   type UnitPatchBody,
 } from "@/lib/api";
+import { UnitFieldGuide } from "@/components/UnitFieldGuide";
 import {
   FALLBACK_MATH_FOCUS,
   FALLBACK_TASK_TYPES,
@@ -15,6 +16,7 @@ import {
   type MathFocusOption,
   type UnitTaskType,
 } from "@/lib/taskTypes";
+import { getUnitFieldGuide } from "@/lib/unitFieldHints";
 
 type Props = {
   unit: LearningUnit;
@@ -72,6 +74,15 @@ export function UnitEditDialog({ unit, open, onClose, onSaved }: Props) {
   const mathFocusVisible = showMathFocus(taskType, subject);
   const selectedType = taskTypes.find((t) => t.key === taskType);
 
+  const fieldCtx = useMemo(
+    () => ({ taskType, mathFocus, subject }),
+    [taskType, mathFocus, subject],
+  );
+  const titleGuide = useMemo(() => getUnitFieldGuide("title", fieldCtx), [fieldCtx]);
+  const briefGuide = useMemo(() => getUnitFieldGuide("brief", fieldCtx), [fieldCtx]);
+  const subjectGuide = useMemo(() => getUnitFieldGuide("subject", fieldCtx), [fieldCtx]);
+  const targetAgeGuide = useMemo(() => getUnitFieldGuide("targetAge", fieldCtx), [fieldCtx]);
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
@@ -124,43 +135,16 @@ export function UnitEditDialog({ unit, open, onClose, onSaved }: Props) {
           </button>
         </div>
         <form onSubmit={onSubmit} className="stack">
-          <label>
+          <label className="unit-field-wrap">
             Titel
-            <input required value={title} onChange={(e) => setTitle(e.target.value)} />
+            <input
+              required
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder={titleGuide.placeholder}
+            />
+            <UnitFieldGuide tip={titleGuide.tip} show={!title.trim()} />
           </label>
-          <label>
-            Beschreibung / Auftrag an die KI
-            <textarea value={brief} onChange={(e) => setBrief(e.target.value)} rows={4} />
-          </label>
-          <label>
-            Fach / Thema
-            <input value={subject} onChange={(e) => setSubject(e.target.value)} />
-          </label>
-          <div className="form-row">
-            <label>
-              Sprache
-              <select value={language} onChange={(e) => setLanguage(e.target.value)}>
-                <option value="de">Deutsch</option>
-                <option value="fr">Französisch</option>
-                <option value="it">Italienisch</option>
-                <option value="en">Englisch</option>
-              </select>
-            </label>
-            <label>
-              Zielalter
-              <input value={targetAge} onChange={(e) => setTargetAge(e.target.value)} placeholder="10-14" />
-            </label>
-            <label>
-              Schwierigkeit
-              <input
-                type="number"
-                min={1}
-                max={5}
-                value={difficulty}
-                onChange={(e) => setDifficulty(Number(e.target.value))}
-              />
-            </label>
-          </div>
           <label>
             Aufgabentyp
             <select value={taskType} onChange={(e) => setTaskType(e.target.value)}>
@@ -184,6 +168,55 @@ export function UnitEditDialog({ unit, open, onClose, onSaved }: Props) {
               </select>
             </label>
           )}
+          <label className="unit-field-wrap">
+            Fach / Thema
+            <input
+              value={subject}
+              onChange={(e) => setSubject(e.target.value)}
+              placeholder={subjectGuide.placeholder}
+            />
+            <UnitFieldGuide tip={subjectGuide.tip} show={!subject.trim()} />
+          </label>
+          <label className="unit-field-wrap">
+            Beschreibung / Auftrag an die KI
+            <textarea
+              value={brief}
+              onChange={(e) => setBrief(e.target.value)}
+              rows={8}
+              placeholder={briefGuide.placeholder}
+            />
+            <UnitFieldGuide tip={briefGuide.tip} show={!brief.trim()} />
+          </label>
+          <div className="form-row">
+            <label>
+              Sprache
+              <select value={language} onChange={(e) => setLanguage(e.target.value)}>
+                <option value="de">Deutsch</option>
+                <option value="fr">Französisch</option>
+                <option value="it">Italienisch</option>
+                <option value="en">Englisch</option>
+              </select>
+            </label>
+            <label className="unit-field-wrap">
+              Zielalter
+              <input
+                value={targetAge}
+                onChange={(e) => setTargetAge(e.target.value)}
+                placeholder={targetAgeGuide.placeholder}
+              />
+              <UnitFieldGuide tip={targetAgeGuide.tip} show={!targetAge.trim()} />
+            </label>
+            <label>
+              Schwierigkeit
+              <input
+                type="number"
+                min={1}
+                max={5}
+                value={difficulty}
+                onChange={(e) => setDifficulty(Number(e.target.value))}
+              />
+            </label>
+          </div>
           {taskType === "interactive" && (
             <div className="stack trainer-options-form">
               <p className="muted" style={{ margin: 0 }}>
