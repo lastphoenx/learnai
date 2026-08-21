@@ -33,8 +33,13 @@ _PARSE_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ),
     (
         "div",
-        re.compile(rf"(?:division|quotient)\s+von\s+({_NUM})\s+(?:durch|und)\s+({_NUM})", re.I),
+        re.compile(
+            rf"(?:division|quotient|ergebnis)\s+von\s+({_NUM})\s*(?:[:÷/]|geteilt\s+durch|durch)\s*({_NUM})",
+            re.I,
+        ),
     ),
+    ("div", re.compile(rf"({_NUM})\s*(?:[:÷/]|geteilt\s+durch)\s*({_NUM})")),
+    ("div", re.compile(rf"({_NUM})\s+durch\s+({_NUM})", re.I)),
 ]
 
 
@@ -67,7 +72,22 @@ def explanation_is_weak(explanation: str, question: str) -> bool:
     if not expl:
         return True
     lower = expl.lower()
-    if any(token in lower for token in ("zuerst", "rechnung:", "schritt", "addiere", "subtrahiere", "multipliziere")):
+    if any(
+        token in lower
+        for token in (
+            "zuerst",
+            "rechnung:",
+            "variante 1",
+            "variante 2",
+            "schritt",
+            "addiere",
+            "subtrahiere",
+            "multipliziere",
+            "teile",
+            "hundertstel",
+            "zerlegung",
+        )
+    ):
         return False
     if _WEAK_EXPLANATION.search(expl):
         return True
@@ -80,6 +100,16 @@ def _join_variants(primary: str, alt: str | None) -> str:
     if alt:
         return f"{primary}\n\n{alt}"
     return primary
+
+
+def _decimal_places(value: float) -> int:
+    text = f"{value:.10f}".rstrip("0")
+    if "." not in text:
+        return 0
+    return len(text.split(".")[1])
+
+
+def _add_alternative_steps(a: float, b: float, result: float) -> str | None:
     """Zerlegung in Ganze + Dezimalteile."""
     if abs(a - round(a)) >= 1e-6 or abs(b - round(b)) >= 1e-6:
         a_whole = int(a) if a >= 0 else -int(-a)
@@ -143,9 +173,58 @@ def _sub_steps(a: float, b: float, result: float) -> str:
     return _join_variants(primary, alt)
 
 
+def _div_alternative_steps(a: float, b: float, result: float) -> str | None:
+    if abs(b - round(b)) >= 1e-6:
+        return None
+    b_int = int(round(b))
+    if b_int == 0:
+        return None
+    decimals = _decimal_places(a)
+    if decimals <= 0:
+        return None
+    scaled = int(round(a * (10**decimals)))
+    for part_scaled in range(b_int, scaled, b_int):
+        rest_scaled = scaled - part_scaled
+        if rest_scaled <= 0 or rest_scaled % b_int != 0:
+            continue
+        part_a = part_scaled / (10**decimals)
+        rest_a = rest_scaled / (10**decimals)
+        part_q = part_scaled // b_int
+        rest_q = rest_scaled // b_int
+        v1 = part_q / (10**decimals)
+        v2 = rest_q / (10**decimals)
+        if abs(v1 + v2 - result) > 1e-5:
+            continue
+        return (
+            f"Variante 2 (Zerlegung): {_fmt_num(a)} = {_fmt_num(part_a)} + {_fmt_num(rest_a)}. "
+            f"{_fmt_num(part_a)} ÷ {b_int} = {_fmt_num(v1)}, {_fmt_num(rest_a)} ÷ {b_int} = {_fmt_num(v2)}. "
+            f"Addiere: {_fmt_num(v1)} + {_fmt_num(v2)} = {_fmt_num(result)}."
+        )
+    return None
+
+
 def _div_steps(a: float, b: float, result: float) -> str:
     a_s, b_s, r_s = _fmt_num(a), _fmt_num(b), _fmt_num(result)
-    return f"Rechnung: {a_s} ÷ {b_s} = {r_s}."
+    if abs(b - round(b)) >= 1e-6:
+        return f"Variante 1: {a_s} ÷ {b_s} = {r_s}."
+    b_int = int(round(b))
+    if b_int == 0:
+        return f"Variante 1: {a_s} ÷ {b_s} = {r_s}."
+    decimals = _decimal_places(a)
+    if decimals > 0 and abs(a - round(a)) >= 1e-6:
+        scaled = int(round(a * (10**decimals)))
+        unit = {1: "Zehntel", 2: "Hundertstel", 3: "Tausendstel"}.get(decimals, f"10⁻{decimals}-tel")
+        quotient = scaled / b_int
+        primary = (
+            f"Variante 1 (Stellenwert): {a_s} = {scaled} {unit}. "
+            f"Teile: {scaled} ÷ {b_int} = {_fmt_num(quotient)}. "
+            f"Komma {decimals} Stelle{'n' if decimals > 1 else ''} zurück: {r_s}."
+        )
+        alt = _div_alternative_steps(a, b, result)
+        return _join_variants(primary, alt)
+    primary = f"Variante 1: {a_s} ÷ {b_s} = {r_s}."
+    alt = _div_alternative_steps(a, b, result)
+    return _join_variants(primary, alt)
 
 
 def _mul_alternative_steps(a: float, b: float, result: float) -> str | None:

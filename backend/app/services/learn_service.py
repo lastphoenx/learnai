@@ -299,8 +299,6 @@ def _backfill_answer_details(learn: dict, modules: list[UnitModule]) -> None:
             if selected is None or i >= len(questions):
                 continue
             key = str(i)
-            if key in details:
-                continue
             q = questions[i]
             if not isinstance(q, dict):
                 continue

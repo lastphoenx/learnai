@@ -20,7 +20,12 @@ _MULTIPLICATION = re.compile(
     re.I,
 )
 _DIVISION = re.compile(
-    r"(?:division\s+von|dividiere)\s+(-?\d+(?:[.,]\d+)?)\s+(?:durch|und)\s+(-?\d+(?:[.,]\d+)?)",
+    r"(?:division\s+von|quotient\s+von|ergebnis\s+von|dividiere)\s+(-?\d+(?:[.,]\d+)?)\s*"
+    r"(?:[:÷/]|geteilt\s+durch|durch)\s*(-?\d+(?:[.,]\d+)?)",
+    re.I,
+)
+_DIV_COLON = re.compile(
+    r"(-?\d+(?:[.,]\d+)?)\s*(?:[:÷/]|geteilt\s+durch)\s*(-?\d+(?:[.,]\d+)?)",
     re.I,
 )
 _MULT_DOT = re.compile(
@@ -78,10 +83,16 @@ def try_compute_from_question(question: str) -> float | None:
         return float(match.group(1)) * float(match.group(2))
     match = _DIVISION.search(text)
     if match:
-        divisor = float(match.group(2))
+        divisor = float(match.group(2).replace(",", "."))
         if abs(divisor) < 1e-12:
             return None
-        return float(match.group(1)) / divisor
+        return float(match.group(1).replace(",", ".")) / divisor
+    match = _DIV_COLON.search(text)
+    if match:
+        divisor = float(match.group(2).replace(",", "."))
+        if abs(divisor) < 1e-12:
+            return None
+        return float(match.group(1).replace(",", ".")) / divisor
     return None
 
 
