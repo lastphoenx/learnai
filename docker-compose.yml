@@ -34,7 +34,8 @@ services:
         condition: service_started
     env_file: .env
     ports:
-      - "127.0.0.1:${API_PORT:-8000}:8000"
+      # PUBLISH_BIND: 127.0.0.1 wenn nginx auf demselben Host; LAN-IP oder 0.0.0.0 wenn nginx woanders (CT 108)
+      - "${PUBLISH_BIND:-0.0.0.0}:${API_PORT:-8000}:8000"
     volumes:
       - ./backend/app:/app/app:ro
       - ./backend/alembic:/app/alembic:ro
@@ -70,7 +71,7 @@ services:
       - api
     env_file: .env
     ports:
-      - "127.0.0.1:3000:3000"
+      - "${PUBLISH_BIND:-0.0.0.0}:3000:3000"
 
 volumes:
   learnai-postgres:
