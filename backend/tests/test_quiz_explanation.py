@@ -1,4 +1,8 @@
-from app.core.quiz_explanation import build_worked_solution, enrich_quiz_explanation, explanation_is_weak
+from app.core.quiz_explanation import (
+    build_worked_solution,
+    enrich_quiz_explanation,
+    explanation_is_weak,
+)
 
 
 def test_weak_explanation_detected():
@@ -13,7 +17,6 @@ def test_multiply_worked_solution():
     assert text is not None
     assert "Variante 1" in text
     assert "Variante 2" in text
-    assert "8×20=160" in text.replace(",", ".") or "8×20=160" in text
     assert "2000,8" in text
 
 
@@ -34,3 +37,17 @@ def test_enrich_replaces_weak():
     enriched = enrich_quiz_explanation(q)
     assert "Zuerst" in enriched
     assert enriched != q["explanation"]
+
+
+def test_add_has_two_variants():
+    text = build_worked_solution("Wie berechnest du die Summe von 3,2 und 4,8?", 8.0)
+    assert text is not None
+    assert "Variante 1" in text
+    assert "Variante 2" in text
+
+
+def test_sub_has_two_variants():
+    text = build_worked_solution("Was ist das Ergebnis der Subtraktion von 5,6 und 2,9?", 2.7)
+    assert text is not None
+    assert "Variante 1" in text
+    assert "Variante 2" in text

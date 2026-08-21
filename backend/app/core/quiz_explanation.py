@@ -76,20 +76,68 @@ def explanation_is_weak(explanation: str, question: str) -> bool:
     return False
 
 
+def _add_alternative_steps(a: float, b: float, result: float) -> str | None:
+    """Zerlegung in Ganze + Dezimalteile."""
+    if abs(a - round(a)) >= 1e-6 or abs(b - round(b)) >= 1e-6:
+        a_whole = int(a) if a >= 0 else -int(-a)
+        a_frac = round(a - a_whole, 10)
+        b_whole = int(b) if b >= 0 else -int(-b)
+        b_frac = round(b - b_whole, 10)
+        if abs(a_frac) < 1e-9 and abs(b_frac) < 1e-9:
+            return None
+        sum_whole = a_whole + b_whole
+        sum_frac = round(a_frac + b_frac, 10)
+        total = round(sum_whole + sum_frac, 10)
+        return (
+            f"Variante 2 (Zerlegung): {_fmt_num(a)} = {_fmt_num(a_whole)} + {_fmt_num(a_frac)}, "
+            f"{_fmt_num(b)} = {_fmt_num(b_whole)} + {_fmt_num(b_frac)}. "
+            f"Ganze: {_fmt_num(a_whole)} + {_fmt_num(b_whole)} = {_fmt_num(sum_whole)}. "
+            f"Dezimal: {_fmt_num(a_frac)} + {_fmt_num(b_frac)} = {_fmt_num(sum_frac)}. "
+            f"Zusammen: {_fmt_num(sum_whole)} + {_fmt_num(sum_frac)} = {_fmt_num(total)}."
+        )
+    return None
+
+
+def _sub_alternative_steps(a: float, b: float, result: float) -> str | None:
+    if abs(a - round(a)) >= 1e-6 or abs(b - round(b)) >= 1e-6:
+        a_whole = int(a) if a >= 0 else -int(-a)
+        a_frac = round(a - a_whole, 10)
+        b_whole = int(b) if b >= 0 else -int(-b)
+        b_frac = round(b - b_whole, 10)
+        if abs(a_frac) < 1e-9 and abs(b_frac) < 1e-9:
+            return None
+        diff_whole = a_whole - b_whole
+        diff_frac = round(a_frac - b_frac, 10)
+        if diff_frac < -1e-9:
+            diff_whole -= 1
+            diff_frac = round(diff_frac + 1, 10)
+        total = round(diff_whole + diff_frac, 10)
+        return (
+            f"Variante 2 (Zerlegung): Ganze {_fmt_num(a_whole)} − {_fmt_num(b_whole)} = {_fmt_num(diff_whole)}. "
+            f"Dezimal {_fmt_num(a_frac)} − {_fmt_num(b_frac)} = {_fmt_num(diff_frac)}. "
+            f"Zusammen: {_fmt_num(diff_whole)} + {_fmt_num(diff_frac)} = {_fmt_num(total)}."
+        )
+    return None
+
+
 def _add_steps(a: float, b: float, result: float) -> str:
     a_s, b_s, r_s = _fmt_num(a), _fmt_num(b), _fmt_num(result)
-    return (
-        f"Rechnung: {a_s} + {b_s}. "
+    primary = (
+        f"Variante 1 (untereinander): {a_s} + {b_s}. "
         f"Addiere die Zahlen (Dezimalstellen untereinander): {a_s} + {b_s} = {r_s}."
     )
+    alt = _add_alternative_steps(a, b, result)
+    return f"{primary} {alt}" if alt else primary
 
 
 def _sub_steps(a: float, b: float, result: float) -> str:
     a_s, b_s, r_s = _fmt_num(a), _fmt_num(b), _fmt_num(result)
-    return (
-        f"Rechnung: {a_s} − {b_s}. "
+    primary = (
+        f"Variante 1 (untereinander): {a_s} − {b_s}. "
         f"Subtrahiere (Dezimalstellen untereinander): {a_s} − {b_s} = {r_s}."
     )
+    alt = _sub_alternative_steps(a, b, result)
+    return f"{primary} {alt}" if alt else primary
 
 
 def _div_steps(a: float, b: float, result: float) -> str:

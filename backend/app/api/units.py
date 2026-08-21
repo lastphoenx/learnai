@@ -13,6 +13,7 @@ from app.ai.errors import LlmError
 from app.ai.generate import generate_modules
 from app.schemas import (
     LearnAnswerRequest,
+    LearnDeferRequest,
     LearnPracticeRequest,
     LearnFlashcardRequest,
     LearnModuleRequest,
@@ -44,6 +45,7 @@ from app.services.learn_service import (
     save_learn_position,
     submit_quiz_answer,
     submit_practice_answer,
+    defer_quiz_question,
 )
 from app.services.exam_service import (
     analyze_exam,
@@ -687,6 +689,28 @@ def units_learn_answer(
             UUID(body.module_id),
             body.question_index,
             body.selected,
+        )
+        db.commit()
+        return result
+    except UnitError as exc:
+        db.rollback()
+        raise _http(exc) from exc
+
+
+@router.post("/{unit_id}/learn/defer")
+def units_learn_defer(
+    unit_id: UUID,
+    body: LearnDeferRequest,
+    user: User = Depends(get_app_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        result = defer_quiz_question(
+            db,
+            user,
+            unit_id,
+            UUID(body.module_id),
+            body.question_index,
         )
         db.commit()
         return result
