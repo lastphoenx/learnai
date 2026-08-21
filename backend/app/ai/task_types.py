@@ -1,6 +1,4 @@
-"""Aufgabentypen für Lerneinheiten (Generierung) — Labels, Hilfen, KI-Prompts."""
-
-from __future__ import annotations
+from app.ai.subject_focus import focus_hint, focus_label
 
 UNIT_TASK_TYPES: list[dict] = [
     {
@@ -97,45 +95,15 @@ AI_TASK_FOR_UNIT: dict[str, str] = {
     "interactive": "mixed",
 }
 
-MATH_FOCUS_OPTIONS: list[dict] = [
-    {"key": "", "label": "— Mathe-Schwerpunkt (optional) —"},
-    {"key": "fractions", "label": "Bruchrechnen"},
-    {"key": "decimals", "label": "Dezimalzahlen & Komma"},
-    {"key": "place_value", "label": "Stellenwert / Zahlenräume (10er, 100er, 1000er …)"},
-    {"key": "add_sub", "label": "Addition & Subtraktion"},
-    {"key": "mul_div", "label": "Multiplikation & Division"},
-    {"key": "geometry", "label": "Geometrie (Formen, Winkel, Umfang, Fläche …)"},
-    {
-        "key": "measures",
-        "label": "Größen & Einheiten (mm–km, ml–l, mg–t, m², ha, a …)",
-    },
-    {"key": "patterns", "label": "Reihen, Muster & Folgen"},
-    {"key": "percent_ratio", "label": "Prozent, Verhältnis & Dreisatz"},
-    {"key": "negative", "label": "Negative Zahlen"},
-    {"key": "other", "label": "Sonstiges (im Auftrag genauer beschreiben)"},
-]
-
-MATH_FOCUS_HINTS: dict[str, str] = {
-    "fractions": "Schwerpunkt Bruchrechnen (darstellen, erweitern, kürzen, rechnen).",
-    "decimals": "Schwerpunkt Dezimalzahlen und Kommaschreibweise.",
-    "place_value": "Schwerpunkt Stellenwert und Zahlenräume (Zehner, Hunderter, Tausender …).",
-    "add_sub": "Schwerpunkt Addition und Subtraktion.",
-    "mul_div": "Schwerpunkt Multiplikation und Division.",
-    "geometry": "Schwerpunkt Geometrie.",
-    "measures": "Schwerpunkt Größen und Einheiten (Länge, Masse, Volumen, Fläche, Zeit — korrekte Umrechnung).",
-    "patterns": "Schwerpunkt Reihen, Muster und Folgen.",
-    "percent_ratio": "Schwerpunkt Prozent, Verhältnis und Dreisatz.",
-    "negative": "Schwerpunkt negative Zahlen.",
-    "other": "",
-}
-
 
 def task_types_public() -> list[dict]:
     return UNIT_TASK_TYPES
 
 
 def math_focus_public() -> list[dict]:
-    return MATH_FOCUS_OPTIONS
+    from app.ai.subject_focus import all_focus_options_flat
+
+    return all_focus_options_flat()
 
 
 def hint_for_task(task_key: str) -> str:
@@ -148,7 +116,8 @@ def hint_for_task(task_key: str) -> str:
 def augment_brief(brief: str | None, *, task_key: str, math_focus: str | None) -> str:
     parts = [brief.strip() if brief else ""]
     focus = (math_focus or "").strip()
-    if focus and focus in MATH_FOCUS_HINTS and MATH_FOCUS_HINTS[focus]:
-        label = next((o["label"] for o in MATH_FOCUS_OPTIONS if o["key"] == focus), focus)
-        parts.append(f"Mathe-Schwerpunkt: {label}. {MATH_FOCUS_HINTS[focus]}")
+    hint = focus_hint(focus)
+    if focus and hint:
+        label = focus_label(focus) or focus
+        parts.append(f"Schwerpunkt: {label}. {hint}")
     return "\n\n".join(p for p in parts if p)

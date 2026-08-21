@@ -32,10 +32,12 @@ export function LearnerMultiSelect({ profiles, selectedIds, onChange, label }: P
 
   if (targets.length === 0) return null;
 
+  const heading = label || "Zuweisen an";
+
   return (
-    <div className="learner-multi-select">
-      <span className="learner-multi-label">{label || "Zuweisen an"}</span>
-      <div className="learner-multi-options">
+    <div className="learner-multi-field">
+      <span className="learner-multi-label">{heading}</span>
+      <div className="learner-multi-select" role="group" aria-label={heading}>
         {targets.length > 1 && (
           <label className="learner-check-row">
             <input type="checkbox" checked={allSelected} onChange={toggleAll} />

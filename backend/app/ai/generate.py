@@ -408,10 +408,13 @@ def generate_modules(
         recon = _dj(record.reconstruction_encrypted)
     math_focus = (recon or {}).get("math_focus") if isinstance(recon, dict) else None
     if math_focus:
-        from app.ai.task_types import MATH_FOCUS_HINTS, MATH_FOCUS_OPTIONS
+        from app.ai.subject_focus import focus_hint, focus_label
 
-        label = next((o["label"] for o in MATH_FOCUS_OPTIONS if o["key"] == math_focus), math_focus)
-        hint += f" Mathe-Schwerpunkt: {label}."
+        label = focus_label(str(math_focus)) or str(math_focus)
+        extra = focus_hint(str(math_focus))
+        hint += f" Schwerpunkt: {label}."
+        if extra:
+            hint += f" {extra}"
 
     title = decrypt_text_master(unit.title_encrypted)
     brief = decrypt_text_master(unit.brief_encrypted) if unit.brief_encrypted else ""

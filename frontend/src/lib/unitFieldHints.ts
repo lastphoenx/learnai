@@ -50,11 +50,27 @@ const MATH_FOCUS_TITLES: Record<string, string> = {
   negative: "Negative Zahlen",
 };
 
+const LANGUAGE_BRIEF =
+  "- Grammatik, Zeitformen oder Vokabeln wie im Schulstoff\n- Beispielsätze und typische Fehler aus dem Material";
+const MGU_BRIEF =
+  "- Themen aus MGU: Gesellschaft, Wirtschaft, Umwelt, Geschichte, Geografie\n- An das Schulheft und die Stufe orientieren";
+const GERMAN_BRIEF =
+  "- Rechtschreibung, Grammatik, Lesen oder Schreiben — je nach Schwerpunkt\n- Textsorten und Aufgaben wie im Heft";
+const NATURE_BRIEF =
+  "- Natur & Technik: Beobachtungen, Experimente, Fachbegriffe aus dem Stoff\n- An Lehrplan und Material halten";
+
+function focusBriefLine(mathFocus: string): string {
+  if (mathFocus.startsWith("lang_")) return LANGUAGE_BRIEF;
+  if (mathFocus.startsWith("mgu_")) return MGU_BRIEF;
+  if (mathFocus.startsWith("de_")) return GERMAN_BRIEF;
+  if (mathFocus.startsWith("nt_")) return NATURE_BRIEF;
+  return MATH_FOCUS_BRIEF_LINES[mathFocus] || "- Konkrete Inhalte und Schwierigkeit beschreiben";
+}
+
 function briefForInteractive(ctx: UnitFieldContext): string {
-  const focusLine = ctx.mathFocus ? MATH_FOCUS_BRIEF_LINES[ctx.mathFocus] : "";
-  const focusBlock = focusLine
-    ? `${focusLine}\n`
-    : "- Konkrete Rechenarten und Schwierigkeit beschreiben\n";
+  const focusBlock = ctx.mathFocus
+    ? `${focusBriefLine(ctx.mathFocus)}\n`
+    : "- Konkrete Inhalte und Schwierigkeit beschreiben\n";
 
   return `Thema und Ziel (1–2 Sätze):
 Was soll im Lerntrainer geübt werden?
@@ -144,7 +160,7 @@ export function getUnitFieldGuide(field: UnitFieldKey, ctx: UnitFieldContext): U
     case "subject":
       return {
         placeholder: subjectPlaceholder(ctx),
-        tip: "Hilft der KI beim Fach — bei Mathe erscheint zusätzlich der Schwerpunkt.",
+        tip: "Hilft der KI beim Fach — steuert die Schwerpunkt-Liste.",
       };
     case "targetAge":
       return {

@@ -19,12 +19,14 @@ import {
   type User,
 } from "@/lib/api";
 import {
-  FALLBACK_MATH_FOCUS,
-  FALLBACK_TASK_TYPES,
-  showMathFocus,
-  type MathFocusOption,
-  type UnitTaskType,
-} from "@/lib/taskTypes";
+  detectFocusGroup,
+  FALLBACK_FOCUS_GROUPS,
+  focusGroupLabel,
+  focusOptionsForGroup,
+  showSubjectFocus,
+  type FocusGroup,
+} from "@/lib/subjectFocus";
+import { FALLBACK_TASK_TYPES, type UnitTaskType } from "@/lib/taskTypes";
 import { getUnitFieldGuide } from "@/lib/unitFieldHints";
 
 export default function NewUnitPage() {
@@ -42,7 +44,7 @@ export default function NewUnitPage() {
   const [profileIds, setProfileIds] = useState<string[]>([]);
   const [profiles, setProfiles] = useState<LearnerProfile[]>([]);
   const [taskTypes, setTaskTypes] = useState<UnitTaskType[]>(FALLBACK_TASK_TYPES);
-  const [mathFocusOptions, setMathFocusOptions] = useState<MathFocusOption[]>(FALLBACK_MATH_FOCUS);
+  const [focusGroups, setFocusGroups] = useState<FocusGroup[]>(FALLBACK_FOCUS_GROUPS);
   const [error, setError] = useState<string | null>(null);
   const [sttProvider, setSttProvider] = useState<SttProvider>("browser");
   const [speechProfileId, setSpeechProfileId] = useState<string | undefined>(undefined);
@@ -57,7 +59,10 @@ export default function NewUnitPage() {
     [taskTypes, taskType],
   );
 
-  const mathFocusVisible = showMathFocus(taskType, subject);
+  const mathFocusVisible = showSubjectFocus(taskType, subject);
+  const focusGroupId = detectFocusGroup(subject, taskType);
+  const focusOptions = focusOptionsForGroup(focusGroupId, focusGroups);
+  const focusGroupName = focusGroupLabel(focusGroupId, focusGroups);
 
   const fieldCtx = useMemo(
     () => ({ taskType, mathFocus, subject }),
@@ -108,10 +113,19 @@ export default function NewUnitPage() {
     fetchUnitTaskTypes()
       .then((data) => {
         if (data.task_types?.length) setTaskTypes(data.task_types);
-        if (data.math_focus?.length) setMathFocusOptions(data.math_focus);
+        if (data.focus_groups?.length) setFocusGroups(data.focus_groups);
+        else if (data.math_focus?.length) {
+          setFocusGroups([{ id: "math", label: "Mathematik", options: data.math_focus.filter((o) => o.key) }]);
+        }
       })
       .catch(() => undefined);
   }, []);
+
+  useEffect(() => {
+    if (!mathFocus) return;
+    const valid = focusOptions.some((o) => o.key === mathFocus);
+    if (!valid && focusGroupId) setMathFocus("");
+  }, [focusGroupId, focusOptions, mathFocus]);
 
   async function onCreate(e: FormEvent) {
     e.preventDefault();
@@ -192,16 +206,33 @@ export default function NewUnitPage() {
 
         {mathFocusVisible && (
           <label>
-            Mathe-Schwerpunkt
+            Schwerpunkt{focusGroupName ? ` — ${focusGroupName}` : ""}
             <select value={mathFocus} onChange={(e) => setMathFocus(e.target.value)}>
-              {mathFocusOptions.map((o) => (
-                <option key={o.key || "none"} value={o.key}>
-                  {o.label}
-                </option>
-              ))}
+              <option value="">— Schwerpunkt (optional) —</option>
+              {focusGroupId ? (
+                focusOptions.map((o) => (
+                  <option key={o.key} value={o.key}>
+                    {o.label}
+                  </option>
+                ))
+              ) : (
+                focusGroups.map((group) => (
+                  <optgroup key={group.id} label={group.label}>
+                    {group.options.map((o) => (
+                      <option key={o.key} value={o.key}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))
+              )}
             </select>
             <UnitFieldGuide
-              tip="Steuert die Vorlagen unten — Details und Ausnahmen im Auftrag formulieren."
+              tip={
+                focusGroupId
+                  ? "Steuert die Vorlagen unten — Details und Ausnahmen im Auftrag formulieren."
+                  : "Tipp: Fach eingeben (z.B. Französisch, MGU) — dann passende Schwerpunkte."
+              }
               show={!mathFocus}
             />
           </label>
