@@ -2046,6 +2046,19 @@ button.btn.action-tile {
   border-color: var(--accent);
   color: var(--accent);
 }
+.unit-field-wrap {
+  display: grid;
+  gap: 0.35rem;
+}
+.unit-field-guide {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 400;
+  line-height: 1.45;
+}
+.label-with-speech .unit-field-guide {
+  margin-top: 0.15rem;
+}
 .card-input-exercise .practice-form {
   gap: 0.85rem;
 }
