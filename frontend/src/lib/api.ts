@@ -162,9 +162,24 @@ export type TrainerOptions = {
   llm_provider?: string | null;
 };
 
+export type TrainerKnowledgeItem = {
+  title: string;
+  text: string;
+  domain?: string;
+  module_id?: string;
+};
+
+export type TrainerKnowledgeSection = {
+  domain: string;
+  module_id: string;
+  intro?: string;
+  items: { title: string; text: string }[];
+};
+
 export type TrainerPayload = {
   options: TrainerOptions;
-  knowledge: { title: string; text: string; domain?: string; module_id?: string }[];
+  knowledge: TrainerKnowledgeItem[];
+  knowledge_sections?: TrainerKnowledgeSection[];
   cards: {
     question: string;
     answer: string;

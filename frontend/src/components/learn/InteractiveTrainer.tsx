@@ -186,6 +186,39 @@ export function InteractiveTrainer({
     return hasOtherOpenQuizQuestions(activeQuestions, learnProgress, quizIndex);
   }, [currentQuestion, quizChallenge, quizWeakOnly, learnProgress, activeQuestions, quizIndex]);
 
+  const knowledgeSections = useMemo(() => {
+    const fromApi = trainer?.knowledge_sections;
+    if (fromApi && fromApi.length > 0) return fromApi;
+    return knowledgeByDomain.map(([domain, items]) => ({
+      domain,
+      module_id: items[0]?.module_id || "",
+      intro: "",
+      items: items.map(({ title, text }) => ({ title, text })),
+    }));
+  }, [trainer?.knowledge_sections, knowledgeByDomain]);
+
+  const quizTotal = allQuestions.length;
+  const quizStarted = quizAnsweredCount > 0;
+  const quizComplete = quizTotal > 0 && quizAnsweredCount >= quizTotal;
+  const quizWrongCount = Math.max(0, state.summary.quiz_total - state.summary.quiz_correct);
+
+  type HomeStep =
+    | "understand"
+    | "start_quiz"
+    | "continue_quiz"
+    | "weaknesses"
+    | "cards"
+    | "review";
+
+  const homeStep: HomeStep = (() => {
+    if (quizTotal === 0) return "understand";
+    if (!quizStarted) return "understand";
+    if (!quizComplete) return "continue_quiz";
+    if (weakQuestions.length > 0) return "weaknesses";
+    if (newCards > 0) return "cards";
+    return "review";
+  })();
+
   const cardPercent = stats?.card_count
     ? Math.round((100 * stats.known_cards) / stats.card_count)
     : 0;
@@ -452,89 +485,170 @@ export function InteractiveTrainer({
         <>
           <h2>{state.unit.title}</h2>
           <p className="muted">Lernpfad: Verstehen → Check → Üben → Vertiefen bei Schwächen</p>
-          <ol className="trainer-didactic-path muted">
-            <li>
-              <strong>Verstehen</strong> — Wissens-Hub als Tutorial-Einstieg
-            </li>
-            <li>
-              <strong>Check</strong> — erste Lernkontrolle im Quiz
-            </li>
-            <li>
-              <strong>Üben</strong> — Lernkarten mit Wiederholung
-            </li>
-            <li>
-              <strong>Vertiefen</strong> — bei Fehlern Nacharbeit oder Schwächen-Trainer
-            </li>
-          </ol>
-          <div className="trainer-stat-grid">
-            <div className="trainer-stat">
-              <strong>{stats.known_cards}</strong>
-              <span> sicher</span>
-            </div>
-            <div className="trainer-stat">
-              <strong>{newCards > 0 ? newCards : reviewDueCards}</strong>
-              <span>{newCards > 0 ? " offen" : " fällig"}</span>
-            </div>
-            <div className="trainer-stat">
-              <strong>{stats.review_cards}</strong>
-              <span> wiederholen</span>
-            </div>
-            <div className="trainer-stat">
-              <strong>{stats.card_count}</strong>
-              <span> gesamt</span>
-            </div>
-          </div>
-          <div className="trainer-progress-wrap">
-            <div className="trainer-progress-bar" aria-hidden="true">
-              <div className="trainer-progress-fill" style={{ width: `${cardPercent}%` }} />
-            </div>
-            <p className="trainer-progress-label muted">
-              {stats.known_cards}/{stats.card_count} Karten sicher ({cardPercent}%)
-              {newCards > 0
-                ? ` · ${newCards} Karten noch nicht geübt`
-                : reviewDueCards > 0
-                  ? ` · ${reviewDueCards} heute fällig`
-                  : ""}
-              {quizPercent !== null ? ` · Quiz ${state.summary.quiz_correct}/${state.summary.quiz_total} (${quizPercent}%)` : ""}
+
+          <div className="trainer-home-hero">
+            <p className="trainer-home-phase">
+              {homeStep === "understand" && "Schritt 1 — Verstehen"}
+              {homeStep === "continue_quiz" && "Schritt 2 — Check"}
+              {homeStep === "weaknesses" && "Vertiefen — Schwächen"}
+              {homeStep === "cards" && "Schritt 3 — Üben"}
+              {homeStep === "review" && "Check abgeschlossen"}
             </p>
+            <p className="trainer-home-hint">
+              {homeStep === "understand" &&
+                "Lies zuerst die Themen im Wissens-Hub, dann starte den Check."}
+              {homeStep === "continue_quiz" &&
+                `${quizAnsweredCount} von ${quizTotal} Fragen beantwortet — mache weiter.`}
+              {homeStep === "weaknesses" &&
+                `${weakQuestions.length} Frage${weakQuestions.length === 1 ? "" : "n"} noch unsicher — gezielt nacharbeiten.`}
+              {homeStep === "cards" &&
+                `${newCards} Lernkarte${newCards === 1 ? "" : "n"} noch nicht geübt.`}
+              {homeStep === "review" &&
+                `${state.summary.quiz_correct}/${state.summary.quiz_total} richtig${quizPercent != null ? ` (${quizPercent}%)` : ""}${quizWrongCount > 0 ? ` · ${quizWrongCount} Fehler` : ""}.`}
+            </p>
+            <div className="learn-actions trainer-home-primary">
+              {homeStep === "understand" && (
+                <>
+                  <button type="button" className="btn-primary" onClick={() => setTab("knowledge")}>
+                    Tutorial: Verstehen
+                  </button>
+                  {quizTotal > 0 && (
+                    <button type="button" className="ghost" onClick={() => openQuiz({})}>
+                      Check starten
+                    </button>
+                  )}
+                </>
+              )}
+              {homeStep === "continue_quiz" && (
+                <button type="button" className="btn-primary" onClick={() => openQuiz({})}>
+                  Check fortsetzen (Frage {quizAnsweredCount + 1})
+                </button>
+              )}
+              {homeStep === "weaknesses" && (
+                <button type="button" className="btn-primary" onClick={() => openQuiz({ weakOnly: true })}>
+                  Schwächen üben ({weakQuestions.length})
+                </button>
+              )}
+              {homeStep === "cards" && (
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={() => {
+                    setCardFilter("all");
+                    setTab("cards");
+                  }}
+                >
+                  Lernkarten starten
+                </button>
+              )}
+              {homeStep === "review" && (
+                <button type="button" className="btn-primary" onClick={() => openQuiz({})}>
+                  Ergebnis ansehen
+                </button>
+              )}
+            </div>
           </div>
-          <div className="learn-actions">
-            <button
-              type="button"
-              className="btn-primary"
-              onClick={() => setTab("knowledge")}
-            >
-              Tutorial: Verstehen
-            </button>
-            <button type="button" className="ghost" onClick={() => openQuiz({})}>
-              {quizAnsweredCount >= allQuestions.length && allQuestions.length > 0
-                ? "Check: abgeschlossen — ansehen"
-                : quizAnsweredCount > 0 && quizAnsweredCount < allQuestions.length
-                  ? `Check: weiter bei Frage ${quizAnsweredCount + 1}`
-                  : "Check: Quiz starten"}
-            </button>
-            <button
-              type="button"
-              className="btn-primary"
-              onClick={() => {
-                setCardFilter(newCards > 0 ? "all" : dueCards > 0 ? "due" : "all");
-                setTab("cards");
-              }}
-            >
-              {newCards > 0 ? "Üben: Lernkarten starten" : dueCards > 0 ? "Üben: fällige Karten" : "Üben: Lernkarten"}
-            </button>
-            {weakQuestions.length > 0 && (
-              <button type="button" className="ghost" onClick={() => openQuiz({ weakOnly: true })}>
-                Check: nur Schwächen ({weakQuestions.length})
+
+          {quizTotal > 0 && (
+            <div className="trainer-stat-panel">
+              <h3 className="trainer-stat-heading">Check</h3>
+              <div className="trainer-stat-grid">
+                <div className="trainer-stat">
+                  <strong>{quizAnsweredCount}</strong>
+                  <span> beantwortet</span>
+                </div>
+                <div className="trainer-stat">
+                  <strong>{state.summary.quiz_correct}</strong>
+                  <span> richtig</span>
+                </div>
+                <div className="trainer-stat">
+                  <strong>{quizWrongCount}</strong>
+                  <span> falsch</span>
+                </div>
+                <div className="trainer-stat">
+                  <strong>{quizPercent ?? 0}%</strong>
+                  <span> Treffer</span>
+                </div>
+              </div>
+              <div className="trainer-progress-wrap">
+                <div className="trainer-progress-bar" aria-hidden="true">
+                  <div
+                    className="trainer-progress-fill"
+                    style={{ width: `${quizTotal ? Math.round((100 * quizAnsweredCount) / quizTotal) : 0}%` }}
+                  />
+                </div>
+                <p className="trainer-progress-label muted">
+                  {quizComplete
+                    ? `Alle ${quizTotal} Fragen beantwortet`
+                    : `${quizAnsweredCount}/${quizTotal} Fragen im Check`}
+                </p>
+              </div>
+            </div>
+          )}
+
+          <div className="trainer-stat-panel">
+            <h3 className="trainer-stat-heading">Lernkarten</h3>
+            <div className="trainer-stat-grid">
+              <div className="trainer-stat">
+                <strong>{stats.known_cards}</strong>
+                <span> sicher</span>
+              </div>
+              <div className="trainer-stat">
+                <strong>{newCards > 0 ? newCards : reviewDueCards}</strong>
+                <span>{newCards > 0 ? " noch nicht geübt" : " fällig"}</span>
+              </div>
+              <div className="trainer-stat">
+                <strong>{stats.review_cards}</strong>
+                <span> wiederholen</span>
+              </div>
+              <div className="trainer-stat">
+                <strong>{stats.card_count}</strong>
+                <span> gesamt</span>
+              </div>
+            </div>
+            <div className="trainer-progress-wrap">
+              <div className="trainer-progress-bar" aria-hidden="true">
+                <div className="trainer-progress-fill" style={{ width: `${cardPercent}%` }} />
+              </div>
+              <p className="trainer-progress-label muted">
+                {stats.known_cards}/{stats.card_count} Karten sicher ({cardPercent}%)
+              </p>
+            </div>
+          </div>
+
+          <details className="trainer-more-actions">
+            <summary>Weitere Aktionen</summary>
+            <div className="learn-actions">
+              <button type="button" className="ghost" onClick={() => setTab("knowledge")}>
+                Wissens-Hub
               </button>
-            )}
-            <button type="button" className="ghost" onClick={() => openQuiz({ challenge: true })}>
-              Quiz-Challenge
-            </button>
-            <Link href={`/units/${unitId}`} className="btn ghost">
-              Pause
-            </Link>
-          </div>
+              <button type="button" className="ghost" onClick={() => openQuiz({})}>
+                {quizComplete ? "Check ansehen" : "Check öffnen"}
+              </button>
+              <button
+                type="button"
+                className="ghost"
+                onClick={() => {
+                  setCardFilter(newCards > 0 ? "all" : dueCards > 0 ? "due" : "all");
+                  setTab("cards");
+                }}
+              >
+                Lernkarten
+              </button>
+              {weakQuestions.length > 0 && homeStep !== "weaknesses" && (
+                <button type="button" className="ghost" onClick={() => openQuiz({ weakOnly: true })}>
+                  Nur Schwächen ({weakQuestions.length})
+                </button>
+              )}
+              <button type="button" className="ghost" onClick={() => openQuiz({ challenge: true })}>
+                Quiz-Challenge
+              </button>
+              <Link href={`/units/${unitId}`} className="btn ghost">
+                Pause
+              </Link>
+            </div>
+          </details>
+
           {state.quiz_weaknesses && (
             <QuizWeaknessPanel unitId={unitId} data={state.quiz_weaknesses} compact />
           )}
@@ -545,36 +659,45 @@ export function InteractiveTrainer({
         <>
           <h2>Wissens-Hub</h2>
           <p className="muted trainer-knowledge-intro">
-            Schritt 1 — Heranführung: Kurzüberblick pro Thema, tutorial-artig vor Check und Üben.
+            Schritt 1 — Verstehen: Regeln, Rechenwege und typische Fehler pro Thema. Danach startest du den Check.
           </p>
-          {knowledgeByDomain.length === 0 ? (
+          {knowledgeSections.length === 0 ? (
             <p className="muted">Noch kein Kernwissen vorhanden.</p>
           ) : (
             <div className="trainer-knowledge-list">
-              {knowledgeByDomain.map(([domain, items]) => (
+              {knowledgeSections.map((section) => (
                 <details
-                  key={domain}
+                  key={section.module_id || section.domain}
                   className="trainer-knowledge-block"
-                  open={knowledgeByDomain.length <= 3}
+                  open={knowledgeSections.length <= 3}
                 >
                   <summary className="trainer-knowledge-summary">
-                    <span className="trainer-knowledge-domain">{domain}</span>
+                    <span className="trainer-knowledge-domain">{section.domain}</span>
                     <span className="muted">
-                      {items.length} Merkpunkt{items.length === 1 ? "" : "e"}
+                      {section.items.length} Merkpunkt{section.items.length === 1 ? "" : "e"}
                     </span>
                   </summary>
-                  <ul className="trainer-knowledge-points">
-                    {items.map((item, i) => (
-                      <li key={`${item.module_id}-${i}`}>
-                        {item.title && item.title !== domain && <strong>{item.title}</strong>}
+                  {section.intro && <p className="trainer-knowledge-intro-block">{section.intro}</p>}
+                  <ol className="trainer-knowledge-points">
+                    {section.items.map((item, i) => (
+                      <li key={`${section.module_id}-${i}`}>
+                        <strong>{item.title}</strong>
                         <p>{item.text}</p>
                       </li>
                     ))}
-                  </ul>
+                  </ol>
                 </details>
               ))}
             </div>
           )}
+          <div className="learn-actions">
+            <button type="button" className="btn-primary" onClick={() => openQuiz({})}>
+              {quizStarted ? "Weiter zum Check" : "Check starten"}
+            </button>
+            <button type="button" className="ghost" onClick={() => setTab("home")}>
+              Zurück zum Einstieg
+            </button>
+          </div>
         </>
       )}
 
