@@ -335,9 +335,14 @@ def units_patch(
 
 
 @router.delete("/{unit_id}", status_code=status.HTTP_204_NO_CONTENT)
-def units_delete(unit_id: UUID, user: User = Depends(get_app_user), db: Session = Depends(get_db)):
+def units_delete(
+    unit_id: UUID,
+    purge_history: bool = False,
+    user: User = Depends(get_app_user),
+    db: Session = Depends(get_db),
+):
     try:
-        delete_unit(db, user, unit_id)
+        delete_unit(db, user, unit_id, purge_history=purge_history)
         db.commit()
     except UnitError as exc:
         db.rollback()

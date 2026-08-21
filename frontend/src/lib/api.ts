@@ -503,8 +503,10 @@ export type UnitPatchBody = {
 
 export const patchUnit = (id: string, body: UnitPatchBody) =>
   apiFetch<LearningUnit>(`/api/v1/units/${id}`, { method: "PATCH", json: body });
-export const deleteUnit = (id: string) =>
-  apiFetch<void>(`/api/v1/units/${id}`, { method: "DELETE" });
+export const deleteUnit = (id: string, opts?: { purgeHistory?: boolean }) => {
+  const q = opts?.purgeHistory ? "?purge_history=true" : "";
+  return apiFetch<void>(`/api/v1/units/${id}${q}`, { method: "DELETE" });
+};
 
 export async function uploadSource(unitId: string, file: File): Promise<UnitSource> {
   const form = new FormData();

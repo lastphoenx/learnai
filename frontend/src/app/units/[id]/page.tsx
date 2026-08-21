@@ -145,13 +145,16 @@ export default function UnitDetailPage() {
   async function onDeleteUnit() {
     if (
       !confirm(
-        "Lerneinheit inkl. Dateien löschen? Verlauf, Ergebnisse und die Kurzbeschreibung bleiben für Berichte und für «ähnlich nochmal» erhalten."
+        "Lerneinheit inkl. Dateien löschen? Standard: Verlauf, Ergebnisse und Kurzbeschreibung bleiben für Berichte erhalten."
       )
     ) {
       return;
     }
-    await deleteUnit(unitId);
-    router.push("/history");
+    const purgeHistory = confirm(
+      "Auch den zugehörigen Lernverlauf löschen?\n\nOK = Verlauf, Prüfungen und Events unwiderruflich entfernen (sinnvoll für Tests).\nAbbrechen = nur die Einheit löschen, Verlauf behalten."
+    );
+    await deleteUnit(unitId, { purgeHistory });
+    router.push(purgeHistory ? "/units" : "/history");
   }
 
   async function onSpeak() {
@@ -372,7 +375,7 @@ export default function UnitDetailPage() {
 
           <section className="unit-danger-zone">
             <button type="button" className="btn-sm ghost danger-text" onClick={onDeleteUnit}>
-              Ganze Einheit löschen (Verlauf bleibt)
+              Ganze Einheit löschen…
             </button>
           </section>
           </div>

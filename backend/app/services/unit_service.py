@@ -798,18 +798,39 @@ def update_unit(
     return _dec_unit(unit)
 
 
-def delete_unit(db: Session, user: User, unit_id: uuid.UUID) -> None:
-    """Löscht Inhalt + Dateien. Verlauf und Ergebnisse bleiben."""
+def delete_unit(
+    db: Session,
+    user: User,
+    unit_id: uuid.UUID,
+    *,
+    purge_history: bool = False,
+) -> None:
+    """Löscht Inhalt + Dateien. Standard: Verlauf bleibt; optional komplett mit Prüfungen."""
+    from sqlalchemy.orm import joinedload
+
+    from app.services.exam_service import _purge_exam_file
+
     unit = _get_unit_or_404(db, user, unit_id)
-    records = db.query(LearningRecord).filter(LearningRecord.unit_id == unit.id).all()
-    for record in records:
-        _add_event(
-            db,
-            record,
-            "unit_deleted",
-            {"title": decrypt_text_master(unit.title_encrypted), "kept": "history"},
-        )
-        record.unit_id = None
+    records = (
+        db.query(LearningRecord)
+        .options(joinedload(LearningRecord.exam_results))
+        .filter(LearningRecord.unit_id == unit.id)
+        .all()
+    )
+    if purge_history:
+        for record in records:
+            for exam in list(record.exam_results or []):
+                _purge_exam_file(exam)
+            db.delete(record)
+    else:
+        for record in records:
+            _add_event(
+                db,
+                record,
+                "unit_deleted",
+                {"title": decrypt_text_master(unit.title_encrypted), "kept": "history"},
+            )
+            record.unit_id = None
     db.flush()
 
     for source in list(unit.sources):
@@ -822,7 +843,7 @@ def delete_unit(db: Session, user: User, unit_id: uuid.UUID) -> None:
         action="unit.delete",
         resource_type="learning_unit",
         resource_id=unit.id,
-        detail="content_purged_history_kept",
+        detail="content_and_history_purged" if purge_history else "content_purged_history_kept",
     )
     db.delete(unit)
 
