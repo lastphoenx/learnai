@@ -233,6 +233,11 @@ class LearnAnswerRequest(BaseModel):
     selected: int = Field(ge=0)
 
 
+class LearnDeferRequest(BaseModel):
+    module_id: str
+    question_index: int = Field(ge=0)
+
+
 class LearnPracticeRequest(BaseModel):
     module_id: str
     exercise_index: int = Field(ge=0)

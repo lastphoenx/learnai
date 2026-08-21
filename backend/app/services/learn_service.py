@@ -195,6 +195,8 @@ def get_learn_state(db: Session, user: User, unit_id: uuid.UUID) -> dict:
         stats["learn"] = learn
         _save_stats(db, record, stats)
 
+    _backfill_answer_details(learn, modules)
+
     unit_data = _dec_unit(unit, sources=False, modules=False)
     payload: dict = {
         "unit": unit_data,
@@ -263,6 +265,57 @@ def mark_text_read(db: Session, user: User, unit_id: uuid.UUID, module_id: uuid.
     return {"progress": learn, "summary": _progress_summary(stats, len(unit.modules))}
 
 
+def _store_answer_details(
+    mod_prog: dict,
+    *,
+    question_index: int,
+    q: dict,
+    selected: int,
+    is_correct: bool,
+    correct_index: int,
+) -> None:
+    details = mod_prog.setdefault("answer_details", {})
+    details[str(question_index)] = {
+        "selected": int(selected),
+        "correct": bool(is_correct),
+        "correct_index": int(correct_index),
+        "explanation": enrich_quiz_explanation(q),
+    }
+
+
+def _backfill_answer_details(learn: dict, modules: list[UnitModule]) -> None:
+    for module in modules:
+        mod_key = str(module.id)
+        mod_prog = (learn.get("modules") or {}).get(mod_key)
+        if not isinstance(mod_prog, dict):
+            continue
+        answers = mod_prog.get("answers") or []
+        quiz = decrypt_json(module.quiz_encrypted) or {}
+        questions = quiz.get("questions") if isinstance(quiz, dict) else []
+        if not isinstance(questions, list):
+            continue
+        details = mod_prog.setdefault("answer_details", {})
+        for i, selected in enumerate(answers):
+            if selected is None or i >= len(questions):
+                continue
+            key = str(i)
+            if key in details:
+                continue
+            q = questions[i]
+            if not isinstance(q, dict):
+                continue
+            correct_index = resolve_quiz_correct_index(q)
+            is_correct = is_quiz_selection_correct(q, int(selected))
+            _store_answer_details(
+                mod_prog,
+                question_index=i,
+                q=q,
+                selected=int(selected),
+                is_correct=is_correct,
+                correct_index=correct_index,
+            )
+
+
 def submit_quiz_answer(
     db: Session,
     user: User,
@@ -294,6 +347,17 @@ def submit_quiz_answer(
         answers.append(None)
     answers[question_index] = selected
     mod_prog["answers"] = answers
+    deferred = mod_prog.get("deferred") or []
+    if question_index in deferred:
+        mod_prog["deferred"] = [idx for idx in deferred if idx != question_index]
+    _store_answer_details(
+        mod_prog,
+        question_index=question_index,
+        q=q,
+        selected=selected,
+        is_correct=is_correct,
+        correct_index=correct_index,
+    )
     _recompute_quiz_stats(learn, unit.modules)
 
     all_answered = len(answers) >= len(questions) and all(a is not None for a in answers[: len(questions)])
@@ -326,6 +390,53 @@ def submit_quiz_answer(
         "module_quiz_done": all_answered,
         "quiz_weaknesses": collect_quiz_weaknesses(db, user, unit_id, stats=stats, unit=unit, record=record),
         **maybe_auto_quiz_trainer(db, user, unit, record),
+    }
+
+
+def defer_quiz_question(
+    db: Session,
+    user: User,
+    unit_id: uuid.UUID,
+    module_id: uuid.UUID,
+    question_index: int,
+) -> dict:
+    unit = _get_unit_or_404(db, user, unit_id)
+    record = _get_record_for_unit(db, unit.id)
+    module = _find_module(unit, module_id)
+    quiz = decrypt_json(module.quiz_encrypted) or {}
+    questions = quiz.get("questions") or []
+    if question_index < 0 or question_index >= len(questions):
+        raise UnitError("Ungültige Frage", "invalid_question")
+
+    stats = _get_stats(record)
+    learn = stats["learn"]
+    mod_key = str(module.id)
+    mod_prog = learn["modules"].setdefault(
+        mod_key,
+        {"text_read": True, "answers": [], "correct": 0, "total": 0, "done": False},
+    )
+    answers: list[int | None] = mod_prog.setdefault("answers", [])
+    while len(answers) <= question_index:
+        answers.append(None)
+    if answers[question_index] is not None:
+        raise UnitError("Frage ist bereits beantwortet", "already_answered")
+
+    deferred: list[int] = mod_prog.setdefault("deferred", [])
+    if question_index not in deferred:
+        deferred.append(question_index)
+    mod_prog["deferred"] = deferred
+
+    stats["learn"] = learn
+    _save_stats(db, record, stats)
+    _add_event(
+        db,
+        record,
+        "quiz_deferred",
+        {"module_id": mod_key, "question_index": question_index},
+    )
+    return {
+        "progress": learn,
+        "summary": _progress_summary(stats, len(unit.modules)),
     }
 
 

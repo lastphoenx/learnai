@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  deferLearnQuestion,
   markFlashcardStatus,
   submitLearnAnswer,
   submitPracticeAnswer,
@@ -11,6 +12,15 @@ import {
 import { QuizWeaknessPanel } from "@/components/QuizWeaknessPanel";
 import { PracticeExercise } from "@/components/learn/PracticeExercise";
 import { formatQuizOption, quizOptionClassName } from "@/lib/quizOption";
+import {
+  countAnsweredInDeck,
+  firstOpenQuizIndex,
+  getStoredQuizAnswer,
+  isQuizAnswered,
+  isQuizDeferred,
+  nextOpenQuizIndex,
+  quizQuestionKey,
+} from "@/lib/quizNav";
 
 type Tab = "home" | "knowledge" | "cards" | "quiz";
 
@@ -72,6 +82,7 @@ export function InteractiveTrainer({
     correct_index: number;
     explanation?: string;
   } | null>(null);
+  const [lastSubmittedKey, setLastSubmittedKey] = useState<string | null>(null);
 
   const cards = trainer?.cards || [];
   const knowledge = trainer?.knowledge || [];
@@ -145,25 +156,28 @@ export function InteractiveTrainer({
   const activeQuestions = quizDeck.length > 0 ? quizDeck : allQuestions;
   const currentCard = filteredCards[cardIndex];
   const currentQuestion = activeQuestions[quizIndex];
-
-  function isQuizQuestionAnswered(q: QuizItem): boolean {
-    const answers = state.progress.modules?.[q.module_id]?.answers ?? [];
-    return answers[q.question_index] != null;
-  }
-
-  function firstUnansweredQuizIndex(deck: QuizItem[]): number {
-    const idx = deck.findIndex((q) => !isQuizQuestionAnswered(q));
-    return idx >= 0 ? idx : 0;
-  }
+  const learnProgress = state.progress;
+  const currentStoredAnswer = currentQuestion
+    ? getStoredQuizAnswer(learnProgress, currentQuestion)
+    : null;
+  const isReviewMode = Boolean(
+    currentStoredAnswer &&
+      answerResult &&
+      currentQuestion &&
+      quizQuestionKey(currentQuestion) !== lastSubmittedKey,
+  );
 
   const stats = trainer?.stats;
   const newCards = stats?.new_cards ?? Math.max(0, (stats?.card_count ?? 0) - (stats?.known_cards ?? 0) - (stats?.review_cards ?? 0));
   const reviewDueCards = Math.max(0, (stats?.due_cards ?? 0) - newCards);
   const dueCards = stats?.due_cards ?? filteredCards.length;
   const quizAnsweredCount = useMemo(
-    () => activeQuestions.filter((q) => isQuizQuestionAnswered(q)).length,
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by progress answers
-    [activeQuestions, state.progress.modules],
+    () => countAnsweredInDeck(allQuestions, learnProgress),
+    [allQuestions, learnProgress],
+  );
+  const checkQuizAnsweredCount = useMemo(
+    () => countAnsweredInDeck(activeQuestions, learnProgress),
+    [activeQuestions, learnProgress],
   );
 
   const cardPercent = stats?.card_count
@@ -268,6 +282,23 @@ export function InteractiveTrainer({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [tab, busy, cardIndex, goToCard, markCard]);
 
+  const goToQuizQuestion = useCallback(
+    (index: number) => {
+      if (index < 0 || index >= activeQuestions.length) return;
+      setQuizIndex(index);
+      const q = activeQuestions[index];
+      const stored = getStoredQuizAnswer(learnProgress, q);
+      if (stored) {
+        setSelected(stored.selected);
+        setAnswerResult(stored);
+      } else {
+        setSelected(null);
+        setAnswerResult(null);
+      }
+    },
+    [activeQuestions, learnProgress],
+  );
+
   function openQuiz(options: { challenge?: boolean; weakOnly?: boolean } = {}) {
     const challenge = Boolean(options.challenge);
     const weakOnly = Boolean(options.weakOnly);
@@ -276,10 +307,63 @@ export function InteractiveTrainer({
     let deck = weakOnly ? weakQuestions : allQuestions;
     if (challenge) deck = shuffle(deck);
     setQuizDeck(deck);
-    setQuizIndex(challenge || weakOnly ? 0 : firstUnansweredQuizIndex(deck));
-    setSelected(null);
-    setAnswerResult(null);
+    const startIndex = challenge || weakOnly ? 0 : firstOpenQuizIndex(deck, learnProgress);
     setTab("quiz");
+    setQuizIndex(startIndex);
+    const q = deck[startIndex];
+    const stored = q ? getStoredQuizAnswer(learnProgress, q) : null;
+    if (stored) {
+      setSelected(stored.selected);
+      setAnswerResult(stored);
+    } else {
+      setSelected(null);
+      setAnswerResult(null);
+    }
+  }
+
+  async function deferCurrentQuestion() {
+    if (!currentQuestion || isQuizAnswered(learnProgress, currentQuestion)) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await deferLearnQuestion(unitId, {
+        module_id: currentQuestion.module_id,
+        question_index: currentQuestion.question_index,
+      });
+      const nextProgress = res.progress;
+      onStateChange({ ...state, progress: nextProgress, summary: res.summary });
+      const next = nextOpenQuizIndex(activeQuestions, nextProgress, quizIndex);
+      if (next != null) {
+        const q = activeQuestions[next];
+        const stored = q ? getStoredQuizAnswer(nextProgress, q) : null;
+        setQuizIndex(next);
+        setSelected(stored?.selected ?? null);
+        setAnswerResult(stored);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Später speichern fehlgeschlagen");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function skipToNextOpen() {
+    const next = nextOpenQuizIndex(activeQuestions, learnProgress, quizIndex);
+    if (next != null) goToQuizQuestion(next);
+  }
+
+  function advanceAfterAnswer(progress = learnProgress) {
+    const next = nextOpenQuizIndex(activeQuestions, progress, quizIndex);
+    if (next == null) {
+      setAnswerResult(null);
+      setSelected(null);
+      return;
+    }
+    const q = activeQuestions[next];
+    const stored = q ? getStoredQuizAnswer(progress, q) : null;
+    setQuizIndex(next);
+    setSelected(stored?.selected ?? null);
+    setAnswerResult(stored);
   }
 
   async function submitQuiz() {
@@ -292,11 +376,6 @@ export function InteractiveTrainer({
         question_index: currentQuestion.question_index,
         selected,
       });
-      setAnswerResult({
-        correct: res.correct,
-        correct_index: res.correct_index,
-        explanation: res.explanation,
-      });
       onStateChange({
         ...state,
         progress: res.progress,
@@ -305,6 +384,14 @@ export function InteractiveTrainer({
       });
       if (res.auto_trainer_unit_id) {
         setAutoTrainerId(res.auto_trainer_unit_id);
+      }
+      setAnswerResult({
+        correct: res.correct,
+        correct_index: res.correct_index,
+        explanation: res.explanation,
+      });
+      if (currentQuestion) {
+        setLastSubmittedKey(quizQuestionKey(currentQuestion));
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Antwort fehlgeschlagen");
@@ -598,11 +685,51 @@ export function InteractiveTrainer({
 
       {tab === "quiz" && currentQuestion && (
         <>
+          <div className="quiz-nav-row">
+            <button
+              type="button"
+              className="ghost"
+              disabled={busy || quizIndex <= 0}
+              onClick={() => goToQuizQuestion(quizIndex - 1)}
+            >
+              ← Zurück
+            </button>
+            <span className="learn-quiz-meta muted">
+              Frage {quizIndex + 1} von {activeQuestions.length}
+              {isReviewMode ? " · Ansicht (beantwortet)" : ""}
+            </span>
+            <button
+              type="button"
+              className="ghost"
+              disabled={busy || quizIndex + 1 >= activeQuestions.length}
+              onClick={() => goToQuizQuestion(quizIndex + 1)}
+            >
+              Weiter →
+            </button>
+          </div>
+          <div className="quiz-nav-strip" role="tablist" aria-label="Quiz-Fragen">
+            {activeQuestions.map((q, i) => {
+              let dotClass = "quiz-nav-dot";
+              if (i === quizIndex) dotClass += " active";
+              if (isQuizAnswered(learnProgress, q)) dotClass += " done";
+              else if (isQuizDeferred(learnProgress, q)) dotClass += " deferred";
+              return (
+                <button
+                  key={quizQuestionKey(q)}
+                  type="button"
+                  className={dotClass}
+                  disabled={busy}
+                  title={`Frage ${i + 1}${isQuizAnswered(learnProgress, q) ? " (beantwortet)" : ""}`}
+                  onClick={() => goToQuizQuestion(i)}
+                />
+              );
+            })}
+          </div>
           <p className="learn-quiz-meta muted">
-            Frage {quizIndex + 1} von {activeQuestions.length} · {currentQuestion.domain}
+            {currentQuestion.domain}
             {quizChallenge ? " · Challenge" : quizWeakOnly ? " · nur Schwächen" : " · Check"}
-            {!quizChallenge && !quizWeakOnly && quizAnsweredCount > 0
-              ? ` · ${quizAnsweredCount}/${activeQuestions.length} beantwortet`
+            {!quizChallenge && !quizWeakOnly && checkQuizAnsweredCount > 0
+              ? ` · ${checkQuizAnsweredCount}/${activeQuestions.length} beantwortet`
               : ""}
           </p>
           <p className="learn-quiz-question">{currentQuestion.q}</p>
@@ -611,9 +738,9 @@ export function InteractiveTrainer({
               <button
                 key={i}
                 type="button"
-                className={quizOptionClassName(i, selected, answerResult)}
+                className={`${quizOptionClassName(i, selected, answerResult)}${isReviewMode ? " readonly" : ""}`}
                 disabled={busy || Boolean(answerResult)}
-                onClick={() => setSelected(i)}
+                onClick={() => !answerResult && setSelected(i)}
               >
                 {formatQuizOption(opt, i)}
               </button>
@@ -621,7 +748,9 @@ export function InteractiveTrainer({
           </div>
           {answerResult && (
             <div className={`learn-feedback ${answerResult.correct ? "ok" : "bad"}`}>
-              {answerResult.correct ? (
+              {isReviewMode ? (
+                <strong className="muted">Gespeicherte Antwort</strong>
+              ) : answerResult.correct ? (
                 <strong style={{ color: "var(--accent)" }}>Richtig!</strong>
               ) : (
                 <strong style={{ color: "var(--danger)" }}>Nicht ganz — schau nochmal hin.</strong>
@@ -631,20 +760,34 @@ export function InteractiveTrainer({
           )}
           <div className="learn-actions">
             {!answerResult ? (
-              <button type="button" className="btn-primary" disabled={busy || selected === null} onClick={submitQuiz}>
-                Antwort prüfen
+              <>
+                <button type="button" className="btn-primary" disabled={busy || selected === null} onClick={submitQuiz}>
+                  Antwort prüfen
+                </button>
+                {!quizChallenge && !quizWeakOnly && (
+                  <>
+                    <button type="button" className="ghost" disabled={busy} onClick={skipToNextOpen}>
+                      Überspringen
+                    </button>
+                    <button type="button" className="ghost" disabled={busy} onClick={() => void deferCurrentQuestion()}>
+                      Später lösen
+                    </button>
+                  </>
+                )}
+              </>
+            ) : isReviewMode ? (
+              <button type="button" className="btn-primary" onClick={() => skipToNextOpen()}>
+                Nächste offene Frage
               </button>
             ) : (
               <button
                 type="button"
                 className="btn-primary"
-                onClick={() => {
-                  setAnswerResult(null);
-                  setSelected(null);
-                  if (quizIndex + 1 < activeQuestions.length) setQuizIndex(quizIndex + 1);
-                }}
+                onClick={() => advanceAfterAnswer(state.progress)}
               >
-                {quizIndex + 1 < activeQuestions.length ? "Nächste Frage" : "Fertig"}
+                {nextOpenQuizIndex(activeQuestions, state.progress, quizIndex) != null
+                  ? "Nächste Frage"
+                  : "Fertig"}
               </button>
             )}
           </div>

@@ -109,6 +109,16 @@ export type LearnProgress = {
     {
       text_read?: boolean;
       answers?: (number | null)[];
+      answer_details?: Record<
+        string,
+        {
+          selected: number;
+          correct: boolean;
+          correct_index: number;
+          explanation?: string;
+        }
+      >;
+      deferred?: number[];
       practice_answers?: ({ answer: string; correct: boolean } | null)[];
       correct?: number;
       total?: number;
@@ -697,6 +707,15 @@ export const submitLearnAnswer = (
     auto_trainer_unit_id?: string | null;
     auto_trainer_started?: boolean;
   }>(`/api/v1/units/${unitId}/learn/answer`, { method: "POST", json: body });
+
+export const deferLearnQuestion = (
+  unitId: string,
+  body: { module_id: string; question_index: number },
+) =>
+  apiFetch<{ progress: LearnProgress; summary: LearnSummary }>(
+    `/api/v1/units/${unitId}/learn/defer`,
+    { method: "POST", json: body },
+  );
 
 export const submitPracticeAnswer = (
   unitId: string,
