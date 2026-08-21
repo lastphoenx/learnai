@@ -17,10 +17,12 @@ from app.ai.prompts.interactive import (
     KNOWLEDGE_SYSTEM,
     PLAN_SYSTEM,
     QUIZ_SYSTEM,
+    TYPED_CARDS_SYSTEM,
     build_interactive_card_prompt,
     build_interactive_knowledge_prompt,
     build_interactive_plan_prompt,
     build_interactive_quiz_prompt,
+    build_interactive_typed_cards_prompt,
     truncate_context,
 )
 from app.ai.providers import complete, parse_json_object, resolve_provider
@@ -74,9 +76,26 @@ def _parse_plan(text: str) -> list[dict]:
     return out
 
 
+def _split_card_kinds(total: int) -> tuple[int, int, int]:
+    merk = max(0, round(total * 0.3))
+    mental = max(0, round(total * 0.3))
+    input_cards = max(0, total - merk - mental)
+    if total > 0 and input_cards == 0:
+        input_cards = 1
+        if mental > merk:
+            mental -= 1
+        elif merk > 0:
+            merk -= 1
+    return merk, mental, input_cards
+
+
 def _normalize_plan_counts(categories: list[dict], *, card_target: int, question_target: int) -> list[dict]:
     card_parts = _distribute(card_target, len(categories))
     question_parts = _distribute(question_target, len(categories))
+    merk_total, mental_total, input_total = _split_card_kinds(card_target)
+    merk_parts = _distribute(merk_total, len(categories))
+    mental_parts = _distribute(mental_total, len(categories))
+    input_parts = _distribute(input_total, len(categories))
     normalized: list[dict] = []
     for index, cat in enumerate(categories):
         normalized.append(
@@ -85,6 +104,9 @@ def _normalize_plan_counts(categories: list[dict], *, card_target: int, question
                 "focus": cat.get("focus") or "",
                 "cards": card_parts[index],
                 "questions": question_parts[index],
+                "merk_cards": merk_parts[index],
+                "mental_cards": mental_parts[index],
+                "input_cards": input_parts[index],
             }
         )
     return normalized
@@ -116,6 +138,55 @@ def _parse_cards(text: str, expected: int) -> list[dict]:
     if len(out) < expected:
         _log.warning("generate_interactive cards_short got=%d expected=%d", len(out), expected)
     return out[:expected] if len(out) >= expected else out
+
+
+def _parse_card_list(raw_cards: object, *, kind: str, expected: int) -> list[dict]:
+    if expected <= 0:
+        return []
+    if not isinstance(raw_cards, list):
+        return []
+    out: list[dict] = []
+    for raw in raw_cards:
+        if not isinstance(raw, dict):
+            continue
+        q = str(raw.get("question") or "").strip()
+        a = str(raw.get("answer") or "").strip()
+        if not q or not a:
+            continue
+        out.append(
+            {
+                "kind": kind,
+                "question": q[:240],
+                "answer": a[:800],
+                "tip": str(raw.get("tip") or "")[:240],
+            }
+        )
+    return out[:expected] if len(out) >= expected else out
+
+
+def _parse_typed_cards(
+    text: str,
+    *,
+    merk_expected: int,
+    mental_expected: int,
+    input_expected: int,
+) -> list[dict]:
+    parsed = parse_json_object(text)
+    merk = _parse_card_list(parsed.get("merk_cards"), kind="merk", expected=merk_expected)
+    mental = _parse_card_list(parsed.get("mental_cards"), kind="mental", expected=mental_expected)
+    input_cards = _parse_card_list(parsed.get("input_cards"), kind="input", expected=input_expected)
+    total_expected = merk_expected + mental_expected + input_expected
+    total_got = len(merk) + len(mental) + len(input_cards)
+    min_accept = max(2, int(total_expected * 0.55))
+    if total_got < min_accept:
+        raise LlmError(f"Lernkarten unvollständig ({total_got}/{total_expected})", "thin_content")
+    if len(merk) < merk_expected and merk_expected > 0:
+        _log.warning("generate_interactive merk_cards_short got=%d expected=%d", len(merk), merk_expected)
+    if len(mental) < mental_expected and mental_expected > 0:
+        _log.warning("generate_interactive mental_cards_short got=%d expected=%d", len(mental), mental_expected)
+    if len(input_cards) < input_expected and input_expected > 0:
+        _log.warning("generate_interactive input_cards_short got=%d expected=%d", len(input_cards), input_expected)
+    return merk + mental + input_cards
 
 
 def _parse_knowledge(text: str, *, fallback_focus: str, category_name: str) -> list[dict]:
@@ -367,22 +438,36 @@ def generate_interactive_modules(
             cat["cards"],
             cat["questions"],
         )
-        cards_prompt = build_interactive_card_prompt(
+        cards_prompt = build_interactive_typed_cards_prompt(
             context=batch_context,
             category_name=cat["name"],
             category_focus=cat["focus"],
-            count=cat["cards"],
+            merk_count=cat["merk_cards"],
+            mental_count=cat["mental_cards"],
+            input_count=cat["input_cards"],
             existing_questions=all_card_questions,
         )
         cards_result = _complete_with_retry(
             prompt=cards_prompt,
             provider=name,
-            system=CARDS_SYSTEM,
+            system=TYPED_CARDS_SYSTEM,
             model=model,
             num_predict=_BATCH_NUM_PREDICT,
             label=f"cards_{index + 1}",
         )
-        cards = _parse_cards(cards_result["text"], cat["cards"])
+        cards = _parse_typed_cards(
+            cards_result["text"],
+            merk_expected=cat["merk_cards"],
+            mental_expected=cat["mental_cards"],
+            input_expected=cat["input_cards"],
+        )
+        if not cards:
+            cards = _parse_cards(
+                cards_result["text"],
+                cat["merk_cards"] + cat["mental_cards"] + cat["input_cards"],
+            )
+            for card in cards:
+                card["kind"] = "mental"
         all_card_questions.extend(c["question"] for c in cards)
 
         knowledge = _generate_knowledge(

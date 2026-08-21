@@ -5,10 +5,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   deferLearnQuestion,
   markFlashcardStatus,
+  submitCardInputAnswer,
   submitLearnAnswer,
   submitPracticeAnswer,
   type LearnState,
 } from "@/lib/api";
+import { CardInputExercise } from "@/components/learn/CardInputExercise";
 import { QuizWeaknessPanel } from "@/components/QuizWeaknessPanel";
 import { PracticeExercise } from "@/components/learn/PracticeExercise";
 import { formatQuizOption, formatQuizExplanation, quizOptionClassName } from "@/lib/quizOption";
@@ -22,6 +24,12 @@ import {
   nextOpenQuizIndex,
   quizQuestionKey,
 } from "@/lib/quizNav";
+
+type CardFilter = "due" | "all" | "merk" | "mental" | "input" | "practice";
+
+function cardKind(card: { kind?: string }): string {
+  return card.kind || "mental";
+}
 
 type Tab = "home" | "knowledge" | "cards" | "quiz";
 
@@ -69,8 +77,16 @@ export function InteractiveTrainer({
   const [quizChallenge, setQuizChallenge] = useState(false);
   const [quizWeakOnly, setQuizWeakOnly] = useState(false);
   const [quizDeck, setQuizDeck] = useState<QuizItem[]>([]);
-  const [cardFilter, setCardFilter] = useState<"due" | "all" | "practice">("due");
+  const [cardFilter, setCardFilter] = useState<CardFilter>("due");
   const [practiceIndex, setPracticeIndex] = useState(0);
+  const [cardInputResult, setCardInputResult] = useState<{
+    correct: boolean;
+    result_correct?: boolean;
+    worked_correct?: boolean | null;
+    worked_feedback?: string | null;
+    explanation?: string | null;
+    expected?: string | null;
+  } | null>(null);
   const [practiceResult, setPracticeResult] = useState<{
     correct: boolean;
     hint?: string | null;
@@ -99,9 +115,14 @@ export function InteractiveTrainer({
   }, [knowledge]);
   const progress = trainer?.flashcard_progress || {};
   const filteredCards = useMemo(() => {
-    if (cardFilter === "all") return cards;
     if (cardFilter === "practice") return [];
-    return cards.filter((card) => progress[card.card_key]?.due !== false);
+    let list = cards;
+    if (cardFilter === "due") {
+      list = list.filter((card) => progress[card.card_key]?.due !== false);
+    } else if (cardFilter === "merk" || cardFilter === "mental" || cardFilter === "input") {
+      list = list.filter((card) => cardKind(card) === cardFilter);
+    }
+    return list;
   }, [cards, cardFilter, progress]);
 
   const practiceExercises = useMemo(
@@ -123,6 +144,7 @@ export function InteractiveTrainer({
   useEffect(() => {
     setCardIndex(0);
     setFlipped(false);
+    setCardInputResult(null);
   }, [cardFilter]);
 
   const allQuestions = useMemo(
@@ -590,20 +612,20 @@ export function InteractiveTrainer({
             <h3 className="trainer-stat-heading">Lernkarten</h3>
             <div className="trainer-stat-grid">
               <div className="trainer-stat">
+                <strong>{stats.merk_cards ?? 0}</strong>
+                <span> Merk</span>
+              </div>
+              <div className="trainer-stat">
+                <strong>{stats.mental_cards ?? stats.card_count}</strong>
+                <span> Kopf</span>
+              </div>
+              <div className="trainer-stat">
+                <strong>{stats.input_cards ?? 0}</strong>
+                <span> Eingabe</span>
+              </div>
+              <div className="trainer-stat">
                 <strong>{stats.known_cards}</strong>
                 <span> sicher</span>
-              </div>
-              <div className="trainer-stat">
-                <strong>{newCards > 0 ? newCards : reviewDueCards}</strong>
-                <span>{newCards > 0 ? " noch nicht geübt" : " fällig"}</span>
-              </div>
-              <div className="trainer-stat">
-                <strong>{stats.review_cards}</strong>
-                <span> wiederholen</span>
-              </div>
-              <div className="trainer-stat">
-                <strong>{stats.card_count}</strong>
-                <span> gesamt</span>
               </div>
             </div>
             <div className="trainer-progress-wrap">
@@ -612,9 +634,39 @@ export function InteractiveTrainer({
               </div>
               <p className="trainer-progress-label muted">
                 {stats.known_cards}/{stats.card_count} Karten sicher ({cardPercent}%)
+                {newCards > 0 ? ` · ${newCards} noch nicht geübt` : ""}
               </p>
             </div>
           </div>
+
+          {trainer?.content_analysis && (
+            <div className="trainer-content-analysis">
+              <h3 className="trainer-stat-heading">Inhaltsanalyse</h3>
+              <p className="muted">{trainer.content_analysis.overview}</p>
+              <div className="trainer-analysis-grid">
+                <div>
+                  <strong>Check</strong>
+                  <ul className="trainer-analysis-list">
+                    {trainer.content_analysis.quiz.operations.map((op) => (
+                      <li key={`quiz-${op.key}`}>
+                        {op.label}: {op.count} ({op.percent}%)
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <strong>Lernkarten</strong>
+                  <ul className="trainer-analysis-list">
+                    {trainer.content_analysis.cards.operations.map((op) => (
+                      <li key={`card-${op.key}`}>
+                        {op.label}: {op.count} ({op.percent}%)
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          )}
 
           <details className="trainer-more-actions">
             <summary>Weitere Aktionen</summary>
@@ -713,6 +765,27 @@ export function InteractiveTrainer({
             </button>
             <button
               type="button"
+              className={cardFilter === "merk" ? "trainer-tab active" : "trainer-tab"}
+              onClick={() => setCardFilter("merk")}
+            >
+              Merk ({stats.merk_cards ?? 0})
+            </button>
+            <button
+              type="button"
+              className={cardFilter === "mental" ? "trainer-tab active" : "trainer-tab"}
+              onClick={() => setCardFilter("mental")}
+            >
+              Kopf ({stats.mental_cards ?? stats.card_count})
+            </button>
+            <button
+              type="button"
+              className={cardFilter === "input" ? "trainer-tab active" : "trainer-tab"}
+              onClick={() => setCardFilter("input")}
+            >
+              Eingabe ({stats.input_cards ?? 0})
+            </button>
+            <button
+              type="button"
               className={cardFilter === "all" ? "trainer-tab active" : "trainer-tab"}
               onClick={() => setCardFilter("all")}
             >
@@ -777,10 +850,72 @@ export function InteractiveTrainer({
             <p className="muted">Keine Übungsaufgaben in dieser Einheit — nach «Mit KI aufbereiten» neu generieren.</p>
           )}
 
-          {cardFilter !== "practice" && currentCard && (
+          {cardFilter !== "practice" && currentCard && cardKind(currentCard) === "input" && (
+            <CardInputExercise
+              question={currentCard.question}
+              cardIndex={cardIndex}
+              total={filteredCards.length}
+              domain={currentCard.domain}
+              busy={busy}
+              result={cardInputResult}
+              onSubmit={async (answer, workedSolution) => {
+                setBusy(true);
+                setError(null);
+                try {
+                  const res = await submitCardInputAnswer(unitId, {
+                    module_id: currentCard.module_id,
+                    card_index: currentCard.card_index,
+                    answer,
+                    worked_solution: workedSolution,
+                  });
+                  onStateChange({
+                    ...state,
+                    progress: res.progress,
+                    summary: res.summary,
+                    trainer: state.trainer
+                      ? {
+                          ...state.trainer,
+                          flashcard_progress: res.flashcard_progress || {
+                            ...state.trainer.flashcard_progress,
+                            [res.card_key]: {
+                              ...(state.trainer.flashcard_progress[res.card_key] || {
+                                status: res.correct ? "known" : "review",
+                                attempts: 1,
+                              }),
+                              status: res.correct ? "known" : "review",
+                              due: !res.correct,
+                            },
+                          },
+                        }
+                      : state.trainer,
+                  });
+                  setCardInputResult({
+                    correct: res.correct,
+                    result_correct: res.result_correct,
+                    worked_correct: res.worked_correct,
+                    worked_feedback: res.worked_feedback,
+                    explanation: res.explanation,
+                    expected: res.expected,
+                  });
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : "Antwort fehlgeschlagen");
+                } finally {
+                  setBusy(false);
+                }
+              }}
+              onContinue={() => {
+                setCardInputResult(null);
+                if (cardIndex + 1 < filteredCards.length) {
+                  setCardIndex(cardIndex + 1);
+                }
+              }}
+            />
+          )}
+
+          {cardFilter !== "practice" && currentCard && cardKind(currentCard) !== "input" && (
             <>
               <p className="learn-quiz-meta muted">
-                Karte {cardIndex + 1} von {filteredCards.length}
+                {cardKind(currentCard) === "merk" ? "Merkkarte" : "Kopf-Rechnen"} {cardIndex + 1} von {filteredCards.length}
                 {progress[currentCard.card_key]?.status === "known"
                   ? " · gewusst"
                   : progress[currentCard.card_key]?.status === "review"

@@ -176,14 +176,29 @@ export type TrainerKnowledgeSection = {
   items: { title: string; text: string }[];
 };
 
+export type TrainerContentAnalysis = {
+  overview: string;
+  quiz: { total: number; summary: string; operations: { key: string; label: string; count: number; percent: number }[] };
+  cards: { total: number; summary: string; operations: { key: string; label: string; count: number; percent: number }[] };
+  by_module: {
+    domain: string;
+    quiz_total: number;
+    card_total: number;
+    quiz_ops: { key: string; label: string; count: number; percent: number }[];
+    card_ops: { key: string; label: string; count: number; percent: number }[];
+  }[];
+};
+
 export type TrainerPayload = {
   options: TrainerOptions;
   knowledge: TrainerKnowledgeItem[];
   knowledge_sections?: TrainerKnowledgeSection[];
+  content_analysis?: TrainerContentAnalysis;
   cards: {
     question: string;
     answer: string;
     tip?: string;
+    kind?: "merk" | "mental" | "input" | string;
     domain?: string;
     module_id: string;
     card_index: number;
@@ -204,6 +219,9 @@ export type TrainerPayload = {
     review_cards: number;
     due_cards: number;
     new_cards?: number;
+    merk_cards?: number;
+    mental_cards?: number;
+    input_cards?: number;
   };
 };
 
@@ -744,6 +762,23 @@ export const submitPracticeAnswer = (
     summary: LearnSummary;
     practice_done: boolean;
   }>(`/api/v1/units/${unitId}/learn/practice`, { method: "POST", json: body });
+
+export const submitCardInputAnswer = (
+  unitId: string,
+  body: { module_id: string; card_index: number; answer: string; worked_solution?: string },
+) =>
+  apiFetch<{
+    correct: boolean;
+    result_correct: boolean;
+    worked_correct?: boolean | null;
+    worked_feedback?: string | null;
+    explanation?: string | null;
+    expected?: string | null;
+    progress: LearnProgress;
+    summary: LearnSummary;
+    card_key: string;
+    flashcard_progress?: TrainerPayload["flashcard_progress"];
+  }>(`/api/v1/units/${unitId}/learn/card-input`, { method: "POST", json: body });
 
 export const markFlashcardStatus = (
   unitId: string,

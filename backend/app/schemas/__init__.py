@@ -244,6 +244,13 @@ class LearnPracticeRequest(BaseModel):
     answer: str = Field(min_length=1, max_length=512)
 
 
+class LearnCardInputRequest(BaseModel):
+    module_id: str
+    card_index: int = Field(ge=0)
+    answer: str = Field(min_length=1, max_length=128)
+    worked_solution: str | None = Field(default=None, max_length=2000)
+
+
 class LearnModuleRequest(BaseModel):
     module_id: str
 

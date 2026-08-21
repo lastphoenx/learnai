@@ -27,6 +27,20 @@ CARDS_SYSTEM = (
     "- Keine Duplikate, kein ISBN/Buchcover-Meta, aktives Erinnern."
 )
 
+TYPED_CARDS_SYSTEM = (
+    "Du schreibst drei Arten Lernkarten für einen Lerntrainer. Antworte NUR mit JSON.\n"
+    'Schema: {"merk_cards":[{"question":"...","answer":"...","tip":"..."}],'
+    '"mental_cards":[{"question":"...","answer":"...","tip":"..."}],'
+    '"input_cards":[{"question":"...","answer":"...","tip":"..."}]}\n'
+    "Regeln:\n"
+    "- merk_cards: Merkregeln, typische Fehler, Vorgehen — KEINE reine Kopfrechnung.\n"
+    "- mental_cards: kurze Kopf-Rechnaufgaben (Frage → Antwort), 1 Schritt im Kopf.\n"
+    "- input_cards: Rechenaufgaben zum Eintippen; answer = exaktes Ergebnis (Zahl).\n"
+    "- Genau die geforderten Anzahlen pro Typ.\n"
+    "- Keine Duplikate zwischen den Typen und zu bereits verwendeten Fragen.\n"
+    "- Kein ISBN/Buchcover-Meta."
+)
+
 QUIZ_SYSTEM = (
     "Du schreibst Quizfragen für einen Lerntrainer. Antworte NUR mit JSON.\n"
     'Schema: {"questions":[{"q":"...","options":["A","B","C","D"],"answer":0,"explanation":"..."}]}\n'
@@ -144,6 +158,29 @@ def build_interactive_plan_prompt(
         )
         + f"\nZiel: {card_target} Lernkarten und {question_target} Quizfragen gesamt.\n"
         "Verteile cards/questions sinnvoll auf 5–6 Kategorien."
+    )
+
+
+def build_interactive_typed_cards_prompt(
+    *,
+    context: str,
+    category_name: str,
+    category_focus: str,
+    merk_count: int,
+    mental_count: int,
+    input_count: int,
+    existing_questions: list[str],
+) -> str:
+    avoid = ""
+    if existing_questions:
+        sample = existing_questions[:12]
+        avoid = "\nBereits verwendete Fragen (nicht wiederholen):\n" + "\n".join(f"- {q}" for q in sample)
+    return (
+        f"{context}\n\n"
+        f"Kategorie: {category_name}\n"
+        f"Lernziel: {category_focus}\n"
+        f"Erzeuge genau {merk_count} merk_cards, {mental_count} mental_cards und {input_count} input_cards als JSON.\n"
+        f"{avoid}"
     )
 
 

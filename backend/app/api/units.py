@@ -14,6 +14,7 @@ from app.ai.generate import generate_modules
 from app.schemas import (
     LearnAnswerRequest,
     LearnDeferRequest,
+    LearnCardInputRequest,
     LearnPracticeRequest,
     LearnFlashcardRequest,
     LearnModuleRequest,
@@ -44,6 +45,7 @@ from app.services.learn_service import (
     reset_learn_progress,
     save_learn_position,
     submit_quiz_answer,
+    submit_card_input_answer,
     submit_practice_answer,
     defer_quiz_question,
 )
@@ -734,6 +736,30 @@ def units_learn_practice(
             UUID(body.module_id),
             body.exercise_index,
             body.answer,
+        )
+        db.commit()
+        return result
+    except UnitError as exc:
+        db.rollback()
+        raise _http(exc) from exc
+
+
+@router.post("/{unit_id}/learn/card-input")
+def units_learn_card_input(
+    unit_id: UUID,
+    body: LearnCardInputRequest,
+    user: User = Depends(get_app_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        result = submit_card_input_answer(
+            db,
+            user,
+            unit_id,
+            UUID(body.module_id),
+            body.card_index,
+            body.answer,
+            body.worked_solution,
         )
         db.commit()
         return result
