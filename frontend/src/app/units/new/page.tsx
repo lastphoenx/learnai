@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { AppHeader } from "@/components/AppHeader";
+import { LabelWithSpeech } from "@/components/LabelWithSpeech";
 import { LearnerMultiSelect } from "@/components/LearnerMultiSelect";
 import {
   createUnit,
@@ -115,24 +116,39 @@ export default function NewUnitPage() {
     <main className="shell">
       <AppHeader user={user} title="Neue Lerneinheit" />
       <form onSubmit={onCreate} className="card stack">
-        <label>
-          Titel
+        <LabelWithSpeech
+          label="Titel"
+          language={language}
+          onTranscript={(text, final) => {
+            if (final) {
+              setTitle((prev) => `${prev}${prev && !prev.endsWith(" ") ? " " : ""}${text.trim()}`);
+            }
+          }}
+        >
           <input
             required
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="z.B. Einstieg ins Bruchrechnen"
           />
-        </label>
-        <label>
-          Beschreibung / Auftrag an die KI
+        </LabelWithSpeech>
+        <LabelWithSpeech
+          label="Beschreibung / Auftrag an die KI"
+          language={language}
+          continuous
+          onTranscript={(text, final) => {
+            if (final) {
+              setBrief((prev) => `${prev}${prev && !prev.endsWith(" ") ? " " : ""}${text.trim()}`);
+            }
+          }}
+        >
           <textarea
             value={brief}
             onChange={(e) => setBrief(e.target.value)}
             rows={5}
-            placeholder="Was soll gelernt werden? Fotos vom Lernmittel kannst du danach hochladen."
+            placeholder="Was soll gelernt werden? Fotos vom Lernmittel kannst du danach hochladen — oder per Mikro diktieren."
           />
-        </label>
+        </LabelWithSpeech>
         <label>
           Fach / Thema
           <input
