@@ -357,9 +357,9 @@ export default function UnitLearnPage() {
       : phase === "intro"
         ? "Einstieg"
         : phase === "read"
-          ? "Lerntext"
+          ? "Verstehen"
           : phase === "quiz"
-            ? "Quiz"
+            ? "Check"
             : phase === "module_done"
               ? "Block fertig"
               : `Block ${stepNum}`;
