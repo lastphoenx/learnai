@@ -50,6 +50,7 @@ QUIZ_SYSTEM = (
     "- explanation: Bei Rechenaufgaben 2–3 Sätze mit kurzem Lösungsweg (Zwischenschritte, nicht nur Endergebnis).\n"
     "- Bei anderen Fragen: 1–2 Sätze warum die Antwort stimmt.\n"
     "- Bei Zahlenantworten: answer-Index muss exakt zur explanation passen; Optionen auch numerisch verschieden (nicht 10 und 10.0).\n"
+    "- Rechenaufgaben müssen zum Thema/Schwerpunkt der Einheit passen — keine generischen Ganzzahl-Aufgaben, wenn Dezimalzahlen oder Brüche im Fokus sind.\n"
     "- Keine Trivialfragen, keine Scherzantworten."
 )
 
@@ -101,6 +102,65 @@ def truncate_context(context: str, max_chars: int = 14000) -> str:
     return context[:max_chars] + "\n\n[… Kontext gekürzt für diese Teilaufgabe …]\n"
 
 
+_DECIMAL_KEYWORDS = (
+    "dezimal",
+    "dezimalzahl",
+    "kommazahl",
+    "komma",
+    "nachkomma",
+    "kommastelle",
+)
+_FRACTION_KEYWORDS = (
+    "bruch",
+    "brüche",
+    "bruchrechnen",
+    "bruchzahl",
+)
+
+
+def build_topic_content_constraints(
+    *,
+    title: str,
+    brief: str,
+    math_focus: str | None,
+) -> str:
+    """Zusätzliche inhaltliche Pflichten aus Titel, Auftrag und Mathe-Schwerpunkt."""
+    blob = f"{title} {brief}".lower()
+    focus = (math_focus or "").strip().lower()
+    parts: list[str] = []
+
+    wants_decimals = (
+        focus in {"decimals", "dezimalzahlen & komma"}
+        or "dezimal" in focus
+        or any(k in blob for k in _DECIMAL_KEYWORDS)
+    )
+    wants_fractions = (
+        focus in {"fractions", "bruchrechnen"}
+        or "bruch" in focus
+        or any(k in blob for k in _FRACTION_KEYWORDS)
+    )
+
+    if wants_decimals:
+        parts.append(
+            "INHALTLICHE PFLICHT — Dezimalzahlen: Mindestens 80% aller Rechenaufgaben in Quiz und "
+            "Karten müssen Dezimalzahlen in Kommaschreibweise enthalten (z.B. 3,08 · 0,75 · 12,4). "
+            "Reine Ganzzahl-Aufgaben (z.B. 7+3, 12×4, nur 7 und 0,9) höchstens 1–2 Einstiegsaufgaben "
+            "pro Kategorie — danach durchgängig mit Nachkommastellen rechnen."
+        )
+    if wants_fractions:
+        parts.append(
+            "INHALTLICHE PFLICHT — Brüche: Rechenaufgaben sollen Brüche, Bruchdarstellung oder "
+            "Bruch-Dezimal-Bezüge enthalten — nicht nur ganze Zahlen ohne Bruchbezug."
+        )
+    if wants_decimals and wants_fractions:
+        parts.append(
+            "Kombination Bruch + Dezimal: Aufgaben sollen Brüche in Dezimalschreibweise umwandeln, "
+            "vergleichen oder damit rechnen (z.B. 3/4 = 0,75; 1,5 + 2/5)."
+        )
+
+    return "\n".join(parts)
+
+
 def _context_block(
     *,
     title: str,
@@ -114,6 +174,8 @@ def _context_block(
     answer_length: str,
     notes: str,
 ) -> str:
+    topic_rules = build_topic_content_constraints(title=title, brief=brief, math_focus=math_focus)
+    topic_block = f"\n{topic_rules}\n" if topic_rules else ""
     return (
         f"Thema/Titel: {title}\n"
         f"Auftrag: {brief or '(kein Extra-Auftrag)'}\n"
@@ -122,7 +184,8 @@ def _context_block(
         + f"Sprache: {language}\n"
         f"Zielalter: {target_age or 'offen'}\n"
         f"Schwierigkeit 1-5: {difficulty}\n"
-        f"{learner_style_hint(target_age=target_age, style=style, answer_length=answer_length)}\n\n"
+        f"{learner_style_hint(target_age=target_age, style=style, answer_length=answer_length)}\n"
+        f"{topic_block}\n"
         f"{SOURCE_RULES}\n\n"
         f"Material:\n{notes or '(keine Quellen — nutze Titel und Auftrag)'}\n"
     )
