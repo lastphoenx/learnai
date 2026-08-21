@@ -509,6 +509,7 @@ export const fetchUnits = () => apiFetch<LearningUnit[]>("/api/v1/units");
 export type UnitTaskTypesResponse = {
   task_types: { key: string; label: string; select_label?: string; description: string; hint: string }[];
   math_focus: { key: string; label: string }[];
+  focus_groups: { id: string; label: string; options: { key: string; label: string }[] }[];
 };
 
 export const fetchUnitTaskTypes = () => apiFetch<UnitTaskTypesResponse>("/api/v1/units/task-types");

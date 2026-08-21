@@ -65,6 +65,7 @@ from app.services.unit_service import UnitError, _get_unit_or_404, add_source, a
 from app.services.pdf_export_service import unit_worksheet_pdf
 from app.services.trainer_export_service import export_trainer_json, import_trainer_json
 from app.ai.task_types import math_focus_public, task_types_public
+from app.ai.subject_focus import focus_groups_public
 
 _log = logging.getLogger(__name__)
 
@@ -101,7 +102,11 @@ def _http(exc: UnitError) -> HTTPException:
 
 @router.get("/task-types")
 def units_task_types():
-    return {"task_types": task_types_public(), "math_focus": math_focus_public()}
+    return {
+        "task_types": task_types_public(),
+        "math_focus": math_focus_public(),
+        "focus_groups": focus_groups_public(),
+    }
 
 
 @router.post("/{unit_id}/review", status_code=status.HTTP_201_CREATED)

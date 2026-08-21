@@ -1,3 +1,5 @@
+import { focusLabel as subjectFocusLabel } from "./subjectFocus";
+
 export type UnitTaskType = {
   key: string;
   label: string;
@@ -117,7 +119,7 @@ export function taskTypeSelectLabel(key: string, types?: UnitTaskType[]) {
 
 export function mathFocusLabel(key: string | null | undefined, options = FALLBACK_MATH_FOCUS) {
   if (!key) return null;
-  return options.find((o) => o.key === key)?.label ?? key;
+  return options.find((o) => o.key === key)?.label ?? subjectFocusLabel(key) ?? key;
 }
 
 const LANG_LABELS: Record<string, string> = {

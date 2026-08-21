@@ -552,9 +552,9 @@ def analyze_exam(
 def _infer_math_focus(analysis: dict, parent_focus: str | None) -> str | None:
     if parent_focus:
         return parent_focus
-    from app.ai.task_types import MATH_FOCUS_OPTIONS
+    from app.ai.subject_focus import all_focus_options_flat
 
-    keys = [o["key"] for o in MATH_FOCUS_OPTIONS if o.get("key")]
+    keys = [o["key"] for o in all_focus_options_flat() if o.get("key")]
     for pattern in analysis.get("error_patterns") or []:
         tag = str(pattern.get("tag") or "").lower()
         label = str(pattern.get("label") or "").lower()
