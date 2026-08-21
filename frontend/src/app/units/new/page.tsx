@@ -9,10 +9,12 @@ import { LearnerMultiSelect } from "@/components/LearnerMultiSelect";
 import {
   createUnit,
   fetchMe,
+  fetchProfile,
   fetchProfiles,
   fetchUnitTaskTypes,
   isUnitCreateBatch,
   type LearnerProfile,
+  type SttProvider,
   type User,
 } from "@/lib/api";
 import {
@@ -40,6 +42,13 @@ export default function NewUnitPage() {
   const [taskTypes, setTaskTypes] = useState<UnitTaskType[]>(FALLBACK_TASK_TYPES);
   const [mathFocusOptions, setMathFocusOptions] = useState<MathFocusOption[]>(FALLBACK_MATH_FOCUS);
   const [error, setError] = useState<string | null>(null);
+  const [sttProvider, setSttProvider] = useState<SttProvider>("browser");
+  const [speechProfileId, setSpeechProfileId] = useState<string | undefined>(undefined);
+
+  const activeSpeechProfile = useMemo(() => {
+    const id = profileIds[0];
+    return profiles.find((p) => p.id === id);
+  }, [profileIds, profiles]);
 
   const selectedType = useMemo(
     () => taskTypes.find((t) => t.key === taskType) ?? taskTypes[0],
@@ -49,11 +58,25 @@ export default function NewUnitPage() {
   const mathFocusVisible = showMathFocus(taskType, subject);
 
   useEffect(() => {
+    if (activeSpeechProfile) {
+      setSttProvider((activeSpeechProfile.stt_provider as SttProvider) || "browser");
+      setSpeechProfileId(activeSpeechProfile.id);
+    }
+  }, [activeSpeechProfile]);
+
+  useEffect(() => {
     fetchMe()
       .then((u) => {
         setUser(u);
         if (u.must_enroll_2fa) window.location.href = "/settings";
-        if (!u.is_child) {
+        if (u.is_child && u.profile_id) {
+          fetchProfile(u.profile_id)
+            .then((p) => {
+              setSttProvider((p.stt_provider as SttProvider) || "browser");
+              setSpeechProfileId(p.id);
+            })
+            .catch(() => undefined);
+        } else if (!u.is_child) {
           fetchProfiles()
             .then((rows) => {
               setProfiles(rows);
@@ -119,6 +142,9 @@ export default function NewUnitPage() {
         <LabelWithSpeech
           label="Titel"
           language={language}
+          sttProvider={sttProvider}
+          profileId={speechProfileId}
+          onError={(msg) => setError(msg)}
           onTranscript={(text, final) => {
             if (final) {
               setTitle((prev) => `${prev}${prev && !prev.endsWith(" ") ? " " : ""}${text.trim()}`);
@@ -136,6 +162,9 @@ export default function NewUnitPage() {
           label="Beschreibung / Auftrag an die KI"
           language={language}
           continuous
+          sttProvider={sttProvider}
+          profileId={speechProfileId}
+          onError={(msg) => setError(msg)}
           onTranscript={(text, final) => {
             if (final) {
               setBrief((prev) => `${prev}${prev && !prev.endsWith(" ") ? " " : ""}${text.trim()}`);

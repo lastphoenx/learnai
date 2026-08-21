@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { ModelSelect } from "@/components/ModelSelect";
-import type { AiModelCatalog, TaskCatalogItem } from "@/lib/api";
+import type { AiModelCatalog, SttProvider, SttStatus, TaskCatalogItem } from "@/lib/api";
 
 export type TaskRow = { provider: string; model: string };
 
@@ -24,6 +24,9 @@ type Props = {
   onByTaskChange: (next: Record<string, TaskRow>) => void;
   onFallbackChange: (provider: string, model: string) => void;
   onApplyRecommendations: () => void;
+  sttProvider?: SttProvider;
+  sttStatus?: SttStatus;
+  onSttProviderChange?: (provider: SttProvider) => void;
   readOnly?: boolean;
 };
 
@@ -38,6 +41,9 @@ export function LearnerSettingsForm({
   onByTaskChange,
   onFallbackChange,
   onApplyRecommendations,
+  sttProvider = "browser",
+  sttStatus,
+  onSttProviderChange,
   readOnly,
 }: Props) {
   function setRow(key: string, patch: Partial<TaskRow>) {
@@ -124,6 +130,35 @@ export function LearnerSettingsForm({
           </table>
         </div>
       )}
+      <div className="stack" style={{ marginTop: "1rem" }}>
+        <h3 style={{ margin: 0 }}>Sprache zu Text (Diktat)</h3>
+        <p className="muted" style={{ margin: 0 }}>
+          Für Mikrofon-Buttons beim Anlegen von Einheiten. «Lokal» nutzt den Whisper-Dienst auf dem
+          GMKtec (privat). «Browser» nutzt Chrome/Edge-Spracherkennung.
+        </p>
+        <label>
+          STT-Engine
+          {readOnly ? (
+            <span>{sttProvider}</span>
+          ) : (
+            <select
+              value={sttProvider}
+              onChange={(e) => onSttProviderChange?.(e.target.value as SttProvider)}
+            >
+              <option value="browser">Browser (Chrome/Edge)</option>
+              <option value="local" disabled={Boolean(sttStatus && !sttStatus.local.configured)}>
+                Lokal (Whisper){sttStatus && !sttStatus.local.configured ? " — nicht konfiguriert" : ""}
+              </option>
+              <option value="openai" disabled={Boolean(sttStatus && !sttStatus.openai.configured)}>
+                OpenAI Whisper{sttStatus && !sttStatus.openai.configured ? " — kein API-Key" : ""}
+              </option>
+              <option value="anthropic" disabled>
+                Anthropic — nicht verfügbar
+              </option>
+            </select>
+          )}
+        </label>
+      </div>
       <details>
         <summary className="muted">Fallback für Text-Typen ohne eigene Zeile</summary>
         <div className="stack" style={{ marginTop: "0.75rem" }}>

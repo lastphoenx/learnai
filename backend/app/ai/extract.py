@@ -85,6 +85,9 @@ def _pdf_vision_fallback(path: Path, *, max_pages: int = 5) -> str:
     return "\n\n".join(parts).strip() or "(PDF konnte nicht gelesen werden)"
 
 
+STT_PROVIDERS = frozenset({"browser", "local", "openai", "anthropic"})
+
+
 def _whisper_transcription_url() -> str | None:
     base = (settings.whisper_url or "").strip().rstrip("/")
     if not base:
@@ -96,28 +99,55 @@ def _whisper_transcription_url() -> str | None:
     return f"{base}/v1/audio/transcriptions"
 
 
-def transcribe_audio(path: Path, *, language: str = "de") -> str:
-    whisper_url = _whisper_transcription_url()
-    if whisper_url:
-        headers: dict[str, str] = {}
-        if settings.whisper_api_key:
-            headers["Authorization"] = f"Bearer {settings.whisper_api_key}"
-        with path.open("rb") as handle:
-            response = httpx.post(
-                whisper_url,
-                headers=headers,
-                files={"file": (path.name, handle, "application/octet-stream")},
-                data={"model": "whisper-1", "language": language[:2]},
-                timeout=300.0,
-            )
-        if response.status_code >= 400:
-            raise LlmError(f"Whisper-Fehler: {response.text[:200]}", "whisper_error")
-        payload = response.json()
-        return str(payload.get("text") or "").strip()
+def _default_server_stt_provider() -> str:
+    if (settings.whisper_url or "").strip():
+        return "local"
+    return "openai"
 
+
+def effective_stt_provider(prefs: dict | None) -> str:
+    """Server-seitige Transkription (Audio-Uploads, API). Browser-STT fällt auf lokal/OpenAI zurück."""
+    raw = str((prefs or {}).get("stt_provider") or "").strip().lower()
+    if raw == "local":
+        return "local"
+    if raw == "openai":
+        return "openai"
+    if raw == "anthropic":
+        raise LlmError(
+            "Anthropic bietet keine Spracherkennung. Bitte Lokal, OpenAI oder Browser wählen.",
+            "stt_unsupported",
+        )
+    return _default_server_stt_provider()
+
+
+def _transcribe_whisper_local(path: Path, *, language: str) -> str:
+    whisper_url = _whisper_transcription_url()
+    if not whisper_url:
+        raise LlmError(
+            "Lokales Whisper nicht konfiguriert (WHISPER_URL fehlt)",
+            "no_transcription",
+        )
+    headers: dict[str, str] = {}
+    if settings.whisper_api_key:
+        headers["Authorization"] = f"Bearer {settings.whisper_api_key}"
+    with path.open("rb") as handle:
+        response = httpx.post(
+            whisper_url,
+            headers=headers,
+            files={"file": (path.name, handle, "application/octet-stream")},
+            data={"model": "whisper-1", "language": language[:2]},
+            timeout=300.0,
+        )
+    if response.status_code >= 400:
+        raise LlmError(f"Whisper-Fehler: {response.text[:200]}", "whisper_error")
+    payload = response.json()
+    return str(payload.get("text") or "").strip()
+
+
+def _transcribe_whisper_openai(path: Path, *, language: str) -> str:
     if not settings.openai_api_key:
         raise LlmError(
-            "Audio-Transkription: WHISPER_URL oder OpenAI API-Key fehlt",
+            "OpenAI API-Key fehlt für Spracherkennung",
             "no_transcription",
         )
     with path.open("rb") as handle:
@@ -132,6 +162,22 @@ def transcribe_audio(path: Path, *, language: str = "de") -> str:
         raise LlmError(f"Whisper-Fehler: {response.text[:200]}", "whisper_error")
     payload = response.json()
     return str(payload.get("text") or "").strip()
+
+
+def transcribe_audio(path: Path, *, language: str = "de", provider: str | None = None) -> str:
+    name = (provider or "").strip().lower() or _default_server_stt_provider()
+    if name == "browser":
+        raise LlmError("Browser-STT läuft nur im Frontend.", "stt_browser_only")
+    if name == "anthropic":
+        raise LlmError(
+            "Anthropic bietet keine Spracherkennung. Bitte Lokal, OpenAI oder Browser wählen.",
+            "stt_unsupported",
+        )
+    if name == "local":
+        return _transcribe_whisper_local(path, language=language)
+    if name == "openai":
+        return _transcribe_whisper_openai(path, language=language)
+    raise LlmError(f"Unbekannter STT-Provider: {name}", "bad_stt_provider")
 
 
 def fetch_url_text(url: str, *, max_bytes: int = 2_000_000) -> str:
