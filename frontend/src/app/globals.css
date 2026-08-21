@@ -448,6 +448,12 @@ button:disabled {
   opacity: 0.95;
 }
 
+.quiz-explanation-text {
+  white-space: pre-line;
+  margin: 0.35rem 0 0;
+  line-height: 1.5;
+}
+
 .quiz-nav-row {
   display: flex;
   align-items: center;

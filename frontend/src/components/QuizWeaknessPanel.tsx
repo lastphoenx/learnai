@@ -7,6 +7,7 @@ import {
   createRemediationFromQuiz,
   type QuizWeaknesses,
 } from "@/lib/api";
+import { formatQuizExplanation } from "@/lib/quizOption";
 
 type Props = {
   unitId: string;
@@ -89,7 +90,9 @@ export function QuizWeaknessPanel({ unitId, data, compact = false, onCreated }: 
           <li key={`${w.module_id}-${w.question_index}`}>
             <span className="badge badge-neutral">{w.module_title}</span>
             <strong>{w.question}</strong>
-            {w.explanation && <span className="muted">{w.explanation}</span>}
+            {w.explanation && (
+              <span className="muted quiz-explanation-text">{formatQuizExplanation(w.explanation)}</span>
+            )}
           </li>
         ))}
       </ul>
