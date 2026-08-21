@@ -15,6 +15,7 @@ from app.models import LearningEvent, LearningRecord, LearningUnit, UnitModule, 
 from app.services.audit import log_event
 from app.services.crypto_json import decrypt_json, encrypt_json
 from app.ai.task_types import UNIT_TASK_KEYS, augment_brief
+from app.schemas import TrainerOptionsSchema
 from app.services.profile_service import child_user_ids, get_profile_for_actor
 
 
@@ -63,15 +64,15 @@ DEFAULT_TRAINER_OPTIONS: dict = {
 
 def get_trainer_options(recon: dict | None) -> dict:
     if not isinstance(recon, dict):
-        return dict(DEFAULT_TRAINER_OPTIONS)
+        return TrainerOptionsSchema().model_dump()
     raw = recon.get("trainer_options")
     if not isinstance(raw, dict):
-        return dict(DEFAULT_TRAINER_OPTIONS)
+        return TrainerOptionsSchema().model_dump()
     merged = dict(DEFAULT_TRAINER_OPTIONS)
     for key in DEFAULT_TRAINER_OPTIONS:
         if key in raw and raw[key] is not None:
             merged[key] = raw[key]
-    return merged
+    return TrainerOptionsSchema.normalize_raw(merged).model_dump()
 
 
 def _dec_unit(unit: LearningUnit, *, sources: bool = True, modules: bool = True) -> dict:
@@ -650,10 +651,13 @@ def update_unit(
 
     if trainer_options is not None:
         merged = get_trainer_options(recon)
-        for key, value in trainer_options.items():
-            if key in DEFAULT_TRAINER_OPTIONS:
-                merged[key] = value
-        recon["trainer_options"] = merged
+        if isinstance(trainer_options, dict):
+            for key, value in trainer_options.items():
+                if key in DEFAULT_TRAINER_OPTIONS:
+                    merged[key] = value
+        else:
+            merged.update(trainer_options.model_dump(exclude_unset=True))
+        recon["trainer_options"] = TrainerOptionsSchema.normalize_raw(merged).model_dump()
 
     if record:
         dec_title = decrypt_text_master(unit.title_encrypted)

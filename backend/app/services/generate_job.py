@@ -22,6 +22,7 @@ STAGE_MESSAGES: dict[str, str] = {
     "category": "Lernkarten und Quiz werden erzeugt…",
     "saving": "Lernblöcke werden gespeichert…",
     "done": "Fertig",
+    "partial": "Entwurf gespeichert",
     "failed": "Fehlgeschlagen",
 }
 
@@ -65,6 +66,8 @@ def _estimate_progress(stage: str, extra: dict[str, Any]) -> int:
     if stage == "saving":
         return 95
     if stage == "done":
+        return 100
+    if stage == "partial":
         return 100
     return 0
 
@@ -130,6 +133,8 @@ def make_progress_callback(unit_id: str, user_id: str):
         status = "running"
         if stage == "done":
             status = "done"
+        elif stage == "partial":
+            status = "partial"
         elif stage == "failed":
             status = "failed"
 

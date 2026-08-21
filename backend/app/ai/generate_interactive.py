@@ -23,7 +23,11 @@ from app.ai.prompts.interactive import (
 )
 from app.ai.providers import complete, parse_json_object, resolve_provider
 from app.ai.task_types import AI_TASK_FOR_UNIT
-from app.ai.validators.interactive import dedupe_interactive_modules, validate_interactive_modules
+from app.ai.validators.interactive import (
+    dedupe_interactive_modules,
+    parse_quiz_answer,
+    validate_interactive_modules,
+)
 from app.core.crypto import decrypt_text_master
 from app.models import LearningRecord, User
 from app.services.crypto_json import decrypt_json
@@ -124,14 +128,20 @@ def _parse_questions(text: str, expected: int) -> list[dict]:
         options = raw.get("options") if isinstance(raw.get("options"), list) else []
         if len(options) != 4:
             continue
-        out.append(
-            {
+        try:
+            item = {
                 "q": str(raw.get("q") or "")[:400],
                 "options": [str(o)[:200] for o in options[:4]],
-                "answer": int(raw.get("answer", 0)),
+                "answer": parse_quiz_answer(raw, label="Quizfrage"),
                 "explanation": str(raw.get("explanation") or "")[:400],
             }
-        )
+            if not item["q"].strip():
+                continue
+            if any(not str(o).strip() for o in item["options"]):
+                continue
+            out.append(item)
+        except LlmError:
+            continue
     min_accept = max(2, int(expected * 0.6))
     if len(out) < min_accept:
         raise LlmError(f"Quizfragen unvollständig ({len(out)}/{expected})", "thin_content")
@@ -183,23 +193,27 @@ def generate_interactive_modules(
     unit = _get_unit_or_404(db, user, unit_id)
     prefs = resolve_prefs_for_profile(db, unit.profile_id) or get_user_settings(user)
     ai_task = AI_TASK_FOR_UNIT.get("interactive", "mixed")
-    name, model = resolve_task_ai(prefs, ai_task, override=provider)
-    name = resolve_provider(name)
 
     record = db.query(LearningRecord).filter(LearningRecord.unit_id == unit.id).first()
     recon = decrypt_json(record.reconstruction_encrypted) if record and record.reconstruction_encrypted else {}
     if not isinstance(recon, dict):
         recon = {}
     options = get_trainer_options(recon)
-    unit_provider = options.get("llm_provider")
-    if provider is None and isinstance(unit_provider, str) and unit_provider.strip():
-        provider = unit_provider.strip()
+
+    effective_provider = provider
+    if not effective_provider:
+        unit_provider = options.get("llm_provider")
+        if isinstance(unit_provider, str) and unit_provider.strip():
+            effective_provider = unit_provider.strip()
+
+    name, model = resolve_task_ai(prefs, ai_task, override=effective_provider)
+    name = resolve_provider(name)
 
     title = decrypt_text_master(unit.title_encrypted)
     brief = decrypt_text_master(unit.brief_encrypted) if unit.brief_encrypted else ""
 
-    card_target = max(_MIN_CARDS, int(options.get("cards") or 50))
-    question_target = max(_MIN_QUESTIONS, int(options.get("questions") or 50))
+    card_target = int(options["cards"])
+    question_target = int(options["questions"])
     style = str(options.get("style") or "playful")
     answer_length = str(options.get("answer_length") or "short")
 

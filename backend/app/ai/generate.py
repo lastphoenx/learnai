@@ -82,6 +82,36 @@ def _word_count(text: str) -> int:
     return len([w for w in text.split() if w.strip()])
 
 
+def _validate_single_module(raw: dict, *, task: str, index: int = 0) -> None:
+    if not isinstance(raw, dict):
+        raise LlmError(f"Modul {index + 1} hat ungültiges Format", "bad_json")
+    min_words = 100 if task in {"quiz", "exam", "review"} else 130
+    min_questions = 4 if task in {"quiz", "exam", "review"} else 2 if task == "explain" else 4
+    content = raw.get("content")
+    text = content.get("text", "") if isinstance(content, dict) else str(content or "")
+    if _word_count(str(text)) < min_words:
+        raise LlmError(
+            f"Modul {index + 1} («{raw.get('title', '')}») ist zu kurz — mehr Erklärung nötig",
+            "thin_content",
+        )
+    quiz = raw.get("quiz") if isinstance(raw.get("quiz"), dict) else {}
+    questions = quiz.get("questions") if isinstance(quiz.get("questions"), list) else []
+    if len(questions) < min_questions:
+        raise LlmError(
+            f"Modul {index + 1} hat zu wenige Quizfragen ({len(questions)}, mindestens {min_questions})",
+            "thin_content",
+        )
+    for q_index, q in enumerate(questions):
+        if not isinstance(q, dict):
+            raise LlmError(f"Frage {q_index + 1} in Modul {index + 1} ungültig", "bad_json")
+        options = q.get("options") if isinstance(q.get("options"), list) else []
+        if len(options) < 4:
+            raise LlmError(
+                f"Frage {q_index + 1} in Modul {index + 1} braucht 4 Antwortoptionen",
+                "bad_json",
+            )
+
+
 def _validate_modules(modules: list, *, task: str) -> None:
     min_modules = _MIN_MODULES.get(task, _DEFAULT_MIN_MODULES)
     if len(modules) < min_modules:
@@ -89,34 +119,8 @@ def _validate_modules(modules: list, *, task: str) -> None:
             f"Zu wenige Module ({len(modules)}, mindestens {min_modules} erwartet)",
             "thin_content",
         )
-    min_words = 100 if task in {"quiz", "exam", "review"} else 130
-    min_questions = 4 if task in {"quiz", "exam", "review"} else 2 if task == "explain" else 4
     for index, raw in enumerate(modules[:8]):
-        if not isinstance(raw, dict):
-            raise LlmError(f"Modul {index + 1} hat ungültiges Format", "bad_json")
-        content = raw.get("content")
-        text = content.get("text", "") if isinstance(content, dict) else str(content or "")
-        if _word_count(str(text)) < min_words:
-            raise LlmError(
-                f"Modul {index + 1} («{raw.get('title', '')}») ist zu kurz — mehr Erklärung nötig",
-                "thin_content",
-            )
-        quiz = raw.get("quiz") if isinstance(raw.get("quiz"), dict) else {}
-        questions = quiz.get("questions") if isinstance(quiz.get("questions"), list) else []
-        if len(questions) < min_questions:
-            raise LlmError(
-                f"Modul {index + 1} hat zu wenige Quizfragen ({len(questions)}, mindestens {min_questions})",
-                "thin_content",
-            )
-        for q_index, q in enumerate(questions):
-            if not isinstance(q, dict):
-                raise LlmError(f"Frage {q_index + 1} in Modul {index + 1} ungültig", "bad_json")
-            options = q.get("options") if isinstance(q.get("options"), list) else []
-            if len(options) < 4:
-                raise LlmError(
-                    f"Frage {q_index + 1} in Modul {index + 1} braucht 4 Antwortoptionen",
-                    "bad_json",
-                )
+        _validate_single_module(raw, task=task, index=index)
 
 
 def _build_unit_prompt(
@@ -233,7 +237,7 @@ def _chat_single_module(
             parsed = parse_json_object(result["text"])
             if "modules" in parsed and isinstance(parsed.get("modules"), list) and parsed["modules"]:
                 parsed = parsed["modules"][0]
-            _validate_modules([parsed], task=task)
+            _validate_single_module(parsed, task=task, index=index)
             return parsed
         except LlmError as exc:
             last_exc = exc

@@ -147,6 +147,27 @@ class UnitAssignRequest(BaseModel):
     profile_ids: list[str] = Field(min_length=1)
 
 
+class TrainerOptionsSchema(BaseModel):
+    cards: int = Field(default=50, ge=10, le=100)
+    questions: int = Field(default=50, ge=10, le=100)
+    style: Literal["playful", "balanced", "factual", "exam"] = "playful"
+    answer_length: Literal["short", "normal", "detailed"] = "short"
+    llm_provider: Literal["ollama", "openai", "anthropic"] | None = None
+
+    @classmethod
+    def normalize_raw(cls, raw: dict | None) -> "TrainerOptionsSchema":
+        data = dict(raw or {})
+        length = str(data.get("answer_length") or "short").strip().lower()
+        if length == "medium":
+            data["answer_length"] = "normal"
+        elif length == "long":
+            data["answer_length"] = "detailed"
+        provider = data.get("llm_provider")
+        if isinstance(provider, str) and not provider.strip():
+            data["llm_provider"] = None
+        return cls.model_validate(data)
+
+
 class UnitUpdateRequest(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=256)
     brief: str | None = Field(default=None, max_length=8000)
@@ -157,7 +178,7 @@ class UnitUpdateRequest(BaseModel):
     task_type: str | None = Field(default=None, max_length=32)
     math_focus: str | None = Field(default=None, max_length=32)
     auto_purge_sources: bool | None = None
-    trainer_options: dict | None = None
+    trainer_options: TrainerOptionsSchema | dict | None = None
 
 
 class UnitGenerateRequest(BaseModel):
@@ -165,7 +186,7 @@ class UnitGenerateRequest(BaseModel):
 
 
 class GenerateJobStatus(BaseModel):
-    status: Literal["idle", "queued", "running", "done", "failed"] = "idle"
+    status: Literal["idle", "queued", "running", "done", "partial", "failed"] = "idle"
     stage: str | None = None
     message: str | None = None
     progress_pct: int | None = None

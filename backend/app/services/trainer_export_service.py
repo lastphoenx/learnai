@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.core.crypto import decrypt_text_master, encrypt_text_master
 from app.models import LearningRecord, LearningUnit, UnitModule, User
 from app.services.crypto_json import decrypt_json, encrypt_json
-from app.services.learn_service import flashcard_progress_map
+from app.ai.validators.interactive import validate_interactive_import
 from app.services.unit_service import (
     UnitError,
     _dec_module,
@@ -206,6 +206,8 @@ def import_trainer_json(db: Session, user: User, payload: dict) -> dict:
     else:
         raise UnitError("Unbekanntes Import-Format (learnai-trainer-v1 oder bio_ranger)", "bad_json")
 
+    validate_interactive_import(modules)
+
     result = create_unit(
         db,
         user,
@@ -242,7 +244,9 @@ def import_trainer_json(db: Session, user: User, payload: dict) -> dict:
     if record and trainer_options:
         recon = decrypt_json(record.reconstruction_encrypted) or {}
         if isinstance(recon, dict):
-            recon["trainer_options"] = trainer_options
+            from app.schemas import TrainerOptionsSchema
+
+            recon["trainer_options"] = TrainerOptionsSchema.normalize_raw(trainer_options).model_dump()
             record.reconstruction_encrypted = encrypt_json(recon)
 
     db.flush()

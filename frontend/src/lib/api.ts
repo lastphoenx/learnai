@@ -527,7 +527,7 @@ export const createInteractiveTrainerFromExam = (unitId: string, examId: string)
   });
 
 export type GenerateJobStatus = {
-  status: "idle" | "queued" | "running" | "done" | "failed";
+  status: "idle" | "queued" | "running" | "done" | "partial" | "failed";
   stage?: string | null;
   message?: string | null;
   progress_pct?: number | null;
@@ -584,7 +584,7 @@ export async function waitForGenerateJob(
   for (;;) {
     const res = await fetchGenerateStatus(unitId);
     onUpdate?.(res.job);
-    if (res.job.status === "done") {
+    if (res.job.status === "done" || res.job.status === "partial") {
       if (res.unit) return res.unit;
       return fetchUnit(unitId);
     }

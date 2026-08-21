@@ -14,6 +14,8 @@ from app.worker import celery_app
 
 _log = logging.getLogger(__name__)
 
+_GENERIC_GENERATE_ERROR = "Generierung fehlgeschlagen. Bitte erneut versuchen."
+
 
 @celery_app.task(name="learnai.generate_unit", bind=True, max_retries=0)
 def generate_unit_task(self, unit_id: str, user_id: str, provider: str | None = None) -> None:
@@ -69,7 +71,7 @@ def generate_unit_task(self, unit_id: str, user_id: str, provider: str | None = 
             if module_count >= 4:
                 db.commit()
                 progress(
-                    "done",
+                    "partial",
                     message=(
                         f"Entwurf gespeichert ({module_count} Bereiche). "
                         f"Validierung: {exc.message}"
@@ -100,7 +102,7 @@ def generate_unit_task(self, unit_id: str, user_id: str, provider: str | None = 
             )
     except Exception as exc:
         db.rollback()
-        progress("failed", error=str(exc) or "Unbekannter Fehler")
         _log.exception("generate_unit_task failed unit_id=%s", unit_id)
+        progress("failed", error=_GENERIC_GENERATE_ERROR)
     finally:
         db.close()
