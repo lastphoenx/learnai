@@ -33,27 +33,29 @@ export function LearnerMultiSelect({ profiles, selectedIds, onChange, label }: P
   if (targets.length === 0) return null;
 
   return (
-    <fieldset className="learner-multi-select">
-      <legend>{label || "Zuweisen an"}</legend>
-      {targets.length > 1 && (
-        <label className="learner-check-row">
-          <input type="checkbox" checked={allSelected} onChange={toggleAll} />
-          <span>Alle Kinder</span>
-        </label>
-      )}
-      {targets.map((p) => (
-        <label key={p.id} className="learner-check-row">
-          <input
-            type="checkbox"
-            checked={selectedIds.includes(p.id)}
-            onChange={() => toggleOne(p.id)}
-          />
-          <span>
-            {p.display_name}
-            {p.is_child_profile ? "" : " (Profil)"}
-          </span>
-        </label>
-      ))}
-    </fieldset>
+    <div className="learner-multi-select">
+      <span className="learner-multi-label">{label || "Zuweisen an"}</span>
+      <div className="learner-multi-options">
+        {targets.length > 1 && (
+          <label className="learner-check-row">
+            <input type="checkbox" checked={allSelected} onChange={toggleAll} />
+            <span>Alle Kinder</span>
+          </label>
+        )}
+        {targets.map((p) => (
+          <label key={p.id} className="learner-check-row">
+            <input
+              type="checkbox"
+              checked={selectedIds.includes(p.id)}
+              onChange={() => toggleOne(p.id)}
+            />
+            <span>
+              {p.display_name}
+              {p.is_child_profile ? "" : " (Profil)"}
+            </span>
+          </label>
+        ))}
+      </div>
+    </div>
   );
 }
