@@ -60,7 +60,6 @@ def is_public_client_ip(ip: str | None) -> bool:
         addr.is_private
         or addr.is_loopback
         or addr.is_link_local
-        or addr.is_reserved
         or addr.is_multicast
     )
 
@@ -90,15 +89,15 @@ def get_client_ip(request: Request) -> str | None:
     peer = request.client.host if request.client else ""
 
     if peer and _is_trusted_proxy(peer):
-        real = (request.headers.get("x-real-ip") or "").strip()
-        if real and _parse_ip(real) and not _is_trusted_proxy(real):
-            return real
-
         forwarded = (request.headers.get("x-forwarded-for") or "").strip()
         if forwarded:
             picked = _pick_from_forwarded(forwarded)
             if picked:
                 return picked
+
+        real = (request.headers.get("x-real-ip") or "").strip()
+        if real and _parse_ip(real):
+            return real
 
         _log.warning(
             "Vertrauenswürdiger Proxy %s ohne Client-IP in Headers — IP-Sperre übersprungen",

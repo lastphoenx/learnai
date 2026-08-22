@@ -17,9 +17,19 @@ def test_reconstruction_payload_shape():
     assert "brief" in payload
 
 
-def test_merge_template_recon_keeps_trainer_options():
+def test_merge_template_recon_keeps_trainer_options(monkeypatch):
+    import base64
+    import os
+
     from app.services.unit_service import reconstruction_payload
     from app.services.crypto_json import encrypt_json, decrypt_json
+
+    key = base64.b64encode(os.urandom(32)).decode()
+    monkeypatch.setenv("ENCRYPTION_MASTER_KEY", key)
+    from app.config import Settings
+
+    monkeypatch.setattr("app.config.settings", Settings())
+    monkeypatch.setattr("app.core.crypto.encryption.settings", Settings())
 
     src = reconstruction_payload(
         title="Bruchrechnen",
