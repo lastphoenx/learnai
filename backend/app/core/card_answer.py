@@ -25,13 +25,6 @@ _STEP_HINTS = (
     "schritt",
     "zuerst",
     "dann",
-    "ersatz",
-    "frage",
-    "fall",
-    "nominativ",
-    "genitiv",
-    "dativ",
-    "akkusativ",
 )
 
 
