@@ -57,4 +57,4 @@ def test_trusted_proxy_uses_private_lan_ip():
 def test_private_ip_not_blockable():
     assert not is_public_client_ip("172.18.0.6")
     assert not is_public_client_ip("192.168.1.1")
-    assert is_public_client_ip("203.0.113.1")
+    assert is_public_client_ip("81.2.3.4")

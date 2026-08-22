@@ -32,6 +32,8 @@ _MULT_DOT = re.compile(
     r"(-?\d+(?:[.,]\d+)?)\s*[·×*]\s*(-?\d+(?:[.,]\d+)?)",
     re.I,
 )
+_ADD_SYMBOL = re.compile(r"(-?\d+(?:[.,]\d+)?)\s*\+\s*(-?\d+(?:[.,]\d+)?)")
+_SUB_SYMBOL = re.compile(r"(-?\d+(?:[.,]\d+)?)\s+-\s+(-?\d+(?:[.,]\d+)?)")
 
 
 def strip_option_label(text: str) -> str:
@@ -69,6 +71,12 @@ def parse_expected_from_explanation(explanation: str) -> float | None:
 
 def try_compute_from_question(question: str) -> float | None:
     text = str(question or "").replace(",", ".")
+    match = _ADD_SYMBOL.search(text)
+    if match:
+        return float(match.group(1)) + float(match.group(2))
+    match = _SUB_SYMBOL.search(text)
+    if match:
+        return float(match.group(1)) - float(match.group(2))
     match = _ADDITION.search(text)
     if match:
         return float(match.group(1)) + float(match.group(2))
@@ -113,14 +121,19 @@ def option_indices_matching_value(options: list, value: float) -> list[int]:
 
 
 def _prefer_matching_option_index(options: list, indices: list[int], explanation: str) -> int:
-    expl = str(explanation or "")
-    for i in indices:
+    expl = str(explanation or "").replace(",", ".")
+    ranked = sorted(
+        indices,
+        key=lambda i: len(strip_option_label(str(options[i]))),
+        reverse=True,
+    )
+    for i in ranked:
         label = strip_option_label(str(options[i]))
-        if label and label in expl.replace(",", "."):
+        if label and label in expl:
             return i
-    for i in indices:
+    for i in ranked:
         label = strip_option_label(str(options[i]))
-        if "." in label and label in expl.replace(",", "."):
+        if "." in label and label in expl:
             return i
     return indices[0]
 

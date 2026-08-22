@@ -15,7 +15,7 @@ from app.services.exam_service import (
 def test_compute_transfer_transfer_gap():
     db = MagicMock()
     unit_id = uuid.uuid4()
-    with patch("app.services.exam_service.learn_progress_for_unit") as prog:
+    with patch("app.services.learn_service.learn_progress_for_unit") as prog:
         prog.return_value = {"quiz_correct": 18, "quiz_total": 20, "percent": 90}
         result = compute_transfer_comparison(db, unit_id=unit_id, score=12, max_score=20)
     assert result is not None
@@ -28,7 +28,7 @@ def test_compute_transfer_transfer_gap():
 def test_compute_transfer_aligned():
     db = MagicMock()
     unit_id = uuid.uuid4()
-    with patch("app.services.exam_service.learn_progress_for_unit") as prog:
+    with patch("app.services.learn_service.learn_progress_for_unit") as prog:
         prog.return_value = {"quiz_correct": 9, "quiz_total": 10}
         result = compute_transfer_comparison(db, unit_id=unit_id, score=18, max_score=20)
     assert result is not None
