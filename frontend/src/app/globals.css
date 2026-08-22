@@ -1597,6 +1597,36 @@ button.btn.action-tile {
   line-height: 1.5;
 }
 
+.admin-user-login-email {
+  margin: 0.25rem 0 0;
+  font-size: 0.95rem;
+}
+
+.admin-user-email-assign {
+  margin: 0.5rem 0;
+}
+
+.admin-user-actions {
+  margin: 0.5rem 0;
+}
+
+.admin-user-action-row {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.admin-password-reset {
+  margin-top: 0.35rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid var(--border);
+}
+
+.account-password-form h3 {
+  margin: 0.75rem 0 0;
+  font-size: 1rem;
+}
+
 .admin-guardian-edit {
   margin-bottom: 0.75rem;
   max-width: 100%;

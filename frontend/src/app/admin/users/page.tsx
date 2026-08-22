@@ -10,6 +10,7 @@ import {
   createUser,
   fetchMe,
   fetchUsers,
+  resetAdminUserPassword,
   setTotpPolicy,
   updateAdminUser,
   updateChildGuardians,
@@ -160,8 +161,8 @@ export default function AdminUsersPage() {
     <main className="shell shell-wide admin-page">
       <AppHeader user={user} title="Benutzer" />
       <p className="muted">
-        Accounts für Login und 2FA. Lerner-Einstellungen (KI je Typ) unter Einstellungen →
-        Lerner-Profil. Kinder können bis zu zwei Eltern haben.
+        Accounts für Login und 2FA. Login-E-Mail wird für die Übersicht gespeichert (verschlüsselt in
+        den Account-Einstellungen). Lerner-KI unter Einstellungen → Lerner-Profil.
       </p>
       {error && <p className="err">{error}</p>}
 
@@ -236,44 +237,172 @@ export default function AdminUsersPage() {
       <ul className="admin-user-list">
         {users.map((u) => (
           <li key={u.id} className="admin-user-card">
-            <InlineEditName
-              value={u.display_name || ""}
-              emptyLabel="ohne Namen"
-              onSave={async (name) => {
-                await updateAdminUser(u.id, { display_name: name });
-                load();
-              }}
-            />
-            <p className="admin-user-meta">
-              {u.is_admin ? "Admin" : u.is_child ? "Kind" : "Benutzer"} · 2FA{" "}
-              {u.totp_enabled ? "aktiv" : "nicht eingerichtet"}
-              {u.ki_summary || formatKiSummary(u.by_task)
-                ? ` · KI: ${u.ki_summary || formatKiSummary(u.by_task)}`
-                : ""}
-              {u.is_child && (u.parent_ids?.length || u.parent_id)
-                ? ` · Eltern: ${(u.parent_ids?.length ? u.parent_ids : u.parent_id ? [u.parent_id] : [])
-                    .map((id) => parentLabel(users, id))
-                    .join(", ")}`
-                : ""}
-            </p>
-            {u.is_child && (
-              <ChildGuardianEditor user={u} adults={adults} onSaved={load} onError={setError} />
-            )}
-            <label className="checkbox-row">
-              <input
-                type="checkbox"
-                checked={u.totp_required}
-                onChange={async (e) => {
-                  await setTotpPolicy(u.id, e.target.checked);
-                  load();
-                }}
-              />
-              2FA Pflicht
-            </label>
+            <AdminUserCard user={u} users={users} onSaved={load} onError={setError} />
           </li>
         ))}
       </ul>
     </main>
+  );
+}
+
+function AdminUserCard({
+  user,
+  users,
+  onSaved,
+  onError,
+}: {
+  user: AdminUser;
+  users: AdminUser[];
+  onSaved: () => void;
+  onError: (msg: string | null) => void;
+}) {
+  const adults = users.filter((u) => !u.is_child);
+  const [emailDraft, setEmailDraft] = useState(user.login_email || "");
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetEmail, setResetEmail] = useState(user.login_email || "");
+  const [resetPassword, setResetPassword] = useState("");
+  const [resetPassword2, setResetPassword2] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    setEmailDraft(user.login_email || "");
+    setResetEmail(user.login_email || "");
+  }, [user.login_email]);
+
+  async function saveLoginEmail() {
+    onError(null);
+    setBusy(true);
+    try {
+      await updateAdminUser(user.id, { login_email: emailDraft.trim() });
+      onSaved();
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "E-Mail speichern fehlgeschlagen");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function resetPassword(e: FormEvent) {
+    e.preventDefault();
+    onError(null);
+    if (resetPassword !== resetPassword2) {
+      onError("Neue Passwörter stimmen nicht überein");
+      return;
+    }
+    setBusy(true);
+    try {
+      await resetAdminUserPassword(user.id, {
+        new_password: resetPassword,
+        email: resetEmail.trim() || undefined,
+      });
+      setResetPassword("");
+      setResetPassword2("");
+      setResetOpen(false);
+      onSaved();
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Passwort zurücksetzen fehlgeschlagen");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <InlineEditName
+        value={user.display_name || ""}
+        emptyLabel="ohne Namen"
+        onSave={async (name) => {
+          await updateAdminUser(user.id, { display_name: name });
+          onSaved();
+        }}
+      />
+      <p className="admin-user-login-email">
+        Login: <strong>{user.login_email || "E-Mail unbekannt"}</strong>
+      </p>
+      {!user.login_email && (
+        <div className="admin-user-email-assign stack">
+          <label>
+            Login-E-Mail zuordnen (muss zum Account passen)
+            <input
+              type="email"
+              value={emailDraft}
+              onChange={(e) => setEmailDraft(e.target.value)}
+              placeholder="user@example.com"
+            />
+          </label>
+          <button type="button" className="ghost" disabled={busy || !emailDraft.trim()} onClick={saveLoginEmail}>
+            E-Mail speichern
+          </button>
+        </div>
+      )}
+      <p className="admin-user-meta">
+        {user.is_admin ? "Admin" : user.is_child ? "Kind" : "Benutzer"} · 2FA{" "}
+        {user.totp_enabled ? "aktiv" : "nicht eingerichtet"}
+        {user.ki_summary || formatKiSummary(user.by_task)
+          ? ` · KI: ${user.ki_summary || formatKiSummary(user.by_task)}`
+          : ""}
+        {user.is_child && (user.parent_ids?.length || user.parent_id)
+          ? ` · Eltern: ${(user.parent_ids?.length ? user.parent_ids : user.parent_id ? [user.parent_id] : [])
+              .map((id) => parentLabel(users, id))
+              .join(", ")}`
+          : ""}
+      </p>
+      {user.is_child && <ChildGuardianEditor user={user} adults={adults} onSaved={onSaved} onError={onError} />}
+      <div className="admin-user-actions">
+        {!resetOpen ? (
+          <button type="button" className="ghost" onClick={() => setResetOpen(true)}>
+            Passwort zurücksetzen
+          </button>
+        ) : (
+          <form className="stack admin-password-reset" onSubmit={resetPassword}>
+            {!user.login_email && (
+              <label>
+                Login-E-Mail (Pflicht)
+                <input
+                  type="email"
+                  required
+                  value={resetEmail}
+                  onChange={(e) => setResetEmail(e.target.value)}
+                />
+              </label>
+            )}
+            <PasswordInput
+              label="Neues Passwort"
+              required
+              minLength={12}
+              value={resetPassword}
+              onChange={(e) => setResetPassword(e.target.value)}
+            />
+            <PasswordInput
+              label="Neues Passwort wiederholen"
+              required
+              minLength={12}
+              value={resetPassword2}
+              onChange={(e) => setResetPassword2(e.target.value)}
+            />
+            <div className="admin-user-action-row">
+              <button type="submit" disabled={busy}>
+                Passwort setzen
+              </button>
+              <button type="button" className="ghost" disabled={busy} onClick={() => setResetOpen(false)}>
+                Abbrechen
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+      <label className="checkbox-row">
+        <input
+          type="checkbox"
+          checked={user.totp_required}
+          onChange={async (e) => {
+            await setTotpPolicy(user.id, e.target.checked);
+            onSaved();
+          }}
+        />
+        2FA Pflicht
+      </label>
+    </>
   );
 }
 

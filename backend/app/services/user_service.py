@@ -70,6 +70,7 @@ def register_user(
     db.flush()
     account_name = display_name.strip() or email.split("@")[0]
     _write_account_display_name(user, account_name)
+    _write_login_email(user, email)
     create_profile(
         db,
         user,
@@ -190,15 +191,106 @@ def confirm_totp(db: Session, user: User, code: str, email: str) -> list[str]:
     return codes
 
 
+def _read_account_settings(user: User) -> dict:
+    data = decrypt_json(user.settings_encrypted) if user.settings_encrypted else None
+    return dict(data) if isinstance(data, dict) else {}
+
+
+def _write_account_settings(user: User, **updates) -> None:
+    current = _read_account_settings(user)
+    for key, value in updates.items():
+        if value is None:
+            current.pop(key, None)
+        elif key == "display_name":
+            current[key] = str(value).strip()[:80]
+        elif key == "login_email":
+            current[key] = str(value).strip().lower()[:254]
+        else:
+            current[key] = value
+    user.settings_encrypted = encrypt_json(current) if current else None
+
+
 def _write_account_display_name(user: User, name: str) -> None:
-    user.settings_encrypted = encrypt_json({"display_name": name.strip()[:80]})
+    _write_account_settings(user, display_name=name.strip()[:80])
+
+
+def _write_login_email(user: User, email: str) -> None:
+    _write_account_settings(user, login_email=email.strip().lower()[:254])
+
+
+def _login_email(user: User) -> str:
+    return str(_read_account_settings(user).get("login_email") or "").strip()
 
 
 def _account_display_name(user: User) -> str:
-    data = decrypt_json(user.settings_encrypted) if user.settings_encrypted else None
-    if isinstance(data, dict):
-        return str(data.get("display_name") or "").strip()[:80]
-    return ""
+    return str(_read_account_settings(user).get("display_name") or "").strip()[:80]
+
+
+def _reencrypt_profile(user: User, *, email: str, password: str) -> None:
+    display_name = _account_display_name(user) or email.split("@")[0]
+    user.encrypted_profile = _encrypt_profile(display_name, password, user.encryption_salt, email)
+
+
+def assign_login_email(user: User, email: str) -> None:
+    """Login-E-Mail in Account-Settings speichern (Hash muss passen)."""
+    normalized = email.strip().lower()
+    if hash_email(normalized) != user.email_hash:
+        raise AuthError("E-Mail passt nicht zu diesem Account", "invalid_email")
+    _write_login_email(user, normalized)
+
+
+def change_own_password(db: Session, user: User, *, current_password: str, new_password: str) -> None:
+    if not verify_password(user.password_hash, current_password):
+        raise AuthError("Aktuelles Passwort ist falsch", "invalid_password")
+    email = _login_email(user)
+    if not email:
+        raise AuthError(
+            "Login-E-Mail ist nicht hinterlegt. Bitte einen Admin um Zuordnung.",
+            "login_email_missing",
+        )
+    user.password_hash = hash_password(new_password)
+    _reencrypt_profile(user, email=email, password=new_password)
+    log_event(
+        db,
+        tenant_id=user.tenant_id,
+        actor_id=user.id,
+        action="auth.password_change",
+        resource_type="user",
+        resource_id=user.id,
+    )
+
+
+def admin_reset_password(
+    db: Session,
+    actor: User,
+    target: User,
+    *,
+    new_password: str,
+    email: str | None = None,
+) -> None:
+    if not actor.is_admin:
+        raise AuthError("Nur Admins", "forbidden")
+    if actor.tenant_id != target.tenant_id:
+        raise AuthError("Benutzer nicht gefunden", "not_found")
+    resolved = (email or _login_email(target)).strip().lower()
+    if not resolved:
+        raise AuthError(
+            "Login-E-Mail angeben (Account hat keine gespeicherte E-Mail).",
+            "login_email_missing",
+        )
+    if hash_email(resolved) != target.email_hash:
+        raise AuthError("E-Mail passt nicht zu diesem Account", "invalid_email")
+    _write_login_email(target, resolved)
+    target.password_hash = hash_password(new_password)
+    _reencrypt_profile(target, email=resolved, password=new_password)
+    log_event(
+        db,
+        tenant_id=actor.tenant_id,
+        actor_id=actor.id,
+        action="auth.password_reset",
+        resource_type="user",
+        resource_id=target.id,
+    )
 
 
 def _ki_summary(by_task: dict) -> str:
@@ -310,6 +402,7 @@ def user_public_dict(user: User, *, parent_ids: list[str] | None = None) -> dict
         "totp_required": user.totp_required,
         "must_enroll_2fa": bool(user.totp_required and not user.totp_enabled),
         "display_name": _account_display_name(user) or profile_name,
+        "login_email": _login_email(user),
         "llm_provider": prefs.get("llm_provider") or "",
         "llm_model": prefs.get("llm_model") or "",
         "by_task": prefs.get("by_task") or {},
@@ -520,6 +613,7 @@ def create_child_user(
     db.add(child)
     db.flush()
     _write_account_display_name(child, display_name)
+    _write_login_email(child, email)
     profile = create_profile(
         db,
         actor,

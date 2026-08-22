@@ -47,6 +47,7 @@ class UserResponse(BaseModel):
     totp_required: bool
     must_enroll_2fa: bool = False
     display_name: str = ""
+    login_email: str = ""
     llm_provider: str = ""
     llm_model: str = ""
     by_task: dict[str, dict[str, str]] = Field(default_factory=dict)
@@ -104,6 +105,11 @@ class UserSettingsUpdateRequest(BaseModel):
     by_task: dict[str, dict[str, str]] | None = None
 
 
+class PasswordChangeRequest(BaseModel):
+    current_password: str
+    new_password: str = Field(min_length=12)
+
+
 class AdminCreateUserRequest(BaseModel):
     email: EmailStr
     password: str = Field(min_length=12)
@@ -114,6 +120,12 @@ class AdminCreateUserRequest(BaseModel):
 
 class AdminUserUpdateRequest(BaseModel):
     display_name: str | None = Field(default=None, max_length=80)
+    login_email: EmailStr | None = None
+
+
+class AdminPasswordResetRequest(BaseModel):
+    new_password: str = Field(min_length=12)
+    email: EmailStr | None = None
 
 
 class LoginResponse(BaseModel):

@@ -36,6 +36,7 @@ export type User = {
   totp_required: boolean;
   must_enroll_2fa: boolean;
   display_name?: string;
+  login_email?: string;
   llm_provider?: string;
   llm_model?: string;
   by_task?: Record<string, { provider: string; model: string }>;
@@ -579,8 +580,16 @@ export const createUser = (body: {
   totp_required?: boolean;
 }) => apiFetch<AdminUser>("/api/v1/users", { method: "POST", json: body });
 
-export const updateAdminUser = (userId: string, body: { display_name?: string }) =>
-  apiFetch<AdminUser>(`/api/v1/users/${userId}`, { method: "PATCH", json: body });
+export const updateAdminUser = (
+  userId: string,
+  body: { display_name?: string; login_email?: string },
+) => apiFetch<AdminUser>(`/api/v1/users/${userId}`, { method: "PATCH", json: body });
+
+export const resetAdminUserPassword = (
+  userId: string,
+  body: { new_password: string; email?: string },
+) =>
+  apiFetch<void>(`/api/v1/users/${userId}/password`, { method: "POST", json: body });
 
 export const createChildUser = (body: {
   email: string;
@@ -598,6 +607,9 @@ export const updateChildGuardians = (userId: string, parent_ids: string[]) =>
 
 export const updateMySettings = (body: { display_name?: string }) =>
   apiFetch<User>("/api/v1/auth/me", { method: "PATCH", json: body });
+
+export const changeMyPassword = (body: { current_password: string; new_password: string }) =>
+  apiFetch<void>("/api/v1/auth/me/password", { method: "POST", json: body });
 
 export const fetchProfiles = () => apiFetch<LearnerProfile[]>("/api/v1/profiles");
 export const fetchProfile = (id: string) => apiFetch<LearnerProfile>(`/api/v1/profiles/${id}`);
