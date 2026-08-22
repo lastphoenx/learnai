@@ -13,6 +13,7 @@ from app.ai.source_pedagogy import (
     has_pedagogy_content,
     pedagogy_from_analysis_blob,
 )
+from app.core.pedagogy_labels import sanitize_pedagogy_field
 from app.models import User
 from app.services.profile_service import resolve_prefs_for_profile
 from app.services.unit_service import _dec_source, _get_unit_or_404
@@ -27,10 +28,15 @@ def _pedagogy_quality(profile: dict) -> dict:
         for item in worked
         if isinstance(item, dict) and isinstance(item.get("steps"), list) and item.get("steps")
     )
+    methods_with_when = sum(
+        1
+        for item in methods
+        if isinstance(item, dict) and sanitize_pedagogy_field(str(item.get("when") or ""))
+    )
     patterns = profile.get("exercise_patterns") or []
     method_count = len(methods) if isinstance(methods, list) else 0
     pattern_count = len(patterns) if isinstance(patterns, list) else 0
-    if method_count >= 2 and worked_with_steps >= 1:
+    if method_count >= 2 and worked_with_steps >= 1 and methods_with_when >= 1:
         level = "good"
     elif method_count >= 1 or pattern_count >= 1:
         level = "partial"
@@ -39,6 +45,7 @@ def _pedagogy_quality(profile: dict) -> dict:
     return {
         "level": level,
         "method_count": method_count,
+        "methods_with_when": methods_with_when,
         "worked_with_steps": worked_with_steps,
         "pattern_count": pattern_count,
     }

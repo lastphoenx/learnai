@@ -439,8 +439,11 @@ export default function UnitDetailPage() {
                           ? "teilweise erkannt"
                           : "wenig erkannt"}
                       {" "}
-                      ({pedagogy.quality.method_count} Strategien, {pedagogy.quality.worked_with_steps} Beispiele mit
-                      Schritten)
+                      ({pedagogy.quality.method_count} Strategien
+                      {pedagogy.quality.methods_with_when != null
+                        ? `, ${pedagogy.quality.methods_with_when} mit Anwendungs-Hinweis`
+                        : ""}
+                      , {pedagogy.quality.worked_with_steps} Beispiele mit Schritten)
                     </p>
                   ) : null}
                   <pre className="unit-pedagogy-digest">{pedagogy.digest}</pre>

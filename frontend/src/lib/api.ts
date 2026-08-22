@@ -257,6 +257,7 @@ export type UnitPedagogy = {
   quality?: {
     level: "good" | "partial" | "low" | string;
     method_count: number;
+    methods_with_when?: number;
     worked_with_steps: number;
     pattern_count: number;
   };

@@ -15,6 +15,9 @@ import pytest
 def test_schema_placeholder_detection():
     assert is_schema_placeholder("Wann diese Methode sinnvoll ist")
     assert is_schema_placeholder("freier Kurzname für erkannten Aufgabentyp")
+    assert is_schema_placeholder("kurzer Satz: wann passt diese Strategie (aus dem Material)")
+    assert is_schema_placeholder("kurzes Beispiel mit Zahlen/Text aus dem Bild")
+    assert is_schema_placeholder("kurzer Name des Aufgabentyps aus dem Heft")
     assert not is_schema_placeholder("Wenn eine einfache Rechnung im Kopf ausreicht")
     assert sanitize_pedagogy_field("kurzes Beispiel aus dem Bild") == ""
 
