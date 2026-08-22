@@ -414,6 +414,35 @@ export default function UnitDetailPage() {
                       ))}
                     </ul>
                   )}
+                  {pedagogy.profile?.exercise_patterns && pedagogy.profile.exercise_patterns.length > 0 && (
+                    <div className="unit-pedagogy-patterns">
+                      <span className="muted">Aufgabentypen:</span>{" "}
+                      {pedagogy.profile.exercise_patterns.join(" · ")}
+                    </div>
+                  )}
+                  {pedagogy.profile?.worked_examples && pedagogy.profile.worked_examples.length > 0 && (
+                    <ul className="unit-pedagogy-examples">
+                      {pedagogy.profile.worked_examples.slice(0, 4).map((example, index) => (
+                        <li key={`${example.problem}-${index}`}>
+                          <strong>{example.problem}</strong>
+                          {example.method_label ? ` (${example.method_label})` : ""}
+                          {example.steps?.length ? `: ${example.steps.slice(0, 3).join(" → ")}` : ""}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {pedagogy.quality ? (
+                    <p className="muted unit-pedagogy-quality">
+                      Qualität: {pedagogy.quality.level === "good"
+                        ? "gut strukturiert"
+                        : pedagogy.quality.level === "partial"
+                          ? "teilweise erkannt"
+                          : "wenig erkannt"}
+                      {" "}
+                      ({pedagogy.quality.method_count} Strategien, {pedagogy.quality.worked_with_steps} Beispiele mit
+                      Schritten)
+                    </p>
+                  ) : null}
                   <pre className="unit-pedagogy-digest">{pedagogy.digest}</pre>
                 </>
               ) : (

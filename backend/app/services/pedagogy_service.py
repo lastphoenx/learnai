@@ -19,6 +19,31 @@ from app.services.unit_service import _dec_source, _get_unit_or_404
 from app.services.user_service import get_user_settings
 
 
+def _pedagogy_quality(profile: dict) -> dict:
+    methods = profile.get("methods") or []
+    worked = profile.get("worked_examples") or []
+    worked_with_steps = sum(
+        1
+        for item in worked
+        if isinstance(item, dict) and isinstance(item.get("steps"), list) and item.get("steps")
+    )
+    patterns = profile.get("exercise_patterns") or []
+    method_count = len(methods) if isinstance(methods, list) else 0
+    pattern_count = len(patterns) if isinstance(patterns, list) else 0
+    if method_count >= 2 and worked_with_steps >= 1:
+        level = "good"
+    elif method_count >= 1 or pattern_count >= 1:
+        level = "partial"
+    else:
+        level = "low"
+    return {
+        "level": level,
+        "method_count": method_count,
+        "worked_with_steps": worked_with_steps,
+        "pattern_count": pattern_count,
+    }
+
+
 def get_unit_pedagogy(db: Session, user: User, unit_id: uuid.UUID) -> dict:
     unit = _get_unit_or_404(db, user, unit_id)
     profile = collect_pedagogy_from_unit_sources(unit.sources)
@@ -38,6 +63,7 @@ def get_unit_pedagogy(db: Session, user: User, unit_id: uuid.UUID) -> dict:
         "has_pedagogy": has_pedagogy_content(profile),
         "digest": build_pedagogy_digest(profile),
         "profile": profile,
+        "quality": _pedagogy_quality(profile),
         "sources": by_source,
         "source_count": len(unit.sources or []),
     }

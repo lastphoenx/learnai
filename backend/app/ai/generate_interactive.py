@@ -34,12 +34,9 @@ from app.ai.validators.interactive import (
     validate_interactive_modules,
 )
 from app.core.crypto import decrypt_text_master
+from app.core.answer_match import infer_answer_type
 from app.core.method_taxonomy import classify_method, normalize_method_id
-from app.core.pedagogy_labels import (
-    collect_content_blob,
-    count_label_coverage,
-    material_labels_from_methods,
-)
+from app.core.pedagogy_validation import enforce_label_coverage, log_pedagogy_coverage_warnings
 from app.models import LearningRecord, User
 from app.services.crypto_json import decrypt_json
 from app.services.profile_service import resolve_prefs_for_profile
@@ -47,23 +44,6 @@ from app.services.unit_service import _dec_unit, _get_unit_or_404, get_trainer_o
 from app.services.user_service import get_user_settings
 
 _log = logging.getLogger(__name__)
-
-
-def _validate_pedagogy_method_coverage(modules: list, pedagogy_profile: dict) -> None:
-    """Stichprobe: mindestens zwei Heft-Labels im generierten Inhalt."""
-    methods = pedagogy_profile.get("methods") if isinstance(pedagogy_profile, dict) else []
-    if not isinstance(methods, list) or len(methods) < 2:
-        return
-    labels = material_labels_from_methods(methods)
-    if len(labels) < 2:
-        return
-    blob = collect_content_blob(modules)
-    matched = count_label_coverage(labels, blob)
-    if matched < min(2, len(labels)):
-        raise LlmError(
-            "Zu wenig Lösungswege aus dem Heft in Karten/Quiz — Didaktik nicht ausreichend umgesetzt",
-            "thin_content",
-        )
 
 _PLAN_NUM_PREDICT = 4096
 _BATCH_NUM_PREDICT = 8192
@@ -100,9 +80,13 @@ def _parse_plan(text: str) -> list[dict]:
     return out
 
 
-def _split_card_kinds(total: int) -> tuple[int, int, int]:
-    merk = max(0, round(total * 0.3))
-    mental = max(0, round(total * 0.3))
+def _split_card_kinds(total: int, *, math_focus: str | None = None) -> tuple[int, int, int]:
+    if math_focus:
+        merk_ratio, mental_ratio = 0.3, 0.3
+    else:
+        merk_ratio, mental_ratio = 0.45, 0.1
+    merk = max(0, round(total * merk_ratio))
+    mental = max(0, round(total * mental_ratio))
     input_cards = max(0, total - merk - mental)
     if total > 0 and input_cards == 0:
         input_cards = 1
@@ -113,10 +97,16 @@ def _split_card_kinds(total: int) -> tuple[int, int, int]:
     return merk, mental, input_cards
 
 
-def _normalize_plan_counts(categories: list[dict], *, card_target: int, question_target: int) -> list[dict]:
+def _normalize_plan_counts(
+    categories: list[dict],
+    *,
+    card_target: int,
+    question_target: int,
+    math_focus: str | None = None,
+) -> list[dict]:
     card_parts = _distribute(card_target, len(categories))
     question_parts = _distribute(question_target, len(categories))
-    merk_total, mental_total, input_total = _split_card_kinds(card_target)
+    merk_total, mental_total, input_total = _split_card_kinds(card_target, math_focus=math_focus)
     merk_parts = _distribute(merk_total, len(categories))
     mental_parts = _distribute(mental_total, len(categories))
     input_parts = _distribute(input_total, len(categories))
@@ -196,6 +186,12 @@ def _parse_card_list(raw_cards: object, *, kind: str, expected: int) -> list[dic
             method_label = str(raw.get("method_label") or "").strip()
             if method_label:
                 item["method_label"] = method_label[:120]
+            answer_type = infer_answer_type(
+                question=q,
+                answer=a,
+                raw_type=str(raw.get("answer_type") or "") or None,
+            )
+            item["answer_type"] = answer_type
             expected_method = normalize_method_id(raw.get("expected_method")) or classify_method(
                 f"{method_label} {q}", kind="input"
             )
@@ -464,6 +460,7 @@ def generate_interactive_modules(
         _parse_plan(plan_result["text"]),
         card_target=card_target,
         question_target=question_target,
+        math_focus=math_focus,
     )
     _log.info(
         "generate_interactive plan_done unit_id=%s categories=%d duration_ms=%d",
@@ -575,7 +572,8 @@ def generate_interactive_modules(
     for warning in dedupe_warnings:
         _log.warning("generate_interactive dedupe unit_id=%s %s", unit_id, warning)
 
-    _validate_pedagogy_method_coverage(modules, pedagogy_profile)
+    log_pedagogy_coverage_warnings(modules, pedagogy_profile, unit_id=str(unit_id))
+    enforce_label_coverage(modules, pedagogy_profile)
 
     try:
         validate_interactive_modules(

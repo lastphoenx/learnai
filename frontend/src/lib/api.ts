@@ -254,9 +254,20 @@ export type UnitPedagogy = {
   digest: string;
   source_count: number;
   refreshed_sources?: number;
+  quality?: {
+    level: "good" | "partial" | "low" | string;
+    method_count: number;
+    worked_with_steps: number;
+    pattern_count: number;
+  };
   profile: {
-    methods?: { id: string; label: string; when?: string; example?: string }[];
-    worked_examples?: { problem: string; steps?: string[]; method_id?: string }[];
+    methods?: { id?: string; label: string; when?: string; example?: string }[];
+    worked_examples?: {
+      problem: string;
+      steps?: string[];
+      method_id?: string;
+      method_label?: string;
+    }[];
     exercise_patterns?: string[];
     teaching_notes?: string[];
   };

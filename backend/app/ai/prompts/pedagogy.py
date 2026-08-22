@@ -22,8 +22,8 @@ TYPED_CARDS_PEDAGOGY_RULES = (
     "- merk_cards: je gezeigter Strategie aus dem Didaktik-Block mindestens eine Karte.\n"
     "- method_label: Bezeichnung aus dem Heft (Pflicht, wenn Strategie aus dem Material).\n"
     "- method_id: optional, nur für UI-Gruppierung — nie erfinden, wenn keine passt.\n"
-    "- mental_cards: nur Aufgaben, die wirklich im Kopf lösbar sind.\n"
-    "- input_cards: Aufgabe nennt die Methode im Wortlaut des Hefts; expected_method optional.\n"
+    "- mental_cards: kurze direkte Abfragen ohne Hilfsmittel.\n"
+    "- input_cards: passend zum Aufgabentyp (numeric, short_text oder cloze); method_label optional.\n"
 )
 
 KNOWLEDGE_PEDAGOGY_RULES = (
@@ -31,7 +31,7 @@ KNOWLEDGE_PEDAGOGY_RULES = (
     "- Mindestens ein Eintrag pro wichtiger Lösungsstrategie aus den Quellen.\n"
     "- Ein Eintrag mit Schritt-für-Schritt-Beispiel aus worked_examples (Zwischenschritte!).\n"
     "- Ein Eintrag: «Wann welches Vorgehen?» — Entscheidungshilfe, nicht nur Regeln.\n"
-    "- Ein Eintrag: typischer Fehler oder Merksatz (z. B. Komma ausrichten, Stellenwerte).\n"
+    "- Ein Eintrag: typischer Fehler oder Merksatz aus dem Material.\n"
     "- Verständlich wie ein Mini-Tutorial — Vorbereitung für Üben und Check.\n"
 )
 

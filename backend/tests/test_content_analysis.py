@@ -63,6 +63,17 @@ def test_analyze_modules_overview():
     assert any(op["key"] == "written" for op in result["cards"]["methods"])
 
 
+def test_grade_input_card_text_variants():
+    graded = grade_input_card(
+        question="Welchen Fall hat «die Sonne»?",
+        expected_answer="Akkusativ|Akk.",
+        user_answer="akkusativ",
+        answer_type="short_text",
+    )
+    assert graded["result_correct"] is True
+    assert graded["answer_type"] == "short_text"
+
+
 def test_grade_input_card_numeric():
     graded = grade_input_card(
         question="Was ist 1,4 + 3,8?",

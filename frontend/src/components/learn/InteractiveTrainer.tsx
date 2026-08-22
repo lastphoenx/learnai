@@ -936,7 +936,7 @@ export function InteractiveTrainer({
               className={cardFilter === "mental" ? "trainer-tab active" : "trainer-tab"}
               onClick={() => setCardFilter("mental")}
             >
-              Kopf ({stats.mental_cards ?? stats.card_count})
+              Kurz ({stats.mental_cards ?? stats.card_count})
             </button>
             <button
               type="button"
@@ -1081,7 +1081,12 @@ export function InteractiveTrainer({
           {cardFilter !== "practice" && currentCard && cardKind(currentCard) !== "input" && (
             <>
               <p className="learn-quiz-meta muted">
-                {cardKind(currentCard) === "merk" ? "Merkkarte" : "Kopf-Rechnen"} {cardIndex + 1} von {filteredCards.length}
+                {cardKind(currentCard) === "merk"
+                  ? "Merkkarte"
+                  : cardKind(currentCard) === "input"
+                    ? "Eingabe"
+                    : "Kurzfrage"}{" "}
+                {cardIndex + 1} von {filteredCards.length}
                 {progress[currentCard.card_key]?.status === "known"
                   ? " · gewusst"
                   : progress[currentCard.card_key]?.status === "review"

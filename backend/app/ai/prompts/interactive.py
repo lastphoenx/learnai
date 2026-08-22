@@ -13,7 +13,7 @@ from app.ai.prompts.pedagogy import (
 SOURCE_RULES = (
     "Quellen-Regeln:\n"
     "- Buchcover, ISBN, Rückseite, Verlagsinfo: höchstens Hintergrund — KEIN eigenes Modul, KEIN ISBN-Quiz.\n"
-    "- Arbeitsblatt/Heft-Fotos: Kerninhalt — alle Aufgabentypen und Rechenwege aufgreifen.\n"
+    "- Arbeitsblatt/Heft-Fotos: Kerninhalt — alle Aufgabentypen und Lösungswege aufgreifen.\n"
     "- Mehrere Quellen zum gleichen Thema zusammenführen; nicht 1 Quelle = 1 Modul.\n"
 )
 
@@ -41,12 +41,15 @@ TYPED_CARDS_SYSTEM = (
     'Schema: {"merk_cards":[{"question":"...","answer":"...","tip":"...","method_label":"Bezeichnung aus dem Heft",'
     '"method_id":"optional"}],'
     '"mental_cards":[{"question":"...","answer":"...","tip":"..."}],'
-    '"input_cards":[{"question":"...","answer":"...","tip":"...","method_label":"Bezeichnung aus dem Heft",'
-    '"expected_method":"optional"}]}\n'
+    '"input_cards":[{"question":"...","answer":"...","tip":"...","method_label":"optional",'
+    '"expected_method":"optional","answer_type":"numeric|short_text|cloze"}]}\n'
     "Regeln:\n"
-    "- merk_cards: Merkregeln, typische Fehler, Lösungswege — KEINE reine Kopfrechnung.\n"
-    "- mental_cards: kurze Kopf-Rechnaufgaben (Frage → Antwort), 1 Schritt im Kopf.\n"
-    "- input_cards: Rechenaufgaben zum Eintippen; answer = exaktes Ergebnis (Zahl).\n"
+    "- merk_cards: Merkregeln, typische Fehler, Lösungswege — keine reinen Kurzabfragen.\n"
+    "- mental_cards: kurze direkte Abfragen, ohne Hilfsmittel lösbar (Frage → kurze Antwort).\n"
+    "- input_cards: zum Eintippen; answer = kurzes, eindeutiges Ergebnis "
+    "(Zahl, Wort oder kurze Phrase — je nach Fach).\n"
+    "- answer_type: numeric (Zahl), short_text (kurze Phrase), cloze (Lückentext mit ___ in question).\n"
+    "- Bei short_text/cloze: mehrere gültige Schreibweisen mit | trennen (z. B. Akkusativ|Akk.).\n"
     "- Genau die geforderten Anzahlen pro Typ.\n"
     "- Keine Duplikate zwischen den Typen und zu bereits verwendeten Fragen.\n"
     "- Kein ISBN/Buchcover-Meta.\n"
@@ -60,9 +63,8 @@ QUIZ_SYSTEM = (
     "Regeln:\n"
     "- Genau die geforderte Anzahl Fragen.\n"
     "- Je 4 plausible Optionen, answer = 0-basierter Index.\n"
-    "- explanation: Bei question_type=calculation mindestens zwei Lösungswege als "
-    "'Variante 1 (...)' und 'Variante 2 (...)' (z. B. Reihen + Zerlegung/Komma verschieben/untereinander). "
-    "Bezug zu bereits Gelerntem (Einmaleins-Reihen) wo sinnvoll.\n"
+    "- explanation: Bei question_type=calculation mindestens zwei Lösungswege/Varianten als "
+    "'Variante 1 (...)' und 'Variante 2 (...)' — aus dem Didaktik-Block, wenn vorhanden.\n"
     "- Bei question_type=method: kurze Begründung der Strategiewahl, keine Rechenvarianten.\n"
     "- Bei Zahlenantworten: answer-Index muss exakt zur explanation passen; Optionen auch numerisch verschieden (nicht 10 und 10.0).\n"
     "- Keine Trivialfragen, keine Scherzantworten.\n"
