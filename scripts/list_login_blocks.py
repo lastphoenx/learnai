@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Aktuelle Login-Sperren und Zähler in Redis anzeigen."""
+"""Aktuelle Login-Sperren und Zähler in Redis anzeigen.
+
+Container: docker compose exec -T api python /opt/scripts/list_login_blocks.py
+"""
 
 from __future__ import annotations
 

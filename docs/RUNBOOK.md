@@ -124,6 +124,22 @@ Login-IP-Diagnose (nach Login-Versuch):
 docker compose logs api 2>&1 | grep login_ip_debug | tail -5
 ```
 
+### Login-Sperren (Brute-Force, Redis)
+
+Skripte liegen auf dem Host unter `./scripts/`, im API-Container unter **`/opt/scripts/`** (nicht `/app/scripts/`).
+
+```bash
+cd /opt/learnai
+git pull   # Skripte müssen auf dem Host existieren (Volume-Mount)
+
+docker compose exec -T api python /opt/scripts/list_login_blocks.py
+docker compose exec -T api python /opt/scripts/list_login_blocks.py -v
+
+# Entsperren:
+docker compose exec -T api python /opt/scripts/unlock_login.py --email user@example.com
+docker compose exec -T api python /opt/scripts/unlock_login.py --email user@example.com --ip 203.0.113.10
+```
+
 ---
 
 ## Datenbank

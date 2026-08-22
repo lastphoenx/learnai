@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Login-Sperren in Redis aufheben (Brute-Force-Schutz)."""
+"""Login-Sperren in Redis aufheben (Brute-Force-Schutz).
+
+Container: docker compose exec -T api python /opt/scripts/unlock_login.py --email …
+"""
 
 from __future__ import annotations
 
