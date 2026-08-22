@@ -21,7 +21,6 @@ import {
   fetchGenerateStatus,
   waitForGenerateJob,
   fetchQuizWeaknesses,
-  type GenerateJobStatus,
   patchUnit,
   purgeSource,
   speak,
@@ -29,9 +28,14 @@ import {
   unitTrainerExportUrl,
   extractUnitPedagogy,
   fetchUnitPedagogy,
-  type UnitPedagogy,
+  uploadSource,
+  type GenerateJobStatus,
+  type LearningUnit,
   type LearnerProfile,
   type QuizWeaknesses,
+  type UnitModule,
+  type UnitPedagogy,
+  type UnitSource,
   type User,
 } from "@/lib/api";
 import { QuizWeaknessPanel } from "@/components/QuizWeaknessPanel";
@@ -359,7 +363,7 @@ export default function UnitDetailPage() {
               <p className="muted empty-hint">Noch keine Quellen hochgeladen.</p>
             ) : (
               <ul className="source-list">
-                {(unit.sources || []).map((s) => (
+                {(unit.sources || []).map((s: UnitSource) => (
                   <li key={s.id} className="source-item">
                     <div className="source-meta">
                       <span className="badge badge-source">{sourceKindLabel(s.kind)}</span>
@@ -464,7 +468,7 @@ export default function UnitDetailPage() {
                   </span>
                 </Link>
                 <ol className="module-compact-list">
-                  {(unit.modules || []).map((m, idx) => {
+                  {(unit.modules || []).map((m: UnitModule, idx: number) => {
                     const content = m.content as { cards?: unknown[] } | null;
                     const quiz = m.quiz as { questions?: unknown[] } | null;
                     const qCount = quiz?.questions?.length ?? 0;
