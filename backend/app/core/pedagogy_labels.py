@@ -50,16 +50,37 @@ _TOKEN_RE = re.compile(r"[a-z0-9äöüß]+", re.I)
 _SCHEMA_PLACEHOLDERS = frozenset(
     {
         "wann diese methode sinnvoll ist",
+        "kurzer satz wann passt diese strategie aus dem material",
         "kurzes beispiel aus dem bild",
+        "kurzes beispiel mit zahlen text aus dem bild",
         "freier kurzname fur erkannten aufgabentyp",
         "freier kurzname fuer erkannten aufgabentyp",
+        "kurzer name des aufgabentyps aus dem heft",
         "didaktische hinweise aus dem material",
+        "konkreter didaktischer hinweis aus dem material",
         "bezeichnung exakt wie im heft",
         "bezeichnung wie im heft",
         "optional nur wenn passend",
         "optional bezeichnung aus dem heft",
         "2 6 satze thema seiteninhalt lernziele",
+        "aufgabe",
+        "aufgabentext",
+        "schritt 1",
+        "schritt 2",
     }
+)
+
+# Anweisungs-Präfixe in Schema-Beschreibungen (nicht als echte Feldwerte).
+_SCHEMA_PREFIXES = (
+    "kurzer satz ",
+    "kurzes beispiel ",
+    "kurzer name des aufgabentyps",
+    "konkreter didaktischer hinweis",
+    "2 6 satze ",
+    "bezeichnung exakt wie",
+    "bezeichnung wie im heft",
+    "optional nur wenn",
+    "optional bezeichnung",
 )
 
 
@@ -76,6 +97,8 @@ def is_schema_placeholder(text: str | None) -> bool:
     if not normalized:
         return False
     if normalized in _SCHEMA_PLACEHOLDERS:
+        return True
+    if any(normalized.startswith(prefix) for prefix in _SCHEMA_PREFIXES):
         return True
     for placeholder in _SCHEMA_PLACEHOLDERS:
         if len(placeholder) >= 12 and placeholder in normalized and len(normalized) <= len(placeholder) + 8:
@@ -125,7 +148,7 @@ def guess_method_id(label: str, *, when: str = "", example: str = "") -> str | N
 
 def resolve_method_entry(item: dict) -> dict[str, str]:
     """Normalisiert eine Methoden-Zeile: label primär, id optional."""
-    label = str(item.get("label") or "").strip()
+    label = sanitize_pedagogy_field(str(item.get("label") or "").strip())
     when = sanitize_pedagogy_field(str(item.get("when") or "").strip())
     example = sanitize_pedagogy_field(str(item.get("example") or "").strip())
     raw_id = str(item.get("id") or "").strip().lower()

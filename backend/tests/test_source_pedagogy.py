@@ -141,6 +141,47 @@ def test_parse_pedagogy_strips_schema_placeholder_echoes():
     assert "freier Kurzname" not in digest
 
 
+def test_parse_pedagogy_strips_new_schema_placeholder_echoes():
+    payload = {
+        "summary": "2-6 Sätze: Thema, Seiteninhalt, Lernziele",
+        "is_metadata_only": False,
+        "methods": [
+            {
+                "label": "Ich notiere meine Rechenschritte.",
+                "when": "kurzer Satz: wann passt diese Strategie (aus dem Material)",
+                "example": "kurzes Beispiel mit Zahlen/Text aus dem Bild",
+            },
+            {
+                "label": "Im Kopf rechnen",
+                "when": "Wenn Zahlen einfach im Kopf lösbar sind",
+                "example": "3,7 + 20,1",
+            },
+        ],
+        "exercise_patterns": ["kurzer Name des Aufgabentyps aus dem Heft", "Dezimalzahlen addieren"],
+        "teaching_notes": ["konkreter didaktischer Hinweis aus dem Material"],
+    }
+    summary, pedagogy = parse_pedagogy_extraction(json.dumps(payload))
+    assert summary == ""
+    assert pedagogy["methods"][0].get("when") == ""
+    assert pedagogy["methods"][0].get("example") == ""
+    assert pedagogy["methods"][1]["when"] == "Wenn Zahlen einfach im Kopf lösbar sind"
+    assert pedagogy["exercise_patterns"] == ["Dezimalzahlen addieren"]
+    assert pedagogy["teaching_notes"] == []
+    digest = build_pedagogy_digest(pedagogy)
+    assert "kurzer Satz" not in digest
+    assert "kurzes Beispiel mit Zahlen" not in digest
+
+
+def test_vision_pedagogy_prompt_uses_empty_schema_values():
+    from app.ai.source_pedagogy import vision_pedagogy_prompt
+
+    prompt = vision_pedagogy_prompt(language="de")
+    assert '"label":""' in prompt
+    assert "kurzer Satz: wann passt diese Strategie" not in prompt
+    assert "kurzes Beispiel mit Zahlen/Text aus dem Bild" not in prompt
+    assert "Bezeichnung exakt wie im Heft" not in prompt.split("Feldbedeutung:")[0]
+
+
 def test_parse_pedagogy_strips_placeholder_method_label_from_worked_examples():
     payload = {
         "summary": "Dezimalzahlen.",

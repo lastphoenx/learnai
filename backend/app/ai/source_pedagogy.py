@@ -28,34 +28,29 @@ def vision_pedagogy_prompt(*, language: str) -> str:
     return (
         "Das ist ein Foto aus einem Lernmittel (Schulbuch, Arbeitsblatt, Heft).\n"
         "Antworte NUR mit gültigem JSON (kein Markdown, kein Fliesstext davor/danach).\n"
-        "Schema:\n"
+        "Struktur (alle Werte aus dem Bild; leere Strings wenn nichts erkennbar):\n"
         "{\n"
-        '  "summary": "2-6 Sätze: Thema, Seiteninhalt, Lernziele",\n'
+        '  "summary": "",\n'
         '  "is_metadata_only": false,\n'
-        '  "methods": [\n'
-        '    {"label":"Bezeichnung exakt wie im Heft",'
-        ' "when":"kurzer Satz: wann passt diese Strategie (aus dem Material)",'
-        ' "example":"kurzes Beispiel mit Zahlen/Text aus dem Bild", "id":"optional"}\n'
-        "  ],\n"
-        '  "worked_examples": [\n'
-        '    {"problem":"Aufgabe", "method_label":"Bezeichnung wie im Heft",'
-        ' "steps":["Schritt 1","Schritt 2"]}\n'
-        "  ],\n"
-        '  "exercises": [\n'
-        '    {"ref":"Aufg. 5a", "text":"Aufgabentext", "suggested_method":"optional, Bezeichnung aus dem Heft"}\n'
-        "  ],\n"
-        '  "exercise_patterns": ["kurzer Name des Aufgabentyps aus dem Heft"],\n'
-        '  "teaching_notes": ["konkreter didaktischer Hinweis aus dem Material"]\n'
+        '  "methods": [{"label":"","when":"","example":"","id":""}],\n'
+        '  "worked_examples": [{"problem":"","method_label":"","steps":[""]}],\n'
+        '  "exercises": [{"ref":"","text":"","suggested_method":""}],\n'
+        '  "exercise_patterns": [""],\n'
+        '  "teaching_notes": [""]\n'
         "}\n"
+        "Feldbedeutung:\n"
+        "- summary: 2–6 Sätze zu Thema, Seiteninhalt und Lernzielen aus dem Material\n"
+        "- methods[].label (Pflicht wenn Methode sichtbar): Strategie-/Lösungsweg-Name exakt wie im Heft\n"
+        "- methods[].when (optional): ein Satz, wann diese Strategie passt — nur Inhalt aus dem Heft\n"
+        "- methods[].example (optional): kurzes Zahlen- oder Textbeispiel aus dem Bild\n"
+        "- methods[].id (optional): nur wenn im Material explizit genannt — nie erfinden\n"
+        "- worked_examples: vollständige Beispiel-Lösungswege mit Zwischenschritten und method_label aus dem Heft\n"
+        "- exercises: sichtbare Aufgaben mit Zahlen/Text; ref wie «Aufg. 5a» wenn vorhanden\n"
+        "- exercise_patterns: erkannte Aufgabentypen in den Worten des Materials (nicht erfinden)\n"
+        "- teaching_notes: konkrete didaktische Hinweise aus dem Material\n"
         "Regeln:\n"
         "- methods: alle im Bild gezeigten Lösungswege/Strategien — benenne sie so, wie das Material sie nennt.\n"
-        "- label ist Pflicht; id nur optional und nie erfinden.\n"
-        "- when/example nur mit echtem Inhalt aus dem Bild — nie Schema-Text wörtlich kopieren.\n"
-        "- NIEMALS Platzhalter wie «Wann diese Methode sinnvoll ist» oder «freier Kurzname für erkannten Aufgabentyp» "
-        "als Feldwert zurückgeben; Feld leer lassen oder weglassen, wenn kein Inhalt erkennbar ist.\n"
-        "- worked_examples: vollständige Beispiel-Lösungswege mit Zwischenschritten und method_label aus dem Heft.\n"
-        "- exercises: sichtbare Aufgaben mit Zahlen/Text.\n"
-        "- exercise_patterns: erkannte Aufgabentypen in den Worten des Materials (nicht erfinden).\n"
+        "- KEINE Feld-Beschreibungen, Anweisungen oder Schema-Texte als Werte — nur echte Inhalte oder leere Strings.\n"
         "- is_metadata_only=true nur bei Cover, ISBN, Verlagsinfo ohne Aufgaben.\n"
         "- Bei Metadaten: methods/worked_examples/exercises leer lassen.\n"
         f"- Sprache der Texte: {lang}.\n"
@@ -120,7 +115,7 @@ def parse_pedagogy_extraction(text: str) -> tuple[str, dict[str, Any]]:
     if not isinstance(parsed, dict):
         return raw, {}
 
-    summary = str(parsed.get("summary") or "").strip()
+    summary = sanitize_pedagogy_field(str(parsed.get("summary") or "").strip())
     pedagogy = _normalize_pedagogy(parsed)
     if not summary:
         summary = _fallback_summary(pedagogy)
@@ -181,7 +176,7 @@ def _normalize_worked_examples(raw: object) -> list[dict[str, Any]]:
     for item in raw:
         if not isinstance(item, dict):
             continue
-        problem = str(item.get("problem") or "").strip()
+        problem = sanitize_pedagogy_field(str(item.get("problem") or "").strip())
         steps = _normalize_string_list(item.get("steps"))
         if not problem and not steps:
             continue
