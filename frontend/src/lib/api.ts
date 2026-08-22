@@ -416,6 +416,8 @@ export type LearningUnit = {
   learn_progress?: LearnSummary;
   profile_id?: string | null;
   learner_name?: string | null;
+  template_unit_id?: string | null;
+  template_root_id?: string | null;
   trainer_options?: TrainerOptions;
   learn_goals?: LearnGoals;
   sources?: UnitSource[];
