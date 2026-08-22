@@ -330,11 +330,12 @@ export default function UnitDetailPage() {
           {user && !user.is_child && unit && (
             <UnitAssignSection
               unitId={unitId}
-              unitTitle={unit.title}
+              currentUnit={unit}
               currentProfileId={unit.profile_id}
               learnerName={unit.learner_name}
               profiles={profiles}
               onAssigned={reload}
+              onRequestRemove={() => setDeleteOpen(true)}
             />
           )}
 

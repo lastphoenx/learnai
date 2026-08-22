@@ -58,3 +58,18 @@ def test_merge_template_recon_keeps_trainer_options(monkeypatch):
     roundtrip = decrypt_json(encrypt_json(merged))
     assert roundtrip["trainer_options"]["cards"] == 40
     assert roundtrip["template_unit_id"] == "source-id"
+
+
+def test_template_ids_from_recon():
+    from app.services.unit_service import _attach_template_fields, _template_ids_from_recon
+
+    tid, troot = _template_ids_from_recon(
+        {"template_unit_id": "parent-id", "template_root_id": "root-id"}
+    )
+    assert tid == "parent-id"
+    assert troot == "root-id"
+
+    row = {"id": "unit-1"}
+    _attach_template_fields(row, None)
+    assert row["template_unit_id"] is None
+    assert row["template_root_id"] == "unit-1"

@@ -4,36 +4,26 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { assignUnitToProfiles, fetchUnits, type LearnerProfile, type LearningUnit } from "@/lib/api";
 import { LearnerMultiSelect } from "@/components/LearnerMultiSelect";
+import { siblingCopyForProfile } from "@/lib/unitTemplateFamily";
 
 type Props = {
   unitId: string;
-  unitTitle: string;
+  currentUnit: Pick<LearningUnit, "id" | "template_root_id">;
   currentProfileId: string | null | undefined;
   learnerName?: string | null;
   profiles: LearnerProfile[];
   onAssigned: () => void;
+  onRequestRemove?: () => void;
 };
-
-function siblingCopyForProfile(
-  units: LearningUnit[],
-  opts: { unitTitle: string; currentUnitId: string; profileId: string },
-): LearningUnit | undefined {
-  const normalized = opts.unitTitle.trim().toLowerCase();
-  return units.find(
-    (u) =>
-      u.id !== opts.currentUnitId &&
-      u.profile_id === opts.profileId &&
-      u.title.trim().toLowerCase() === normalized,
-  );
-}
 
 export function UnitAssignSection({
   unitId,
-  unitTitle,
+  currentUnit,
   currentProfileId,
   learnerName,
   profiles,
   onAssigned,
+  onRequestRemove,
 }: Props) {
   const [allUnits, setAllUnits] = useState<LearningUnit[]>([]);
   const [open, setOpen] = useState(false);
@@ -53,18 +43,22 @@ export function UnitAssignSection({
       .catch(() => setAllUnits([]));
   }, [unitId, message]);
 
+  const unitForMatch = useMemo(
+    () => allUnits.find((u) => u.id === unitId) || ({ ...currentUnit, id: unitId } as LearningUnit),
+    [allUnits, currentUnit, unitId],
+  );
+
   const assignableIds = useMemo(() => {
     return children
       .filter((child) => {
         if (child.id === currentProfileId) return false;
         return !siblingCopyForProfile(allUnits, {
-          unitTitle,
-          currentUnitId: unitId,
+          currentUnit: unitForMatch,
           profileId: child.id,
         });
       })
       .map((child) => child.id);
-  }, [allUnits, children, currentProfileId, unitId, unitTitle]);
+  }, [allUnits, children, currentProfileId, unitForMatch]);
 
   async function onAssign() {
     const ids = selected.filter((id) => assignableIds.includes(id));
@@ -97,8 +91,15 @@ export function UnitAssignSection({
       <h2>Kinder & Kopien</h2>
       <p className="muted section-lead">
         Jede Lerneinheit gehört genau einem Kind. Für weitere Kinder wird eine vollständige Kopie erstellt
-        (eigener Fortschritt, gleiche Inhalte).
+        (eigener Fortschritt, gleiche Inhalte). Die Zuordnung aufheben = diese Kopie löschen.
       </p>
+
+      {children.length === 1 && (
+        <p className="muted empty-hint">
+          Nur ein Kind im Haushalt. Um Kopien für Geschwister anzulegen, zuerst ein weiteres Kind unter{" "}
+          <Link href="/settings">Einstellungen</Link> anlegen.
+        </p>
+      )}
 
       {currentProfileId ? (
         <p className="unit-assign-current">
@@ -119,22 +120,30 @@ export function UnitAssignSection({
           {children.map((child) => {
             const isCurrent = child.id === currentProfileId;
             const sibling = siblingCopyForProfile(allUnits, {
-              unitTitle,
-              currentUnitId: unitId,
+              currentUnit: unitForMatch,
               profileId: child.id,
             });
             return (
               <li key={child.id} className="unit-assign-child-row">
                 <span>{child.display_name}</span>
-                {isCurrent ? (
-                  <span className="badge badge-ready">aktuelle Einheit</span>
-                ) : sibling ? (
-                  <Link className="btn btn-sm" href={`/units/${sibling.id}`}>
-                    Kopie öffnen
-                  </Link>
-                ) : (
-                  <span className="muted">noch keine Kopie</span>
-                )}
+                <div className="unit-assign-child-actions">
+                  {isCurrent ? (
+                    <>
+                      <span className="badge badge-ready">aktuelle Einheit</span>
+                      {onRequestRemove ? (
+                        <button type="button" className="btn btn-sm ghost danger-text" onClick={onRequestRemove}>
+                          Zuordnung aufheben…
+                        </button>
+                      ) : null}
+                    </>
+                  ) : sibling ? (
+                    <Link className="btn btn-sm" href={`/units/${sibling.id}`}>
+                      Kopie öffnen
+                    </Link>
+                  ) : (
+                    <span className="muted">noch keine Kopie</span>
+                  )}
+                </div>
               </li>
             );
           })}

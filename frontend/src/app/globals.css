@@ -1254,6 +1254,13 @@ button.btn.action-tile {
   background: color-mix(in srgb, var(--card) 92%, var(--bg));
 }
 
+.unit-assign-child-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
 .unit-delete-options {
   gap: 0.75rem;
 }

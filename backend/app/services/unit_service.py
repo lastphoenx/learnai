@@ -87,6 +87,23 @@ def get_learn_goals(recon: dict | None) -> dict:
     return LearnGoalsSchema.normalize_raw(raw).model_dump()
 
 
+def _template_ids_from_recon(recon: dict | None) -> tuple[str | None, str | None]:
+    if not isinstance(recon, dict):
+        return None, None
+    template_unit_id = str(recon.get("template_unit_id") or "").strip() or None
+    template_root_id = str(recon.get("template_root_id") or "").strip() or None
+    return template_unit_id, template_root_id
+
+
+def _attach_template_fields(row: dict, record: LearningRecord | None) -> None:
+    template_unit_id, template_root_id = None, None
+    if record and record.reconstruction_encrypted:
+        recon = decrypt_json(record.reconstruction_encrypted)
+        template_unit_id, template_root_id = _template_ids_from_recon(recon)
+    row["template_unit_id"] = template_unit_id
+    row["template_root_id"] = template_root_id or row["id"]
+
+
 def _dec_unit(unit: LearningUnit, *, sources: bool = True, modules: bool = True) -> dict:
     learner_name = None
     if unit.profile_id and unit.profile:
@@ -198,9 +215,15 @@ def list_units(db: Session, user: User) -> list[dict]:
     from app.services.learn_service import learn_progress_for_unit
 
     units = _accessible_units(db, user).order_by(LearningUnit.created_at.desc()).all()
+    unit_ids = [u.id for u in units]
+    records_by_unit: dict[uuid.UUID, LearningRecord] = {}
+    if unit_ids:
+        for record in db.query(LearningRecord).filter(LearningRecord.unit_id.in_(unit_ids)).all():
+            records_by_unit[record.unit_id] = record
     out = []
     for u in units:
         row = _dec_unit(u, sources=False, modules=False)
+        _attach_template_fields(row, records_by_unit.get(u.id))
         prog = learn_progress_for_unit(db, u.id)
         if prog:
             row["learn_progress"] = prog
@@ -224,20 +247,21 @@ def get_unit(db: Session, user: User, unit_id: uuid.UUID) -> dict:
     )
     data["exams"] = [_dec_exam(e, db) for e in exam_rows]
     record = db.query(LearningRecord).filter(LearningRecord.unit_id == unit.id).first()
+    _attach_template_fields(data, record)
+    recon: dict | None = None
     if record and record.reconstruction_encrypted:
-        recon = decrypt_json(record.reconstruction_encrypted)
-        if isinstance(recon, dict):
-            focus = (recon.get("math_focus") or "").strip()
-            if focus:
-                data["math_focus"] = focus
+        raw_recon = decrypt_json(record.reconstruction_encrypted)
+        recon = raw_recon if isinstance(raw_recon, dict) else None
+    if recon:
+        focus = (recon.get("math_focus") or "").strip()
+        if focus:
+            data["math_focus"] = focus
     prog = learn_progress_for_unit(db, unit.id)
     if prog:
         data["learn_progress"] = prog
-    if record and record.reconstruction_encrypted:
-        recon = decrypt_json(record.reconstruction_encrypted)
-        if isinstance(recon, dict) and unit.task_type == "interactive":
-            data["trainer_options"] = get_trainer_options(recon)
-            data["learn_goals"] = get_learn_goals(recon)
+    if recon and unit.task_type == "interactive":
+        data["trainer_options"] = get_trainer_options(recon)
+        data["learn_goals"] = get_learn_goals(recon)
     return data
 
 
@@ -479,7 +503,9 @@ def assign_unit_to_profiles(
                     to_record=new_record,
                 )
             db.refresh(new_unit, attribute_names=["modules", "sources", "status"])
-            created.append(_dec_unit(new_unit))
+            row = _dec_unit(new_unit)
+            _attach_template_fields(row, new_record)
+            created.append(row)
         else:
             created.append(result)
     if not created:
@@ -606,6 +632,9 @@ def _copy_template_metadata(
             if math_focus:
                 dst_recon["math_focus"] = math_focus
             dst_recon["template_unit_id"] = str(from_unit.id)
+            dst_recon["template_root_id"] = (
+                str(src_recon.get("template_root_id") or "").strip() or str(from_unit.id)
+            )
             to_record.reconstruction_encrypted = encrypt_json(dst_recon)
     if module_count:
         _add_event(
