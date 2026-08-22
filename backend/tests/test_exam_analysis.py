@@ -65,12 +65,13 @@ def test_build_interactive_trainer_brief_focuses_on_weaknesses():
     analysis = {
         "summary": "Probleme bei Brüchen",
         "gaps": ["Nenner angleichen"],
+        "error_patterns": [{"label": "Nenner verwechselt", "tag": "fractions_denominator", "count": 1}],
         "tasks": [
             {
                 "index": 1,
                 "description": "1/2 + 1/3",
                 "correct": False,
-                "error_tags": ["fractions_denominator"],
+                "error_labels": ["Nenner nicht angeglichen"],
             }
         ],
     }
@@ -78,4 +79,11 @@ def test_build_interactive_trainer_brief_focuses_on_weaknesses():
     assert "Interaktiver Lerntrainer" in brief
     assert "Nenner angleichen" in brief
     assert "1/2 + 1/3" in brief
-    assert "fractions_denominator" in brief
+    assert "Nenner verwechselt" in brief
+
+
+def test_exam_analysis_prompt_is_material_first():
+    from app.ai.exam_analyze import ANALYSIS_SYSTEM
+
+    assert '"error_patterns":[{"label":""' in ANALYSIS_SYSTEM
+    assert "fractions_denominator" not in ANALYSIS_SYSTEM

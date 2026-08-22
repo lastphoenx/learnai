@@ -34,6 +34,8 @@ from app.services.unit_service import (
     get_trainer_options,
 )
 from app.ai.error_tags import aggregate_quiz_error_tags, infer_quiz_error_tags, label_for_tag
+from app.ai.source_pedagogy import collect_pedagogy_from_unit_sources
+from app.core.pedagogy_labels import material_labels_from_methods
 from app.services.audit import log_event
 from app.services.exam_insights_service import exam_learning_entry_for_unit
 
@@ -596,6 +598,7 @@ def submit_card_input_answer(
         "correct": bool(graded["correct"]),
         "result_correct": bool(graded["result_correct"]),
         "worked_correct": graded.get("worked_correct"),
+        "method_label": str(card.get("method_label") or "").strip() or None,
     }
     mod_prog["card_input_answers"] = card_inputs
     stats["learn"] = learn
@@ -1097,6 +1100,8 @@ def collect_quiz_weaknesses(
     weaknesses: list[dict[str, Any]] = []
     recon = _parent_recon(record)
     math_focus = (recon.get("math_focus") or "").strip() if isinstance(recon.get("math_focus"), str) else ""
+    pedagogy = collect_pedagogy_from_unit_sources(unit.sources)
+    material_labels = material_labels_from_methods(pedagogy.get("methods") or [])
 
     for module in modules:
         mod_key = str(module.id)
@@ -1125,7 +1130,9 @@ def collect_quiz_weaknesses(
                 module_title=module_title,
                 explanation=explanation,
                 math_focus=math_focus,
+                material_labels=material_labels,
             )
+            primary_label = label_for_tag(error_tags[0]) if error_tags else ""
             weaknesses.append(
                 {
                     "module_id": mod_key,
@@ -1138,6 +1145,7 @@ def collect_quiz_weaknesses(
                     "correct_label": options[correct_index] if 0 <= correct_index < len(options) else None,
                     "explanation": enrich_quiz_explanation(q),
                     "error_tags": error_tags,
+                    "error_label": primary_label,
                 }
             )
 
@@ -1161,9 +1169,9 @@ def _append_weakness_details(lines: list[str], weakness_data: dict, *, max_per_m
     if tag_rows:
         lines.append("\nFehlermuster (Tags):")
         for row in tag_rows[:12]:
-            label = row.get("label") or label_for_tag(str(row.get("tag") or ""))
+            label = row.get("label") or label_for_tag(str(row.get("key") or row.get("tag") or ""))
             count = row.get("count", 1)
-            lines.append(f"- {label} ({row.get('tag')}): {count}×")
+            lines.append(f"- {label}: {count}×")
     by_module: dict[str, list[dict]] = {}
     for item in weakness_data.get("weaknesses") or []:
         title = (item.get("module_title") or "Thema").strip()
@@ -1171,7 +1179,7 @@ def _append_weakness_details(lines: list[str], weakness_data: dict, *, max_per_m
     for mod_title, items in by_module.items():
         lines.append(f"\nThema «{mod_title}» ({len(items)} Fehler):")
         for w in items[:max_per_module]:
-            tag_hint = ", ".join(w.get("error_tags") or []) or "—"
+            tag_hint = w.get("error_label") or ", ".join(w.get("error_tags") or []) or "—"
             lines.append(f"- Frage: {w.get('question', '').strip()} [{tag_hint}]")
             if w.get("selected_label"):
                 lines.append(f"  Gewählt: {w['selected_label']}")

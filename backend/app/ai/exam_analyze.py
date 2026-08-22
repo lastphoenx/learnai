@@ -10,15 +10,23 @@ from app.ai.extract import extract_pdf_text
 from app.ai.providers import complete, describe_image, parse_json_object, resolve_provider
 
 ANALYSIS_SYSTEM = (
-    "Du bist Lernberater für Eltern und Kinder. Antworte immer mit einem JSON-Objekt, ohne Markdown."
-    ' Schema: {"summary":"...","strengths":["..."],"gaps":["..."],'
-    '"error_patterns":[{"tag":"snake_case","label":"...","count":1,"examples":["..."]}],'
-    '"tasks":[{"index":1,"description":"...","correct":false,"points_earned":0,'
-    '"max_points":5,"errors":["..."],"error_tags":["fractions_denominator","unit_conversion"]}],'
-    '"recommendations":["..."]}'
-    " error_patterns: konkrete Fehlertypen (z.B. fractions_denominator, unit_conversion)."
-    " tasks: jede erkannte Aufgabe; error_tags pro Aufgabe (snake_case, z.B. fractions_denominator)."
-    " recommendations: 2–5 konkrete Lernschritte zur Nacharbeit."
+    "Du bist Lernberater für Eltern und Kinder. Antworte immer mit einem JSON-Objekt, ohne Markdown.\n"
+    "Struktur (alle Werte aus der Prüfung; leere Strings/Arrays wenn nichts erkennbar):\n"
+    '{"summary":"","strengths":[""],"gaps":[""],'
+    '"error_patterns":[{"label":"","tag":"","count":0,"examples":[""]}],'
+    '"tasks":[{"index":1,"description":"","correct":false,"points_earned":0,'
+    '"max_points":0,"errors":[""],"error_labels":[""],"error_tags":[""]}],'
+    '"recommendations":[""]}\n'
+    "Feldbedeutung:\n"
+    "- summary: Kurzfassung der Prüfung und des Leistungsbilds\n"
+    "- error_patterns[].label (Pflicht wenn Fehler erkennbar): Fehlertyp in den Worten der Prüfung/Lehrperson\n"
+    "- error_patterns[].tag (optional): nur bekannte Kurzform wenn eindeutig passend, sonst leer\n"
+    "- tasks[].error_labels: konkrete Fehlerbeschreibungen pro Aufgabe aus dem Material\n"
+    "- tasks[].error_tags (optional): nur für bekannte Kategorien, sonst leer lassen\n"
+    "- recommendations: 2–5 konkrete Lernschritte zur Nacharbeit\n"
+    "Regeln:\n"
+    "- KEINE Feld-Beschreibungen oder Schema-Texte als Werte — nur echte Inhalte oder leere Strings.\n"
+    "- Benenne Fehler so, wie Lehrperson oder Korrektur sie formulieren würde.\n"
 )
 
 
