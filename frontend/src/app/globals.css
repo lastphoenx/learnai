@@ -1521,6 +1521,53 @@ button.btn.action-tile {
   margin-top: 0.25rem;
 }
 
+.password-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.password-field-label {
+  font-weight: 500;
+}
+
+.password-field-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.password-field-input {
+  width: 100%;
+  padding-right: 2.75rem;
+}
+
+.password-field-toggle {
+  position: absolute;
+  right: 0.35rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.password-field-toggle:hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--border) 40%, transparent);
+}
+
+.password-field-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
 /* —— Admin —— */
 .admin-forms-grid {
   display: grid;
