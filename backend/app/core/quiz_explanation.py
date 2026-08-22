@@ -23,10 +23,12 @@ _PARSE_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
         ),
     ),
     ("mul", re.compile(rf"({_NUM})\s*{_OP_SYMBOL}\s*({_NUM})")),
+    ("add", re.compile(rf"({_NUM})\s*\+\s*({_NUM})")),
     (
         "add",
         re.compile(rf"(?:addition|summe)\s+von\s+({_NUM})\s+und\s+({_NUM})", re.I),
     ),
+    ("sub", re.compile(rf"({_NUM})\s*-\s*({_NUM})")),
     (
         "sub",
         re.compile(rf"(?:subtraktion|differenz)\s+von\s+({_NUM})\s+und\s+({_NUM})", re.I),

@@ -16,7 +16,7 @@ _OP_LABELS = {
 }
 
 _KEYWORD_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
-    ("add", re.compile(r"addition|summe|addier", re.I)),
+    ("add", re.compile(r"addition|summe|addier|\+", re.I)),
     ("sub", re.compile(r"subtraktion|differenz|subtrahier", re.I)),
     ("mul", re.compile(r"multiplikation|produkt|multiplizier|·|×", re.I)),
     ("div", re.compile(r"division|quotient|dividier|geteilt|[:÷/]", re.I)),

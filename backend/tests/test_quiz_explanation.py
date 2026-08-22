@@ -2,6 +2,7 @@ from app.core.quiz_explanation import (
     build_worked_solution,
     enrich_quiz_explanation,
     explanation_is_weak,
+    parse_arithmetic_operands,
 )
 
 
@@ -81,6 +82,12 @@ def test_add_has_two_variants():
     assert text is not None
     assert "Variante 1" in text
     assert "Variante 2" in text
+
+
+def test_parse_addition_with_plus_symbol():
+    parsed = parse_arithmetic_operands("Was ist 2,5 + 1,2?")
+    assert parsed is not None
+    assert parsed[0] == "add"
 
 
 def test_sub_has_two_variants():
