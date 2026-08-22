@@ -170,6 +170,23 @@ class TrainerOptionsSchema(BaseModel):
         return cls.model_validate(data)
 
 
+class LearnGoalsSchema(BaseModel):
+    quiz: int | None = Field(default=None, ge=1, le=200)
+    cards: dict[str, int | Literal["all"] | None] | None = None
+    deadline: str | None = Field(default=None, max_length=10)
+
+    @classmethod
+    def normalize_raw(cls, raw: dict | None) -> "LearnGoalsSchema":
+        from app.core.learn_goals import normalize_learn_goals
+
+        return cls.model_validate(normalize_learn_goals(raw))
+
+
+class ChildLearnGoalsRequest(BaseModel):
+    quiz: int | None = Field(default=None, ge=1, le=200)
+    cards: dict[str, int | Literal["all"] | None] | None = None
+
+
 class UnitUpdateRequest(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=256)
     brief: str | None = Field(default=None, max_length=8000)
@@ -181,6 +198,7 @@ class UnitUpdateRequest(BaseModel):
     math_focus: str | None = Field(default=None, max_length=32)
     auto_purge_sources: bool | None = None
     trainer_options: TrainerOptionsSchema | dict | None = None
+    learn_goals: LearnGoalsSchema | dict | None = None
 
 
 class UnitGenerateRequest(BaseModel):

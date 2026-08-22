@@ -6,6 +6,7 @@ import {
   patchUnit,
   type LearningUnit,
   type TrainerOptions,
+  type LearnGoals,
   type UnitPatchBody,
 } from "@/lib/api";
 import { UnitFieldGuide } from "@/components/UnitFieldGuide";
@@ -42,6 +43,17 @@ export function UnitEditDialog({ unit, open, onClose, onSaved }: Props) {
     unit.trainer_options?.style ?? "playful",
   );
   const [trainerProvider, setTrainerProvider] = useState(unit.trainer_options?.llm_provider ?? "");
+  const [goalQuiz, setGoalQuiz] = useState<string>(String(unit.learn_goals?.quiz ?? ""));
+  const [goalMerk, setGoalMerk] = useState<string>(
+    unit.learn_goals?.cards?.merk === "all" ? "all" : String(unit.learn_goals?.cards?.merk ?? ""),
+  );
+  const [goalMental, setGoalMental] = useState<string>(
+    unit.learn_goals?.cards?.mental === "all" ? "all" : String(unit.learn_goals?.cards?.mental ?? ""),
+  );
+  const [goalInput, setGoalInput] = useState<string>(
+    unit.learn_goals?.cards?.input === "all" ? "all" : String(unit.learn_goals?.cards?.input ?? ""),
+  );
+  const [goalDeadline, setGoalDeadline] = useState(unit.learn_goals?.deadline ?? "");
   const [taskTypes, setTaskTypes] = useState<UnitTaskType[]>(FALLBACK_TASK_TYPES);
   const [focusGroups, setFocusGroups] = useState<FocusGroup[]>(FALLBACK_FOCUS_GROUPS);
   const [error, setError] = useState<string | null>(null);
@@ -61,6 +73,17 @@ export function UnitEditDialog({ unit, open, onClose, onSaved }: Props) {
     setTrainerQuestions(unit.trainer_options?.questions ?? 50);
     setTrainerStyle(unit.trainer_options?.style ?? "playful");
     setTrainerProvider(unit.trainer_options?.llm_provider ?? "");
+    setGoalQuiz(String(unit.learn_goals?.quiz ?? ""));
+    setGoalMerk(
+      unit.learn_goals?.cards?.merk === "all" ? "all" : String(unit.learn_goals?.cards?.merk ?? ""),
+    );
+    setGoalMental(
+      unit.learn_goals?.cards?.mental === "all" ? "all" : String(unit.learn_goals?.cards?.mental ?? ""),
+    );
+    setGoalInput(
+      unit.learn_goals?.cards?.input === "all" ? "all" : String(unit.learn_goals?.cards?.input ?? ""),
+    );
+    setGoalDeadline(unit.learn_goals?.deadline ?? "");
     setError(null);
   }, [open, unit]);
 
@@ -99,6 +122,14 @@ export function UnitEditDialog({ unit, open, onClose, onSaved }: Props) {
   const subjectGuide = useMemo(() => getUnitFieldGuide("subject", fieldCtx), [fieldCtx]);
   const targetAgeGuide = useMemo(() => getUnitFieldGuide("targetAge", fieldCtx), [fieldCtx]);
 
+  const parseGoalField = (raw: string): number | "all" | null => {
+    const v = raw.trim().toLowerCase();
+    if (!v) return null;
+    if (v === "all" || v === "alle") return "all";
+    const n = Number(v);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  };
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
@@ -121,6 +152,19 @@ export function UnitEditDialog({ unit, open, onClose, onSaved }: Props) {
           style: trainerStyle,
           answer_length: "short",
           llm_provider: trainerProvider.trim() || null,
+        };
+        const cards = {
+          merk: parseGoalField(goalMerk),
+          mental: parseGoalField(goalMental),
+          input: parseGoalField(goalInput),
+        };
+        const hasCards = Object.values(cards).some((v) => v != null);
+        const quizGoal = parseGoalField(goalQuiz);
+        const hasGoals = hasCards || quizGoal != null || goalDeadline.trim();
+        body.learn_goals = {
+          quiz: typeof quizGoal === "number" ? quizGoal : null,
+          cards: hasCards ? cards : { merk: null, mental: null, input: null },
+          deadline: goalDeadline.trim() || null,
         };
       }
       const next = await patchUnit(unit.id, body);
@@ -292,6 +336,62 @@ export function UnitEditDialog({ unit, open, onClose, onSaved }: Props) {
                     <option value="anthropic">Anthropic</option>
                   </select>
                 </label>
+              </div>
+              <div className="stack trainer-options-form" style={{ marginTop: "1rem" }}>
+                <p className="muted" style={{ margin: 0 }}>
+                  Lernziele für das Kind (optional)
+                </p>
+                <p className="muted" style={{ margin: 0, fontSize: "0.9rem" }}>
+                  Der Pool bleibt gross — hier legst du fest, was mindestens geübt werden soll. «alle» = alle
+                  verfügbaren Karten dieser Art.
+                </p>
+                <div className="form-row">
+                  <label>
+                    Quizfragen (Ziel)
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="z. B. 20"
+                      value={goalQuiz}
+                      onChange={(e) => setGoalQuiz(e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    Merk-Karten
+                    <input
+                      type="text"
+                      placeholder="7 oder alle"
+                      value={goalMerk}
+                      onChange={(e) => setGoalMerk(e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    Kopf-Karten
+                    <input
+                      type="text"
+                      placeholder="alle"
+                      value={goalMental}
+                      onChange={(e) => setGoalMental(e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    Eingabe-Karten
+                    <input
+                      type="text"
+                      placeholder="4"
+                      value={goalInput}
+                      onChange={(e) => setGoalInput(e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    Bis Datum
+                    <input
+                      type="date"
+                      value={goalDeadline}
+                      onChange={(e) => setGoalDeadline(e.target.value)}
+                    />
+                  </label>
+                </div>
               </div>
             </div>
           )}

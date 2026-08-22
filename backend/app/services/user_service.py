@@ -16,6 +16,7 @@ from app.core.auth.totp import (
     generate_totp_secret,
     provisioning_uri,
     verify_totp,
+    verify_totp_once,
 )
 from app.core.crypto import derive_user_key, encrypt_text, generate_salt
 from app.core.tenant import get_default_tenant
@@ -136,7 +137,7 @@ def complete_2fa_login(
     verified = False
     if totp_code and user.totp_secret_encrypted:
         secret = decrypt_totp_secret(user.totp_secret_encrypted)
-        verified = verify_totp(secret, totp_code)
+        verified = verify_totp_once(secret, totp_code, scope=str(user.id))
     elif recovery_code:
         verified = verify_and_consume_recovery_code(db, user.id, recovery_code)
 
@@ -170,7 +171,7 @@ def confirm_totp(db: Session, user: User, code: str, email: str) -> list[str]:
         raise AuthError("2FA-Setup nicht gestartet", "totp_not_started")
 
     secret = decrypt_totp_secret(user.totp_secret_encrypted)
-    if not verify_totp(secret, code):
+    if not verify_totp_once(secret, code, scope=f"setup:{user.id}"):
         raise AuthError("Ungültiger TOTP-Code", "invalid_totp")
 
     user.totp_enabled = True

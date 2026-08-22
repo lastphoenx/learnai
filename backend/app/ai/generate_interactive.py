@@ -43,6 +43,58 @@ from app.services.user_service import get_user_settings
 
 _log = logging.getLogger(__name__)
 
+
+def _validate_pedagogy_method_coverage(modules: list, pedagogy_profile: dict) -> None:
+    """Stichprobe: mindestens zwei Lösungswege aus dem Heft im generierten Inhalt."""
+    methods = pedagogy_profile.get("methods") if isinstance(pedagogy_profile, dict) else []
+    if not isinstance(methods, list) or len(methods) < 2:
+        return
+    expected = {
+        normalize_method_id(m.get("id"))
+        for m in methods
+        if isinstance(m, dict) and normalize_method_id(m.get("id"))
+    }
+    expected.discard("other")
+    if len(expected) < 2:
+        return
+    found: set[str] = set()
+    blob_parts: list[str] = []
+    for mod in modules:
+        if not isinstance(mod, dict):
+            continue
+        content = mod.get("content") if isinstance(mod.get("content"), dict) else {}
+        for card in content.get("cards") or []:
+            if not isinstance(card, dict):
+                continue
+            blob_parts.append(str(card.get("question") or ""))
+            blob_parts.append(str(card.get("answer") or ""))
+            mid = normalize_method_id(card.get("method_id") or card.get("expected_method"))
+            if mid:
+                found.add(mid)
+        for q in (mod.get("quiz") or {}).get("questions") or []:
+            if not isinstance(q, dict):
+                continue
+            blob_parts.append(str(q.get("q") or ""))
+            mid = normalize_method_id(q.get("method_id"))
+            if mid:
+                found.add(mid)
+    blob = " ".join(blob_parts).lower()
+    matched = found.intersection(expected)
+    if len(matched) >= min(2, len(expected)):
+        return
+    for method in methods:
+        if not isinstance(method, dict):
+            continue
+        mid = normalize_method_id(method.get("id"))
+        label = str(method.get("label") or "").strip().lower()
+        if mid and mid in expected and mid not in matched and label and label in blob:
+            matched.add(mid)
+    if len(matched) < min(2, len(expected)):
+        raise LlmError(
+            "Zu wenig Lösungswege aus dem Heft in Karten/Quiz — Didaktik nicht ausreichend umgesetzt",
+            "thin_content",
+        )
+
 _PLAN_NUM_PREDICT = 4096
 _BATCH_NUM_PREDICT = 8192
 _MIN_CARDS = 30
@@ -546,6 +598,8 @@ def generate_interactive_modules(
     modules, dedupe_warnings = dedupe_interactive_modules(modules)
     for warning in dedupe_warnings:
         _log.warning("generate_interactive dedupe unit_id=%s %s", unit_id, warning)
+
+    _validate_pedagogy_method_coverage(modules, pedagogy_profile)
 
     try:
         validate_interactive_modules(

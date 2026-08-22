@@ -36,6 +36,16 @@ def _client():
     return _redis
 
 
+def _redis_or_fail():
+    r = _client()
+    if not r:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Login-Schutz vorübergehend nicht verfügbar. Bitte später erneut versuchen.",
+        )
+    return r
+
+
 def _key_ip_block(ip: str) -> str:
     return f"auth:block:ip:{ip}"
 
@@ -82,9 +92,7 @@ def _ip_ok(ip: str | None) -> bool:
 
 def assert_login_allowed(*, ip: str | None, email: str) -> None:
     """Vor dem Passwort-Check: Rate-Limit, IP-/E-Mail-Sperren."""
-    r = _client()
-    if not r:
-        return
+    r = _redis_or_fail()
 
     email_hash = hash_email(email)
     if r.exists(_key_email_block(email_hash)):
@@ -107,9 +115,9 @@ def assert_login_allowed(*, ip: str | None, email: str) -> None:
 
 
 def assert_2fa_allowed(*, ip: str | None) -> None:
-    r = _client()
-    if not r or not _ip_ok(ip):
+    if not _ip_ok(ip):
         return
+    r = _redis_or_fail()
     if r.exists(_key_ip_block(ip)):
         raise _too_many()
     window = max(settings.login_rate_limit_window_sec, 1)
@@ -124,9 +132,7 @@ def assert_2fa_allowed(*, ip: str | None) -> None:
 
 def record_unknown_email(*, ip: str | None, email: str) -> None:
     """Unbekannte E-Mail (nicht vorerfasst): E-Mail dauerhaft; IP wenn Client-IP ermittelt."""
-    r = _client()
-    if not r:
-        return
+    r = _redis_or_fail()
     email_hash = hash_email(email)
     ttl = settings.login_unknown_block_ttl_sec or _FOREVER_TTL
     r.set(_key_email_block(email_hash), "unknown", ex=ttl)

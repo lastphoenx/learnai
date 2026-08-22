@@ -154,6 +154,52 @@ export type PracticeItem = {
   answer_type?: "text" | "number" | string;
 };
 
+export type CardKindGoal = number | "all" | null;
+
+export type LearnGoals = {
+  quiz?: number | null;
+  cards?: {
+    merk?: CardKindGoal;
+    mental?: CardKindGoal;
+    input?: CardKindGoal;
+  };
+  deadline?: string | null;
+};
+
+export type GoalProgressItem = {
+  key: string;
+  label: string;
+  done: number;
+  target: number | null;
+  percent: number | null;
+  met: boolean | null;
+  bonus: number;
+  remaining: number | null;
+  message: string | null;
+};
+
+export type GoalsProgressBlock = {
+  source: string;
+  quiz?: number | null;
+  cards?: LearnGoals["cards"];
+  deadline?: string | null;
+  days_left?: number | null;
+  overdue?: boolean;
+  items: GoalProgressItem[];
+  met_count: number;
+  active_count: number;
+  overall_percent: number | null;
+  headline: string | null;
+};
+
+export type GoalsProgress = {
+  parent: GoalsProgressBlock;
+  child: GoalsProgressBlock;
+  quiz_done: number;
+  card_done: Record<string, number>;
+  card_available: Record<string, number>;
+};
+
 export type TrainerOptions = {
   cards: number;
   questions: number;
@@ -271,6 +317,9 @@ export type TrainerPayload = {
     mental_cards?: number;
     input_cards?: number;
   };
+  learn_goals?: LearnGoals;
+  child_goals?: LearnGoals;
+  goals_progress?: GoalsProgress;
 };
 
 export type LearnState = {
@@ -355,6 +404,7 @@ export type LearningUnit = {
   profile_id?: string | null;
   learner_name?: string | null;
   trainer_options?: TrainerOptions;
+  learn_goals?: LearnGoals;
   sources?: UnitSource[];
   modules?: UnitModule[];
   exams?: ExamResult[];
@@ -606,6 +656,7 @@ export type UnitPatchBody = {
   math_focus?: string | null;
   auto_purge_sources?: boolean;
   trainer_options?: Partial<TrainerOptions>;
+  learn_goals?: LearnGoals | null;
 };
 
 export const patchUnit = (id: string, body: UnitPatchBody) =>
@@ -761,6 +812,12 @@ export async function waitForGenerateJob(
 
 export const fetchLearnState = (unitId: string) =>
   apiFetch<LearnState>(`/api/v1/units/${unitId}/learn`);
+
+export const patchChildLearnGoals = (unitId: string, body: LearnGoals) =>
+  apiFetch<{ child_goals: LearnGoals; goals_progress: GoalsProgress }>(
+    `/api/v1/units/${unitId}/learn/child-goals`,
+    { method: "PATCH", json: body },
+  );
 
 export const saveLearnPosition = (
   unitId: string,
