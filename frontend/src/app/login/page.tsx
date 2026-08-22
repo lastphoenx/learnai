@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { login, verify2fa } from "@/lib/api";
+import { PasswordInput } from "@/components/PasswordInput";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
 export default function LoginPage() {
@@ -77,16 +78,13 @@ export default function LoginPage() {
                 onChange={(e) => setEmail(e.target.value)}
               />
             </label>
-            <label>
-              Passwort
-              <input
-                type="password"
-                required
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </label>
+            <PasswordInput
+              label="Passwort"
+              required
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
             {error && <p className="err">{error}</p>}
             <button type="submit" disabled={loading}>
               {loading ? "…" : "Login"}

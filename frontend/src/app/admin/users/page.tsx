@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { InlineEditName } from "@/components/InlineEditName";
+import { PasswordInput } from "@/components/PasswordInput";
 import {
   createChildUser,
   createUser,
@@ -175,16 +176,13 @@ export default function AdminUsersPage() {
           E-Mail (Login)
           <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
         </label>
-        <label>
-          Startpasswort (min. 12 Zeichen)
-          <input
-            type="password"
-            required
-            minLength={12}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-        </label>
+        <PasswordInput
+          label="Startpasswort (min. 12 Zeichen)"
+          required
+          minLength={12}
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
         <label className="checkbox-row">
           <input type="checkbox" checked={makeAdmin} onChange={(e) => setMakeAdmin(e.target.checked)} />
           Admin
@@ -214,16 +212,13 @@ export default function AdminUsersPage() {
           E-Mail (Login für Kind, optional synthetisch)
           <input type="email" required value={childEmail} onChange={(e) => setChildEmail(e.target.value)} />
         </label>
-        <label>
-          Startpasswort
-          <input
-            type="password"
-            required
-            minLength={12}
-            value={childPassword}
-            onChange={(e) => setChildPassword(e.target.value)}
-          />
-        </label>
+        <PasswordInput
+          label="Startpasswort"
+          required
+          minLength={12}
+          value={childPassword}
+          onChange={(e) => setChildPassword(e.target.value)}
+        />
         <ParentSelects
           adults={adults}
           parent1={childParent1}

@@ -5,6 +5,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { InlineEditName } from "@/components/InlineEditName";
 import { LearnerSettingsForm, type TaskRow } from "@/components/LearnerSettingsForm";
+import { PasswordInput } from "@/components/PasswordInput";
 import { TotpQr } from "@/components/TotpQr";
 import {
   applyProfileRecommendations,
@@ -269,16 +270,13 @@ export default function SettingsPage() {
             E-Mail (Login Kind)
             <input type="email" required value={childEmail} onChange={(e) => setChildEmail(e.target.value)} />
           </label>
-          <label>
-            Startpasswort
-            <input
-              type="password"
-              required
-              minLength={12}
-              value={childPassword}
-              onChange={(e) => setChildPassword(e.target.value)}
-            />
-          </label>
+          <PasswordInput
+            label="Startpasswort"
+            required
+            minLength={12}
+            value={childPassword}
+            onChange={(e) => setChildPassword(e.target.value)}
+          />
           <button type="submit">Kind anlegen</button>
         </form>
       )}
