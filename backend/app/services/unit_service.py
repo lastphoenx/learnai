@@ -738,6 +738,104 @@ def create_review_from_unit(db: Session, user: User, unit_id: uuid.UUID) -> dict
     return _dec_unit(new_unit) if new_unit else result
 
 
+def _template_root_for_unit(unit: LearningUnit, record: LearningRecord | None) -> str:
+    if record and record.reconstruction_encrypted:
+        recon = decrypt_json(record.reconstruction_encrypted)
+        if isinstance(recon, dict):
+            root = str(recon.get("template_root_id") or "").strip()
+            if root:
+                return root
+    return str(unit.id)
+
+
+def _conflicting_template_sibling(
+    db: Session,
+    *,
+    tenant_id: uuid.UUID,
+    template_root: str,
+    profile_id: uuid.UUID,
+    exclude_unit_id: uuid.UUID,
+) -> LearningUnit | None:
+    candidates = (
+        db.query(LearningUnit)
+        .filter(
+            LearningUnit.tenant_id == tenant_id,
+            LearningUnit.profile_id == profile_id,
+            LearningUnit.id != exclude_unit_id,
+        )
+        .all()
+    )
+    for candidate in candidates:
+        record = db.query(LearningRecord).filter(LearningRecord.unit_id == candidate.id).first()
+        if _template_root_for_unit(candidate, record) == template_root:
+            return candidate
+    return None
+
+
+def update_unit_profile(
+    db: Session,
+    user: User,
+    unit_id: uuid.UUID,
+    *,
+    profile_id: uuid.UUID | None,
+) -> dict:
+    """Kind-Zuordnung setzen oder aufheben — Einheit bleibt erhalten."""
+    if user.is_child:
+        raise UnitError("Nur für Eltern-Accounts", "forbidden")
+    unit = _get_unit_or_404(db, user, unit_id)
+    record = db.query(LearningRecord).filter(LearningRecord.unit_id == unit.id).first()
+    template_root = _template_root_for_unit(unit, record)
+
+    new_profile_id: uuid.UUID | None = None
+    new_learner_id = unit.created_by_id
+
+    if profile_id is not None:
+        profile = get_profile_for_actor(db, user, profile_id)
+        if not profile.is_child_profile:
+            raise UnitError("Nur Kinder-Profile können zugewiesen werden", "invalid_profile")
+        conflict = _conflicting_template_sibling(
+            db,
+            tenant_id=user.tenant_id,
+            template_root=template_root,
+            profile_id=profile.id,
+            exclude_unit_id=unit.id,
+        )
+        if conflict:
+            raise UnitError(
+                "Dieses Kind hat bereits eine Kopie dieser Einheit",
+                "already_assigned",
+            )
+        new_profile_id = profile.id
+        if profile.user_id:
+            new_learner_id = profile.user_id
+
+    unit.profile_id = new_profile_id
+    unit.learner_id = new_learner_id
+    if record:
+        record.profile_id = new_profile_id
+        record.user_id = new_learner_id
+        _add_event(
+            db,
+            record,
+            "unit_profile_changed",
+            {
+                "profile_id": str(new_profile_id) if new_profile_id else None,
+                "learner_id": str(new_learner_id),
+            },
+        )
+    db.flush()
+    log_event(
+        db,
+        tenant_id=user.tenant_id,
+        actor_id=user.id,
+        action="unit.profile",
+        resource_type="learning_unit",
+        resource_id=unit.id,
+        detail=f"profile_id={new_profile_id or 'none'}",
+    )
+    return get_unit(db, user, unit.id)
+
+
 def update_unit_flags(
     db: Session,
     user: User,

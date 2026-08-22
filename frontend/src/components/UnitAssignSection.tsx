@@ -2,7 +2,13 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { assignUnitToProfiles, fetchUnits, type LearnerProfile, type LearningUnit } from "@/lib/api";
+import {
+  assignUnitToProfiles,
+  fetchUnits,
+  patchUnitProfile,
+  type LearnerProfile,
+  type LearningUnit,
+} from "@/lib/api";
 import { LearnerMultiSelect } from "@/components/LearnerMultiSelect";
 import { siblingCopyForProfile } from "@/lib/unitTemplateFamily";
 
@@ -13,7 +19,6 @@ type Props = {
   learnerName?: string | null;
   profiles: LearnerProfile[];
   onAssigned: () => void;
-  onRequestRemove?: () => void;
 };
 
 export function UnitAssignSection({
@@ -23,11 +28,10 @@ export function UnitAssignSection({
   learnerName,
   profiles,
   onAssigned,
-  onRequestRemove,
 }: Props) {
   const [allUnits, setAllUnits] = useState<LearningUnit[]>([]);
-  const [open, setOpen] = useState(false);
-  const [selected, setSelected] = useState<string[]>([]);
+  const [copyOpen, setCopyOpen] = useState(false);
+  const [selectedCopyIds, setSelectedCopyIds] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -41,14 +45,14 @@ export function UnitAssignSection({
     fetchUnits()
       .then(setAllUnits)
       .catch(() => setAllUnits([]));
-  }, [unitId, message]);
+  }, [unitId, message, currentProfileId]);
 
   const unitForMatch = useMemo(
     () => allUnits.find((u) => u.id === unitId) || ({ ...currentUnit, id: unitId } as LearningUnit),
     [allUnits, currentUnit, unitId],
   );
 
-  const assignableIds = useMemo(() => {
+  const assignableCopyIds = useMemo(() => {
     return children
       .filter((child) => {
         if (child.id === currentProfileId) return false;
@@ -60,24 +64,27 @@ export function UnitAssignSection({
       .map((child) => child.id);
   }, [allUnits, children, currentProfileId, unitForMatch]);
 
-  async function onAssign() {
-    const ids = selected.filter((id) => assignableIds.includes(id));
-    if (!ids.length) {
-      setError("Bitte mindestens ein Kind ohne Kopie wählen.");
-      return;
-    }
+  async function onUnassign() {
     setBusy(true);
     setError(null);
     try {
-      const res = await assignUnitToProfiles(unitId, ids);
-      const withBlocks = (res.units || []).filter((u) => (u.module_count || 0) > 0).length;
-      const blockHint =
-        withBlocks > 0
-          ? ` — ${withBlocks} mit Lernblöcken, sofort lernbereit`
-          : "";
-      setMessage(`${res.created_count} Kopie(n) erstellt${blockHint}.`);
-      setOpen(false);
-      setSelected([]);
+      await patchUnitProfile(unitId, null);
+      setMessage("Zuordnung aufgehoben — Einheit ist keinem Kind mehr zugewiesen.");
+      onAssigned();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Zuordnung konnte nicht aufgehoben werden");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onAssignTo(childId: string) {
+    setBusy(true);
+    setError(null);
+    try {
+      await patchUnitProfile(unitId, childId);
+      const child = children.find((c) => c.id === childId);
+      setMessage(child ? `Zugewiesen an ${child.display_name}.` : "Kind zugewiesen.");
       onAssigned();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Zuweisung fehlgeschlagen");
@@ -86,34 +93,53 @@ export function UnitAssignSection({
     }
   }
 
+  async function onCreateCopies() {
+    const ids = selectedCopyIds.filter((id) => assignableCopyIds.includes(id));
+    if (!ids.length) {
+      setError("Bitte mindestens ein Kind ohne Kopie wählen.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await assignUnitToProfiles(unitId, ids);
+      setMessage(`${res.created_count} Kopie(n) für weitere Kinder erstellt.`);
+      setCopyOpen(false);
+      setSelectedCopyIds([]);
+      onAssigned();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Kopien konnten nicht erstellt werden");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <section className="card unit-section unit-assign-section">
-      <h2>Kinder & Kopien</h2>
+      <h2>Kinder & Zuweisung</h2>
       <p className="muted section-lead">
-        Jede Lerneinheit gehört genau einem Kind. Für weitere Kinder wird eine vollständige Kopie erstellt
-        (eigener Fortschritt, gleiche Inhalte). Die Zuordnung aufheben = diese Kopie löschen.
+        Diese Einheit kann genau einem Kind zugeordnet sein — oder vorübergehend keinem. Für ein zweites Kind
+        wird eine Kopie erstellt (eigener Fortschritt).
       </p>
-
-      {children.length === 1 && (
-        <p className="muted empty-hint">
-          Nur ein Kind im Haushalt. Um Kopien für Geschwister anzulegen, zuerst ein weiteres Kind unter{" "}
-          <Link href="/settings">Einstellungen</Link> anlegen.
-        </p>
-      )}
 
       {currentProfileId ? (
         <p className="unit-assign-current">
-          <span className="badge badge-neutral">Diese Kopie</span>
-          <strong>{learnerName || "Zugewiesenes Kind"}</strong>
+          <span className="badge badge-ready">Zugewiesen</span>
+          <strong>{learnerName || "Kind"}</strong>
+          <button type="button" className="btn btn-sm ghost" onClick={onUnassign} disabled={busy}>
+            Zuordnung aufheben
+          </button>
         </p>
       ) : (
-        <p className="muted">Kein Kind zugewiesen — beim Erstellen oder per Kopie zuweisen.</p>
+        <p className="unit-assign-current">
+          <span className="badge badge-neutral">Nicht zugewiesen</span>
+          <span className="muted">Kein Kind — unten zuweisen</span>
+        </p>
       )}
 
       {children.length === 0 ? (
         <p className="muted empty-hint">
-          Noch keine Kinder-Profile. Unter <Link href="/settings">Einstellungen</Link> oder Admin → Benutzer
-          Kind-Accounts anlegen.
+          Noch keine Kinder-Profile. Unter <Link href="/settings">Einstellungen</Link> Kind-Accounts anlegen.
         </p>
       ) : (
         <ul className="unit-assign-children">
@@ -128,18 +154,20 @@ export function UnitAssignSection({
                 <span>{child.display_name}</span>
                 <div className="unit-assign-child-actions">
                   {isCurrent ? (
-                    <>
-                      <span className="badge badge-ready">aktuelle Einheit</span>
-                      {onRequestRemove ? (
-                        <button type="button" className="btn btn-sm ghost danger-text" onClick={onRequestRemove}>
-                          Zuordnung aufheben…
-                        </button>
-                      ) : null}
-                    </>
+                    <span className="badge badge-ready">diese Einheit</span>
                   ) : sibling ? (
                     <Link className="btn btn-sm" href={`/units/${sibling.id}`}>
                       Kopie öffnen
                     </Link>
+                  ) : !currentProfileId ? (
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-primary"
+                      onClick={() => onAssignTo(child.id)}
+                      disabled={busy}
+                    >
+                      Zuweisen
+                    </button>
                   ) : (
                     <span className="muted">noch keine Kopie</span>
                   )}
@@ -151,27 +179,27 @@ export function UnitAssignSection({
       )}
 
       {message && <p className="muted">{message}</p>}
+      {error && <p className="err">{error}</p>}
 
-      {children.length > 1 && assignableIds.length > 0 && (
+      {currentProfileId && children.length > 1 && assignableCopyIds.length > 0 && (
         <>
-          {!open ? (
-            <button type="button" className="btn btn-primary" onClick={() => setOpen(true)}>
+          {!copyOpen ? (
+            <button type="button" className="btn" onClick={() => setCopyOpen(true)} disabled={busy}>
               Kopie für weiteres Kind erstellen
             </button>
           ) : (
             <div className="stack">
               <LearnerMultiSelect
-                profiles={children.filter((c) => assignableIds.includes(c.id))}
-                selectedIds={selected}
-                onChange={setSelected}
+                profiles={children.filter((c) => assignableCopyIds.includes(c.id))}
+                selectedIds={selectedCopyIds}
+                onChange={setSelectedCopyIds}
                 label="Kinder ohne Kopie"
               />
-              {error && <p className="err">{error}</p>}
               <div className="filter-row">
-                <button type="button" className="btn-primary" onClick={onAssign} disabled={busy}>
+                <button type="button" className="btn-primary" onClick={onCreateCopies} disabled={busy}>
                   {busy ? "Erstelle…" : "Kopien erstellen"}
                 </button>
-                <button type="button" className="ghost" onClick={() => setOpen(false)} disabled={busy}>
+                <button type="button" className="ghost" onClick={() => setCopyOpen(false)} disabled={busy}>
                   Abbrechen
                 </button>
               </div>
@@ -180,8 +208,8 @@ export function UnitAssignSection({
         </>
       )}
 
-      {children.length > 1 && assignableIds.length === 0 && !message && (
-        <p className="muted empty-hint">Alle Kinder haben bereits eine Kopie dieser Einheit.</p>
+      {currentProfileId && children.length > 1 && assignableCopyIds.length === 0 && !message && (
+        <p className="muted empty-hint">Alle anderen Kinder haben bereits eine Kopie.</p>
       )}
     </section>
   );

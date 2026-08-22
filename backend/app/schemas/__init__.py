@@ -149,6 +149,10 @@ class UnitAssignRequest(BaseModel):
     profile_ids: list[str] = Field(min_length=1)
 
 
+class UnitProfileRequest(BaseModel):
+    profile_id: str | None = Field(default=None, max_length=64)
+
+
 class TrainerOptionsSchema(BaseModel):
     cards: int = Field(default=50, ge=10, le=100)
     questions: int = Field(default=50, ge=10, le=100)
