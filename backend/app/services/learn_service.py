@@ -576,6 +576,8 @@ def submit_card_input_answer(
         user_answer=answer_text,
         worked_solution=worked_solution,
         expected_method=str(card.get("expected_method") or "") or None,
+        expected_method_label=str(card.get("method_label") or "") or None,
+        answer_type=str(card.get("answer_type") or "") or None,
     )
 
     mod_key = str(module.id)

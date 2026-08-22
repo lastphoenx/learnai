@@ -1,4 +1,3 @@
-from app.ai.generate_interactive import _validate_pedagogy_method_coverage
 from app.core.pedagogy_labels import (
     collect_content_blob,
     count_label_coverage,
@@ -6,6 +5,7 @@ from app.core.pedagogy_labels import (
     material_labels_from_methods,
     resolve_method_entry,
 )
+from app.core.pedagogy_validation import enforce_label_coverage
 from app.ai.providers import LlmError
 import pytest
 
@@ -74,7 +74,7 @@ def test_validate_pedagogy_method_coverage_passes_with_labels():
             },
         }
     ]
-    _validate_pedagogy_method_coverage(modules, profile)
+    enforce_label_coverage(modules, profile)
 
 
 def test_validate_pedagogy_method_coverage_fails_without_labels():
@@ -91,4 +91,4 @@ def test_validate_pedagogy_method_coverage_fails_without_labels():
         }
     ]
     with pytest.raises(LlmError):
-        _validate_pedagogy_method_coverage(modules, profile)
+        enforce_label_coverage(modules, profile)

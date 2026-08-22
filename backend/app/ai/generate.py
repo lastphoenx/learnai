@@ -22,6 +22,7 @@ from app.ai.source_pedagogy import (
     vision_pedagogy_prompt,
 )
 from app.ai.prompts.pedagogy import pedagogy_context_block
+from app.core.pedagogy_validation import log_pedagogy_coverage_warnings
 from app.config import settings
 from app.core.crypto import decrypt_text_master, encrypt_text_master
 from app.models import LearningRecord, LearningUnit, UnitModule, User
@@ -492,6 +493,8 @@ def generate_modules(
         len(modules),
         int((time.monotonic() - t_chat) * 1000),
     )
+
+    log_pedagogy_coverage_warnings(modules, pedagogy_profile, unit_id=str(unit_id))
 
     saved = _save_generated_modules(
         db,

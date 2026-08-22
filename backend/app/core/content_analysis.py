@@ -35,6 +35,9 @@ def classify_operation(text: str) -> str:
 
 
 def _resolve_card_method(card: dict) -> str:
+    label = str(card.get("method_label") or "").strip()
+    if label:
+        return f"@{label}"
     explicit = normalize_method_id(card.get("method_id") or card.get("expected_method"))
     if explicit:
         return explicit
@@ -63,7 +66,7 @@ def _count_ops(texts: list[str]) -> dict[str, int]:
 
 
 def _count_methods(items: list[dict], *, item_kind: str) -> dict[str, int]:
-    counts = {key: 0 for key in METHOD_LABELS}
+    counts: dict[str, int] = {key: 0 for key in METHOD_LABELS}
     for item in items:
         if not isinstance(item, dict):
             continue
@@ -71,8 +74,20 @@ def _count_methods(items: list[dict], *, item_kind: str) -> dict[str, int]:
             method = _resolve_card_method(item)
         else:
             method = _resolve_quiz_method(item)
-        counts[method] = counts.get(method, 0) + 1
+        if method.startswith("@"):
+            counts[method] = counts.get(method, 0) + 1
+        else:
+            counts[method] = counts.get(method, 0) + 1
     return counts
+
+
+def _method_display_labels(counts: dict[str, int]) -> dict[str, str]:
+    labels = dict(METHOD_LABELS)
+    for key, count in counts.items():
+        if count <= 0 or not key.startswith("@"):
+            continue
+        labels[key] = key[1:]
+    return labels
 
 
 def _format_breakdown(counts: dict[str, int], *, total: int, labels: dict[str, str]) -> list[dict]:
@@ -143,12 +158,12 @@ def analyze_interactive_modules(modules: list) -> dict:
                 "quiz_total": len(module_quiz),
                 "quiz_ops": _format_breakdown(quiz_counts, total=len(module_quiz) or 1, labels=_OP_LABELS),
                 "quiz_methods": _format_breakdown(
-                    quiz_methods, total=len(module_quiz) or 1, labels=METHOD_LABELS
+                    quiz_methods, total=len(module_quiz) or 1, labels=_method_display_labels(quiz_methods)
                 ),
                 "card_total": len(module_cards),
                 "card_ops": _format_breakdown(card_counts, total=len(module_cards) or 1, labels=_OP_LABELS),
                 "card_methods": _format_breakdown(
-                    card_methods, total=len(module_cards) or 1, labels=METHOD_LABELS
+                    card_methods, total=len(module_cards) or 1, labels=_method_display_labels(card_methods)
                 ),
             }
         )
@@ -159,20 +174,23 @@ def analyze_interactive_modules(modules: list) -> dict:
     card_methods = _count_methods(card_items, item_kind="card")
     quiz_total = len(quiz_texts)
     card_total = len(card_texts)
-    method_summary = _summary_sentence("Lernkarten (Lösungswege)", card_methods, card_total, METHOD_LABELS)
-    quiz_method_summary = _summary_sentence("Quizfragen (Lösungswege)", quiz_methods, quiz_total, METHOD_LABELS)
+    method_labels = _method_display_labels(card_methods)
+    method_summary = _summary_sentence("Lernkarten (Lösungswege)", card_methods, card_total, method_labels)
+    quiz_method_summary = _summary_sentence(
+        "Quizfragen (Lösungswege)", quiz_methods, quiz_total, _method_display_labels(quiz_methods)
+    )
     return {
         "quiz": {
             "total": quiz_total,
             "operations": _format_breakdown(quiz_counts, total=quiz_total or 1, labels=_OP_LABELS),
-            "methods": _format_breakdown(quiz_methods, total=quiz_total or 1, labels=METHOD_LABELS),
+            "methods": _format_breakdown(quiz_methods, total=quiz_total or 1, labels=_method_display_labels(quiz_methods)),
             "summary": _summary_sentence("Quizfragen", quiz_counts, quiz_total, _OP_LABELS),
             "methods_summary": quiz_method_summary,
         },
         "cards": {
             "total": card_total,
             "operations": _format_breakdown(card_counts, total=card_total or 1, labels=_OP_LABELS),
-            "methods": _format_breakdown(card_methods, total=card_total or 1, labels=METHOD_LABELS),
+            "methods": _format_breakdown(card_methods, total=card_total or 1, labels=method_labels),
             "summary": _summary_sentence("Lernkarten", card_counts, card_total, _OP_LABELS),
             "methods_summary": method_summary,
         },
