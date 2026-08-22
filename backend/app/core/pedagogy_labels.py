@@ -46,11 +46,48 @@ _STOPWORDS = frozenset(
 
 _TOKEN_RE = re.compile(r"[a-z0-9äöüß]+", re.I)
 
+# Wörtliche Schema-/Prompt-Texte, die die Vision-KI manchmal als Inhalt zurückgibt.
+_SCHEMA_PLACEHOLDERS = frozenset(
+    {
+        "wann diese methode sinnvoll ist",
+        "kurzes beispiel aus dem bild",
+        "freier kurzname fur erkannten aufgabentyp",
+        "freier kurzname fuer erkannten aufgabentyp",
+        "didaktische hinweise aus dem material",
+        "bezeichnung exakt wie im heft",
+        "bezeichnung wie im heft",
+        "optional nur wenn passend",
+        "optional bezeichnung aus dem heft",
+        "2 6 satze thema seiteninhalt lernziele",
+    }
+)
+
 
 def normalize_label(text: str | None) -> str:
     raw = unicodedata.normalize("NFKC", str(text or "")).strip().lower()
     raw = raw.replace("ä", "ae").replace("ö", "oe").replace("ü", "ue").replace("ß", "ss")
+    raw = re.sub(r"[^\w\s]", " ", raw)
     return re.sub(r"\s+", " ", raw).strip()
+
+
+def is_schema_placeholder(text: str | None) -> bool:
+    """True, wenn der Wert nur die Schema-Beschreibung aus dem Vision-Prompt echo't."""
+    normalized = normalize_label(text)
+    if not normalized:
+        return False
+    if normalized in _SCHEMA_PLACEHOLDERS:
+        return True
+    for placeholder in _SCHEMA_PLACEHOLDERS:
+        if len(placeholder) >= 12 and placeholder in normalized and len(normalized) <= len(placeholder) + 8:
+            return True
+    return False
+
+
+def sanitize_pedagogy_field(text: str | None) -> str:
+    cleaned = str(text or "").strip()
+    if is_schema_placeholder(cleaned):
+        return ""
+    return cleaned
 
 
 def label_tokens(label: str) -> list[str]:
@@ -89,8 +126,8 @@ def guess_method_id(label: str, *, when: str = "", example: str = "") -> str | N
 def resolve_method_entry(item: dict) -> dict[str, str]:
     """Normalisiert eine Methoden-Zeile: label primär, id optional."""
     label = str(item.get("label") or "").strip()
-    when = str(item.get("when") or "").strip()
-    example = str(item.get("example") or "").strip()
+    when = sanitize_pedagogy_field(str(item.get("when") or "").strip())
+    example = sanitize_pedagogy_field(str(item.get("example") or "").strip())
     raw_id = str(item.get("id") or "").strip().lower()
     method_id = normalize_method_id(raw_id) if raw_id else None
     if not method_id:
