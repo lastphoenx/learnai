@@ -38,9 +38,11 @@ CARDS_SYSTEM = (
 
 TYPED_CARDS_SYSTEM = (
     "Du schreibst drei Arten Lernkarten für einen Lerntrainer. Antworte NUR mit JSON.\n"
-    'Schema: {"merk_cards":[{"question":"...","answer":"...","tip":"...","method_id":"mental|notes|numberline|written|decomposition|supplement|other"}],'
+    'Schema: {"merk_cards":[{"question":"...","answer":"...","tip":"...","method_label":"Bezeichnung aus dem Heft",'
+    '"method_id":"optional"}],'
     '"mental_cards":[{"question":"...","answer":"...","tip":"..."}],'
-    '"input_cards":[{"question":"...","answer":"...","tip":"...","expected_method":"mental|notes|numberline|written|decomposition|supplement"}]}\n'
+    '"input_cards":[{"question":"...","answer":"...","tip":"...","method_label":"Bezeichnung aus dem Heft",'
+    '"expected_method":"optional"}]}\n'
     "Regeln:\n"
     "- merk_cards: Merkregeln, typische Fehler, Lösungswege — KEINE reine Kopfrechnung.\n"
     "- mental_cards: kurze Kopf-Rechnaufgaben (Frage → Antwort), 1 Schritt im Kopf.\n"

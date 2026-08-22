@@ -403,7 +403,19 @@ export default function UnitDetailPage() {
                 Lösungswege und Aufgabentypen aus dem Heft — Grundlage für Verstehen, Üben und Check.
               </p>
               {pedagogy?.has_pedagogy ? (
-                <pre className="unit-pedagogy-digest">{pedagogy.digest}</pre>
+                <>
+                  {pedagogy.profile?.methods && pedagogy.profile.methods.length > 0 && (
+                    <ul className="unit-pedagogy-methods">
+                      {pedagogy.profile.methods.map((method, index) => (
+                        <li key={`${method.label}-${index}`} className="unit-pedagogy-method">
+                          <strong>{method.label}</strong>
+                          {method.when ? <span className="muted"> — {method.when}</span> : null}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <pre className="unit-pedagogy-digest">{pedagogy.digest}</pre>
+                </>
               ) : (
                 <p className="muted empty-hint">
                   Noch keine strukturierte Didaktik. Lies die Quellen ein, bevor du generierst — oder starte

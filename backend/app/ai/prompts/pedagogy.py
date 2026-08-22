@@ -5,8 +5,8 @@ from __future__ import annotations
 PEDAGOGY_RULES = (
     "Didaktik-Regeln (aus Quellen und Schwerpunkt):\n"
     "- Lösungswege aus dem Material sind Pflichtinhalt — nicht nur Endergebnisse.\n"
-    "- Typische Wege: im Kopf, mit Notizen, Rechenstrich, schriftlich, Zerlegung, ergänzen.\n"
-    "- Aufgaben wie «Wähle ein geeignetes Vorgehen» oder «Dezimalpunkt ergänzen» aus dem Heft übernehmen.\n"
+    "- Benenne Strategien so, wie sie im Didaktik-Block / Heft stehen (Freitext-Labels).\n"
+    "- Aufgabentypen und Übungsformate aus dem Material übernehmen, nicht durch feste Kategorien ersetzen.\n"
     "- Bei Rechenaufgaben: passende Methode nennen oder verlangen (nicht nur die Zahl).\n"
 )
 
@@ -19,11 +19,11 @@ PLAN_PEDAGOGY_RULES = (
 
 TYPED_CARDS_PEDAGOGY_RULES = (
     "Karten nach Didaktik:\n"
-    "- merk_cards: je gezeigter Strategie mindestens eine Karte; method_id Pflicht "
-    "(mental|notes|numberline|written|decomposition|supplement|other).\n"
+    "- merk_cards: je gezeigter Strategie aus dem Didaktik-Block mindestens eine Karte.\n"
+    "- method_label: Bezeichnung aus dem Heft (Pflicht, wenn Strategie aus dem Material).\n"
+    "- method_id: optional, nur für UI-Gruppierung — nie erfinden, wenn keine passt.\n"
     "- mental_cards: nur Aufgaben, die wirklich im Kopf lösbar sind.\n"
-    "- input_cards: Aufgabe nennt die Methode; expected_method Pflicht "
-    "(mental|notes|numberline|written|decomposition|supplement); answer = Ergebnis.\n"
+    "- input_cards: Aufgabe nennt die Methode im Wortlaut des Hefts; expected_method optional.\n"
 )
 
 KNOWLEDGE_PEDAGOGY_RULES = (
@@ -38,10 +38,10 @@ KNOWLEDGE_PEDAGOGY_RULES = (
 QUIZ_PEDAGOGY_RULES = (
     "Quiz-Didaktik:\n"
     "- Ca. 20–30 % Fragen mit question_type=method (Strategiewahl).\n"
-    "- method-Fragen: options = Lösungswege; method_id der richtigen Antwort setzen.\n"
+    "- method-Fragen: options = Lösungswege aus dem Didaktik-Block (Heft-Wortlaut).\n"
     "- Rechenfragen: question_type=calculation; explanation mit mindestens 2 Varianten.\n"
     "- Wenn im Didaktik-Block worked_examples stehen: mindestens eine Variante daraus übernehmen.\n"
-    "- Bezug zu Methoden aus dem Didaktik-Block, wenn vorhanden.\n"
+    "- Bezug zu Methoden-Labels aus dem Didaktik-Block, wenn vorhanden.\n"
 )
 
 

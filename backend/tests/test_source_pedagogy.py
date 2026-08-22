@@ -16,16 +16,19 @@ def test_parse_pedagogy_extraction_json():
         "is_metadata_only": False,
         "methods": [
             {
-                "id": "mental",
                 "label": "im Kopf",
                 "when": "bei einfachen Zahlen",
                 "example": "3,7 + 20,1",
-            }
+            },
+            {
+                "label": "Faktorisierung nach Ausklammern",
+                "when": "bei gemeinsamen Faktoren",
+            },
         ],
         "worked_examples": [
             {
                 "problem": "24 · 9,36",
-                "method_id": "decomposition",
+                "method_label": "Zerlegung",
                 "steps": ["20 · 9,36", "4 · 9,36", "addieren"],
             }
         ],
@@ -36,7 +39,11 @@ def test_parse_pedagogy_extraction_json():
     summary, pedagogy = parse_pedagogy_extraction(json.dumps(payload))
     assert "Dezimalzahlen" in summary
     assert pedagogy["methods"][0]["label"] == "im Kopf"
+    assert pedagogy["methods"][0].get("id") == "mental"
+    assert pedagogy["methods"][1]["label"] == "Faktorisierung nach Ausklammern"
+    assert "id" not in pedagogy["methods"][1]
     assert pedagogy["worked_examples"][0]["problem"] == "24 · 9,36"
+    assert pedagogy["worked_examples"][0]["method_label"] == "Zerlegung"
 
 
 def test_merge_pedagogy_profiles_dedupes_methods():
@@ -74,7 +81,7 @@ def test_build_pedagogy_digest_includes_methods_and_verstehen_examples():
     digest = build_pedagogy_digest(profile)
     assert "schriftlich" in digest
     assert "Verstehen" in digest
-    assert "Vorgehen wählen" in digest
+    assert "vorgehen waehlen" in digest
 
 
 def test_encode_decode_source_analysis_roundtrip():
