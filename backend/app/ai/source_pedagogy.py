@@ -119,8 +119,6 @@ def parse_pedagogy_extraction(text: str) -> tuple[str, dict[str, Any]]:
     pedagogy = _normalize_pedagogy(parsed)
     if not summary:
         summary = _fallback_summary(pedagogy)
-    if not summary:
-        summary = raw[:4000]
 
     return summary, pedagogy
 
