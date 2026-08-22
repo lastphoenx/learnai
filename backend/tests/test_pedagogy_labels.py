@@ -18,6 +18,7 @@ def test_schema_placeholder_detection():
     assert is_schema_placeholder("kurzer Satz: wann passt diese Strategie (aus dem Material)")
     assert is_schema_placeholder("kurzes Beispiel mit Zahlen/Text aus dem Bild")
     assert is_schema_placeholder("kurzer Name des Aufgabentyps aus dem Heft")
+    assert is_schema_placeholder("2-6 Sätze: Thema, Seiteninhalt, Lernziele")
     assert not is_schema_placeholder("Wenn eine einfache Rechnung im Kopf ausreicht")
     assert sanitize_pedagogy_field("kurzes Beispiel aus dem Bild") == ""
 

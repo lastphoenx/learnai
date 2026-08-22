@@ -12,6 +12,7 @@ from app.core.crypto import decrypt_text_master, encrypt_text_master
 from app.core.crypto.classification import DataClassification
 from app.models import ExamResult, LearningRecord, LearningUnit, User
 from app.ai.error_tags import resolve_error_label, resolve_error_pattern
+from app.services.audit import log_event
 from app.services.crypto_json import decrypt_json, encrypt_json
 from app.services.unit_service import (
     UnitError,
