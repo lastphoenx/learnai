@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Aktuelle Login-Sperren und Zähler in Redis anzeigen.
 
+E-Mails liegen in der DB nur als email_hash (SHA256) — Klartext ist nicht nötig.
 Container: docker compose exec -T api python /opt/scripts/list_login_blocks.py
 """
 
@@ -9,15 +10,22 @@ from __future__ import annotations
 import argparse
 import sys
 from collections import defaultdict
+from dataclasses import dataclass
 from pathlib import Path
 
 _backend = Path(__file__).resolve().parents[1] / "backend"
 sys.path.insert(0, str(_backend if _backend.is_dir() else Path("/app")))
 
 from app.core.auth.bruteforce import _client  # noqa: E402
-from app.core.auth.passwords import hash_email  # noqa: E402
 from app.core.db.session import SessionLocal  # noqa: E402
 from app.models import User  # noqa: E402
+from app.services.user_service import _account_display_name  # noqa: E402
+
+
+@dataclass(frozen=True)
+class UserRef:
+    user_id: str
+    display_name: str
 
 
 def _fmt_ttl(ttl: int) -> str:
@@ -36,11 +44,14 @@ def _fmt_ttl(ttl: int) -> str:
     return f"{ttl}s"
 
 
-def _email_lookup() -> dict[str, str]:
+def _users_by_email_hash() -> dict[str, UserRef]:
     db = SessionLocal()
     try:
-        users = db.query(User.email).all()
-        return {hash_email(email): email for (email,) in users}
+        result: dict[str, UserRef] = {}
+        for user in db.query(User).all():
+            name = _account_display_name(user) or "(ohne Namen)"
+            result[user.email_hash] = UserRef(str(user.id), name)
+        return result
     finally:
         db.close()
 
@@ -53,6 +64,13 @@ def _print_section(title: str) -> None:
     print()
     print(title)
     print("-" * len(title))
+
+
+def _email_label(email_hash: str, users_by_hash: dict[str, UserRef]) -> str:
+    ref = users_by_hash.get(email_hash)
+    if ref:
+        return f"{ref.display_name} (registriert, id {ref.user_id[:8]}…)"
+    return f"unbekannte E-Mail (hash {email_hash[:12]}…)"
 
 
 def main() -> int:
@@ -70,10 +88,10 @@ def main() -> int:
         print("Redis nicht erreichbar.", file=sys.stderr)
         return 1
 
-    email_by_hash = _email_lookup()
+    users_by_hash = _users_by_email_hash()
 
     block_ips: list[tuple[str, str, int]] = []
-    block_emails: list[tuple[str, str, str, int]] = []
+    block_emails: list[tuple[str, str, int]] = []
 
     for key in _scan_auth_keys(r, "auth:block:ip:*"):
         ip = key.removeprefix("auth:block:ip:")
@@ -85,8 +103,7 @@ def main() -> int:
         email_hash = key.removeprefix("auth:block:email:")
         reason = r.get(key) or "?"
         ttl = int(r.ttl(key))
-        email = email_by_hash.get(email_hash, "")
-        block_emails.append((email_hash, email, reason, ttl))
+        block_emails.append((email_hash, reason, ttl))
 
     _print_section("Gesperrte IPs")
     if not block_ips:
@@ -95,33 +112,34 @@ def main() -> int:
         for ip, reason, ttl in block_ips:
             print(f"  {ip:<40} Grund: {reason:<16} TTL: {_fmt_ttl(ttl)}")
 
-    _print_section("Gesperrte E-Mails")
+    _print_section("Gesperrte E-Mails (Hash, Klartext nicht in DB)")
     if not block_emails:
         print("(keine)")
     else:
-        for email_hash, email, reason, ttl in block_emails:
-            label = email if email else f"(unbekannt, hash {email_hash[:12]}…)"
-            print(f"  {label:<40} Grund: {reason:<16} TTL: {_fmt_ttl(ttl)}")
+        for email_hash, reason, ttl in block_emails:
+            label = _email_label(email_hash, users_by_hash)
+            print(f"  {label}")
+            print(f"    hash: {email_hash}")
+            print(f"    Grund: {reason:<16} TTL: {_fmt_ttl(ttl)}")
 
     if args.verbose:
-        fail_by_ip: dict[str, list[tuple[str, int]]] = defaultdict(list)
+        fail_by_target: dict[str, list[tuple[str, str, int]]] = defaultdict(list)
         for key in _scan_auth_keys(r, "auth:fail:*"):
             ttl = int(r.ttl(key))
             value = r.get(key) or "?"
             if key.startswith("auth:fail:ip:"):
-                fail_by_ip[key.removeprefix("auth:fail:ip:")].append(("login", value, ttl))
+                fail_by_target[key.removeprefix("auth:fail:ip:")].append(("login", value, ttl))
             elif key.startswith("auth:fail:email:"):
                 email_hash = key.removeprefix("auth:fail:email:")
-                email = email_by_hash.get(email_hash, email_hash[:12] + "…")
-                fail_by_ip[email].append(("email", value, ttl))
+                fail_by_target[_email_label(email_hash, users_by_hash)].append(("email", value, ttl))
             elif key.startswith("auth:fail:2fa:"):
-                fail_by_ip[key.removeprefix("auth:fail:2fa:")].append(("2fa", value, ttl))
+                fail_by_target[key.removeprefix("auth:fail:2fa:")].append(("2fa", value, ttl))
 
         _print_section("Aktive Fehlversuchs-Zähler (noch nicht gesperrt)")
-        if not fail_by_ip:
+        if not fail_by_target:
             print("(keine)")
         else:
-            for target, entries in sorted(fail_by_ip.items()):
+            for target, entries in sorted(fail_by_target.items()):
                 for kind, value, ttl in entries:
                     print(f"  {target:<40} {kind}: {value}  TTL: {_fmt_ttl(ttl)}")
 
@@ -138,11 +156,26 @@ def main() -> int:
 
     print()
     print(f"Zusammenfassung: {len(block_ips)} IP-Sperre(n), {len(block_emails)} E-Mail-Sperre(n)")
-    unknown_blocks = sum(1 for _, email, _, _ in block_emails if not email)
+
+    if block_ips or block_emails:
+        _print_section("Entsperren (Beispiele)")
+        for ip, _, _ in block_ips:
+            print(f"  docker compose exec -T api python /opt/scripts/unlock_login.py --ip {ip}")
+        for email_hash, _, _ in block_emails:
+            print(
+                f"  docker compose exec -T api python /opt/scripts/unlock_login.py "
+                f"--email-hash {email_hash}"
+            )
+        print(
+            "  Alternativ mit Login-E-Mail (Klartext eingeben, wird wie beim Login gehasht): "
+            "--email user@example.com"
+        )
+
+    unknown_blocks = sum(1 for h, _, _ in block_emails if h not in users_by_hash)
     if unknown_blocks:
         print(
-            f"Hinweis: {unknown_blocks} E-Mail-Sperre(n) passen zu keinem registrierten Benutzer "
-            "(Tippfehler oder nicht erlaubte Adresse)."
+            f"\nHinweis: {unknown_blocks} E-Mail-Sperre(n) passen zu keinem registrierten Benutzer "
+            "(Tippfehler beim Login oder nicht erlaubte Adresse)."
         )
     return 0
 
