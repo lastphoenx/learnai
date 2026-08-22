@@ -185,7 +185,9 @@ def _normalize_worked_examples(raw: object) -> list[dict[str, Any]]:
         steps = _normalize_string_list(item.get("steps"))
         if not problem and not steps:
             continue
-        method_label = str(item.get("method_label") or item.get("label") or "").strip()
+        method_label = sanitize_pedagogy_field(
+            str(item.get("method_label") or item.get("label") or "").strip()
+        )
         method_id = normalize_method_id(item.get("method_id"))
         if not method_id and method_label:
             method_id = guess_method_id(method_label)

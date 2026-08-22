@@ -139,3 +139,33 @@ def test_parse_pedagogy_strips_schema_placeholder_echoes():
     digest = build_pedagogy_digest(pedagogy)
     assert "Wann diese Methode sinnvoll ist" not in digest
     assert "freier Kurzname" not in digest
+
+
+def test_parse_pedagogy_strips_placeholder_method_label_from_worked_examples():
+    payload = {
+        "summary": "Dezimalzahlen.",
+        "is_metadata_only": False,
+        "methods": [],
+        "worked_examples": [
+            {
+                "problem": "Aufgabe 4a",
+                "method_label": "Bezeichnung wie im Heft",
+                "steps": ["0,941 + 0,209 = 1,150"],
+            }
+        ],
+    }
+    _, pedagogy = parse_pedagogy_extraction(json.dumps(payload))
+    example = pedagogy["worked_examples"][0]
+    assert "method_label" not in example
+    digest = build_pedagogy_digest(
+        {
+            "is_metadata_only": False,
+            "methods": [],
+            "worked_examples": [example],
+            "exercises": [],
+            "exercise_patterns": [],
+            "teaching_notes": [],
+        }
+    )
+    assert "Bezeichnung wie im Heft" not in digest
+    assert "Aufgabe 4a" in digest
