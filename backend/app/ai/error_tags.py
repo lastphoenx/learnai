@@ -135,14 +135,16 @@ def resolve_error_pattern(raw: dict) -> dict:
             label = ERROR_TAG_LABELS[tag]
         else:
             label = label_for_tag(tag)
-    if not tag and label:
-        tag = classify_error_tag(label) or ""
     key, display = pattern_identity(label=label, tag=tag)
     if not key:
         return {}
     out: dict = {"label": display[:200], "key": key}
     if tag and tag in ERROR_TAG_LABELS:
         out["tag"] = tag
+    elif not tag and label:
+        hint = classify_error_tag(label)
+        if hint and hint in ERROR_TAG_LABELS:
+            out["tag"] = hint
     count = raw.get("count")
     if isinstance(count, int) and count >= 0:
         out["count"] = count

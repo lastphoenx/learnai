@@ -13,7 +13,7 @@ def test_resolve_error_pattern_label_primary():
     )
     assert resolved["label"] == "Genus beim Nomen verwechselt"
     assert resolved["key"].startswith("label:")
-    assert "tag" not in resolved
+    assert resolved.get("tag") == "grammar"
 
 
 def test_resolve_error_pattern_known_tag_optional():
