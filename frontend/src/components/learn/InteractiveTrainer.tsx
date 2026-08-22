@@ -656,7 +656,7 @@ export function InteractiveTrainer({
               <p className="muted">{trainer.content_analysis.overview}</p>
               <div className="trainer-analysis-grid">
                 <div>
-                  <strong>Check</strong>
+                  <strong>Check (Rechenarten)</strong>
                   <ul className="trainer-analysis-list">
                     {trainer.content_analysis.quiz.operations.map((op) => (
                       <li key={`quiz-${op.key}`}>
@@ -666,7 +666,7 @@ export function InteractiveTrainer({
                   </ul>
                 </div>
                 <div>
-                  <strong>Lernkarten</strong>
+                  <strong>Lernkarten (Rechenarten)</strong>
                   <ul className="trainer-analysis-list">
                     {trainer.content_analysis.cards.operations.map((op) => (
                       <li key={`card-${op.key}`}>
@@ -675,6 +675,30 @@ export function InteractiveTrainer({
                     ))}
                   </ul>
                 </div>
+                {trainer.content_analysis.quiz.methods && trainer.content_analysis.quiz.methods.length > 0 && (
+                  <div>
+                    <strong>Check (Lösungswege)</strong>
+                    <ul className="trainer-analysis-list">
+                      {trainer.content_analysis.quiz.methods.map((op) => (
+                        <li key={`quiz-method-${op.key}`}>
+                          {op.label}: {op.count} ({op.percent}%)
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {trainer.content_analysis.cards.methods && trainer.content_analysis.cards.methods.length > 0 && (
+                  <div>
+                    <strong>Lernkarten (Lösungswege)</strong>
+                    <ul className="trainer-analysis-list">
+                      {trainer.content_analysis.cards.methods.map((op) => (
+                        <li key={`card-method-${op.key}`}>
+                          {op.label}: {op.count} ({op.percent}%)
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -864,6 +888,7 @@ export function InteractiveTrainer({
           {cardFilter !== "practice" && currentCard && cardKind(currentCard) === "input" && (
             <CardInputExercise
               question={currentCard.question}
+              expectedMethod={currentCard.expected_method}
               cardIndex={cardIndex}
               total={filteredCards.length}
               domain={currentCard.domain}

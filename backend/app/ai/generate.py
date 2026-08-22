@@ -12,6 +12,13 @@ from sqlalchemy.orm import Session
 from app.ai.catalog import resolve_task_ai
 from app.ai.errors import LlmError
 from app.ai.providers import complete, describe_image, parse_json_object, resolve_provider
+from app.ai.source_pedagogy import (
+    encode_source_analysis,
+    has_pedagogy_content,
+    parse_pedagogy_extraction,
+    pedagogy_from_analysis_blob,
+    vision_pedagogy_prompt,
+)
 from app.config import settings
 from app.core.crypto import decrypt_text_master, encrypt_text_master
 from app.models import LearningRecord, LearningUnit, UnitModule, User
@@ -353,6 +360,10 @@ def _save_generated_modules(
                     "task_type": task,
                 },
             )
+        if task == "interactive":
+            from app.services.learn_service import clear_learn_state_after_regenerate
+
+            clear_learn_state_after_regenerate(db, unit)
     return saved
 
 
@@ -478,6 +489,76 @@ def generate_modules(
     return _dec_unit(unit)
 
 
+def _vision_extract_image_source(
+    *,
+    db: Session,
+    unit: LearningUnit,
+    source,
+    label: str,
+    prefs: dict,
+) -> str | None:
+    """Bild per Vision extrahieren; summary zurückgeben oder None bei Fehler."""
+    from app.ai.errors import LlmError
+
+    path = Path(settings.upload_dir) / source.storage_path
+    if not path.is_file():
+        path = upload_dir() / source.storage_path
+    if not path.is_file():
+        return None
+    data = path.read_bytes()
+    if len(data) > 8 * 1024 * 1024:
+        return "(Bild zu groß für Vision, übersprungen)"
+    mime = source.content_type or "image/jpeg"
+    vision_name, vision_model = resolve_task_ai(prefs, "vision")
+    _log.info(
+        "generate_llm vision_start label=%s provider=%s model=%s bytes=%d",
+        label,
+        vision_name,
+        vision_model or "(auto)",
+        len(data),
+    )
+    t_vis = time.monotonic()
+    try:
+        described = describe_image(
+            image_bytes=data,
+            mime=mime,
+            prompt=vision_pedagogy_prompt(language=unit.language or "de"),
+            provider=vision_name,
+            model=vision_model,
+        )
+    except LlmError as exc:
+        _log.warning(
+            "generate_llm vision_fail label=%s provider=%s model=%s code=%s duration_ms=%d msg=%s",
+            label,
+            vision_name,
+            vision_model or "(auto)",
+            exc.code,
+            int((time.monotonic() - t_vis) * 1000),
+            exc.message,
+        )
+        return f"(Bild — {exc.message})"
+    summary, pedagogy = parse_pedagogy_extraction(described.get("text") or "")
+    _log.info(
+        "generate_llm vision_ok label=%s model=%s chars=%d pedagogy_methods=%d duration_ms=%d",
+        label,
+        described.get("model"),
+        len(summary),
+        len(pedagogy.get("methods") or []),
+        int((time.monotonic() - t_vis) * 1000),
+    )
+    source.extracted_text_encrypted = encrypt_text_master(summary)
+    source.analysis_encrypted = encrypt_text_master(
+        encode_source_analysis(
+            provider=str(described.get("provider") or vision_name),
+            model=described.get("model"),
+            pedagogy=pedagogy,
+        )
+    )
+    maybe_auto_purge_after_extract(db, unit, source)
+    db.flush()
+    return summary
+
+
 def _collect_source_notes(db: Session, unit: LearningUnit, prefs: dict) -> str:
     from app.ai.extract import extract_pdf_text, fetch_url_text, effective_stt_provider, transcribe_audio
     from app.ai.errors import LlmError
@@ -491,9 +572,36 @@ def _collect_source_notes(db: Session, unit: LearningUnit, prefs: dict) -> str:
         )
         if source.extracted_text_encrypted:
             text = decrypt_text_master(source.extracted_text_encrypted)
-            parts.append(f"### {label}\n{text}")
-            _log.info("generate_llm source_cached kind=%s label=%s chars=%d", source.kind, label, len(text))
-            continue
+            if (
+                source.kind == "image"
+                and source.storage_path
+                and source.purged_at is None
+                and not has_pedagogy_content(pedagogy_from_analysis_blob(source.analysis_encrypted))
+            ):
+                refreshed = _vision_extract_image_source(
+                    db=db, unit=unit, source=source, label=label, prefs=prefs
+                )
+                if refreshed and not refreshed.startswith("("):
+                    text = refreshed
+                    _log.info(
+                        "generate_llm source_pedagogy_refresh label=%s chars=%d",
+                        label,
+                        len(text),
+                    )
+                    parts.append(f"### {label}\n{text}")
+                    continue
+                parts.append(f"### {label}\n{text}")
+                _log.info(
+                    "generate_llm source_cached kind=%s label=%s chars=%d",
+                    source.kind,
+                    label,
+                    len(text),
+                )
+                continue
+            else:
+                parts.append(f"### {label}\n{text}")
+                _log.info("generate_llm source_cached kind=%s label=%s chars=%d", source.kind, label, len(text))
+                continue
         if source.kind == "url":
             try:
                 text = fetch_url_text(label)
@@ -504,65 +612,11 @@ def _collect_source_notes(db: Session, unit: LearningUnit, prefs: dict) -> str:
                 parts.append(f"### {label}\n(Link — {exc.message})")
             continue
         if source.kind == "image" and source.storage_path and source.purged_at is None:
-            path = Path(settings.upload_dir) / source.storage_path
-            if not path.is_file():
-                path = upload_dir() / source.storage_path
-            if not path.is_file():
-                continue
-            data = path.read_bytes()
-            if len(data) > 8 * 1024 * 1024:
-                parts.append(f"### {label}\n(Bild zu groß für Vision, übersprungen)")
-                continue
-            mime = source.content_type or "image/jpeg"
-            vision_name, vision_model = resolve_task_ai(prefs, "vision")
-            _log.info(
-                "generate_llm vision_start label=%s provider=%s model=%s bytes=%d",
-                label,
-                vision_name,
-                vision_model or "(auto)",
-                len(data),
+            summary = _vision_extract_image_source(
+                db=db, unit=unit, source=source, label=label, prefs=prefs
             )
-            t_vis = time.monotonic()
-            try:
-                described = describe_image(
-                    image_bytes=data,
-                    mime=mime,
-                    prompt=(
-                        "Das ist ein Foto aus einem Lernmittel. "
-                        "Extrahiere sichtbare Aufgaben, Zahlen, Rechenwege und Erklärungen für eine Lerneinheit. "
-                        "Ist es nur Buchcover, ISBN, Verlagsinfo oder Rückseite: kurz beschreiben, "
-                        "dass es Metadaten sind — keine Aufgaben erfinden. "
-                        f"Sprache: {unit.language}."
-                    ),
-                    provider=vision_name,
-                    model=vision_model,
-                )
-            except LlmError as exc:
-                _log.warning(
-                    "generate_llm vision_fail label=%s provider=%s model=%s code=%s duration_ms=%d msg=%s",
-                    label,
-                    vision_name,
-                    vision_model or "(auto)",
-                    exc.code,
-                    int((time.monotonic() - t_vis) * 1000),
-                    exc.message,
-                )
-                parts.append(f"### {label}\n(Bild — {exc.message})")
-                continue
-            _log.info(
-                "generate_llm vision_ok label=%s model=%s chars=%d duration_ms=%d",
-                label,
-                described.get("model"),
-                len(described.get("text") or ""),
-                int((time.monotonic() - t_vis) * 1000),
-            )
-            source.extracted_text_encrypted = encrypt_text_master(described["text"])
-            source.analysis_encrypted = encrypt_text_master(
-                f"{described['provider']}:{described['model']}"
-            )
-            maybe_auto_purge_after_extract(db, unit, source)
-            db.flush()
-            parts.append(f"### {label}\n{described['text']}")
+            if summary:
+                parts.append(f"### {label}\n{summary}")
         elif source.kind == "document" and source.storage_path and source.purged_at is None:
             path = Path(settings.upload_dir) / source.storage_path
             if not path.is_file():

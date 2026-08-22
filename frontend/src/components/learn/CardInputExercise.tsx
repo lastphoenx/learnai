@@ -4,12 +4,14 @@ import { FormEvent, useState } from "react";
 import { SpeechInputButton } from "@/components/SpeechInputButton";
 import { formatQuizExplanation } from "@/lib/quizOption";
 import type { SttProvider } from "@/lib/api";
+import { METHOD_LABELS } from "@/lib/api";
 
 type Props = {
   question: string;
   cardIndex: number;
   total: number;
   domain?: string;
+  expectedMethod?: string;
   language?: string;
   sttProvider?: SttProvider;
   profileId?: string;
@@ -32,6 +34,7 @@ export function CardInputExercise({
   cardIndex,
   total,
   domain,
+  expectedMethod,
   language = "de",
   sttProvider = "browser",
   profileId,
@@ -57,6 +60,11 @@ export function CardInputExercise({
         {domain ? ` · ${domain}` : ""}
       </p>
       <p className="learn-quiz-question">{question}</p>
+      {expectedMethod && (
+        <p className="muted card-method-hint">
+          Erwarteter Lösungsweg: {METHOD_LABELS[expectedMethod] || expectedMethod}
+        </p>
+      )}
       <form onSubmit={onFormSubmit} className="practice-form stack">
         <label className="card-input-label">
           <span className="card-input-label-row">

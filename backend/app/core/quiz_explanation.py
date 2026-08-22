@@ -403,10 +403,71 @@ def build_worked_solution(question: str, expected: float | None = None) -> str |
     return f"Rechnung: Ergebnis = {_fmt_num(expected)}."
 
 
+def _count_variants(text: str) -> int:
+    lower = str(text or "").lower()
+    return sum(1 for index in range(1, 10) if f"variante {index}" in lower)
+
+
+def _extract_from_variant(text: str, start: int = 2) -> str | None:
+    lower = text.lower()
+    marker = f"variante {start}"
+    idx = lower.find(marker)
+    if idx < 0:
+        return None
+    return text[idx:].strip()
+
+
+def _merge_explanations(primary: str, secondary: str, *, question: str) -> str:
+    """Starke Heft-/KI-Erklärung mit unseren Rechenweg-Varianten kombinieren."""
+    primary = str(primary or "").strip()
+    secondary = str(secondary or "").strip()
+    if not primary:
+        return secondary
+    if not secondary:
+        return primary
+    if primary == secondary:
+        return primary
+
+    p_variants = _count_variants(primary)
+    s_variants = _count_variants(secondary)
+
+    if p_variants >= 2:
+        return primary
+
+    if p_variants == 0 and not explanation_is_weak(primary, question):
+        if s_variants >= 2:
+            alt = _extract_from_variant(secondary, 2)
+            if alt:
+                return f"Variante 1 (Heft): {primary}\n\n{alt}"
+        alt_only = _extract_from_variant(secondary, 2) or secondary
+        return f"Variante 1 (Heft): {primary}\n\n{alt_only}"
+
+    if p_variants == 1 and s_variants >= 2:
+        alt = _extract_from_variant(secondary, 2)
+        if alt:
+            return f"{primary}\n\n{alt}"
+
+    return _join_variants(primary, secondary)
+
+
 def enrich_quiz_explanation(q: dict) -> str:
     question = str(q.get("q") or "")
-    worked = build_worked_solution(question)
-    if worked:
-        return worked
     original = str(q.get("explanation") or "").strip()
+    q_type = str(q.get("question_type") or "").strip().lower()
+
+    if q_type == "method":
+        return original or "Wähle den Lösungsweg, der zur Aufgabe am besten passt."
+
+    worked = build_worked_solution(question)
+
+    if original and not explanation_is_weak(original, question):
+        if worked and _count_variants(original) < 2 and _count_variants(worked) >= 1:
+            return _merge_explanations(original, worked, question=question)
+        return original
+
+    if worked:
+        if original and original != worked:
+            return _merge_explanations(original, worked, question=question)
+        return worked
+
     return original

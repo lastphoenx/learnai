@@ -26,6 +26,7 @@ from app.ai.prompts.interactive import (
     truncate_context,
 )
 from app.ai.providers import complete, parse_json_object, resolve_provider
+from app.ai.source_pedagogy import build_pedagogy_digest, collect_pedagogy_from_unit_sources
 from app.ai.task_types import AI_TASK_FOR_UNIT
 from app.ai.validators.interactive import (
     dedupe_interactive_modules,
@@ -33,6 +34,7 @@ from app.ai.validators.interactive import (
     validate_interactive_modules,
 )
 from app.core.crypto import decrypt_text_master
+from app.core.method_taxonomy import classify_method, normalize_method_id
 from app.models import LearningRecord, User
 from app.services.crypto_json import decrypt_json
 from app.services.profile_service import resolve_prefs_for_profile
@@ -153,14 +155,25 @@ def _parse_card_list(raw_cards: object, *, kind: str, expected: int) -> list[dic
         a = str(raw.get("answer") or "").strip()
         if not q or not a:
             continue
-        out.append(
-            {
-                "kind": kind,
-                "question": q[:240],
-                "answer": a[:800],
-                "tip": str(raw.get("tip") or "")[:240],
-            }
-        )
+        item: dict = {
+            "kind": kind,
+            "question": q[:240],
+            "answer": a[:800],
+            "tip": str(raw.get("tip") or "")[:240],
+        }
+        if kind == "merk":
+            method_id = normalize_method_id(raw.get("method_id")) or classify_method(
+                f"{q} {a}", kind="merk"
+            )
+            if method_id and method_id != "other":
+                item["method_id"] = method_id
+        if kind == "input":
+            expected_method = normalize_method_id(raw.get("expected_method")) or classify_method(
+                q, kind="input"
+            )
+            if expected_method and expected_method != "other":
+                item["expected_method"] = expected_method
+        out.append(item)
     return out[:expected] if len(out) >= expected else out
 
 
@@ -266,8 +279,20 @@ def _parse_questions(text: str, expected: int) -> list[dict]:
                 "q": str(raw.get("q") or "")[:400],
                 "options": [str(o)[:200] for o in options[:4]],
                 "answer": parse_quiz_answer(raw, label="Quizfrage"),
-                "explanation": str(raw.get("explanation") or "")[:400],
+                "explanation": str(raw.get("explanation") or "")[:1200],
             }
+            q_type = str(raw.get("question_type") or "").strip().lower()
+            if q_type in {"method", "calculation"}:
+                item["question_type"] = q_type
+            elif classify_method(str(raw.get("q") or "")) == "method_choice":
+                item["question_type"] = "method"
+            else:
+                item["question_type"] = "calculation"
+            method_id = normalize_method_id(raw.get("method_id"))
+            if method_id:
+                item["method_id"] = method_id
+            elif item.get("question_type") == "method":
+                item["method_id"] = "method_choice"
             if not item["q"].strip():
                 continue
             if any(not str(o).strip() for o in item["options"]):
@@ -363,10 +388,13 @@ def generate_interactive_modules(
         progress("extracting_sources")
     notes = _collect_source_notes(db, unit, prefs)
     db.commit()
+    pedagogy_profile = collect_pedagogy_from_unit_sources(unit.sources)
+    pedagogy_digest = build_pedagogy_digest(pedagogy_profile)
     _log.info(
-        "generate_interactive sources_persisted unit_id=%s notes_chars=%d duration_ms=%d",
+        "generate_interactive sources_persisted unit_id=%s notes_chars=%d pedagogy_methods=%d duration_ms=%d",
         unit_id,
         len(notes),
+        len(pedagogy_profile.get("methods") or []),
         int((time.monotonic() - t0) * 1000),
     )
 
@@ -390,8 +418,9 @@ def generate_interactive_modules(
         notes=notes,
         card_target=card_target,
         question_target=question_target,
+        pedagogy_digest=pedagogy_digest,
     )
-    batch_context = truncate_context(context_prompt)
+    batch_context = truncate_context(context_prompt, pedagogy_digest=pedagogy_digest)
 
     if progress:
         progress("planning")

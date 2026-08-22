@@ -178,15 +178,61 @@ export type TrainerKnowledgeSection = {
 
 export type TrainerContentAnalysis = {
   overview: string;
-  quiz: { total: number; summary: string; operations: { key: string; label: string; count: number; percent: number }[] };
-  cards: { total: number; summary: string; operations: { key: string; label: string; count: number; percent: number }[] };
+  quiz: {
+    total: number;
+    summary: string;
+    methods_summary?: string;
+    operations: { key: string; label: string; count: number; percent: number }[];
+    methods?: { key: string; label: string; count: number; percent: number }[];
+  };
+  cards: {
+    total: number;
+    summary: string;
+    methods_summary?: string;
+    operations: { key: string; label: string; count: number; percent: number }[];
+    methods?: { key: string; label: string; count: number; percent: number }[];
+  };
   by_module: {
     domain: string;
     quiz_total: number;
     card_total: number;
     quiz_ops: { key: string; label: string; count: number; percent: number }[];
     card_ops: { key: string; label: string; count: number; percent: number }[];
+    quiz_methods?: { key: string; label: string; count: number; percent: number }[];
+    card_methods?: { key: string; label: string; count: number; percent: number }[];
   }[];
+};
+
+export type UnitPedagogy = {
+  has_pedagogy: boolean;
+  digest: string;
+  source_count: number;
+  refreshed_sources?: number;
+  profile: {
+    methods?: { id: string; label: string; when?: string; example?: string }[];
+    worked_examples?: { problem: string; steps?: string[]; method_id?: string }[];
+    exercise_patterns?: string[];
+    teaching_notes?: string[];
+  };
+  sources: {
+    id: string;
+    kind: string;
+    original_name: string | null;
+    has_pedagogy: boolean;
+    method_count: number;
+    exercise_count: number;
+  }[];
+};
+
+export const METHOD_LABELS: Record<string, string> = {
+  mental: "Im Kopf",
+  notes: "Mit Notizen",
+  numberline: "Rechenstrich",
+  written: "Schriftlich",
+  decomposition: "Zerlegung",
+  supplement: "Ergänzen",
+  method_choice: "Strategiewahl",
+  other: "Sonstiges",
 };
 
 export type TrainerPayload = {
@@ -199,6 +245,8 @@ export type TrainerPayload = {
     answer: string;
     tip?: string;
     kind?: "merk" | "mental" | "input" | string;
+    expected_method?: string;
+    method_id?: string;
     domain?: string;
     module_id: string;
     card_index: number;
@@ -514,6 +562,9 @@ export type UnitTaskTypesResponse = {
 
 export const fetchUnitTaskTypes = () => apiFetch<UnitTaskTypesResponse>("/api/v1/units/task-types");
 export const fetchUnit = (id: string) => apiFetch<LearningUnit>(`/api/v1/units/${id}`);
+export const fetchUnitPedagogy = (id: string) => apiFetch<UnitPedagogy>(`/api/v1/units/${id}/pedagogy`);
+export const extractUnitPedagogy = (id: string) =>
+  apiFetch<UnitPedagogy>(`/api/v1/units/${id}/pedagogy/extract`, { method: "POST" });
 export type UnitCreateBody = {
   title: string;
   brief?: string;

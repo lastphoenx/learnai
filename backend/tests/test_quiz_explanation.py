@@ -88,3 +88,44 @@ def test_sub_has_two_variants():
     assert text is not None
     assert "Variante 1" in text
     assert "Variante 2" in text
+
+
+def test_enrich_keeps_strong_multi_variant():
+    explanation = (
+        "Variante 1 (Reihen): 7,2 ÷ 9 aus der 9er-Reihe. "
+        "Variante 2 (Komma verschieben): 72 Hundertstel ÷ 9 = 8 Hundertstel."
+    )
+    q = {
+        "q": "Wie berechnest du 7.2 : 9?",
+        "options": ["0,8", "0,08", "8", "0,72"],
+        "answer": 0,
+        "explanation": explanation,
+        "question_type": "calculation",
+    }
+    assert enrich_quiz_explanation(q) == explanation
+
+
+def test_enrich_keeps_method_question():
+    q = {
+        "q": "Welches Vorgehen passt zu 24 · 9,36?",
+        "options": ["Zerlegung", "Im Kopf", "Nur schätzen", "Raten"],
+        "answer": 0,
+        "explanation": "Zerlegung in 20·9,36 und 4·9,36 — wie im Heft gezeigt.",
+        "question_type": "method",
+    }
+    assert enrich_quiz_explanation(q) == q["explanation"]
+
+
+def test_enrich_merges_heft_with_runtime_variant():
+    q = {
+        "q": "Wie berechnest du die Summe von 3,2 und 4,8?",
+        "options": ["8", "7,2", "8,2", "9"],
+        "answer": 0,
+        "explanation": (
+            "Addiere Stelle für Stelle: 3 + 4 = 7 und 0,2 + 0,8 = 1,0. Zusammen 8,0."
+        ),
+        "question_type": "calculation",
+    }
+    enriched = enrich_quiz_explanation(q)
+    assert "Variante 1" in enriched
+    assert "Variante 2" in enriched

@@ -62,7 +62,7 @@ from app.services.exam_service import (
     update_exam_analysis,
 )
 from app.services.unit_service import UnitError, _get_unit_or_404, add_source, add_source_url, assign_unit_to_profiles, create_unit, create_review_from_unit, create_unit_from_record, create_units, delete_source, delete_unit, get_record, get_unit, list_records, list_units, purge_source_file_keep_meta, update_unit, update_unit_flags
-from app.services.pdf_export_service import unit_worksheet_pdf
+from app.services.pedagogy_service import extract_unit_pedagogy, get_unit_pedagogy
 from app.services.trainer_export_service import export_trainer_json, import_trainer_json
 from app.ai.task_types import math_focus_public, task_types_public
 from app.ai.subject_focus import focus_groups_public
@@ -431,6 +431,36 @@ def units_add_source_url(
     except UnitError as exc:
         db.rollback()
         raise _http(exc) from exc
+
+
+@router.get("/{unit_id}/pedagogy")
+def units_get_pedagogy(
+    unit_id: UUID,
+    user: User = Depends(get_app_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        return get_unit_pedagogy(db, user, unit_id)
+    except UnitError as exc:
+        raise _http(exc) from exc
+
+
+@router.post("/{unit_id}/pedagogy/extract")
+def units_extract_pedagogy(
+    unit_id: UUID,
+    user: User = Depends(get_app_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        result = extract_unit_pedagogy(db, user, unit_id)
+        db.commit()
+        return result
+    except UnitError as exc:
+        db.rollback()
+        raise _http(exc) from exc
+    except LlmError as exc:
+        db.rollback()
+        raise HTTPException(status_code=502, detail=exc.message) from exc
 
 
 @router.get("/{unit_id}/exams")
