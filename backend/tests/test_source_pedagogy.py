@@ -172,6 +172,31 @@ def test_parse_pedagogy_strips_new_schema_placeholder_echoes():
     assert "kurzes Beispiel mit Zahlen" not in digest
 
 
+def test_parse_pedagogy_empty_summary_when_all_fields_are_placeholders():
+    payload = {
+        "summary": "2-6 Sätze: Thema, Seiteninhalt, Lernziele",
+        "is_metadata_only": False,
+        "methods": [
+            {
+                "label": "Bezeichnung exakt wie im Heft",
+                "when": "kurzer Satz: wann passt diese Strategie (aus dem Material)",
+                "example": "kurzes Beispiel mit Zahlen/Text aus dem Bild",
+            }
+        ],
+        "worked_examples": [],
+        "exercises": [],
+        "exercise_patterns": ["kurzer Name des Aufgabentyps aus dem Heft"],
+        "teaching_notes": ["konkreter didaktischer Hinweis aus dem Material"],
+    }
+    raw = json.dumps(payload)
+    summary, pedagogy = parse_pedagogy_extraction(raw)
+    assert summary == ""
+    assert pedagogy["methods"] == []
+    assert pedagogy["exercise_patterns"] == []
+    assert pedagogy["teaching_notes"] == []
+    assert raw not in summary
+
+
 def test_vision_pedagogy_prompt_uses_empty_schema_values():
     from app.ai.source_pedagogy import vision_pedagogy_prompt
 
