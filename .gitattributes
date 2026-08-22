@@ -1,2 +1,33 @@
-*.sh text eol=lf
+# Normalize text files to LF in the repository (see .editorconfig).
+* text=auto
+
 *.py text eol=lf
+*.sh text eol=lf
+*.ts text eol=lf
+*.tsx text eol=lf
+*.js text eol=lf
+*.jsx text eol=lf
+*.mjs text eol=lf
+*.cjs text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.md text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+*.toml text eol=lf
+*.sql text eol=lf
+*.env.example text eol=lf
+Dockerfile text eol=lf
+.editorconfig text eol=lf
+.gitattributes text eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.pdf binary
+*.woff binary
+*.woff2 binary
