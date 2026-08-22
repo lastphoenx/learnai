@@ -21,11 +21,13 @@ from app.core.db import get_db
 from app.models import User
 from app.schemas import (
     AdminCreateUserRequest,
+    AdminPasswordResetRequest,
     AdminUserUpdateRequest,
     ChildCreateRequest,
     ChildGuardiansUpdateRequest,
     LoginRequest,
     LoginResponse,
+    PasswordChangeRequest,
     RegisterRequest,
     TotpPolicyRequest,
     TwoFactorConfirmRequest,
@@ -39,7 +41,10 @@ from app.schemas import (
 from app.services.user_service import (
     AuthError,
     admin_create_user,
+    admin_reset_password,
+    assign_login_email,
     authenticate_password,
+    change_own_password,
     complete_2fa_login,
     confirm_totp,
     create_child_user,
@@ -205,6 +210,25 @@ def me_update(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=exc.message) from exc
 
 
+@auth_router.post("/me/password", status_code=status.HTTP_204_NO_CONTENT)
+def me_password(
+    body: PasswordChangeRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        change_own_password(
+            db,
+            user,
+            current_password=body.current_password,
+            new_password=body.new_password,
+        )
+        db.commit()
+    except AuthError as exc:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=exc.message) from exc
+
+
 @auth_router.post("/2fa/setup", response_model=TwoFactorSetupResponse)
 def totp_setup(
     body: TwoFactorSetupRequest,
@@ -337,7 +361,10 @@ def users_update(
     if not target or target.tenant_id != admin.tenant_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Benutzer nicht gefunden")
     try:
-        update_user_settings(db, target, display_name=body.display_name)
+        if body.display_name is not None:
+            update_user_settings(db, target, display_name=body.display_name)
+        if body.login_email is not None:
+            assign_login_email(target, str(body.login_email))
         db.commit()
         db.refresh(target)
         row = {
@@ -346,6 +373,30 @@ def users_update(
             "created_at": target.created_at.isoformat(),
         }
         return UserAdminResponse(**row)
+    except AuthError as exc:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=exc.message) from exc
+
+
+@users_router.post("/{user_id}/password", status_code=status.HTTP_204_NO_CONTENT)
+def users_reset_password(
+    user_id: UUID,
+    body: AdminPasswordResetRequest,
+    admin: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    target = db.get(User, user_id)
+    if not target or target.tenant_id != admin.tenant_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Benutzer nicht gefunden")
+    try:
+        admin_reset_password(
+            db,
+            admin,
+            target,
+            new_password=body.new_password,
+            email=str(body.email) if body.email else None,
+        )
+        db.commit()
     except AuthError as exc:
         db.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=exc.message) from exc

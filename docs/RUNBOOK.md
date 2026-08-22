@@ -141,6 +141,16 @@ docker compose exec -T api python /opt/scripts/unlock_login.py --email-hash <sha
 docker compose exec -T api python /opt/scripts/unlock_login.py --email user@example.com
 ```
 
+### Login-E-Mail nachziehen (Bestands-Accounts)
+
+Neue Accounts speichern die Login-E-Mail automatisch. Für ältere Accounts:
+
+```bash
+docker compose exec -T api python /opt/scripts/backfill_login_email.py --email user@example.com
+```
+
+Oder in der Admin-UI unter **Benutzer** → «Login-E-Mail zuordnen».
+
 ---
 
 ## Datenbank
