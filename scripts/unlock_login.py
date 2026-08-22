@@ -37,7 +37,11 @@ def main() -> int:
     )
     parser.add_argument(
         "--email",
-        help="E-Mail-Adresse entsperren (Fehlversuche oder unbekannte E-Mail)",
+        help="Login-E-Mail als Klartext (wird wie beim Login gehasht; DB-Entschlüsselung nicht nötig)",
+    )
+    parser.add_argument(
+        "--email-hash",
+        help="E-Mail-Sperre per SHA256-Hash aufheben (aus list_login_blocks oder redis KEYS)",
     )
     parser.add_argument("--ip", help="Client-IP entsperren (Rate-Limit / Fehlversuche)")
     parser.add_argument(
@@ -47,8 +51,8 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    if not args.email and not args.ip and not args.flush_auth:
-        parser.error("Mindestens eine Option angeben: --email, --ip oder --flush-auth")
+    if not args.email and not args.email_hash and not args.ip and not args.flush_auth:
+        parser.error("Mindestens eine Option: --email, --email-hash, --ip oder --flush-auth")
 
     r = _client()
     if not r:
@@ -74,7 +78,19 @@ def main() -> int:
             ],
         )
         total += removed
-        print(f"E-Mail «{email}»: {removed} Key(s) gelöscht")
+        print(f"E-Mail «{email}» (hash {email_hash[:12]}…): {removed} Key(s) gelöscht")
+
+    if args.email_hash:
+        email_hash = args.email_hash.strip().lower()
+        removed = _delete_keys(
+            r,
+            [
+                _key_email_block(email_hash),
+                _key_email_fail(email_hash),
+            ],
+        )
+        total += removed
+        print(f"E-Mail-Hash «{email_hash[:12]}…»: {removed} Key(s) gelöscht")
 
     if args.ip:
         ip = args.ip.strip()

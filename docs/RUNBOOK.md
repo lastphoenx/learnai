@@ -135,9 +135,10 @@ git pull   # Skripte müssen auf dem Host existieren (Volume-Mount)
 docker compose exec -T api python /opt/scripts/list_login_blocks.py
 docker compose exec -T api python /opt/scripts/list_login_blocks.py -v
 
-# Entsperren:
+# Entsperren (--email = Klartext beim Tippen, nicht aus DB; oder --email-hash aus list_login_blocks):
+docker compose exec -T api python /opt/scripts/unlock_login.py --ip 203.0.113.10
+docker compose exec -T api python /opt/scripts/unlock_login.py --email-hash <sha256-aus-liste>
 docker compose exec -T api python /opt/scripts/unlock_login.py --email user@example.com
-docker compose exec -T api python /opt/scripts/unlock_login.py --email user@example.com --ip 203.0.113.10
 ```
 
 ---
