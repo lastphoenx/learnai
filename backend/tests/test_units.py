@@ -133,3 +133,142 @@ def test_update_unit_profile_unassign(monkeypatch):
     assert unit.learner_id == parent_id
     assert record.profile_id is None
     assert record.user_id == parent_id
+
+
+def _profile_test_context(monkeypatch):
+    import base64
+    import os
+    import uuid
+    from unittest.mock import MagicMock
+
+    from app.models import LearningRecord, LearningUnit, User
+
+    key = base64.b64encode(os.urandom(32)).decode()
+    monkeypatch.setenv("ENCRYPTION_MASTER_KEY", key)
+    from app.config import Settings
+
+    monkeypatch.setattr("app.config.settings", Settings())
+    monkeypatch.setattr("app.core.crypto.encryption.settings", Settings())
+
+    tenant_id = uuid.uuid4()
+    parent_id = uuid.uuid4()
+    unit_id = uuid.uuid4()
+
+    parent = MagicMock(spec=User)
+    parent.id = parent_id
+    parent.tenant_id = tenant_id
+    parent.is_child = False
+    parent.is_admin = False
+
+    unit = MagicMock(spec=LearningUnit)
+    unit.id = unit_id
+    unit.tenant_id = tenant_id
+    unit.created_by_id = parent_id
+    unit.profile_id = None
+    unit.learner_id = parent_id
+    unit.task_type = "mixed"
+    unit.title_encrypted = b"x"
+    unit.brief_encrypted = None
+    unit.modules = []
+    unit.sources = []
+    unit.profile = None
+
+    record = MagicMock(spec=LearningRecord)
+    record.unit_id = unit_id
+    record.reconstruction_encrypted = None
+    record.exam_results = []
+
+    db = MagicMock()
+    db.query.return_value.filter.return_value.first.return_value = record
+
+    return {
+        "db": db,
+        "parent": parent,
+        "unit": unit,
+        "record": record,
+        "unit_id": unit_id,
+        "tenant_id": tenant_id,
+    }
+
+
+def test_update_unit_profile_forbidden_for_child_account(monkeypatch):
+    import uuid
+    from unittest.mock import MagicMock
+
+    import pytest
+
+    from app.models import User
+    from app.services.unit_service import UnitError, update_unit_profile
+
+    ctx = _profile_test_context(monkeypatch)
+    child = MagicMock(spec=User)
+    child.is_child = True
+
+    with pytest.raises(UnitError) as exc:
+        update_unit_profile(ctx["db"], child, ctx["unit_id"], profile_id=uuid.uuid4())
+    assert exc.value.code == "forbidden"
+
+
+def test_update_unit_profile_rejects_non_child_profile(monkeypatch):
+    import uuid
+    from unittest.mock import MagicMock
+
+    import pytest
+
+    from app.models import LearningProfile
+    from app.services.unit_service import UnitError, update_unit_profile
+
+    ctx = _profile_test_context(monkeypatch)
+    adult_profile_id = uuid.uuid4()
+    adult_profile = MagicMock(spec=LearningProfile)
+    adult_profile.id = adult_profile_id
+    adult_profile.is_child_profile = False
+    adult_profile.user_id = None
+
+    monkeypatch.setattr("app.services.unit_service._get_unit_or_404", lambda _db, _user, _uid: ctx["unit"])
+    monkeypatch.setattr(
+        "app.services.unit_service.get_profile_for_actor",
+        lambda _db, _user, pid: adult_profile,
+    )
+
+    with pytest.raises(UnitError) as exc:
+        update_unit_profile(ctx["db"], ctx["parent"], ctx["unit_id"], profile_id=adult_profile_id)
+    assert exc.value.code == "invalid_profile"
+
+
+def test_update_unit_profile_rejects_duplicate_template_sibling(monkeypatch):
+    import uuid
+    from unittest.mock import MagicMock
+
+    import pytest
+
+    from app.models import LearningProfile, LearningUnit
+    from app.services.unit_service import UnitError, update_unit_profile
+
+    ctx = _profile_test_context(monkeypatch)
+    child_profile_id = uuid.uuid4()
+    child_user_id = uuid.uuid4()
+    existing_copy_id = uuid.uuid4()
+
+    child_profile = MagicMock(spec=LearningProfile)
+    child_profile.id = child_profile_id
+    child_profile.is_child_profile = True
+    child_profile.user_id = child_user_id
+
+    existing_copy = MagicMock(spec=LearningUnit)
+    existing_copy.id = existing_copy_id
+
+    monkeypatch.setattr("app.services.unit_service._get_unit_or_404", lambda _db, _user, _uid: ctx["unit"])
+    monkeypatch.setattr(
+        "app.services.unit_service.get_profile_for_actor",
+        lambda _db, _user, pid: child_profile,
+    )
+    monkeypatch.setattr(
+        "app.services.unit_service._conflicting_template_sibling",
+        lambda *args, **kwargs: existing_copy,
+    )
+
+    with pytest.raises(UnitError) as exc:
+        update_unit_profile(ctx["db"], ctx["parent"], ctx["unit_id"], profile_id=child_profile_id)
+    assert exc.value.code == "already_assigned"
+    assert ctx["unit"].profile_id is None
