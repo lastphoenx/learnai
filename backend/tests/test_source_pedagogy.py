@@ -105,3 +105,37 @@ def test_decode_legacy_provider_model_string():
     assert parsed is not None
     assert parsed["provider"] == "openai"
     assert parsed["pedagogy"] == {}
+
+
+def test_parse_pedagogy_strips_schema_placeholder_echoes():
+    payload = {
+        "summary": "Dezimalzahlen mit verschiedenen Lösungswegen.",
+        "is_metadata_only": False,
+        "methods": [
+            {
+                "label": "Ich notiere meine Rechenschritte.",
+                "when": "Wann diese Methode sinnvoll ist",
+                "example": "kurzes Beispiel aus dem Bild",
+            },
+            {
+                "label": "Im Kopf rechnen",
+                "when": "Wenn eine einfache Rechnung im Kopf ausreicht",
+                "example": "3,7 + 20,1",
+            },
+        ],
+        "exercise_patterns": [
+            "Addieren von Dezimalzahlen",
+            "freier Kurzname für erkannten Aufgabentyp",
+        ],
+        "teaching_notes": ["didaktische Hinweise aus dem Material", "Komma untereinander ausrichten"],
+    }
+    _, pedagogy = parse_pedagogy_extraction(json.dumps(payload))
+    assert pedagogy["methods"][0]["label"] == "Ich notiere meine Rechenschritte."
+    assert pedagogy["methods"][0].get("when") == ""
+    assert pedagogy["methods"][0].get("example") == ""
+    assert pedagogy["methods"][1]["when"] == "Wenn eine einfache Rechnung im Kopf ausreicht"
+    assert pedagogy["exercise_patterns"] == ["Addieren von Dezimalzahlen"]
+    assert pedagogy["teaching_notes"] == ["Komma untereinander ausrichten"]
+    digest = build_pedagogy_digest(pedagogy)
+    assert "Wann diese Methode sinnvoll ist" not in digest
+    assert "freier Kurzname" not in digest

@@ -1,13 +1,22 @@
 from app.core.pedagogy_labels import (
     collect_content_blob,
     count_label_coverage,
+    is_schema_placeholder,
     label_in_text,
     material_labels_from_methods,
     resolve_method_entry,
+    sanitize_pedagogy_field,
 )
 from app.core.pedagogy_validation import enforce_label_coverage
 from app.ai.providers import LlmError
 import pytest
+
+
+def test_schema_placeholder_detection():
+    assert is_schema_placeholder("Wann diese Methode sinnvoll ist")
+    assert is_schema_placeholder("freier Kurzname für erkannten Aufgabentyp")
+    assert not is_schema_placeholder("Wenn eine einfache Rechnung im Kopf ausreicht")
+    assert sanitize_pedagogy_field("kurzes Beispiel aus dem Bild") == ""
 
 
 def test_resolve_method_entry_label_primary():

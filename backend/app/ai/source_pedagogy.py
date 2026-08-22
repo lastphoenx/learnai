@@ -9,7 +9,13 @@ from typing import Any
 
 from app.ai.providers import parse_json_object
 from app.core.method_taxonomy import normalize_method_id
-from app.core.pedagogy_labels import guess_method_id, normalize_label, resolve_method_entry
+from app.core.pedagogy_labels import (
+    guess_method_id,
+    is_schema_placeholder,
+    normalize_label,
+    resolve_method_entry,
+    sanitize_pedagogy_field,
+)
 
 _log = logging.getLogger(__name__)
 
@@ -27,8 +33,9 @@ def vision_pedagogy_prompt(*, language: str) -> str:
         '  "summary": "2-6 Sätze: Thema, Seiteninhalt, Lernziele",\n'
         '  "is_metadata_only": false,\n'
         '  "methods": [\n'
-        '    {"label":"Bezeichnung exakt wie im Heft", "when":"Wann diese Methode sinnvoll ist",'
-        ' "example":"kurzes Beispiel aus dem Bild", "id":"optional, nur wenn passend"}\n'
+        '    {"label":"Bezeichnung exakt wie im Heft",'
+        ' "when":"kurzer Satz: wann passt diese Strategie (aus dem Material)",'
+        ' "example":"kurzes Beispiel mit Zahlen/Text aus dem Bild", "id":"optional"}\n'
         "  ],\n"
         '  "worked_examples": [\n'
         '    {"problem":"Aufgabe", "method_label":"Bezeichnung wie im Heft",'
@@ -37,12 +44,15 @@ def vision_pedagogy_prompt(*, language: str) -> str:
         '  "exercises": [\n'
         '    {"ref":"Aufg. 5a", "text":"Aufgabentext", "suggested_method":"optional, Bezeichnung aus dem Heft"}\n'
         "  ],\n"
-        '  "exercise_patterns": ["freier Kurzname für erkannten Aufgabentyp"],\n'
-        '  "teaching_notes": ["didaktische Hinweise aus dem Material"]\n'
+        '  "exercise_patterns": ["kurzer Name des Aufgabentyps aus dem Heft"],\n'
+        '  "teaching_notes": ["konkreter didaktischer Hinweis aus dem Material"]\n'
         "}\n"
         "Regeln:\n"
         "- methods: alle im Bild gezeigten Lösungswege/Strategien — benenne sie so, wie das Material sie nennt.\n"
         "- label ist Pflicht; id nur optional und nie erfinden.\n"
+        "- when/example nur mit echtem Inhalt aus dem Bild — nie Schema-Text wörtlich kopieren.\n"
+        "- NIEMALS Platzhalter wie «Wann diese Methode sinnvoll ist» oder «freier Kurzname für erkannten Aufgabentyp» "
+        "als Feldwert zurückgeben; Feld leer lassen oder weglassen, wenn kein Inhalt erkennbar ist.\n"
         "- worked_examples: vollständige Beispiel-Lösungswege mit Zwischenschritten und method_label aus dem Heft.\n"
         "- exercises: sichtbare Aufgaben mit Zahlen/Text.\n"
         "- exercise_patterns: erkannte Aufgabentypen in den Worten des Materials (nicht erfinden).\n"
@@ -203,7 +213,7 @@ def _normalize_exercises(raw: object) -> list[dict[str, str]]:
         if not text:
             continue
         ref = str(item.get("ref") or "").strip()
-        suggested = str(item.get("suggested_method") or "").strip()
+        suggested = sanitize_pedagogy_field(str(item.get("suggested_method") or "").strip())
         entry = {"text": text[:300]}
         if ref:
             entry["ref"] = ref[:40]
@@ -218,8 +228,8 @@ def _normalize_string_list(raw: object) -> list[str]:
         return []
     out: list[str] = []
     for item in raw:
-        text = str(item or "").strip()
-        if text:
+        text = sanitize_pedagogy_field(str(item or "").strip())
+        if text and not is_schema_placeholder(text):
             out.append(text[:300])
     return out[:20]
 
