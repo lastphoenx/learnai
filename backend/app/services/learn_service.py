@@ -568,6 +568,7 @@ def submit_card_input_answer(
         expected_answer=expected,
         user_answer=answer_text,
         worked_solution=worked_solution,
+        expected_method=str(card.get("expected_method") or "") or None,
     )
 
     mod_key = str(module.id)
@@ -640,6 +641,25 @@ def complete_learn(db: Session, user: User, unit_id: uuid.UUID) -> dict:
         "quiz_weaknesses": collect_quiz_weaknesses(db, user, unit_id, stats=stats, unit=unit, record=record),
         **auto,
     }
+
+
+def clear_learn_state_after_regenerate(db: Session, unit: LearningUnit) -> None:
+    """Lernfortschritt zurücksetzen, wenn Module komplett neu generiert wurden."""
+    record = db.query(LearningRecord).filter(LearningRecord.unit_id == unit.id).first()
+    if not record:
+        return
+    stats = _get_stats(record)
+    learn = stats.get("learn") or {}
+    if learn.get("status") not in {"in_progress", "completed"} and not learn.get("modules"):
+        return
+    fresh = _default_learn()
+    fresh["status"] = "not_started"
+    fresh["phase"] = "intro"
+    stats["learn"] = fresh
+    stats["modules_done"] = 0
+    _clear_flashcard_progress(db, record)
+    _save_stats(db, record, stats)
+    _add_event(db, record, "learn_reset", {"unit_id": str(unit.id), "reason": "modules_regenerated"})
 
 
 def reset_learn_progress(db: Session, user: User, unit_id: uuid.UUID) -> dict:

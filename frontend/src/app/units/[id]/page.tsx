@@ -27,8 +27,9 @@ import {
   speak,
   unitWorksheetPdfUrl,
   unitTrainerExportUrl,
-  uploadSource,
-  type LearningUnit,
+  extractUnitPedagogy,
+  fetchUnitPedagogy,
+  type UnitPedagogy,
   type LearnerProfile,
   type QuizWeaknesses,
   type User,
@@ -73,6 +74,8 @@ export default function UnitDetailPage() {
   const [generateJob, setGenerateJob] = useState<GenerateJobStatus | null>(null);
   const [profiles, setProfiles] = useState<LearnerProfile[]>([]);
   const [quizWeaknesses, setQuizWeaknesses] = useState<QuizWeaknesses | null>(null);
+  const [pedagogy, setPedagogy] = useState<UnitPedagogy | null>(null);
+  const [pedagogyBusy, setPedagogyBusy] = useState(false);
   const autogenStarted = useRef(false);
 
   function reload() {
@@ -98,6 +101,29 @@ export default function UnitDetailPage() {
     if (unitId) reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [unitId]);
+
+  useEffect(() => {
+    if (!unitId || !unit?.source_count) {
+      setPedagogy(null);
+      return;
+    }
+    fetchUnitPedagogy(unitId)
+      .then(setPedagogy)
+      .catch(() => setPedagogy(null));
+  }, [unitId, unit?.source_count, unit?.updated_at]);
+
+  async function onExtractPedagogy() {
+    setPedagogyBusy(true);
+    try {
+      const data = await extractUnitPedagogy(unitId);
+      setPedagogy(data);
+      reload();
+    } catch {
+      setError("Didaktik konnte nicht aus den Quellen gelesen werden.");
+    } finally {
+      setPedagogyBusy(false);
+    }
+  }
 
   useEffect(() => {
     if (!unitId || !unit?.module_count) {
@@ -358,6 +384,40 @@ export default function UnitDetailPage() {
               </ul>
             )}
           </section>
+
+          {sourceCount > 0 && unit.task_type === "interactive" && (
+            <section className="card unit-section unit-pedagogy-section">
+              <div className="section-head">
+                <h2>Didaktik aus Quellen</h2>
+                {pedagogy?.has_pedagogy ? (
+                  <span className="badge badge-ready">Erkannt</span>
+                ) : (
+                  <span className="badge badge-neutral">Noch nicht gelesen</span>
+                )}
+              </div>
+              <p className="muted section-lead">
+                Lösungswege und Aufgabentypen aus dem Heft — Grundlage für Verstehen, Üben und Check.
+              </p>
+              {pedagogy?.has_pedagogy ? (
+                <pre className="unit-pedagogy-digest">{pedagogy.digest}</pre>
+              ) : (
+                <p className="muted empty-hint">
+                  Noch keine strukturierte Didaktik. Lies die Quellen ein, bevor du generierst — oder starte
+                  «Mit KI aufbereiten» (extrahiert automatisch).
+                </p>
+              )}
+              <div className="unit-pedagogy-actions">
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={onExtractPedagogy}
+                  disabled={busy || pedagogyBusy}
+                >
+                  {pedagogyBusy ? "Lese Quellen…" : pedagogy?.has_pedagogy ? "Didaktik aktualisieren" : "Didaktik einlesen"}
+                </button>
+              </div>
+            </section>
+          )}
 
           <UnitExamSection
             unitId={unitId}

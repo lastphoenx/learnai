@@ -2,6 +2,14 @@
 
 from __future__ import annotations
 
+from app.ai.prompts.pedagogy import (
+    KNOWLEDGE_PEDAGOGY_RULES,
+    PLAN_PEDAGOGY_RULES,
+    QUIZ_PEDAGOGY_RULES,
+    TYPED_CARDS_PEDAGOGY_RULES,
+    pedagogy_context_block,
+)
+
 SOURCE_RULES = (
     "Quellen-Regeln:\n"
     "- Buchcover, ISBN, Rückseite, Verlagsinfo: höchstens Hintergrund — KEIN eigenes Modul, KEIN ISBN-Quiz.\n"
@@ -13,7 +21,8 @@ PLAN_SYSTEM = (
     "Du planst einen interaktiven Lerntrainer. Antworte NUR mit JSON, ohne Markdown.\n"
     'Schema: {"categories":[{"name":"Themenbereich","focus":"1 Satz Lernziel","cards":10,"questions":10}]}\n'
     "5 bis 6 Kategorien, cards und questions pro Kategorie so verteilen, dass die Summen "
-    "den Vorgaben entsprechen. Logische Reihenfolge von leicht nach schwer."
+    "den Vorgaben entsprechen. Logische Reihenfolge von leicht nach schwer.\n"
+    f"{PLAN_PEDAGOGY_RULES}"
 )
 
 CARDS_SYSTEM = (
@@ -29,32 +38,38 @@ CARDS_SYSTEM = (
 
 TYPED_CARDS_SYSTEM = (
     "Du schreibst drei Arten Lernkarten für einen Lerntrainer. Antworte NUR mit JSON.\n"
-    'Schema: {"merk_cards":[{"question":"...","answer":"...","tip":"..."}],'
+    'Schema: {"merk_cards":[{"question":"...","answer":"...","tip":"...","method_id":"mental|notes|numberline|written|decomposition|supplement|other"}],'
     '"mental_cards":[{"question":"...","answer":"...","tip":"..."}],'
-    '"input_cards":[{"question":"...","answer":"...","tip":"..."}]}\n'
+    '"input_cards":[{"question":"...","answer":"...","tip":"...","expected_method":"mental|notes|numberline|written|decomposition|supplement"}]}\n'
     "Regeln:\n"
-    "- merk_cards: Merkregeln, typische Fehler, Vorgehen — KEINE reine Kopfrechnung.\n"
+    "- merk_cards: Merkregeln, typische Fehler, Lösungswege — KEINE reine Kopfrechnung.\n"
     "- mental_cards: kurze Kopf-Rechnaufgaben (Frage → Antwort), 1 Schritt im Kopf.\n"
     "- input_cards: Rechenaufgaben zum Eintippen; answer = exaktes Ergebnis (Zahl).\n"
     "- Genau die geforderten Anzahlen pro Typ.\n"
     "- Keine Duplikate zwischen den Typen und zu bereits verwendeten Fragen.\n"
-    "- Kein ISBN/Buchcover-Meta."
+    "- Kein ISBN/Buchcover-Meta.\n"
+    f"{TYPED_CARDS_PEDAGOGY_RULES}"
 )
 
 QUIZ_SYSTEM = (
     "Du schreibst Quizfragen für einen Lerntrainer. Antworte NUR mit JSON.\n"
-    'Schema: {"questions":[{"q":"...","options":["A","B","C","D"],"answer":0,"explanation":"..."}]}\n'
+    'Schema: {"questions":[{"q":"...","options":["A","B","C","D"],"answer":0,'
+    '"explanation":"...","question_type":"calculation|method","method_id":"optional"}]}\n'
     "Regeln:\n"
     "- Genau die geforderte Anzahl Fragen.\n"
     "- Je 4 plausible Optionen, answer = 0-basierter Index.\n"
-    "- explanation: Bei Rechenaufgaben 2–3 Sätze mit kurzem Lösungsweg (Zwischenschritte, nicht nur Endergebnis).\n"
-    "- Bei anderen Fragen: 1–2 Sätze warum die Antwort stimmt.\n"
+    "- explanation: Bei question_type=calculation mindestens zwei Lösungswege als "
+    "'Variante 1 (...)' und 'Variante 2 (...)' (z. B. Reihen + Zerlegung/Komma verschieben/untereinander). "
+    "Bezug zu bereits Gelerntem (Einmaleins-Reihen) wo sinnvoll.\n"
+    "- Bei question_type=method: kurze Begründung der Strategiewahl, keine Rechenvarianten.\n"
     "- Bei Zahlenantworten: answer-Index muss exakt zur explanation passen; Optionen auch numerisch verschieden (nicht 10 und 10.0).\n"
-    "- Keine Trivialfragen, keine Scherzantworten."
+    "- Keine Trivialfragen, keine Scherzantworten.\n"
+    f"{QUIZ_PEDAGOGY_RULES}"
 )
 
 KNOWLEDGE_SYSTEM = (
-    "Du schreibst didaktisches Kernwissen für Schüler vor einem Quiz. Antworte NUR mit JSON.\n"
+    "Du schreibst didaktisches Kernwissen für Schüler (Schritt «Verstehen» vor Üben und Check). "
+    "Antworte NUR mit JSON.\n"
     'Schema: {"knowledge":[{"title":"Kurztitel","text":"2-4 Sätze"}]}\n'
     "Regeln:\n"
     "- Genau 4 bis 5 Einträge.\n"
@@ -62,7 +77,8 @@ KNOWLEDGE_SYSTEM = (
     "typischer Fehler oder Merksatz, optional Bezug zum Alltag.\n"
     "- Kurze Sätze, altersgerecht, verständlich — wie ein Mini-Tutorial, nicht wie eine Karteikarte.\n"
     "- Ergänze die Lernkarten didaktisch; wiederhole sie nicht wörtlich.\n"
-    "- Keine Quiz-Spoiler, kein ISBN/Buchcover-Meta."
+    "- Keine Quiz-Spoiler, kein ISBN/Buchcover-Meta.\n"
+    f"{KNOWLEDGE_PEDAGOGY_RULES}"
 )
 
 
@@ -95,7 +111,14 @@ def truncate_material(notes: str, max_chars: int = 48000) -> str:
     return notes[:max_chars] + "\n\n[… Material gekürzt — wichtigste Quellen stehen oben …]\n"
 
 
-def truncate_context(context: str, max_chars: int = 14000) -> str:
+def truncate_context(context: str, max_chars: int = 14000, *, pedagogy_digest: str = "") -> str:
+    if pedagogy_digest and "Didaktik-Regeln" not in context and "Didaktik aus den" not in context:
+        digest_block = pedagogy_context_block(pedagogy_digest)
+        budget = max(4000, max_chars - len(digest_block))
+        if len(context) <= budget:
+            return digest_block + context
+        trimmed = context[:budget] + "\n\n[… Kontext gekürzt für diese Teilaufgabe …]\n"
+        return digest_block + trimmed
     if len(context) <= max_chars:
         return context
     return context[:max_chars] + "\n\n[… Kontext gekürzt für diese Teilaufgabe …]\n"
@@ -113,7 +136,9 @@ def _context_block(
     style: str,
     answer_length: str,
     notes: str,
+    pedagogy_digest: str = "",
 ) -> str:
+    pedagogy = pedagogy_context_block(pedagogy_digest)
     return (
         f"Thema/Titel: {title}\n"
         f"Auftrag: {brief or '(kein Extra-Auftrag)'}\n"
@@ -124,7 +149,8 @@ def _context_block(
         f"Schwierigkeit 1-5: {difficulty}\n"
         f"{learner_style_hint(target_age=target_age, style=style, answer_length=answer_length)}\n\n"
         f"{SOURCE_RULES}\n\n"
-        f"Material:\n{notes or '(keine Quellen — nutze Titel und Auftrag)'}\n"
+        + (f"{pedagogy}\n" if pedagogy else "")
+        + f"Material:\n{notes or '(keine Quellen — nutze Titel und Auftrag)'}\n"
     )
 
 
@@ -142,6 +168,7 @@ def build_interactive_plan_prompt(
     notes: str,
     card_target: int,
     question_target: int,
+    pedagogy_digest: str = "",
 ) -> str:
     return (
         _context_block(
@@ -155,6 +182,7 @@ def build_interactive_plan_prompt(
             style=style,
             answer_length=answer_length,
             notes=truncate_material(notes),
+            pedagogy_digest=pedagogy_digest,
         )
         + f"\nZiel: {card_target} Lernkarten und {question_target} Quizfragen gesamt.\n"
         "Verteile cards/questions sinnvoll auf 5–6 Kategorien."

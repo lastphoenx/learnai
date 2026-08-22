@@ -1,5 +1,6 @@
 from app.core.card_answer import grade_input_card, grade_worked_solution
 from app.core.content_analysis import analyze_interactive_modules, classify_operation
+from app.core.method_taxonomy import classify_method, normalize_method_id
 
 
 def test_classify_addition():
@@ -10,26 +11,52 @@ def test_classify_division_colon():
     assert classify_operation("Was ist das Ergebnis von 24.68 : 8?") == "div"
 
 
+def test_classify_method_written():
+    assert classify_method("Rechne schriftlich: 584,5 + 67,81", kind="input") == "written"
+
+
+def test_normalize_method_alias():
+    assert normalize_method_id("zerlegung") == "decomposition"
+
+
 def test_analyze_modules_overview():
     modules = [
         {
             "title": "Dezimal Addition",
             "content": {
-                "cards": [{"question": "Wie addierst du 1,4 + 3,8?", "answer": "5,2"}],
+                "cards": [
+                    {
+                        "kind": "merk",
+                        "question": "Wann rechnest du im Kopf?",
+                        "answer": "Bei einfachen Zahlen.",
+                        "method_id": "mental",
+                    },
+                    {
+                        "kind": "input",
+                        "question": "Rechne schriftlich: 1,4 + 3,8",
+                        "answer": "5,2",
+                        "expected_method": "written",
+                    },
+                ],
             },
             "quiz": {
                 "questions": [
-                    {"q": "Was ist 2,5 + 1,2?"},
-                    {"q": "Was ergibt 8.32 : 4?"},
+                    {"q": "Was ist 2,5 + 1,2?", "question_type": "calculation"},
+                    {
+                        "q": "Welches Vorgehen passt zu 24 · 9,36?",
+                        "question_type": "method",
+                        "method_id": "decomposition",
+                    },
                 ],
             },
         }
     ]
     result = analyze_interactive_modules(modules)
     assert result["quiz"]["total"] == 2
-    assert result["cards"]["total"] == 1
+    assert result["cards"]["total"] == 2
     assert "Diese Einheit enthält" in result["overview"]
     assert any(op["key"] == "add" for op in result["quiz"]["operations"])
+    assert any(op["key"] == "written" for op in result["cards"]["methods"])
 
 
 def test_grade_input_card_numeric():
@@ -49,3 +76,14 @@ def test_grade_worked_solution_accepts_steps():
         "Ich zerlege 24 und 0,68. 24 geteilt durch 8 ist 3. Dann 680 Tausendstel durch 8 = 85. Ergebnis 3,085.",
     )
     assert ok is True
+
+
+def test_grade_worked_solution_expects_method():
+    ok, feedback = grade_worked_solution(
+        "Rechne schriftlich: 15,09 + 8,74",
+        "23,83",
+        "Ich schreibe die Zahlen untereinander mit Komma ausgerichtet und addiere Stelle für Stelle. Ergebnis 23,83.",
+        expected_method="written",
+    )
+    assert ok is True
+    assert feedback
