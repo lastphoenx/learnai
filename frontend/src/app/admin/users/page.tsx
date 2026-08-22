@@ -260,8 +260,8 @@ function AdminUserCard({
   const [emailDraft, setEmailDraft] = useState(user.login_email || "");
   const [resetOpen, setResetOpen] = useState(false);
   const [resetEmail, setResetEmail] = useState(user.login_email || "");
-  const [resetPassword, setResetPassword] = useState("");
-  const [resetPassword2, setResetPassword2] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [newPassword2, setNewPassword2] = useState("");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -282,21 +282,21 @@ function AdminUserCard({
     }
   }
 
-  async function resetPassword(e: FormEvent) {
+  async function onResetPasswordSubmit(e: FormEvent) {
     e.preventDefault();
     onError(null);
-    if (resetPassword !== resetPassword2) {
+    if (newPassword !== newPassword2) {
       onError("Neue Passwörter stimmen nicht überein");
       return;
     }
     setBusy(true);
     try {
       await resetAdminUserPassword(user.id, {
-        new_password: resetPassword,
+        new_password: newPassword,
         email: resetEmail.trim() || undefined,
       });
-      setResetPassword("");
-      setResetPassword2("");
+      setNewPassword("");
+      setNewPassword2("");
       setResetOpen(false);
       onSaved();
     } catch (err) {
@@ -354,7 +354,7 @@ function AdminUserCard({
             Passwort zurücksetzen
           </button>
         ) : (
-          <form className="stack admin-password-reset" onSubmit={resetPassword}>
+          <form className="stack admin-password-reset" onSubmit={onResetPasswordSubmit}>
             {!user.login_email && (
               <label>
                 Login-E-Mail (Pflicht)
@@ -370,15 +370,15 @@ function AdminUserCard({
               label="Neues Passwort"
               required
               minLength={12}
-              value={resetPassword}
-              onChange={(e) => setResetPassword(e.target.value)}
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
             />
             <PasswordInput
               label="Neues Passwort wiederholen"
               required
               minLength={12}
-              value={resetPassword2}
-              onChange={(e) => setResetPassword2(e.target.value)}
+              value={newPassword2}
+              onChange={(e) => setNewPassword2(e.target.value)}
             />
             <div className="admin-user-action-row">
               <button type="submit" disabled={busy}>
