@@ -35,6 +35,11 @@ from app.ai.validators.interactive import (
 )
 from app.core.crypto import decrypt_text_master
 from app.core.method_taxonomy import classify_method, normalize_method_id
+from app.core.pedagogy_labels import (
+    collect_content_blob,
+    count_label_coverage,
+    material_labels_from_methods,
+)
 from app.models import LearningRecord, User
 from app.services.crypto_json import decrypt_json
 from app.services.profile_service import resolve_prefs_for_profile
@@ -45,51 +50,16 @@ _log = logging.getLogger(__name__)
 
 
 def _validate_pedagogy_method_coverage(modules: list, pedagogy_profile: dict) -> None:
-    """Stichprobe: mindestens zwei Lösungswege aus dem Heft im generierten Inhalt."""
+    """Stichprobe: mindestens zwei Heft-Labels im generierten Inhalt."""
     methods = pedagogy_profile.get("methods") if isinstance(pedagogy_profile, dict) else []
     if not isinstance(methods, list) or len(methods) < 2:
         return
-    expected = {
-        normalize_method_id(m.get("id"))
-        for m in methods
-        if isinstance(m, dict) and normalize_method_id(m.get("id"))
-    }
-    expected.discard("other")
-    if len(expected) < 2:
+    labels = material_labels_from_methods(methods)
+    if len(labels) < 2:
         return
-    found: set[str] = set()
-    blob_parts: list[str] = []
-    for mod in modules:
-        if not isinstance(mod, dict):
-            continue
-        content = mod.get("content") if isinstance(mod.get("content"), dict) else {}
-        for card in content.get("cards") or []:
-            if not isinstance(card, dict):
-                continue
-            blob_parts.append(str(card.get("question") or ""))
-            blob_parts.append(str(card.get("answer") or ""))
-            mid = normalize_method_id(card.get("method_id") or card.get("expected_method"))
-            if mid:
-                found.add(mid)
-        for q in (mod.get("quiz") or {}).get("questions") or []:
-            if not isinstance(q, dict):
-                continue
-            blob_parts.append(str(q.get("q") or ""))
-            mid = normalize_method_id(q.get("method_id"))
-            if mid:
-                found.add(mid)
-    blob = " ".join(blob_parts).lower()
-    matched = found.intersection(expected)
-    if len(matched) >= min(2, len(expected)):
-        return
-    for method in methods:
-        if not isinstance(method, dict):
-            continue
-        mid = normalize_method_id(method.get("id"))
-        label = str(method.get("label") or "").strip().lower()
-        if mid and mid in expected and mid not in matched and label and label in blob:
-            matched.add(mid)
-    if len(matched) < min(2, len(expected)):
+    blob = collect_content_blob(modules)
+    matched = count_label_coverage(labels, blob)
+    if matched < min(2, len(labels)):
         raise LlmError(
             "Zu wenig Lösungswege aus dem Heft in Karten/Quiz — Didaktik nicht ausreichend umgesetzt",
             "thin_content",
@@ -214,14 +184,20 @@ def _parse_card_list(raw_cards: object, *, kind: str, expected: int) -> list[dic
             "tip": str(raw.get("tip") or "")[:240],
         }
         if kind == "merk":
+            method_label = str(raw.get("method_label") or "").strip()
+            if method_label:
+                item["method_label"] = method_label[:120]
             method_id = normalize_method_id(raw.get("method_id")) or classify_method(
-                f"{q} {a}", kind="merk"
+                f"{method_label} {q} {a}", kind="merk"
             )
             if method_id and method_id != "other":
                 item["method_id"] = method_id
         if kind == "input":
+            method_label = str(raw.get("method_label") or "").strip()
+            if method_label:
+                item["method_label"] = method_label[:120]
             expected_method = normalize_method_id(raw.get("expected_method")) or classify_method(
-                q, kind="input"
+                f"{method_label} {q}", kind="input"
             )
             if expected_method and expected_method != "other":
                 item["expected_method"] = expected_method

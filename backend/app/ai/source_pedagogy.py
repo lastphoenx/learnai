@@ -8,23 +8,13 @@ import re
 from typing import Any
 
 from app.ai.providers import parse_json_object
+from app.core.method_taxonomy import normalize_method_id
+from app.core.pedagogy_labels import guess_method_id, normalize_label, resolve_method_entry
 
 _log = logging.getLogger(__name__)
 
 _PEDAGOGY_JSON_MARKER = "## PEDAGOGY_JSON"
 _MAX_DIGEST_CHARS = 2800
-
-_METHOD_IDS = frozenset(
-    {
-        "mental",
-        "notes",
-        "numberline",
-        "written",
-        "decomposition",
-        "supplement",
-        "other",
-    }
-)
 
 
 def vision_pedagogy_prompt(*, language: str) -> str:
@@ -37,24 +27,25 @@ def vision_pedagogy_prompt(*, language: str) -> str:
         '  "summary": "2-6 Sätze: Thema, Seiteninhalt, Lernziele",\n'
         '  "is_metadata_only": false,\n'
         '  "methods": [\n'
-        '    {"id":"mental|notes|numberline|written|decomposition|supplement|other",'
-        ' "label":"Bezeichnung wie im Heft", "when":"Wann diese Methode sinnvoll ist",'
-        ' "example":"kurzes Beispiel aus dem Bild"}\n'
+        '    {"label":"Bezeichnung exakt wie im Heft", "when":"Wann diese Methode sinnvoll ist",'
+        ' "example":"kurzes Beispiel aus dem Bild", "id":"optional, nur wenn passend"}\n'
         "  ],\n"
         '  "worked_examples": [\n'
-        '    {"problem":"Aufgabe", "method_id":"...", "steps":["Schritt 1","Schritt 2"]}\n'
+        '    {"problem":"Aufgabe", "method_label":"Bezeichnung wie im Heft",'
+        ' "steps":["Schritt 1","Schritt 2"]}\n'
         "  ],\n"
         '  "exercises": [\n'
-        '    {"ref":"Aufg. 5a", "text":"Aufgabentext", "suggested_method":"optional id"}\n'
+        '    {"ref":"Aufg. 5a", "text":"Aufgabentext", "suggested_method":"optional, Bezeichnung aus dem Heft"}\n'
         "  ],\n"
-        '  "exercise_patterns": ["vorgehen_waehlen","dezimalpunkt_ergaenzen","zuordnen","eigene_aufgaben"],\n'
-        '  "teaching_notes": ["didaktische Hinweise, z.B. Komma ausrichten, Vorgehen wählen"]\n'
+        '  "exercise_patterns": ["freier Kurzname für erkannten Aufgabentyp"],\n'
+        '  "teaching_notes": ["didaktische Hinweise aus dem Material"]\n'
         "}\n"
         "Regeln:\n"
-        "- methods: alle im Bild gezeigten Lösungswege/Strategien (Kopf, Notizen, Rechenstrich, schriftlich, Zerlegung, ergänzen).\n"
-        "- worked_examples: vollständige Beispiel-Lösungswege mit Zwischenschritten.\n"
+        "- methods: alle im Bild gezeigten Lösungswege/Strategien — benenne sie so, wie das Material sie nennt.\n"
+        "- label ist Pflicht; id nur optional und nie erfinden.\n"
+        "- worked_examples: vollständige Beispiel-Lösungswege mit Zwischenschritten und method_label aus dem Heft.\n"
         "- exercises: sichtbare Aufgaben mit Zahlen/Text.\n"
-        "- exercise_patterns: erkannte Aufgabentypen (nicht erfinden).\n"
+        "- exercise_patterns: erkannte Aufgabentypen in den Worten des Materials (nicht erfinden).\n"
         "- is_metadata_only=true nur bei Cover, ISBN, Verlagsinfo ohne Aufgaben.\n"
         "- Bei Metadaten: methods/worked_examples/exercises leer lassen.\n"
         f"- Sprache der Texte: {lang}.\n"
@@ -167,22 +158,9 @@ def _normalize_methods(raw: object) -> list[dict[str, str]]:
     for item in raw:
         if not isinstance(item, dict):
             continue
-        method_id = str(item.get("id") or "other").strip().lower()
-        if method_id not in _METHOD_IDS:
-            method_id = "other"
-        label = str(item.get("label") or "").strip()
-        when = str(item.get("when") or "").strip()
-        example = str(item.get("example") or "").strip()
-        if not label and not when and not example:
-            continue
-        out.append(
-            {
-                "id": method_id,
-                "label": label[:120] or method_id,
-                "when": when[:300],
-                "example": example[:300],
-            }
-        )
+        entry = resolve_method_entry(item)
+        if entry:
+            out.append(entry)
     return out[:12]
 
 
@@ -197,9 +175,18 @@ def _normalize_worked_examples(raw: object) -> list[dict[str, Any]]:
         steps = _normalize_string_list(item.get("steps"))
         if not problem and not steps:
             continue
-        method_id = str(item.get("method_id") or "").strip().lower()
+        method_label = str(item.get("method_label") or item.get("label") or "").strip()
+        method_id = normalize_method_id(item.get("method_id"))
+        if not method_id and method_label:
+            method_id = guess_method_id(method_label)
         entry: dict[str, Any] = {"problem": problem[:200], "steps": steps[:10]}
-        if method_id in _METHOD_IDS:
+        if method_label:
+            entry["method_label"] = method_label[:120]
+        elif method_id:
+            from app.core.method_taxonomy import METHOD_LABELS
+
+            entry["method_label"] = METHOD_LABELS.get(method_id, method_id)
+        if method_id:
             entry["method_id"] = method_id
         out.append(entry)
     return out[:10]
@@ -216,12 +203,12 @@ def _normalize_exercises(raw: object) -> list[dict[str, str]]:
         if not text:
             continue
         ref = str(item.get("ref") or "").strip()
-        suggested = str(item.get("suggested_method") or "").strip().lower()
+        suggested = str(item.get("suggested_method") or "").strip()
         entry = {"text": text[:300]}
         if ref:
             entry["ref"] = ref[:40]
-        if suggested in _METHOD_IDS:
-            entry["suggested_method"] = suggested
+        if suggested:
+            entry["suggested_method"] = suggested[:120]
         out.append(entry)
     return out[:30]
 
@@ -270,8 +257,8 @@ def merge_pedagogy_profiles(profiles: list[dict[str, Any]]) -> dict[str, Any]:
         for method in profile.get("methods") or []:
             if not isinstance(method, dict):
                 continue
-            key = f"{method.get('id')}:{method.get('label')}"
-            if key in seen_methods:
+            key = normalize_label(method.get("label") or method.get("id") or "")
+            if not key or key in seen_methods:
                 continue
             seen_methods.add(key)
             merged["methods"].append(method)
@@ -323,7 +310,8 @@ def build_pedagogy_digest(pedagogy: dict[str, Any] | None) -> str:
     if profile.get("is_metadata_only") or not has_pedagogy_content(profile):
         return (
             "Keine strukturierten Didaktik-Hinweise aus Quellen.\n"
-            "Nutze trotzdem alle Lösungswege aus dem Materialtext (Kopf, Notizen, Rechenstrich, schriftlich, Zerlegung)."
+            "Nutze trotzdem alle Lösungswege und Strategien, die im Materialtext vorkommen — "
+            "benenne sie so, wie das Heft sie nennt."
         )
 
     lines: list[str] = ["Didaktik aus den hochgeladenen Quellen:"]
@@ -355,8 +343,8 @@ def build_pedagogy_digest(pedagogy: dict[str, Any] | None) -> str:
             problem = item.get("problem") or "Beispiel"
             steps = item.get("steps") or []
             step_text = " → ".join(str(s) for s in steps[:5])
-            method_id = item.get("method_id")
-            suffix = f" [{method_id}]" if method_id else ""
+            method_label = item.get("method_label") or item.get("label") or ""
+            suffix = f" ({method_label})" if method_label else ""
             lines.append(f"- {problem}{suffix}: {step_text}" if step_text else f"- {problem}{suffix}")
 
     notes = profile.get("teaching_notes") or []
@@ -390,10 +378,4 @@ def has_pedagogy_content(profile: dict[str, Any]) -> bool:
 
 
 def _pattern_label(pattern: str) -> str:
-    labels = {
-        "vorgehen_waehlen": "Geeignetes Vorgehen wählen",
-        "dezimalpunkt_ergaenzen": "Dezimalpunkt ergänzen",
-        "zuordnen": "Resultate zuordnen",
-        "eigene_aufgaben": "Eigene Aufgaben formulieren",
-    }
-    return labels.get(pattern, pattern.replace("_", " "))
+    return str(pattern or "").replace("_", " ").strip()
