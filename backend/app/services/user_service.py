@@ -34,6 +34,7 @@ class AuthError(Exception):
 
 
 def _encrypt_profile(display_name: str, password: str, salt: bytes, email: str) -> bytes:
+    """Legacy write-only blob (passwortabgeleiteter Schlüssel). Nichts im Code liest encrypted_profile."""
     key = derive_user_key(password, salt, email)
     payload = json.dumps({"display_name": display_name}).encode("utf-8")
     return encrypt_text(payload.decode("utf-8"), key)
@@ -226,11 +227,6 @@ def _account_display_name(user: User) -> str:
     return str(_read_account_settings(user).get("display_name") or "").strip()[:80]
 
 
-def _reencrypt_profile(user: User, *, email: str, password: str) -> None:
-    display_name = _account_display_name(user) or email.split("@")[0]
-    user.encrypted_profile = _encrypt_profile(display_name, password, user.encryption_salt, email)
-
-
 def assign_login_email(user: User, email: str) -> None:
     """Login-E-Mail in Account-Settings speichern (Hash muss passen)."""
     normalized = email.strip().lower()
@@ -242,14 +238,7 @@ def assign_login_email(user: User, email: str) -> None:
 def change_own_password(db: Session, user: User, *, current_password: str, new_password: str) -> None:
     if not verify_password(user.password_hash, current_password):
         raise AuthError("Aktuelles Passwort ist falsch", "invalid_password")
-    email = _login_email(user)
-    if not email:
-        raise AuthError(
-            "Login-E-Mail ist nicht hinterlegt. Bitte einen Admin um Zuordnung.",
-            "login_email_missing",
-        )
     user.password_hash = hash_password(new_password)
-    _reencrypt_profile(user, email=email, password=new_password)
     log_event(
         db,
         tenant_id=user.tenant_id,
@@ -282,7 +271,6 @@ def admin_reset_password(
         raise AuthError("E-Mail passt nicht zu diesem Account", "invalid_email")
     _write_login_email(target, resolved)
     target.password_hash = hash_password(new_password)
-    _reencrypt_profile(target, email=resolved, password=new_password)
     log_event(
         db,
         tenant_id=actor.tenant_id,

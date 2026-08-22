@@ -64,11 +64,9 @@ def test_assign_login_email_requires_hash_match(env_keys):
 
 def test_change_own_password(env_keys):
     user = _user()
-    _write_login_email(user, "thomas@example.com")
     db = MagicMock()
     change_own_password(db, user, current_password="old-password-12", new_password="new-password-12")
     assert verify_password(user.password_hash, "new-password-12")
-    assert user.encrypted_profile
 
 
 def test_admin_reset_password_with_email(env_keys):
