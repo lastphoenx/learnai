@@ -19,6 +19,10 @@ def test_normalize_method_alias():
     assert normalize_method_id("zerlegung") == "decomposition"
 
 
+def test_classify_addition_symbol():
+    assert classify_operation("Was ist 2,5 + 1,2?") == "add"
+
+
 def test_analyze_modules_overview():
     modules = [
         {

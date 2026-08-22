@@ -13,12 +13,15 @@ from app.ai.catalog import resolve_task_ai
 from app.ai.errors import LlmError
 from app.ai.providers import complete, describe_image, parse_json_object, resolve_provider
 from app.ai.source_pedagogy import (
+    build_pedagogy_digest,
+    collect_pedagogy_from_unit_sources,
     encode_source_analysis,
     has_pedagogy_content,
     parse_pedagogy_extraction,
     pedagogy_from_analysis_blob,
     vision_pedagogy_prompt,
 )
+from app.ai.prompts.pedagogy import pedagogy_context_block
 from app.config import settings
 from app.core.crypto import decrypt_text_master, encrypt_text_master
 from app.models import LearningRecord, LearningUnit, UnitModule, User
@@ -145,6 +148,7 @@ def _build_unit_prompt(
     task: str,
     hint: str,
     notes: str,
+    pedagogy_digest: str = "",
     strict: bool = False,
 ) -> str:
     strict_note = (
@@ -153,6 +157,7 @@ def _build_unit_prompt(
         if strict
         else ""
     )
+    pedagogy = pedagogy_context_block(pedagogy_digest)
     return (
         f"Erstelle eine vollständige, sofort nutzbare Lerneinheit.\n"
         f"Titel: {title}\n"
@@ -163,7 +168,8 @@ def _build_unit_prompt(
         f"Schwierigkeit 1-5: {unit.difficulty}\n"
         f"Aufgabentyp: {task} — {hint}\n\n"
         f"{SOURCE_RULES}\n\n"
-        f"Material aus den Quellen:\n{notes or '(keine Quellen — nutze Titel und Auftrag)'}\n"
+        + (f"{pedagogy}\n" if pedagogy else "")
+        + f"Material aus den Quellen:\n{notes or '(keine Quellen — nutze Titel und Auftrag)'}\n"
         f"{strict_note}"
     )
 
@@ -404,11 +410,15 @@ def generate_modules(
     )
     t0 = time.monotonic()
     notes = _collect_source_notes(db, unit, prefs)
+    db.commit()
+    pedagogy_profile = collect_pedagogy_from_unit_sources(unit.sources)
+    pedagogy_digest = build_pedagogy_digest(pedagogy_profile)
     _log.info(
-        "generate_llm sources_done unit_id=%s duration_ms=%d notes_chars=%d",
+        "generate_llm sources_done unit_id=%s duration_ms=%d notes_chars=%d pedagogy_methods=%d",
         unit_id,
         int((time.monotonic() - t0) * 1000),
         len(notes),
+        len(pedagogy_profile.get("methods") or []),
     )
     hint = hint_for_task(task)
     recon = None
@@ -436,6 +446,7 @@ def generate_modules(
         task=task,
         hint=hint,
         notes=notes,
+        pedagogy_digest=pedagogy_digest,
     )
     _log.info(
         "generate_llm chat_start unit_id=%s provider=%s model=%s prompt_chars=%d",
