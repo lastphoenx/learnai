@@ -193,14 +193,34 @@ export default function ParentDashboardPage() {
 
                 {exam && exam.error_tags.length > 0 && (
                   <div className="parent-insight-block">
-                    <h3>Fehlertrends (über alle Prüfungen)</h3>
+                    <h3>Fehlertrends (Prüfungen)</h3>
                     <ul className="exam-pattern-list">
                       {exam.error_tags.map((t) => (
-                        <li key={t.tag}>
+                        <li key={t.key || t.tag}>
                           <span className="badge badge-math">{t.label}</span>
                           <span className="muted">
                             {" "}
                             · {t.count}× · in {t.exam_count} Prüfung{t.exam_count !== 1 ? "en" : ""}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {exam && (exam.strategy_trends || []).length > 0 && (
+                  <div className="parent-insight-block">
+                    <h3>Strategien & Schwächen (App)</h3>
+                    <ul className="exam-pattern-list">
+                      {(exam.strategy_trends || []).map((row) => (
+                        <li key={row.key}>
+                          <span className="badge">{row.label}</span>
+                          <span className="muted">
+                            {" "}
+                            · {row.attempts} Versuch{row.attempts !== 1 ? "e" : ""}
+                            {row.accuracy != null ? ` · ${row.accuracy}% Treffer` : ""}
+                            {row.unit_count > 1 ? ` · ${row.unit_count} Einheiten` : ""}
+                            {row.sources?.length ? ` (${row.sources.join(", ")})` : ""}
                           </span>
                         </li>
                       ))}

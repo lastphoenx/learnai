@@ -359,6 +359,7 @@ export type QuizWeaknessItem = {
 };
 
 export type QuizErrorTagRow = {
+  key?: string;
   tag: string;
   label: string;
   count: number;
@@ -371,7 +372,7 @@ export type ExamLearnEntry = {
   taken_at?: string | null;
   summary?: string | null;
   gaps?: string[];
-  error_tags?: { tag: string; label: string }[];
+  error_tags?: { key?: string; tag: string; label: string }[];
   remediation_unit_id?: string | null;
   trainer_unit_id?: string | null;
   match?: "same_unit" | "same_subject";
@@ -995,7 +996,16 @@ export type ChildExamInsights = {
     remediation_unit_id: string | null;
     transfer?: ExamTransfer | null;
   }[];
-  error_tags: { tag: string; label: string; count: number; exam_count: number }[];
+  error_tags: { key: string; tag: string; label: string; count: number; exam_count: number }[];
+  strategy_trends?: {
+    key: string;
+    label: string;
+    attempts: number;
+    correct: number;
+    accuracy: number | null;
+    unit_count: number;
+    sources: string[];
+  }[];
   review_due: {
     record_id: string;
     unit_id: string | null;

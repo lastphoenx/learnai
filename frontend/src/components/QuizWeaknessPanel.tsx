@@ -79,7 +79,7 @@ export function QuizWeaknessPanel({ unitId, data, compact = false, onCreated }: 
       {(data.error_tags || []).length > 0 && (
         <div className="badge-row quiz-weakness-tags">
           {(data.error_tags || []).slice(0, 5).map((t) => (
-            <span key={t.tag} className="badge badge-neutral" title={t.tag}>
+            <span key={t.key || t.tag} className="badge badge-neutral" title={t.label}>
               {t.label} ({t.count})
             </span>
           ))}

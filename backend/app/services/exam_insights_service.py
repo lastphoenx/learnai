@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session, joinedload
 
-from app.ai.error_tags import collect_tags_from_analysis, label_for_tag
+from app.ai.error_tags import ERROR_TAG_LABELS, collect_error_items_from_analysis, label_for_tag
 from app.services.exam_service import compute_transfer_comparison
 from app.core.crypto import decrypt_text_master
 from app.models import ExamResult, LearningProfile, LearningRecord, LearningUnit, User
@@ -56,7 +56,7 @@ def exam_insights_for_profile(db: Session, tenant_id: uuid.UUID, profile_id: uui
     )
 
     timeline: list[dict] = []
-    tag_meta: dict[str, dict] = defaultdict(lambda: {"count": 0, "exam_ids": set()})
+    tag_meta: dict[str, dict] = defaultdict(lambda: {"count": 0, "exam_ids": set(), "label": ""})
     pending_remediation = 0
 
     for exam in exams:
@@ -89,18 +89,22 @@ def exam_insights_for_profile(db: Session, tenant_id: uuid.UUID, profile_id: uui
         if analysis and exam.status == "analyzed" and not exam.remediation_unit_id:
             pending_remediation += 1
         if analysis:
-            for tag in collect_tags_from_analysis(analysis):
-                tag_meta[tag]["count"] += 1
-                tag_meta[tag]["exam_ids"].add(str(exam.id))
+            for item in collect_error_items_from_analysis(analysis):
+                key = item["key"]
+                tag_meta[key]["count"] += 1
+                tag_meta[key]["exam_ids"].add(str(exam.id))
+                tag_meta[key]["label"] = item.get("label") or label_for_tag(key)
 
     error_tags = [
         {
-            "tag": tag,
-            "label": label_for_tag(tag),
+            "key": key,
+            "tag": key,
+            "label": meta["label"] or label_for_tag(key),
             "count": meta["count"],
             "exam_count": len(meta["exam_ids"]),
+            "taxonomy": key in ERROR_TAG_LABELS,
         }
-        for tag, meta in sorted(tag_meta.items(), key=lambda x: (-x[1]["count"], x[0]))
+        for key, meta in sorted(tag_meta.items(), key=lambda x: (-x[1]["count"], x[0]))
     ]
 
     records = (
@@ -134,12 +138,15 @@ def exam_insights_for_profile(db: Session, tenant_id: uuid.UUID, profile_id: uui
             }
         )
 
+    from app.services.strategy_insights_service import strategy_trends_for_profile
+
     return {
         "exam_count": len(exams),
         "analyzed_count": sum(1 for e in exams if e.analysis_encrypted),
         "pending_remediation": pending_remediation,
         "timeline": timeline[:12],
         "error_tags": error_tags[:20],
+        "strategy_trends": strategy_trends_for_profile(db, tenant_id, profile_id),
         "review_due": review_due[:10],
     }
 
@@ -189,7 +196,7 @@ def exam_learning_entry_for_unit(
     analysis = decrypt_json(chosen.analysis_encrypted) or {}
     if not isinstance(analysis, dict):
         return None
-    tags = collect_tags_from_analysis(analysis)[:8]
+    tags = collect_error_items_from_analysis(analysis)[:8]
     gaps = [str(g).strip() for g in (analysis.get("gaps") or []) if str(g).strip()][:5]
     taken = chosen.taken_at.isoformat() if chosen.taken_at else chosen.created_at.isoformat()
 
@@ -200,7 +207,10 @@ def exam_learning_entry_for_unit(
         "taken_at": taken,
         "summary": analysis.get("summary"),
         "gaps": gaps,
-        "error_tags": [{"tag": tag, "label": label_for_tag(tag)} for tag in tags],
+        "error_tags": [
+            {"key": item["key"], "tag": item.get("tag") or item["key"], "label": item["label"]}
+            for item in tags
+        ],
         "remediation_unit_id": str(chosen.remediation_unit_id) if chosen.remediation_unit_id else None,
         "trainer_unit_id": str(chosen.trainer_unit_id) if chosen.trainer_unit_id else None,
         "match": match,
@@ -230,12 +240,22 @@ def child_report_markdown(
             title = row["unit_title"] or "Ohne Einheit"
             status = "analysiert" if row["has_analysis"] else "ohne Analyse"
             lines.append(f"- {date}: **{title}** — {grade} ({status})")
-    lines.extend(["", "## Häufige Fehlermuster"])
+    lines.extend(["", "## Häufige Fehlermuster (Prüfungen)"])
     if not insights["error_tags"]:
         lines.append("Keine Fehlermuster aus Analysen.")
     else:
         for row in insights["error_tags"]:
-            lines.append(f"- {row['label']} ({row['tag']}): {row['count']}× in {row['exam_count']} Prüfung(en)")
+            lines.append(f"- {row['label']}: {row['count']}× in {row['exam_count']} Prüfung(en)")
+    lines.extend(["", "## Strategien & Schwächen (App)"])
+    if not insights.get("strategy_trends"):
+        lines.append("Noch keine ausreichenden Quiz-/Trainer-Daten.")
+    else:
+        for row in insights["strategy_trends"]:
+            acc = f", {row['accuracy']}% Treffer" if row.get("accuracy") is not None else ""
+            src = ", ".join(row.get("sources") or [])
+            lines.append(
+                f"- {row['label']}: {row['attempts']} Versuche{acc} ({src}, {row['unit_count']} Einheit(en))"
+            )
     lines.extend(["", "## Wiederholung empfohlen"])
     if not insights["review_due"]:
         lines.append("Keine fälligen Wiederholungen (Schwelle: 7 Tage nach Abschluss).")

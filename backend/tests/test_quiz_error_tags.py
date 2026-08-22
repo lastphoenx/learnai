@@ -17,6 +17,15 @@ def test_aggregate_quiz_error_tags_counts():
         {"error_tags": ["fractions_denominator"]},
     ]
     rows = aggregate_quiz_error_tags(weaknesses)
-    by_tag = {row["tag"]: row["count"] for row in rows}
-    assert by_tag["fractions_denominator"] == 2
-    assert by_tag["calculation_error"] == 1
+    by_key = {row["key"]: row["count"] for row in rows}
+    assert by_key["fractions_denominator"] == 2
+    assert by_key["calculation_error"] == 1
+
+
+def test_infer_quiz_with_material_label():
+    tags = infer_quiz_error_tags(
+        question="Wann nutzt du die Ersatzprobe?",
+        module_title="Deutsch",
+        material_labels=["Ersatzprobe"],
+    )
+    assert tags and tags[0].startswith("label:")

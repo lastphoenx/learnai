@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.core.crypto import decrypt_text_master, encrypt_text_master
 from app.core.crypto.classification import DataClassification
 from app.models import ExamResult, LearningRecord, LearningUnit, User
-from app.services.audit import log_event
+from app.ai.error_tags import resolve_error_label, resolve_error_pattern
 from app.services.crypto_json import decrypt_json, encrypt_json
 from app.services.unit_service import (
     UnitError,
@@ -95,17 +95,16 @@ def _clean_error_patterns(patterns: list | None) -> list[dict]:
     for raw in patterns[:30]:
         if not isinstance(raw, dict):
             continue
-        tag = str(raw.get("tag") or "").strip().lower()[:64]
-        label = str(raw.get("label") or "").strip()[:200]
-        if not tag and not label:
+        resolved = resolve_error_pattern(raw)
+        if not resolved:
             continue
-        item: dict = {"tag": tag or label.lower().replace(" ", "_")[:64], "label": label or tag}
-        count = raw.get("count")
-        if isinstance(count, int) and count >= 0:
-            item["count"] = count
-        examples = _clean_str_list(raw.get("examples") if isinstance(raw.get("examples"), list) else None, max_items=5)
-        if examples:
-            item["examples"] = examples
+        item: dict = {"label": resolved["label"], "key": resolved["key"]}
+        if resolved.get("tag"):
+            item["tag"] = resolved["tag"]
+        if isinstance(resolved.get("count"), int):
+            item["count"] = resolved["count"]
+        if resolved.get("examples"):
+            item["examples"] = resolved["examples"]
         out.append(item)
     return out
 
@@ -133,11 +132,21 @@ def _clean_tasks(tasks: list | None) -> list[dict]:
         errors = _clean_str_list(raw.get("errors") if isinstance(raw.get("errors"), list) else None, max_items=8)
         if errors:
             item["errors"] = errors
+        error_labels: list[str] = []
+        for raw_label in raw.get("error_labels") or []:
+            label = resolve_error_label(str(raw_label))
+            if label and label not in error_labels:
+                error_labels.append(label)
         tags: list[str] = []
         for raw_tag in raw.get("error_tags") or []:
+            label = resolve_error_label(str(raw_tag))
+            if label and label not in error_labels:
+                error_labels.append(label)
             tag = str(raw_tag).strip().lower()[:64]
             if tag and tag not in tags:
                 tags.append(tag)
+        if error_labels:
+            item["error_labels"] = error_labels[:12]
         if tags:
             item["error_tags"] = tags[:12]
         out.append(item)
@@ -617,7 +626,7 @@ def _build_interactive_trainer_brief(
     score: int | None,
     max_score: int | None,
 ) -> str:
-    from app.ai.error_tags import collect_tags_from_analysis, label_for_tag
+    from app.ai.error_tags import collect_error_items_from_analysis
 
     lines = [
         "Interaktiver Lerntrainer — gezielt zu den Schwächen aus der Schulprüfungs-Analyse.",
@@ -632,11 +641,11 @@ def _build_interactive_trainer_brief(
     if summary:
         lines.append(f"Analyse-Kurzfassung: {summary}")
 
-    tags = collect_tags_from_analysis(analysis)
-    if tags:
-        lines.append("Fehlertags (Priorität für Karten und Quiz):")
-        for tag in tags[:12]:
-            lines.append(f"- {label_for_tag(tag)} ({tag})")
+    patterns = collect_error_items_from_analysis(analysis)
+    if patterns:
+        lines.append("Fehlermuster (Priorität für Karten und Quiz):")
+        for item in patterns[:12]:
+            lines.append(f"- {item['label']}")
 
     gaps = [str(g).strip() for g in (analysis.get("gaps") or []) if str(g).strip()]
     if gaps:
