@@ -16,6 +16,12 @@ from app.core.quiz_explanation import enrich_quiz_explanation
 from app.core.quiz_numeric import is_quiz_selection_correct, resolve_quiz_correct_index
 from app.models import FlashcardProgress, LearningRecord, LearningUnit, UnitModule, User
 from app.services.crypto_json import decrypt_json, encrypt_json
+from app.core.learn_goals import (
+    count_cards_by_kind,
+    count_quiz_answered,
+    merge_goals_payload,
+    normalize_learn_goals,
+)
 from app.services.unit_service import (
     UnitError,
     _add_event,
@@ -24,6 +30,7 @@ from app.services.unit_service import (
     _dec_unit,
     _get_unit_or_404,
     create_unit,
+    get_learn_goals,
     get_trainer_options,
 )
 from app.ai.error_tags import aggregate_quiz_error_tags, infer_quiz_error_tags, label_for_tag
@@ -643,6 +650,34 @@ def complete_learn(db: Session, user: User, unit_id: uuid.UUID) -> dict:
     }
 
 
+def save_child_learn_goals(
+    db: Session,
+    user: User,
+    unit_id: uuid.UUID,
+    *,
+    goals: dict | None,
+) -> dict:
+    unit = _get_unit_or_404(db, user, unit_id)
+    if unit.task_type != "interactive":
+        raise UnitError("Lernziele nur für Lerntrainer", "invalid_task")
+    record = _get_record_for_unit(db, unit.id)
+    stats = _get_stats(record)
+    learn = stats["learn"]
+    if goals is None:
+        learn.pop("child_goals", None)
+    else:
+        learn["child_goals"] = normalize_learn_goals(goals)
+    stats["learn"] = learn
+    _save_stats(db, record, stats)
+    modules = sorted(unit.modules, key=lambda m: m.order_index)
+    profile_id = _profile_id_for_learn(unit, record)
+    trainer = _interactive_trainer_payload(db, unit, modules, record, profile_id=profile_id)
+    return {
+        "child_goals": trainer.get("child_goals"),
+        "goals_progress": trainer.get("goals_progress"),
+    }
+
+
 def clear_learn_state_after_regenerate(db: Session, unit: LearningUnit) -> None:
     """Lernfortschritt zurücksetzen, wenn Module komplett neu generiert wurden."""
     record = db.query(LearningRecord).filter(LearningRecord.unit_id == unit.id).first()
@@ -934,8 +969,29 @@ def _interactive_trainer_payload(
         "mental": sum(1 for c in cards if c.get("kind") in (None, "mental")),
         "input": sum(1 for c in cards if c.get("kind") == "input"),
     }
+    stats_blob = _get_stats(record)
+    learn_modules = (stats_blob.get("learn") or {}).get("modules") or {}
+    quiz_done = count_quiz_answered(learn_modules, modules)
+    card_done = count_cards_by_kind(
+        modules,
+        flashcard_progress=progress,
+        learn_modules=learn_modules,
+    )
+    parent_goals = get_learn_goals(recon if isinstance(recon, dict) else {})
+    child_goals_raw = (stats_blob.get("learn") or {}).get("child_goals")
+    child_goals = normalize_learn_goals(child_goals_raw if isinstance(child_goals_raw, dict) else {})
+    goals_progress = merge_goals_payload(
+        parent_goals=parent_goals,
+        child_goals=child_goals,
+        quiz_done=quiz_done,
+        card_done=card_done,
+        card_available=card_kind_counts,
+    )
     return {
         "options": get_trainer_options(recon if isinstance(recon, dict) else {}),
+        "learn_goals": parent_goals,
+        "child_goals": child_goals,
+        "goals_progress": goals_progress,
         "knowledge": knowledge,
         "knowledge_sections": knowledge_sections,
         "cards": cards,

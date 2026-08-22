@@ -15,7 +15,7 @@ from app.models import LearningEvent, LearningRecord, LearningUnit, UnitModule, 
 from app.services.audit import log_event
 from app.services.crypto_json import decrypt_json, encrypt_json
 from app.ai.task_types import UNIT_TASK_KEYS, augment_brief
-from app.schemas import TrainerOptionsSchema
+from app.schemas import LearnGoalsSchema, TrainerOptionsSchema
 from app.services.profile_service import child_user_ids, get_profile_for_actor
 
 
@@ -37,6 +37,7 @@ def reconstruction_payload(
     task_type: str = "mixed",
     math_focus: str | None = None,
     trainer_options: dict | None = None,
+    learn_goals: dict | None = None,
 ) -> dict:
     payload = {
         "title": title,
@@ -50,6 +51,8 @@ def reconstruction_payload(
     }
     if trainer_options:
         payload["trainer_options"] = trainer_options
+    if learn_goals:
+        payload["learn_goals"] = learn_goals
     return payload
 
 
@@ -73,6 +76,15 @@ def get_trainer_options(recon: dict | None) -> dict:
         if key in raw and raw[key] is not None:
             merged[key] = raw[key]
     return TrainerOptionsSchema.normalize_raw(merged).model_dump()
+
+
+def get_learn_goals(recon: dict | None) -> dict:
+    if not isinstance(recon, dict):
+        return LearnGoalsSchema.normalize_raw({}).model_dump()
+    raw = recon.get("learn_goals")
+    if not isinstance(raw, dict):
+        return LearnGoalsSchema.normalize_raw({}).model_dump()
+    return LearnGoalsSchema.normalize_raw(raw).model_dump()
 
 
 def _dec_unit(unit: LearningUnit, *, sources: bool = True, modules: bool = True) -> dict:
@@ -225,6 +237,7 @@ def get_unit(db: Session, user: User, unit_id: uuid.UUID) -> dict:
         recon = decrypt_json(record.reconstruction_encrypted)
         if isinstance(recon, dict) and unit.task_type == "interactive":
             data["trainer_options"] = get_trainer_options(recon)
+            data["learn_goals"] = get_learn_goals(recon)
     return data
 
 
@@ -586,6 +599,9 @@ def _copy_template_metadata(
             trainer_options = src_recon.get("trainer_options")
             if isinstance(trainer_options, dict) and trainer_options:
                 dst_recon["trainer_options"] = dict(trainer_options)
+            learn_goals = src_recon.get("learn_goals")
+            if isinstance(learn_goals, dict) and learn_goals:
+                dst_recon["learn_goals"] = dict(learn_goals)
             math_focus = (src_recon.get("math_focus") or "").strip()
             if math_focus:
                 dst_recon["math_focus"] = math_focus
@@ -718,6 +734,7 @@ def update_unit(
     math_focus: str | None = None,
     auto_purge_sources: bool | None = None,
     trainer_options: dict | None = None,
+    learn_goals: dict | None = None,
 ) -> dict:
     unit = _get_unit_or_404(db, user, unit_id)
     record = db.query(LearningRecord).filter(LearningRecord.unit_id == unit.id).first()
@@ -773,6 +790,16 @@ def update_unit(
             merged.update(trainer_options.model_dump(exclude_unset=True))
         recon["trainer_options"] = TrainerOptionsSchema.normalize_raw(merged).model_dump()
 
+    if learn_goals is not None:
+        raw = learn_goals if isinstance(learn_goals, dict) else learn_goals.model_dump(exclude_unset=True)
+        normalized = LearnGoalsSchema.normalize_raw(raw).model_dump()
+        cards = normalized.get("cards") or {}
+        has_cards = any(cards.get(k) for k in ("merk", "mental", "input"))
+        if not normalized.get("quiz") and not has_cards and not normalized.get("deadline"):
+            recon.pop("learn_goals", None)
+        else:
+            recon["learn_goals"] = normalized
+
     if record:
         dec_title = decrypt_text_master(unit.title_encrypted)
         dec_brief = decrypt_text_master(unit.brief_encrypted) if unit.brief_encrypted else ""
@@ -791,6 +818,7 @@ def update_unit(
             task_type=unit.task_type,
             math_focus=focus,
             trainer_options=recon.get("trainer_options") if unit.task_type == "interactive" else None,
+            learn_goals=recon.get("learn_goals") if unit.task_type == "interactive" else None,
         )
         record.reconstruction_encrypted = encrypt_json(recon)
 

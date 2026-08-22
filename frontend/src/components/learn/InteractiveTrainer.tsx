@@ -4,11 +4,14 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   deferLearnQuestion,
+  fetchLearnState,
   fetchProfile,
   markFlashcardStatus,
+  patchChildLearnGoals,
   submitCardInputAnswer,
   submitLearnAnswer,
   submitPracticeAnswer,
+  type GoalsProgressBlock,
   type LearnState,
   type SttProvider,
 } from "@/lib/api";
@@ -31,6 +34,46 @@ type CardFilter = "due" | "all" | "merk" | "mental" | "input" | "practice";
 
 function cardKind(card: { kind?: string }): string {
   return card.kind || "mental";
+}
+
+function GoalsBlock({ title, block }: { title: string; block: GoalsProgressBlock }) {
+  if (!block.active_count) return null;
+  return (
+    <div className="trainer-goals-block">
+      <h4 className="trainer-goals-title">{title}</h4>
+      {block.headline && <p className="trainer-goals-headline">{block.headline}</p>}
+      {block.deadline && (
+        <p className="muted trainer-goals-deadline">
+          Ziel bis {block.deadline}
+          {block.days_left != null && block.days_left >= 0 ? ` (${block.days_left} Tage)` : ""}
+          {block.overdue ? " — überfällig" : ""}
+        </p>
+      )}
+      <ul className="trainer-goals-list">
+        {block.items.map((item) => (
+          <li key={item.key} className={item.met ? "trainer-goal-met" : ""}>
+            <div className="trainer-goal-row">
+              <span>{item.label}</span>
+              <strong>
+                {item.done}
+                {item.target != null ? ` / ${item.target}` : ""}
+                {item.bonus > 0 ? ` (+${item.bonus})` : ""}
+              </strong>
+            </div>
+            {item.target != null && (
+              <div className="trainer-progress-bar" aria-hidden="true">
+                <div
+                  className="trainer-progress-fill"
+                  style={{ width: `${Math.min(100, item.percent ?? 0)}%` }}
+                />
+              </div>
+            )}
+            {item.message && <p className="muted trainer-goal-msg">{item.message}</p>}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
 }
 
 type Tab = "home" | "knowledge" | "cards" | "quiz";
@@ -72,6 +115,9 @@ export function InteractiveTrainer({
   onStateChange,
 }: Props) {
   const trainer = state.trainer;
+  const goalsProgress = trainer?.goals_progress;
+  const [childGoalQuiz, setChildGoalQuiz] = useState("");
+  const [childGoalMerk, setChildGoalMerk] = useState("");
   const [tab, setTab] = useState<Tab>("home");
   const [cardIndex, setCardIndex] = useState(0);
   const [flipped, setFlipped] = useState(false);
@@ -269,6 +315,16 @@ export function InteractiveTrainer({
     [filteredCards.length],
   );
 
+  const refreshLearnState = useCallback(async () => {
+    if (!goalsProgress?.parent?.active_count && !goalsProgress?.child?.active_count) return;
+    try {
+      const fresh = await fetchLearnState(unitId);
+      onStateChange(fresh);
+    } catch {
+      /* Ziele optional — kein harter Fehler */
+    }
+  }, [goalsProgress, onStateChange, unitId]);
+
   const markCard = useCallback(
     async (status: "known" | "review") => {
       const card = filteredCards[cardIndex];
@@ -300,6 +356,7 @@ export function InteractiveTrainer({
               }
             : state.trainer,
         });
+        await refreshLearnState();
         setFlipped(false);
         if (cardIndex + 1 < filteredCards.length) setCardIndex(cardIndex + 1);
       } catch (err) {
@@ -308,7 +365,7 @@ export function InteractiveTrainer({
         setBusy(false);
       }
     },
-    [cardIndex, filteredCards, onStateChange, setBusy, setError, state, unitId],
+    [cardIndex, filteredCards, onStateChange, refreshLearnState, setBusy, setError, state, unitId],
   );
 
   useEffect(() => {
@@ -581,6 +638,75 @@ export function InteractiveTrainer({
               )}
             </div>
           </div>
+
+          {goalsProgress &&
+            (goalsProgress.parent.active_count > 0 || goalsProgress.child.active_count > 0) && (
+              <div className="trainer-stat-panel trainer-goals-panel">
+                <h3 className="trainer-stat-heading">Lernziele</h3>
+                <GoalsBlock title="Vorgabe" block={goalsProgress.parent} />
+                <GoalsBlock title="Mein Extra-Ziel" block={goalsProgress.child} />
+                <details className="trainer-child-goals-form">
+                  <summary>Eigenes Ziel setzen</summary>
+                  <div className="form-row">
+                    <label>
+                      Extra Quiz
+                      <input
+                        type="number"
+                        min={1}
+                        placeholder="z. B. 5"
+                        value={childGoalQuiz}
+                        onChange={(e) => setChildGoalQuiz(e.target.value)}
+                      />
+                    </label>
+                    <label>
+                      Extra Merk
+                      <input
+                        type="number"
+                        min={1}
+                        placeholder="z. B. 3"
+                        value={childGoalMerk}
+                        onChange={(e) => setChildGoalMerk(e.target.value)}
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      className="btn-sm"
+                      disabled={busy}
+                      onClick={async () => {
+                        setBusy(true);
+                        setError(null);
+                        try {
+                          const body: { quiz?: number; cards?: { merk?: number } } = {};
+                          const q = Number(childGoalQuiz);
+                          const m = Number(childGoalMerk);
+                          if (Number.isFinite(q) && q > 0) body.quiz = q;
+                          if (Number.isFinite(m) && m > 0) body.cards = { merk: m };
+                          const res = await patchChildLearnGoals(unitId, body);
+                          onStateChange({
+                            ...state,
+                            trainer: state.trainer
+                              ? {
+                                  ...state.trainer,
+                                  child_goals: res.child_goals,
+                                  goals_progress: res.goals_progress,
+                                }
+                              : state.trainer,
+                          });
+                          setChildGoalQuiz("");
+                          setChildGoalMerk("");
+                        } catch (err) {
+                          setError(err instanceof Error ? err.message : "Ziel speichern fehlgeschlagen");
+                        } finally {
+                          setBusy(false);
+                        }
+                      }}
+                    >
+                      Speichern
+                    </button>
+                  </div>
+                </details>
+              </div>
+            )}
 
           {quizTotal > 0 && (
             <div className="trainer-stat-panel">

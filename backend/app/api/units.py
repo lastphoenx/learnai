@@ -12,6 +12,7 @@ from app.models import User
 from app.ai.errors import LlmError
 from app.ai.generate import generate_modules
 from app.schemas import (
+    ChildLearnGoalsRequest,
     LearnAnswerRequest,
     LearnDeferRequest,
     LearnCardInputRequest,
@@ -44,6 +45,7 @@ from app.services.learn_service import (
     mark_flashcard_status,
     reset_learn_progress,
     save_learn_position,
+    save_child_learn_goals,
     submit_quiz_answer,
     submit_card_input_answer,
     submit_practice_answer,
@@ -335,6 +337,7 @@ def units_patch(
             math_focus=body.math_focus,
             auto_purge_sources=body.auto_purge_sources,
             trainer_options=body.trainer_options,
+            learn_goals=body.learn_goals,
         )
         db.commit()
         return result
@@ -818,6 +821,27 @@ def units_learn_flashcard(
             UUID(body.module_id),
             body.card_index,
             body.status,
+        )
+        db.commit()
+        return result
+    except UnitError as exc:
+        db.rollback()
+        raise _http(exc) from exc
+
+
+@router.patch("/{unit_id}/learn/child-goals")
+def units_learn_child_goals(
+    unit_id: UUID,
+    body: ChildLearnGoalsRequest,
+    user: User = Depends(get_app_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        result = save_child_learn_goals(
+            db,
+            user,
+            unit_id,
+            goals=body.model_dump(exclude_unset=True),
         )
         db.commit()
         return result

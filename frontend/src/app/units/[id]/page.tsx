@@ -541,6 +541,11 @@ export default function UnitDetailPage() {
                 aria-busy={busy}
               >
                 <strong>{busy ? "KI arbeitet…" : "Mit KI aufbereiten"}</strong>
+                {unit.task_type === "interactive" && sourceCount > 0 && !pedagogy?.has_pedagogy && !busy && (
+                  <span className="muted" style={{ display: "block", marginTop: "0.35rem" }}>
+                    Tipp: Zuerst «Didaktik einlesen» — dann siehst du die erkannten Lösungswege.
+                  </span>
+                )}
                 {busy ? (
                   <div className="generate-progress-compact">
                     <div
