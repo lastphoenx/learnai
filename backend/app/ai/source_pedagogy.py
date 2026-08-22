@@ -320,7 +320,7 @@ def collect_pedagogy_from_unit_sources(sources) -> dict[str, Any]:
 
 def build_pedagogy_digest(pedagogy: dict[str, Any] | None) -> str:
     profile = pedagogy or {}
-    if profile.get("is_metadata_only") or not _has_pedagogy_content(profile):
+    if profile.get("is_metadata_only") or not has_pedagogy_content(profile):
         return (
             "Keine strukturierten Didaktik-Hinweise aus Quellen.\n"
             "Nutze trotzdem alle Lösungswege aus dem Materialtext (Kopf, Notizen, Rechenstrich, schriftlich, Zerlegung)."
@@ -383,7 +383,6 @@ def build_pedagogy_digest(pedagogy: dict[str, Any] | None) -> str:
 
 
 def has_pedagogy_content(profile: dict[str, Any]) -> bool:
-    return _has_pedagogy_content(profile)
     for key in ("methods", "worked_examples", "exercises", "exercise_patterns", "teaching_notes"):
         if profile.get(key):
             return True

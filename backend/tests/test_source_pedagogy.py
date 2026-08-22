@@ -4,6 +4,7 @@ from app.ai.source_pedagogy import (
     build_pedagogy_digest,
     decode_source_analysis,
     encode_source_analysis,
+    has_pedagogy_content,
     merge_pedagogy_profiles,
     parse_pedagogy_extraction,
 )
@@ -83,6 +84,13 @@ def test_encode_decode_source_analysis_roundtrip():
     assert parsed is not None
     assert parsed["provider"] == "openai"
     assert parsed["pedagogy"]["methods"][0]["label"] == "im Kopf"
+
+
+def test_has_pedagogy_content_and_digest_do_not_crash():
+    assert has_pedagogy_content({}) is False
+    assert has_pedagogy_content({"methods": [{"id": "mental", "label": "im Kopf"}]}) is True
+    digest = build_pedagogy_digest({})
+    assert "Keine strukturierten Didaktik-Hinweise" in digest
 
 
 def test_decode_legacy_provider_model_string():
