@@ -655,6 +655,12 @@ export function isUnitCreateBatch(
 export const createUnit = (body: UnitCreateBody) =>
   apiFetch<LearningUnit | UnitCreateBatchResult>("/api/v1/units", { method: "POST", json: body });
 
+export const patchUnitProfile = (unitId: string, profileId: string | null) =>
+  apiFetch<LearningUnit>(`/api/v1/units/${unitId}/profile`, {
+    method: "PATCH",
+    json: { profile_id: profileId },
+  });
+
 export const assignUnitToProfiles = (unitId: string, profileIds: string[]) =>
   apiFetch<UnitCreateBatchResult>(`/api/v1/units/${unitId}/assign`, {
     method: "POST",

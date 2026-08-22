@@ -335,7 +335,6 @@ export default function UnitDetailPage() {
               learnerName={unit.learner_name}
               profiles={profiles}
               onAssigned={reload}
-              onRequestRemove={() => setDeleteOpen(true)}
             />
           )}
 
@@ -489,8 +488,7 @@ export default function UnitDetailPage() {
               Gefahrenzone
             </h2>
             <p className="muted section-lead">
-              Diese Kopie{unit?.learner_name ? ` für ${unit.learner_name}` : ""} entfernen. Optional kann der
-              gesamte Lernverlauf mit gelöscht werden.
+              Diese Lerneinheit unwiderruflich entfernen (getrennt von der Kind-Zuordnung oben).
             </p>
             <button type="button" className="btn-sm ghost danger-text" onClick={() => setDeleteOpen(true)}>
               Einheit löschen…
