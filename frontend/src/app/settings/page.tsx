@@ -9,6 +9,7 @@ import { PasswordInput } from "@/components/PasswordInput";
 import { TotpQr } from "@/components/TotpQr";
 import {
   applyProfileRecommendations,
+  changeMyPassword,
   confirm2fa,
   createChildUser,
   fetchAiStatus,
@@ -44,6 +45,10 @@ export default function SettingsPage() {
   const [childName, setChildName] = useState("");
   const [childEmail, setChildEmail] = useState("");
   const [childPassword, setChildPassword] = useState("");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [newPassword2, setNewPassword2] = useState("");
+  const [passwordSaved, setPasswordSaved] = useState(false);
   const [saved, setSaved] = useState(false);
   const [byTask, setByTask] = useState<Record<string, TaskRow>>({});
   const [llmProvider, setLlmProvider] = useState("default");
@@ -148,6 +153,13 @@ export default function SettingsPage() {
       <div className="card stack">
         <h2>Account</h2>
         <p className="muted">Name in der Kopfzeile beim Login — nicht der Lerner-Name.</p>
+        <p>
+          Login-E-Mail:{" "}
+          <strong>{user?.login_email || "nicht hinterlegt"}</strong>
+          {!user?.login_email && (
+            <span className="muted"> — Admin kann sie unter Benutzer zuordnen.</span>
+          )}
+        </p>
         <InlineEditName
           value={user?.display_name || ""}
           placeholder="z.B. Thomas"
@@ -156,6 +168,57 @@ export default function SettingsPage() {
             setUser(me);
           }}
         />
+        <form
+          className="stack account-password-form"
+          onSubmit={async (e) => {
+            e.preventDefault();
+            setError(null);
+            setPasswordSaved(false);
+            if (newPassword !== newPassword2) {
+              setError("Neue Passwörter stimmen nicht überein");
+              return;
+            }
+            try {
+              await changeMyPassword({
+                current_password: currentPassword,
+                new_password: newPassword,
+              });
+              setCurrentPassword("");
+              setNewPassword("");
+              setNewPassword2("");
+              setPasswordSaved(true);
+            } catch (err) {
+              setError(err instanceof Error ? err.message : "Passwort ändern fehlgeschlagen");
+            }
+          }}
+        >
+          <h3>Passwort ändern</h3>
+          <PasswordInput
+            label="Aktuelles Passwort"
+            required
+            autoComplete="current-password"
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
+          />
+          <PasswordInput
+            label="Neues Passwort (min. 12 Zeichen)"
+            required
+            minLength={12}
+            autoComplete="new-password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+          />
+          <PasswordInput
+            label="Neues Passwort wiederholen"
+            required
+            minLength={12}
+            autoComplete="new-password"
+            value={newPassword2}
+            onChange={(e) => setNewPassword2(e.target.value)}
+          />
+          <button type="submit">Passwort speichern</button>
+          {passwordSaved && <p>Passwort geändert.</p>}
+        </form>
       </div>
 
       <div className="card stack">
