@@ -5,6 +5,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { UnitAssignSection } from "@/components/UnitAssignSection";
+import { UnitDeleteDialog } from "@/components/UnitDeleteDialog";
 import { UnitEditDialog } from "@/components/UnitEditDialog";
 import { UnitExamSection } from "@/components/UnitExamSection";
 import {
@@ -80,6 +81,8 @@ export default function UnitDetailPage() {
   const [quizWeaknesses, setQuizWeaknesses] = useState<QuizWeaknesses | null>(null);
   const [pedagogy, setPedagogy] = useState<UnitPedagogy | null>(null);
   const [pedagogyBusy, setPedagogyBusy] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteBusy, setDeleteBusy] = useState(false);
   const autogenStarted = useRef(false);
 
   function reload() {
@@ -172,19 +175,16 @@ export default function UnitDetailPage() {
     }
   }
 
-  async function onDeleteUnit() {
-    if (
-      !confirm(
-        "Lerneinheit inkl. Dateien löschen? Standard: Verlauf, Ergebnisse und Kurzbeschreibung bleiben für Berichte erhalten."
-      )
-    ) {
-      return;
+  async function onDeleteUnit(purgeHistory: boolean) {
+    setDeleteBusy(true);
+    try {
+      await deleteUnit(unitId, { purgeHistory });
+      router.push(purgeHistory ? "/units" : "/history");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Löschen fehlgeschlagen");
+      setDeleteBusy(false);
+      setDeleteOpen(false);
     }
-    const purgeHistory = confirm(
-      "Auch den zugehörigen Lernverlauf löschen?\n\nOK = Verlauf, Prüfungen und Events unwiderruflich entfernen (sinnvoll für Tests).\nAbbrechen = nur die Einheit löschen, Verlauf behalten."
-    );
-    await deleteUnit(unitId, { purgeHistory });
-    router.push(purgeHistory ? "/units" : "/history");
   }
 
   async function onSpeak() {
@@ -327,10 +327,12 @@ export default function UnitDetailPage() {
             )}
           </section>
 
-          {user && !user.is_child && (
+          {user && !user.is_child && unit && (
             <UnitAssignSection
               unitId={unitId}
+              unitTitle={unit.title}
               currentProfileId={unit.profile_id}
+              learnerName={unit.learner_name}
               profiles={profiles}
               onAssigned={reload}
             />
@@ -482,8 +484,15 @@ export default function UnitDetailPage() {
           )}
 
           <section className="unit-danger-zone">
-            <button type="button" className="btn-sm ghost danger-text" onClick={onDeleteUnit}>
-              Ganze Einheit löschen…
+            <h2 className="danger-text" style={{ margin: 0, fontSize: "1rem" }}>
+              Gefahrenzone
+            </h2>
+            <p className="muted section-lead">
+              Diese Kopie{unit?.learner_name ? ` für ${unit.learner_name}` : ""} entfernen. Optional kann der
+              gesamte Lernverlauf mit gelöscht werden.
+            </p>
+            <button type="button" className="btn-sm ghost danger-text" onClick={() => setDeleteOpen(true)}>
+              Einheit löschen…
             </button>
           </section>
           </div>
@@ -674,6 +683,15 @@ export default function UnitDetailPage() {
             open={editOpen}
             onClose={() => setEditOpen(false)}
             onSaved={(next) => setUnit(next)}
+          />
+
+          <UnitDeleteDialog
+            open={deleteOpen}
+            unitTitle={unit.title}
+            learnerName={unit.learner_name}
+            busy={deleteBusy}
+            onClose={() => setDeleteOpen(false)}
+            onDelete={onDeleteUnit}
           />
         </div>
       )}
