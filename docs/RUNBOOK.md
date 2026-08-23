@@ -237,5 +237,5 @@ bash scripts/backup-db.sh   # falls konfiguriert
 ## Branch & Releases
 
 Aktueller Feature-Branch: `feature/interactive-trainer-v1`  
-Stand 22.08.2026: Lerntrainer v1, Fach-Schwerpunkte, Feld-Vorlagen, STT auf Eingabe-Karten.  
+Stand 23.08.2026: Lerntrainer v1 inkl. Sprungleiste, Kind-Ansicht, Fach-Schwerpunkte, Feld-Vorlagen, STT.  
 Siehe `docs/UNIT_CREATION.md`. Merge nach `main` wenn Trainer end-to-end stabil.
