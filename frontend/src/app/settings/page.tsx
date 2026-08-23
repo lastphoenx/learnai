@@ -7,6 +7,7 @@ import { InlineEditName } from "@/components/InlineEditName";
 import { LearnerSettingsForm, type TaskRow } from "@/components/LearnerSettingsForm";
 import { PasswordInput } from "@/components/PasswordInput";
 import { TotpQr } from "@/components/TotpQr";
+import { useChildPreview } from "@/lib/childPreview";
 import {
   applyProfileRecommendations,
   changeMyPassword,
@@ -61,7 +62,8 @@ export default function SettingsPage() {
   const [sttStatus, setSttStatus] = useState<SttStatus | undefined>(undefined);
 
   const selected = profiles.find((p) => p.id === selectedId) ?? null;
-  const readOnly = Boolean(user?.is_child);
+  const { asChild } = useChildPreview(user);
+  const readOnly = asChild;
 
   function loadProfileForm(profile: LearnerProfile) {
     setByTask(profile.by_task || {});

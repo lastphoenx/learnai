@@ -7,6 +7,7 @@ import { AppHeader } from "@/components/AppHeader";
 import { LabelWithSpeech } from "@/components/LabelWithSpeech";
 import { LearnerMultiSelect } from "@/components/LearnerMultiSelect";
 import { UnitFieldGuide } from "@/components/UnitFieldGuide";
+import { useChildPreview } from "@/lib/childPreview";
 import {
   createUnit,
   fetchMe,
@@ -32,6 +33,7 @@ import { getUnitFieldGuide } from "@/lib/unitFieldHints";
 export default function NewUnitPage() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
+  const { asChild } = useChildPreview(user);
   const [title, setTitle] = useState("");
   const [brief, setBrief] = useState("");
   const [subject, setSubject] = useState("");
@@ -290,7 +292,7 @@ export default function NewUnitPage() {
           />
           <UnitFieldGuide tip={targetAgeGuide.tip} show={!targetAge.trim()} />
         </label>
-        {!user?.is_child && profiles.length > 0 && (
+        {!asChild && profiles.length > 0 && (
           <LearnerMultiSelect
             profiles={profiles}
             selectedIds={profileIds}
