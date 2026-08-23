@@ -234,6 +234,9 @@ export default function UnitsPage() {
                       <span className={badge.className}>{badge.label}</span>
                     </div>
                     <div className="badge-row" style={{ marginTop: "0.55rem" }}>
+                      {u.reference_code && (
+                        <span className="badge badge-neutral unit-ref-badge">Ref {u.reference_code}</span>
+                      )}
                       {u.learner_name && <span className="badge badge-neutral">{u.learner_name}</span>}
                       <span className="badge badge-subject">{u.subject || "Ohne Fach"}</span>
                       <span className="badge badge-mode">{taskTypeLabel(u.task_type || "mixed")}</span>

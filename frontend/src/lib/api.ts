@@ -419,6 +419,9 @@ export type LearningUnit = {
   learner_name?: string | null;
   template_unit_id?: string | null;
   template_root_id?: string | null;
+  reference_family?: string | null;
+  reference_instance?: string | null;
+  reference_code?: string | null;
   trainer_options?: TrainerOptions;
   learn_goals?: LearnGoals;
   sources?: UnitSource[];
@@ -644,6 +647,19 @@ export const fetchPedagogyGoldenStatus = () =>
 
 export const runPedagogyGoldenSuite = () =>
   apiFetch<PedagogyGoldenStatus>("/api/v1/admin/pedagogy-golden/run", { method: "POST" });
+
+export type UnitQualityReport = {
+  ref: string;
+  scope: "family" | "instance";
+  family: string;
+  instance: string | null;
+  unit_count: number;
+  report: string;
+  ok: boolean;
+};
+
+export const fetchUnitQualityReport = (ref: string) =>
+  apiFetch<UnitQualityReport>(`/api/v1/admin/unit-report?ref=${encodeURIComponent(ref)}`);
 
 export const updateMySettings = (body: { display_name?: string }) =>
   apiFetch<User>("/api/v1/auth/me", { method: "PATCH", json: body });

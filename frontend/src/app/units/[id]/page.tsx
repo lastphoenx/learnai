@@ -313,6 +313,11 @@ export default function UnitDetailPage() {
 
             <div className="badge-row">
               {badge && <span className={badge.className}>{badge.label}</span>}
+              {unit.reference_code && (
+                <span className="badge badge-neutral unit-ref-badge" title="Referenz-Code für Support und Qualitätsreport">
+                  Ref {unit.reference_code}
+                </span>
+              )}
               <span className="badge badge-subject">{unit.subject || "Ohne Fach"}</span>
               <span className="badge badge-mode">{taskTypeLabel(unit.task_type || "mixed", taskTypes)}</span>
               {unit.math_focus && (
