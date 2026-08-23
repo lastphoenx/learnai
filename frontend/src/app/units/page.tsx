@@ -35,7 +35,9 @@ export default function UnitsPage() {
       .catch(() => setError("Nicht angemeldet"));
     fetchUnits()
       .then(setUnits)
-      .catch(() => {});
+      .catch((err) =>
+        setError(err instanceof Error ? err.message : "Einheiten konnten nicht geladen werden"),
+      );
   }, []);
 
   const learners = useMemo(() => {
