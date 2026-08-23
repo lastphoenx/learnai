@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   deferLearnQuestion,
   fetchLearnState,
@@ -170,11 +170,27 @@ export function InteractiveTrainer({
     return [...map.entries()];
   }, [knowledge]);
   const progress = trainer?.flashcard_progress || {};
+  const dueSessionKeys = useRef<Set<string>>(new Set());
+  const dueSessionFilter = useRef(cardFilter);
+  if (dueSessionFilter.current !== cardFilter) {
+    dueSessionKeys.current = new Set();
+    dueSessionFilter.current = cardFilter;
+  }
+  if (cardFilter === "due") {
+    for (const card of cards) {
+      if (progress[card.card_key]?.due !== false) {
+        dueSessionKeys.current.add(card.card_key);
+      }
+    }
+  }
   const filteredCards = useMemo(() => {
     if (cardFilter === "practice") return [];
     let list = cards;
     if (cardFilter === "due") {
-      list = list.filter((card) => progress[card.card_key]?.due !== false);
+      list = list.filter(
+        (card) =>
+          progress[card.card_key]?.due !== false || dueSessionKeys.current.has(card.card_key),
+      );
     } else if (cardFilter === "merk" || cardFilter === "mental" || cardFilter === "input") {
       list = list.filter((card) => cardKind(card) === cardFilter);
     }
@@ -379,9 +395,10 @@ export function InteractiveTrainer({
               }
             : state.trainer,
         });
-        await refreshLearnState();
+        dueSessionKeys.current.add(card.card_key);
         setFlipped(false);
         if (cardIndex + 1 < orderedCards.length) setCardIndex(cardIndex + 1);
+        void refreshLearnState();
       } catch (err) {
         setError(err instanceof Error ? err.message : "Speichern fehlgeschlagen");
       } finally {
@@ -1225,8 +1242,14 @@ export function InteractiveTrainer({
                     onClick={() => setFlipped(!flipped)}
                   >
                     <span className="trainer-flashcard-label">{flipped ? "Antwort" : "Frage"}</span>
-                    <p>{flipped ? currentCard.answer : currentCard.question}</p>
-                    {flipped && currentCard.tip && <p className="muted">{currentCard.tip}</p>}
+                    {flipped ? (
+                      <div className="trainer-flashcard-answer">
+                        <QuizExplanation text={currentCard.answer} />
+                        {currentCard.tip ? <p className="muted">{currentCard.tip}</p> : null}
+                      </div>
+                    ) : (
+                      <p>{currentCard.question}</p>
+                    )}
                   </button>
                   <p className="trainer-shortcuts muted">
                     Space = umdrehen · ← → = weiter · G = gewusst · N = nochmal · S = später
@@ -1237,10 +1260,10 @@ export function InteractiveTrainer({
               <div className="learn-actions">
                 {cardKind(currentCard) !== "input" && (
                   <>
-                    <button type="button" className="ghost" disabled={busy} onClick={() => void markCard("review")}>
+                    <button type="button" className="ghost btn-review" disabled={busy} onClick={() => void markCard("review")}>
                       Wiederholen (N)
                     </button>
-                    <button type="button" className="btn-primary" disabled={busy} onClick={() => void markCard("known")}>
+                    <button type="button" className="btn-primary btn-known" disabled={busy} onClick={() => void markCard("known")}>
                       Gewusst (G)
                     </button>
                   </>

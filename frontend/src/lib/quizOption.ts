@@ -22,14 +22,18 @@ export type QuizExplanationVariant = {
 
 const VARIANT_HEAD = /Variante\s+(\d+)\s*(?:\(([^)]*)\))?\s*:/gi;
 
-export function splitQuizExplanationVariants(text: string): QuizExplanationVariant[] {
+export function splitQuizExplanation(text: string): {
+  preamble: string;
+  variants: QuizExplanationVariant[];
+} {
   const src = formatQuizExplanation(text || "").trim();
-  if (!src) return [];
+  if (!src) return { preamble: "", variants: [] };
   const matches = [...src.matchAll(new RegExp(VARIANT_HEAD.source, "gi"))];
   if (matches.length === 0) {
-    return [{ index: 1, label: "", badge: "heft", body: src }];
+    return { preamble: "", variants: [{ index: 1, label: "", badge: "heft", body: src }] };
   }
-  return matches.map((match, i) => {
+  const preamble = src.slice(0, matches[0].index ?? 0).trim();
+  const variants = matches.map((match, i) => {
     const start = (match.index ?? 0) + match[0].length;
     const end = i + 1 < matches.length ? (matches[i + 1].index ?? src.length) : src.length;
     return {
@@ -39,6 +43,11 @@ export function splitQuizExplanationVariants(text: string): QuizExplanationVaria
       body: src.slice(start, end).trim(),
     };
   });
+  return { preamble, variants };
+}
+
+export function splitQuizExplanationVariants(text: string): QuizExplanationVariant[] {
+  return splitQuizExplanation(text).variants;
 }
 
 export function quizOptionClassName(
