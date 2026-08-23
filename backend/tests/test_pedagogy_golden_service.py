@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -15,6 +16,16 @@ from app.services.pedagogy_golden_service import (
 )
 
 
+@pytest.fixture
+def pedagogy_golden_uploads(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """CI hat kein beschreibbares /app/uploads — Tests nutzen tmp_path."""
+    uploads = tmp_path / "uploads"
+    uploads.mkdir()
+    monkeypatch.setattr("app.services.pedagogy_golden_service.upload_dir", lambda: uploads)
+    return uploads
+
+
+@pytest.mark.usefixtures("pedagogy_golden_uploads")
 def test_list_pedagogy_golden_fixtures_has_bundled():
     fixtures = list_pedagogy_golden_fixtures()
     names = {row["name"] for row in fixtures}
@@ -23,6 +34,7 @@ def test_list_pedagogy_golden_fixtures_has_bundled():
     assert all(row.get("ok") for row in fixtures)
 
 
+@pytest.mark.usefixtures("pedagogy_golden_uploads")
 def test_run_pedagogy_golden_suite_passes():
     result = run_pedagogy_golden_suite()
     assert result["total"] >= 3
@@ -39,11 +51,7 @@ def test_validate_pedagogy_fixture_rejects_too_few_methods():
         validate_pedagogy_fixture(payload, min_method_labels=2)
 
 
-def test_save_custom_fixture_roundtrip(tmp_path, monkeypatch):
-    monkeypatch.setattr(
-        "app.services.pedagogy_golden_service._custom_dir",
-        lambda: tmp_path,
-    )
+def test_save_custom_fixture_roundtrip(pedagogy_golden_uploads: Path):
     payload = {
         "summary": "Sandbox",
         "methods": [
@@ -55,5 +63,6 @@ def test_save_custom_fixture_roundtrip(tmp_path, monkeypatch):
     saved = save_pedagogy_golden_fixture("sandbox_test", payload, subject_hint="Test")
     assert saved["name"] == "sandbox_test"
     assert saved["editable"] is True
-    on_disk = json.loads((tmp_path / "sandbox_test.json").read_text(encoding="utf-8"))
+    custom_dir = pedagogy_golden_uploads / "pedagogy_golden"
+    on_disk = json.loads((custom_dir / "sandbox_test.json").read_text(encoding="utf-8"))
     assert on_disk["_meta"]["subject_hint"] == "Test"

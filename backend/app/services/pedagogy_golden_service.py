@@ -21,8 +21,12 @@ class PedagogyGoldenError(Exception):
         self.code = code
 
 
-def _custom_dir() -> Path:
-    path = upload_dir() / "pedagogy_golden"
+def _custom_dir_path() -> Path:
+    return upload_dir() / "pedagogy_golden"
+
+
+def _ensure_custom_dir() -> Path:
+    path = _custom_dir_path()
     path.mkdir(parents=True, exist_ok=True)
     return path
 
@@ -128,7 +132,7 @@ def _fixture_meta(path: Path, *, editable: bool) -> dict:
 
 def list_pedagogy_golden_fixtures() -> list[dict]:
     items: dict[str, dict] = {}
-    for directory, editable in ((_BUNDLED_DIR, False), (_custom_dir(), True)):
+    for directory, editable in ((_BUNDLED_DIR, False), (_custom_dir_path(), True)):
         if not directory.is_dir():
             continue
         for path in sorted(directory.glob("*.json")):
@@ -138,7 +142,7 @@ def list_pedagogy_golden_fixtures() -> list[dict]:
 
 def get_pedagogy_golden_fixture(name: str) -> dict:
     stem = _normalize_name(name)
-    custom = _custom_dir() / f"{stem}.json"
+    custom = _custom_dir_path() / f"{stem}.json"
     bundled = _BUNDLED_DIR / f"{stem}.json"
     path = custom if custom.is_file() else bundled if bundled.is_file() else None
     if not path:
@@ -148,7 +152,7 @@ def get_pedagogy_golden_fixture(name: str) -> dict:
     content = {k: v for k, v in payload.items() if k != "_meta"}
     return {
         "name": stem,
-        "editable": path.parent == _custom_dir(),
+        "editable": path.parent == _custom_dir_path(),
         "content": content,
         "min_method_labels": int(meta.get("min_method_labels") or 2),
         "subject_hint": meta.get("subject_hint"),
@@ -178,14 +182,14 @@ def save_pedagogy_golden_fixture(
         meta["subject_hint"] = subject_hint.strip()[:64]
     payload["_meta"] = meta
 
-    path = _custom_dir() / f"{stem}.json"
+    path = _ensure_custom_dir() / f"{stem}.json"
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return get_pedagogy_golden_fixture(stem)
 
 
 def delete_pedagogy_golden_fixture(name: str) -> None:
     stem = _normalize_name(name)
-    path = _custom_dir() / f"{stem}.json"
+    path = _custom_dir_path() / f"{stem}.json"
     if not path.is_file():
         raise PedagogyGoldenError("Nur benutzerdefinierte Fixtures können gelöscht werden", "not_found")
     path.unlink()
