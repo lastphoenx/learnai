@@ -27,6 +27,36 @@ _STEP_HINTS = (
     "dann",
 )
 
+_MULT_STEP = re.compile(
+    r"(\d+(?:[.,]\d+)?)\s*[x×*·]\s*(\d+(?:[.,]\d+)?)\s*=\s*(\d+(?:[.,]\d+)?)",
+    re.IGNORECASE,
+)
+
+
+def _decomposition_steps_ok(question: str, user_text: str, expected_answer: str) -> bool:
+    """Erkennt Zerlegungsschritte wie 10×0,85=8,5 und 4×0,85=3,4."""
+    parsed = parse_arithmetic_operands(question)
+    if not parsed:
+        return False
+    op, _a, _b = parsed
+    if op != "mul":
+        return False
+    exp_num = parse_quiz_numeric(expected_answer)
+    if exp_num is None:
+        return False
+    steps = _MULT_STEP.findall(str(user_text or "").lower().replace(",", "."))
+    if len(steps) < 2:
+        return False
+    partials: list[float] = []
+    for _left, _right, result in steps:
+        try:
+            partials.append(float(result.replace(",", ".")))
+        except ValueError:
+            continue
+    if len(partials) < 2:
+        return False
+    return abs(sum(partials) - exp_num) < 0.02
+
 
 def _normalize_free_text(text: str) -> str:
     return re.sub(r"\s+", " ", str(text or "").strip().lower().replace(",", "."))
@@ -81,9 +111,12 @@ def grade_worked_solution(
 
     exp_num = parse_quiz_numeric(expected_answer)
     has_result = answers_match(expected_answer, user_text, answer_type=kind)
+    decomp_ok = _decomposition_steps_ok(question, user_text, expected_answer)
     if exp_num is not None and kind == "numeric":
         result_str = f"{exp_num:.6f}".rstrip("0").rstrip(".")
         has_result = has_result or result_str in text or f"{exp_num}".replace(".", ",") in user_text.lower()
+    if decomp_ok:
+        has_result = True
 
     parsed = parse_arithmetic_operands(question)
     mentions_task = False
@@ -111,6 +144,8 @@ def grade_worked_solution(
     method_id = normalize_method_id(expected_method)
 
     ok = has_result and (step_hits >= 2 or variant_hits >= 1 or len(text) >= 45)
+    if decomp_ok:
+        ok = True
     if mentions_task:
         ok = ok or (step_hits >= 1 and len(text) >= 30)
     if method_name and has_result:

@@ -73,6 +73,8 @@ def test_template_ids_from_recon():
     _attach_template_fields(row, None)
     assert row["template_unit_id"] is None
     assert row["template_root_id"] == "unit-1"
+    assert row["is_sandbox_copy"] is False
+    assert row["sandbox_copy_of"] is None
 
 
 def test_update_unit_profile_unassign(monkeypatch):
@@ -272,3 +274,52 @@ def test_update_unit_profile_rejects_duplicate_template_sibling(monkeypatch):
         update_unit_profile(ctx["db"], ctx["parent"], ctx["unit_id"], profile_id=child_profile_id)
     assert exc.value.code == "already_assigned"
     assert ctx["unit"].profile_id is None
+
+
+def test_update_unit_profile_allows_adult_on_sandbox(monkeypatch):
+    import uuid
+    from unittest.mock import MagicMock
+
+    from app.models import LearningProfile
+    from app.services.unit_service import update_unit_profile
+
+    ctx = _profile_test_context(monkeypatch)
+    adult_profile_id = uuid.uuid4()
+    adult_profile = MagicMock(spec=LearningProfile)
+    adult_profile.id = adult_profile_id
+    adult_profile.is_child_profile = False
+    adult_profile.user_id = ctx["parent"].id
+
+    monkeypatch.setattr("app.services.unit_service._get_unit_or_404", lambda _db, _user, _uid: ctx["unit"])
+    monkeypatch.setattr("app.services.unit_service.unit_is_sandbox_copy", lambda _u, _r: True)
+    monkeypatch.setattr(
+        "app.services.unit_service.get_profile_for_actor",
+        lambda _db, _user, pid: adult_profile,
+    )
+    monkeypatch.setattr("app.services.unit_service.get_unit", lambda _db, _user, _uid: {"id": str(ctx["unit_id"])})
+    monkeypatch.setattr("app.services.unit_service.log_event", lambda *a, **k: None)
+
+    update_unit_profile(ctx["db"], ctx["parent"], ctx["unit_id"], profile_id=adult_profile_id)
+    assert ctx["unit"].profile_id == adult_profile_id
+
+
+def test_profile_id_for_learn_sandbox_uses_actor_profile(monkeypatch):
+    import uuid
+    from unittest.mock import MagicMock
+
+    from app.models import LearningRecord, LearningUnit, User
+    from app.services.learn_service import _profile_id_for_learn
+
+    user = MagicMock(spec=User)
+    user.is_child = False
+    user.profile_id = uuid.uuid4()
+
+    unit = MagicMock(spec=LearningUnit)
+    unit.profile_id = None
+    record = MagicMock(spec=LearningRecord)
+    record.profile_id = None
+
+    monkeypatch.setattr("app.services.learn_service.unit_is_sandbox_copy", lambda _u, _r: True)
+
+    db = MagicMock()
+    assert _profile_id_for_learn(db, user, unit, record) == user.profile_id

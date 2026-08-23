@@ -419,6 +419,8 @@ export type LearningUnit = {
   learner_name?: string | null;
   template_unit_id?: string | null;
   template_root_id?: string | null;
+  is_sandbox_copy?: boolean;
+  sandbox_copy_of?: string | null;
   reference_family?: string | null;
   reference_instance?: string | null;
   reference_code?: string | null;
