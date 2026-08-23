@@ -1,17 +1,17 @@
-"""Golden-Set-Fixtures für die Pedagogy-Pipeline (Admin + Regression)."""
+"""Golden-Set-Fixtures für die Pedagogy-Pipeline (Repo-only, Admin read-only)."""
 
 from __future__ import annotations
 
 import json
-import re
 from pathlib import Path
 
 from app.ai.source_pedagogy import build_pedagogy_digest, parse_pedagogy_extraction
+from app.ai.subject_focus import SUBJECT_FOCUS_GROUPS
 from app.core.pedagogy_labels import is_schema_placeholder, material_labels_from_methods
-from app.services.unit_service import upload_dir
 
-_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,62}$", re.IGNORECASE)
 _BUNDLED_DIR = Path(__file__).resolve().parent.parent / "fixtures" / "pedagogy_golden"
+_SUBJECT_GROUP_LABELS = {str(g["id"]): str(g["label"]) for g in SUBJECT_FOCUS_GROUPS}
+_EXPECTED_SUBJECT_GROUPS = [str(g["id"]) for g in SUBJECT_FOCUS_GROUPS]
 
 
 class PedagogyGoldenError(Exception):
@@ -21,24 +21,11 @@ class PedagogyGoldenError(Exception):
         self.code = code
 
 
-def _custom_dir_path() -> Path:
-    return upload_dir() / "pedagogy_golden"
-
-
-def _ensure_custom_dir() -> Path:
-    path = _custom_dir_path()
-    path.mkdir(parents=True, exist_ok=True)
-    return path
-
-
-def _normalize_name(name: str) -> str:
-    stem = (name or "").strip().removesuffix(".json")
-    if not _NAME_RE.match(stem):
-        raise PedagogyGoldenError(
-            "Ungültiger Name — nur Buchstaben, Zahlen, _ und - (max. 63 Zeichen)",
-            "invalid_name",
-        )
-    return stem
+def expected_subject_groups() -> list[dict]:
+    return [
+        {"id": gid, "label": _SUBJECT_GROUP_LABELS[gid]}
+        for gid in _EXPECTED_SUBJECT_GROUPS
+    ]
 
 
 def validate_pedagogy_fixture(
@@ -97,110 +84,137 @@ def validate_pedagogy_fixture(
     }
 
 
-def _fixture_meta(path: Path, *, editable: bool) -> dict:
+def _read_fixture_meta(path: Path) -> dict:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         return {
             "name": path.stem,
-            "editable": editable,
+            "file": path.name,
             "error": str(exc),
             "ok": False,
         }
+
     meta = payload.get("_meta") if isinstance(payload.get("_meta"), dict) else {}
     min_labels = int(meta.get("min_method_labels") or 2)
+    subject_group = str(meta.get("subject_group") or "").strip() or None
+    subject_hint = str(meta.get("subject_hint") or "").strip() or None
     body = {k: v for k, v in payload.items() if k != "_meta"}
+
+    row: dict = {
+        "name": path.stem,
+        "file": path.name,
+        "min_method_labels": min_labels,
+        "subject_group": subject_group,
+        "subject_group_label": _SUBJECT_GROUP_LABELS.get(subject_group or "", subject_group),
+        "subject_hint": subject_hint,
+    }
+
+    if subject_group and subject_group not in _EXPECTED_SUBJECT_GROUPS:
+        row["ok"] = False
+        row["error"] = f"Unbekannte subject_group {subject_group!r} — erlaubt: {', '.join(_EXPECTED_SUBJECT_GROUPS)}"
+        return row
+
     try:
         result = validate_pedagogy_fixture(body, min_method_labels=min_labels, fixture_name=path.stem)
-        return {
-            "name": path.stem,
-            "editable": editable,
-            "min_method_labels": min_labels,
-            "subject_hint": meta.get("subject_hint"),
-            "ok": True,
-            **result,
-        }
+        row["ok"] = True
+        row.update(result)
     except PedagogyGoldenError as exc:
-        return {
-            "name": path.stem,
-            "editable": editable,
-            "min_method_labels": min_labels,
-            "ok": False,
-            "error": exc.message,
-        }
+        row["ok"] = False
+        row["error"] = exc.message
+
+    if not subject_group:
+        row["ok"] = False
+        row["error"] = (row.get("error") + " · " if row.get("error") else "") + (
+            "_meta.subject_group fehlt (math, language, mgu, german, nature)"
+        )
+
+    return row
 
 
 def list_pedagogy_golden_fixtures() -> list[dict]:
-    items: dict[str, dict] = {}
-    for directory, editable in ((_BUNDLED_DIR, False), (_custom_dir_path(), True)):
-        if not directory.is_dir():
-            continue
-        for path in sorted(directory.glob("*.json")):
-            items[path.stem] = _fixture_meta(path, editable=editable)
-    return [items[key] for key in sorted(items)]
+    if not _BUNDLED_DIR.is_dir():
+        return []
+    return [_read_fixture_meta(path) for path in sorted(_BUNDLED_DIR.glob("*.json"))]
 
 
-def get_pedagogy_golden_fixture(name: str) -> dict:
-    stem = _normalize_name(name)
-    custom = _custom_dir_path() / f"{stem}.json"
-    bundled = _BUNDLED_DIR / f"{stem}.json"
-    path = custom if custom.is_file() else bundled if bundled.is_file() else None
-    if not path:
-        raise PedagogyGoldenError("Fixture nicht gefunden", "not_found")
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    meta = payload.get("_meta") if isinstance(payload.get("_meta"), dict) else {}
-    content = {k: v for k, v in payload.items() if k != "_meta"}
+def pedagogy_golden_coverage(fixtures: list[dict] | None = None) -> dict:
+    rows = fixtures if fixtures is not None else list_pedagogy_golden_fixtures()
+    by_group: dict[str, list[str]] = {gid: [] for gid in _EXPECTED_SUBJECT_GROUPS}
+    for row in rows:
+        group = row.get("subject_group")
+        if group in by_group:
+            by_group[group].append(row["name"])
+
+    covered = [
+        {
+            "id": gid,
+            "label": _SUBJECT_GROUP_LABELS[gid],
+            "fixtures": by_group[gid],
+        }
+        for gid in _EXPECTED_SUBJECT_GROUPS
+        if by_group[gid]
+    ]
+    missing = [
+        {"id": gid, "label": _SUBJECT_GROUP_LABELS[gid]}
+        for gid in _EXPECTED_SUBJECT_GROUPS
+        if not by_group[gid]
+    ]
     return {
-        "name": stem,
-        "editable": path.parent == _custom_dir_path(),
-        "content": content,
-        "min_method_labels": int(meta.get("min_method_labels") or 2),
-        "subject_hint": meta.get("subject_hint"),
+        "expected_groups": expected_subject_groups(),
+        "covered": covered,
+        "missing": missing,
+        "complete": len(missing) == 0,
     }
 
 
-def save_pedagogy_golden_fixture(
-    name: str,
-    content: dict,
-    *,
-    min_method_labels: int = 2,
-    subject_hint: str | None = None,
-) -> dict:
-    stem = _normalize_name(name)
-    if stem in {"README"}:
-        raise PedagogyGoldenError("Dieser Name ist reserviert", "invalid_name")
-    if min_method_labels < 1 or min_method_labels > 20:
-        raise PedagogyGoldenError("min_method_labels muss 1–20 sein", "invalid")
-
-    body = dict(content)
-    body.pop("_meta", None)
-    validate_pedagogy_fixture(body, min_method_labels=min_method_labels, fixture_name=stem)
-
-    payload = dict(body)
-    meta: dict = {"min_method_labels": min_method_labels}
-    if subject_hint and subject_hint.strip():
-        meta["subject_hint"] = subject_hint.strip()[:64]
-    payload["_meta"] = meta
-
-    path = _ensure_custom_dir() / f"{stem}.json"
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    return get_pedagogy_golden_fixture(stem)
-
-
-def delete_pedagogy_golden_fixture(name: str) -> None:
-    stem = _normalize_name(name)
-    path = _custom_dir_path() / f"{stem}.json"
-    if not path.is_file():
-        raise PedagogyGoldenError("Nur benutzerdefinierte Fixtures können gelöscht werden", "not_found")
-    path.unlink()
+def build_pedagogy_golden_report(*, fixtures: list[dict], coverage: dict, passed: int, total: int) -> str:
+    lines = [f"Golden Set: {passed}/{total} Fixtures bestanden"]
+    if coverage.get("complete"):
+        lines.append("Fachgruppen: alle abgedeckt (math, language, mgu, german, nature)")
+    elif coverage.get("missing"):
+        labels = ", ".join(row["label"] for row in coverage["missing"])
+        lines.append(f"Fachgruppen ohne Fixture: {labels}")
+    for row in fixtures:
+        status = "OK" if row.get("ok") else "FEHLER"
+        group = row.get("subject_group_label") or row.get("subject_group") or "—"
+        err = f" — {row['error']}" if row.get("error") else ""
+        lines.append(f"- {row['name']} ({group}): {status}{err}")
+    return "\n".join(lines)
 
 
 def run_pedagogy_golden_suite() -> dict:
     fixtures = list_pedagogy_golden_fixtures()
     passed = sum(1 for row in fixtures if row.get("ok"))
+    coverage = pedagogy_golden_coverage(fixtures)
+    total = len(fixtures)
+    failed = total - passed
     return {
-        "total": len(fixtures),
+        "total": total,
         "passed": passed,
-        "failed": len(fixtures) - passed,
+        "failed": failed,
         "fixtures": fixtures,
+        "coverage": coverage,
+        "coverage_complete": coverage["complete"],
+        "ok": failed == 0 and coverage["complete"],
+        "report": build_pedagogy_golden_report(
+            fixtures=fixtures,
+            coverage=coverage,
+            passed=passed,
+            total=total,
+        ),
+    }
+
+
+def get_pedagogy_golden_status() -> dict:
+    result = run_pedagogy_golden_suite()
+    return {
+        "fixtures": result["fixtures"],
+        "coverage": result["coverage"],
+        "total": result["total"],
+        "passed": result["passed"],
+        "failed": result["failed"],
+        "coverage_complete": result["coverage_complete"],
+        "ok": result["ok"],
+        "report": result["report"],
     }

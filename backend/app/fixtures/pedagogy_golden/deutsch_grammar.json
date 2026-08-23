@@ -1,4 +1,9 @@
 {
+  "_meta": {
+    "subject_group": "german",
+    "subject_hint": "Genus und Artikel",
+    "min_method_labels": 2
+  },
   "summary": "Nomen: Genus und Artikel — Übungen zu der/die/das.",
   "is_metadata_only": false,
   "methods": [

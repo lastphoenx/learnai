@@ -1,0 +1,33 @@
+{
+  "_meta": {
+    "subject_group": "language",
+    "subject_hint": "Französisch Vokabular",
+    "min_method_labels": 2
+  },
+  "summary": "Französisch: Wortschatz zu Familie und Alltag.",
+  "is_metadata_only": false,
+  "methods": [
+    {
+      "label": "Lernkarten",
+      "when": "Beim Einprägen neuer Wörter",
+      "example": "la maison — das Haus"
+    },
+    {
+      "label": "Satz mit dem Wort bilden",
+      "when": "Zum Festigen der Bedeutung",
+      "example": "J'habite dans une maison."
+    }
+  ],
+  "worked_examples": [
+    {
+      "problem": "Aufgabe 3: Übersetze «die Schwester»",
+      "method_label": "Lernkarten",
+      "steps": ["Schwester = sœur", "mit Artikel: la sœur"]
+    }
+  ],
+  "exercises": [
+    {"ref": "4a", "text": "Ergänze: mon ___ (Bruder)", "suggested_method": "Lernkarten"}
+  ],
+  "exercise_patterns": ["Vokabeln übersetzen", "Artikel wählen"],
+  "teaching_notes": ["Geschlecht des Nomens beachten"]
+}

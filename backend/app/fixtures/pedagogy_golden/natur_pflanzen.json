@@ -1,4 +1,9 @@
 {
+  "_meta": {
+    "subject_group": "nature",
+    "subject_hint": "Pflanzenaufbau",
+    "min_method_labels": 2
+  },
   "summary": "Pflanzenaufbau — Wurzel, Spross und Blatt erkennen und benennen.",
   "is_metadata_only": false,
   "methods": [

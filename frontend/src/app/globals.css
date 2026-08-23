@@ -1292,6 +1292,57 @@ button.btn.action-tile {
   min-height: 18rem;
 }
 
+.admin-golden-coverage {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.admin-golden-coverage-row {
+  display: grid;
+  grid-template-columns: auto minmax(8rem, 12rem) minmax(0, 1fr);
+  gap: 0.5rem 0.75rem;
+  align-items: baseline;
+}
+
+.admin-golden-result-row {
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-2);
+}
+
+.admin-golden-result-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.admin-golden-result-meta {
+  margin: 0.25rem 0 0;
+  font-size: 0.88rem;
+}
+
+.admin-golden-result-error {
+  margin: 0.5rem 0 0;
+  font-size: 0.88rem;
+}
+
+.admin-golden-report {
+  margin: 0;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  white-space: pre-wrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
 
 .source-meta {
   display: flex;
