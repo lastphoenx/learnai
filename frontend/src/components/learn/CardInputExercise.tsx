@@ -65,8 +65,8 @@ export function CardInputExercise({
           Erwarteter Lösungsweg: {METHOD_LABELS[expectedMethod] || expectedMethod}
         </p>
       )}
-      <form onSubmit={onFormSubmit} className="practice-form stack">
-        <label className="card-input-label">
+      <form onSubmit={onFormSubmit} className="card-input-form">
+        <label className="card-input-label card-input-answer">
           <span className="card-input-label-row">
             Ergebnis
             <SpeechInputButton
@@ -116,20 +116,24 @@ export function CardInputExercise({
           <textarea
             className="practice-input card-worked-input"
             placeholder="Beschreibe deinen Rechenweg …"
-            rows={3}
+            rows={5}
             value={worked}
             onChange={(e) => setWorked(e.target.value)}
             disabled={busy || Boolean(result)}
           />
         </label>
         {!result ? (
-          <button type="submit" className="btn-primary" disabled={busy || !answer.trim()}>
-            Antwort prüfen
-          </button>
+          <div className="card-input-actions">
+            <button type="submit" className="btn-primary" disabled={busy || !answer.trim()}>
+              Antwort prüfen
+            </button>
+          </div>
         ) : (
-          <button type="button" className="btn-primary" onClick={onContinue} disabled={busy}>
-            Nächste Karte
-          </button>
+          <div className="card-input-actions">
+            <button type="button" className="btn-primary" onClick={onContinue} disabled={busy}>
+              Nächste Karte
+            </button>
+          </div>
         )}
       </form>
       {result && (
