@@ -96,3 +96,33 @@ export function countAnsweredInDeck<T extends QuizQuestionRef>(
 ): number {
   return deck.filter((q) => isQuizAnswered(progress, q)).length;
 }
+
+/** Klassen für die Quiz-Sprungleiste: offen / aktiv / richtig / falsch. */
+export function quizJumpClassName(
+  index: number,
+  currentIndex: number,
+  progress: LearnProgress,
+  q: QuizQuestionRef,
+): string {
+  let cls = "quiz-nav-jump";
+  if (index === currentIndex) cls += " active";
+  const stored = getStoredQuizAnswer(progress, q);
+  if (stored) {
+    cls += stored.correct ? " correct" : " wrong";
+  } else if (isQuizDeferred(progress, q)) {
+    cls += " deferred";
+  }
+  return cls;
+}
+
+export function quizJumpTitle(
+  index: number,
+  progress: LearnProgress,
+  q: QuizQuestionRef,
+): string {
+  const n = index + 1;
+  const stored = getStoredQuizAnswer(progress, q);
+  if (stored) return `Frage ${n} (${stored.correct ? "richtig" : "falsch"})`;
+  if (isQuizDeferred(progress, q)) return `Frage ${n} (später)`;
+  return `Frage ${n}`;
+}

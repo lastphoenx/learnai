@@ -26,8 +26,9 @@ import {
   getStoredQuizAnswer,
   hasOtherOpenQuizQuestions,
   isQuizAnswered,
-  isQuizDeferred,
   nextOpenQuizIndex,
+  quizJumpClassName,
+  quizJumpTitle,
   quizQuestionKey,
 } from "@/lib/quizNav";
 
@@ -1129,7 +1130,7 @@ export function InteractiveTrainer({
       )}
 
       {tab === "quiz" && currentQuestion && (
-        <>
+        <div className="trainer-quiz">
           <div className="quiz-nav-row">
             <button
               type="button"
@@ -1139,10 +1140,6 @@ export function InteractiveTrainer({
             >
               ← Zurück
             </button>
-            <span className="learn-quiz-meta muted">
-              Frage {quizIndex + 1} von {activeQuestions.length}
-              {isReviewMode ? " · Ansicht (beantwortet)" : ""}
-            </span>
             <button
               type="button"
               className="ghost"
@@ -1152,33 +1149,52 @@ export function InteractiveTrainer({
               Weiter →
             </button>
           </div>
+          <div className="trainer-progress-wrap">
+            <div className="trainer-progress-bar" aria-hidden="true">
+              <div
+                className="trainer-progress-fill"
+                style={{
+                  width: `${Math.round(
+                    (100 * (quizIndex + 1)) / Math.max(1, activeQuestions.length),
+                  )}%`,
+                }}
+              />
+            </div>
+          </div>
+          <p className="learn-quiz-meta muted">
+            {[
+              `Frage ${quizIndex + 1} von ${activeQuestions.length}`,
+              isReviewMode ? "Ansicht" : null,
+              currentQuestion.domain || null,
+              quizChallenge ? "Challenge" : quizWeakOnly ? "nur Schwächen" : "Check",
+              !quizChallenge && !quizWeakOnly && checkQuizAnsweredCount > 0
+                ? `${checkQuizAnsweredCount}/${activeQuestions.length} beantwortet`
+                : null,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          </p>
           <div className="quiz-nav-strip" role="tablist" aria-label="Quiz-Fragen">
             {activeQuestions.map((q, i) => {
-              let dotClass = "quiz-nav-dot";
-              if (i === quizIndex) dotClass += " active";
-              if (isQuizAnswered(learnProgress, q)) dotClass += " done";
-              else if (isQuizDeferred(learnProgress, q)) dotClass += " deferred";
+              const title = quizJumpTitle(i, learnProgress, q);
               return (
                 <button
                   key={quizQuestionKey(q)}
                   type="button"
-                  className={dotClass}
+                  className={quizJumpClassName(i, quizIndex, learnProgress, q)}
                   disabled={busy}
-                  title={`Frage ${i + 1}${isQuizAnswered(learnProgress, q) ? " (beantwortet)" : ""}`}
+                  title={title}
+                  aria-label={title}
+                  aria-current={i === quizIndex ? "true" : undefined}
                   onClick={() => goToQuizQuestion(i)}
-                />
+                >
+                  {i + 1}
+                </button>
               );
             })}
           </div>
-          <p className="learn-quiz-meta muted">
-            {currentQuestion.domain}
-            {quizChallenge ? " · Challenge" : quizWeakOnly ? " · nur Schwächen" : " · Check"}
-            {!quizChallenge && !quizWeakOnly && checkQuizAnsweredCount > 0
-              ? ` · ${checkQuizAnsweredCount}/${activeQuestions.length} beantwortet`
-              : ""}
-          </p>
           <p className="learn-quiz-question">{currentQuestion.q}</p>
-          <div>
+          <div className="quiz-options">
             {(currentQuestion.options || []).map((opt, i) => (
               <button
                 key={i}
@@ -1192,57 +1208,59 @@ export function InteractiveTrainer({
             ))}
           </div>
           {answerResult && (
-            <div className={`learn-feedback ${answerResult.correct ? "ok" : "bad"}`}>
+            <div className="quiz-answer-block">
               {isReviewMode ? (
-                <strong className="muted">Gespeicherte Antwort</strong>
+                <p className="quiz-review-heading muted">Gespeicherte Antwort</p>
               ) : answerResult.correct ? (
-                <strong style={{ color: "var(--accent)" }}>Richtig!</strong>
+                <p className="quiz-verdict ok">Richtig!</p>
               ) : (
-                <strong style={{ color: "var(--danger)" }}>Nicht ganz — schau nochmal hin.</strong>
+                <p className="quiz-verdict bad">Nicht ganz — schau nochmal hin.</p>
               )}
               {answerResult.explanation && <QuizExplanation text={answerResult.explanation} />}
             </div>
           )}
-          <div className="learn-actions">
-            {!answerResult ? (
-              <>
-                <button type="button" className="btn-primary" disabled={busy || selected === null} onClick={submitQuiz}>
-                  Antwort prüfen
-                </button>
-                {canSkipOrDefer && (
-                  <>
-                    <button
-                      type="button"
-                      className="ghost"
-                      disabled={busy}
-                      title="Zur nächsten offenen Frage — diese bleibt offen"
-                      onClick={skipToNextOpen}
-                    >
-                      Überspringen
-                    </button>
-                    <button
-                      type="button"
-                      className="ghost"
-                      disabled={busy}
-                      title="Diese Frage ans Ende der offenen Liste legen"
-                      onClick={() => void deferCurrentQuestion()}
-                    >
-                      Später lösen
-                    </button>
-                  </>
-                )}
-              </>
-            ) : isReviewMode ? (
-              nextOpenQuizIndex(activeQuestions, learnProgress, quizIndex) != null ? (
-                <button type="button" className="btn-primary" onClick={() => skipToNextOpen()}>
-                  Nächste offene Frage
-                </button>
-              ) : (
-                <button type="button" className="btn-primary" onClick={finishQuiz}>
-                  Zurück zum Einstieg
-                </button>
-              )
-            ) : (
+          {!answerResult ? (
+            <div className="learn-actions">
+              <button type="button" className="btn-primary" disabled={busy || selected === null} onClick={submitQuiz}>
+                Antwort prüfen
+              </button>
+              {canSkipOrDefer && (
+                <>
+                  <button
+                    type="button"
+                    className="ghost"
+                    disabled={busy}
+                    title="Zur nächsten offenen Frage — diese bleibt offen"
+                    onClick={skipToNextOpen}
+                  >
+                    Überspringen
+                  </button>
+                  <button
+                    type="button"
+                    className="ghost"
+                    disabled={busy}
+                    title="Diese Frage ans Ende der offenen Liste legen"
+                    onClick={() => void deferCurrentQuestion()}
+                  >
+                    Später lösen
+                  </button>
+                </>
+              )}
+            </div>
+          ) : isReviewMode && nextOpenQuizIndex(activeQuestions, learnProgress, quizIndex) != null ? (
+            <div className="learn-actions">
+              <button type="button" className="btn-primary" onClick={() => skipToNextOpen()}>
+                Nächste offene Frage
+              </button>
+            </div>
+          ) : isReviewMode ? (
+            <div className="quiz-finish-actions">
+              <button type="button" className="btn-primary" onClick={finishQuiz}>
+                Zurück zum Einstieg
+              </button>
+            </div>
+          ) : (
+            <div className="learn-actions">
               <button
                 type="button"
                 className="btn-primary"
@@ -1252,9 +1270,9 @@ export function InteractiveTrainer({
                   ? "Nächste Frage"
                   : "Fertig"}
               </button>
-            )}
-          </div>
-        </>
+            </div>
+          )}
+        </div>
       )}
     </section>
   );
