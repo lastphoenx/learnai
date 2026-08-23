@@ -607,9 +607,11 @@ export const updateChildGuardians = (userId: string, parent_ids: string[]) =>
 
 export type PedagogyGoldenFixtureSummary = {
   name: string;
-  editable: boolean;
+  file?: string;
   ok: boolean;
   min_method_labels?: number;
+  subject_group?: string | null;
+  subject_group_label?: string | null;
   subject_hint?: string | null;
   method_count?: number;
   label_count?: number;
@@ -619,46 +621,29 @@ export type PedagogyGoldenFixtureSummary = {
   error?: string;
 };
 
-export type PedagogyGoldenFixture = {
-  name: string;
-  editable: boolean;
-  content: Record<string, unknown>;
-  min_method_labels: number;
-  subject_hint?: string | null;
+export type PedagogyGoldenCoverage = {
+  expected_groups: { id: string; label: string }[];
+  covered: { id: string; label: string; fixtures: string[] }[];
+  missing: { id: string; label: string }[];
+  complete: boolean;
 };
 
-export type PedagogyGoldenRunResult = {
+export type PedagogyGoldenStatus = {
+  fixtures: PedagogyGoldenFixtureSummary[];
+  coverage: PedagogyGoldenCoverage;
   total: number;
   passed: number;
   failed: number;
-  fixtures: PedagogyGoldenFixtureSummary[];
+  coverage_complete: boolean;
+  ok: boolean;
+  report: string;
 };
 
-export const fetchPedagogyGoldenFixtures = () =>
-  apiFetch<{ fixtures: PedagogyGoldenFixtureSummary[] }>("/api/v1/admin/pedagogy-golden");
+export const fetchPedagogyGoldenStatus = () =>
+  apiFetch<PedagogyGoldenStatus>("/api/v1/admin/pedagogy-golden");
 
 export const runPedagogyGoldenSuite = () =>
-  apiFetch<PedagogyGoldenRunResult>("/api/v1/admin/pedagogy-golden/run", { method: "POST" });
-
-export const fetchPedagogyGoldenFixture = (name: string) =>
-  apiFetch<PedagogyGoldenFixture>(`/api/v1/admin/pedagogy-golden/${encodeURIComponent(name)}`);
-
-export const savePedagogyGoldenFixture = (
-  name: string,
-  body: {
-    name: string;
-    content: Record<string, unknown>;
-    min_method_labels?: number;
-    subject_hint?: string | null;
-  },
-) =>
-  apiFetch<PedagogyGoldenFixture>(`/api/v1/admin/pedagogy-golden/${encodeURIComponent(name)}`, {
-    method: "PUT",
-    json: body,
-  });
-
-export const deletePedagogyGoldenFixture = (name: string) =>
-  apiFetch<void>(`/api/v1/admin/pedagogy-golden/${encodeURIComponent(name)}`, { method: "DELETE" });
+  apiFetch<PedagogyGoldenStatus>("/api/v1/admin/pedagogy-golden/run", { method: "POST" });
 
 export const updateMySettings = (body: { display_name?: string }) =>
   apiFetch<User>("/api/v1/auth/me", { method: "PATCH", json: body });

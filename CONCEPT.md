@@ -2,7 +2,7 @@
 
 Stand: August 2026 (Phasen A–D der Prüfungs-Pipeline abgeschlossen).
 
-Siehe auch [README.md](README.md), [DEVELOPER.md](DEVELOPER.md) (technisch) und [FOUNDATION.md](FOUNDATION.md) (Scaffold-Basis).
+Siehe auch [README.md](README.md), [DEVELOPER.md](DEVELOPER.md) (technisch), [FOUNDATION.md](FOUNDATION.md) (Scaffold-Basis) und **[AGENTS.md](AGENTS.md)** (Regeln für KI-Assistenten, inkl. Pedagogy Golden Set).
 
 ---
 
@@ -47,6 +47,11 @@ Lernen in der App (Quiz, Blöcke) ≠ echte Schulprüfung. Beides muss verbunden
 - Client-IP hinter nginx (X-Real-IP, XFF rechts-trusted); `TRUSTED_PROXY_CIDRS`
 - SSRF-Guard für URL-Quellen; Magic-Byte-Validierung bei Uploads
 - `APP_ENV=production` + `COOKIE_SECURE`; Security-Header in FastAPI
+
+### Qualitätssicherung (Entwicklung)
+- **Pedagogy Golden Set:** JSON-Fixtures im Repo (`backend/app/fixtures/pedagogy_golden/`), eine pro Fachgruppe (Mathe, Sprachen, MGU, Deutsch, Natur)
+- CI + Admin **read-only** (`/admin/golden-set`): Ergebnis und kopierbarer Report für die KI — siehe [AGENTS.md](AGENTS.md)
+- Bewusst offen: echte Foto-Regression (Live-Vision)
 
 ---
 
