@@ -2078,6 +2078,14 @@ button.btn.action-tile {
   .admin-user-card {
     padding: 1.1rem 1.2rem;
   }
+
+  .card-input-form {
+    gap: 1.25rem;
+  }
+
+  .card-worked-input {
+    min-height: 8rem;
+  }
 }
 
 /* Desktop (24") */
@@ -2128,6 +2136,19 @@ button.btn.action-tile {
 
   .learn-quiz-question {
     font-size: 1.15rem;
+  }
+
+  .card-input-answer {
+    max-width: 18rem;
+  }
+
+  .card-input-actions .btn-primary {
+    width: auto;
+    min-width: 14rem;
+  }
+
+  .card-worked-input {
+    min-height: 9rem;
   }
 
   .learn-quiz-option {
@@ -2526,23 +2547,47 @@ button.btn.action-tile {
   justify-content: space-between;
   gap: 0.5rem;
 }
-.card-input-row {
-  display: flex;
-  gap: 0.5rem;
-  align-items: stretch;
-}
-.card-input-row .practice-input {
-  flex: 1;
+.card-input-label-row .speech-input-btn {
+  min-width: 2.75rem;
+  min-height: 2.5rem;
+  padding: 0.4rem 0.65rem;
 }
 .card-worked-input {
-  min-height: 5rem;
+  min-height: 7.5rem;
   resize: vertical;
+  line-height: 1.45;
 }
 .card-input-label {
   display: grid;
-  gap: 0.35rem;
-  font-size: 0.9rem;
+  gap: 0.45rem;
+  font-size: 0.95rem;
   font-weight: 600;
+  width: 100%;
+  min-width: 0;
+}
+.card-input-form {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 1.1rem;
+  margin-top: 0.85rem;
+  max-width: 36rem;
+}
+.card-input-form .practice-input {
+  flex: none;
+  width: 100%;
+  min-width: 0;
+  min-height: 2.9rem;
+  font-size: 1.12rem;
+}
+.card-input-actions {
+  display: flex;
+  width: 100%;
+  padding-top: 0.25rem;
+}
+.card-input-actions .btn-primary {
+  width: 100%;
+  min-height: 2.9rem;
 }
 .card-mic-btn {
   min-width: 2.75rem;
@@ -2564,9 +2609,6 @@ button.btn.action-tile {
 }
 .label-with-speech .unit-field-guide {
   margin-top: 0.15rem;
-}
-.card-input-exercise .practice-form {
-  gap: 0.85rem;
 }
 .trainer-progress-wrap {
   margin-bottom: 1rem;
