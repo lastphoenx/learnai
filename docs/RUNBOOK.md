@@ -19,15 +19,59 @@ nginx auf CT 108 nutzt bereits `snippets/proxy-headers.conf` — **kein** separa
 
 ## Deploy (CT 135)
 
+### Nur Python-Code (`backend/app/`) geändert
+
+Volume-Mount — **kein** `pip install`, **kein** Image-Rebuild:
+
 ```bash
 cd /opt/learnai
 git pull origin feature/interactive-trainer-v1
-docker compose restart api worker    # nur backend/app (Volume)
-docker compose build frontend && docker compose up -d frontend
+docker compose restart api worker
 curl -sS https://learn.santinel.li/api/v1/health
 ```
 
-Vollständiger Rebuild (requirements, API-Image):
+### `requirements.txt` oder `Dockerfile` geändert
+
+Pakete werden **nur beim Image-Build** installiert (`backend/Dockerfile` → `pip install -r requirements.txt`).
+`docker compose restart` reicht **nicht**.
+
+```bash
+cd /opt/learnai
+git pull origin feature/interactive-trainer-v1
+docker compose build api worker
+docker compose up -d api worker
+```
+
+Bei Zweifeln (Cache): erzwingen ohne Layer-Cache:
+
+```bash
+docker compose build --no-cache api worker
+docker compose up -d api worker
+```
+
+**Prüfen, ob die erwarteten Pakete im laufenden Container sind:**
+
+```bash
+docker compose exec api pip show pymupdf pymupdf-fonts | grep -E '^Name:|^Version:'
+docker compose exec api python -c "import fitz; print('pymupdf', fitz.__doc__[:20]); print('ubuntu font', 'ubuntu' in fitz.fitz_fontdescriptors)"
+```
+
+Erwartung nach PDF-Fix: `pymupdf` ≥ 1.28, `pymupdf-fonts` 1.0.5, `ubuntu font True`.
+
+### Frontend geändert
+
+```bash
+docker compose build frontend && docker compose up -d frontend
+```
+
+### Alles (empfohlen nach gemischten Änderungen)
+
+```bash
+bash scripts/deploy.sh
+# = git pull + docker compose build + docker compose up -d
+```
+
+Vollständiger Rebuild aller Images:
 
 ```bash
 docker compose build api worker frontend
