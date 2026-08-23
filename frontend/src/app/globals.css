@@ -567,14 +567,6 @@ button:disabled {
   min-height: 2.9rem;
 }
 
-.quiz-nav-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  margin-bottom: 0.4rem;
-}
-
 .quiz-nav-pager {
   display: flex;
   align-items: center;

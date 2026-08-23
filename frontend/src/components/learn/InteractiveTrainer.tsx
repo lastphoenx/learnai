@@ -1016,24 +1016,6 @@ export function InteractiveTrainer({
 
           {cardFilter === "practice" && currentPractice && (
             <div className="trainer-cards">
-              <div className="quiz-nav-row">
-                <button
-                  type="button"
-                  className="ghost"
-                  disabled={busy || practiceIndex === 0}
-                  onClick={() => goToPractice(practiceIndex - 1)}
-                >
-                  ← Zurück
-                </button>
-                <button
-                  type="button"
-                  className="ghost"
-                  disabled={busy || practiceIndex + 1 >= practiceExercises.length}
-                  onClick={() => goToPractice(practiceIndex + 1)}
-                >
-                  Weiter →
-                </button>
-              </div>
               <div className="quiz-status-row">
                 <div className="trainer-progress-wrap">
                   <div className="trainer-progress-bar" aria-hidden="true">
@@ -1111,24 +1093,6 @@ export function InteractiveTrainer({
 
           {cardFilter !== "practice" && currentCard && (
             <div className="trainer-cards">
-              <div className="quiz-nav-row">
-                <button
-                  type="button"
-                  className="ghost"
-                  disabled={busy || cardIndex === 0}
-                  onClick={() => goToCard(cardIndex - 1)}
-                >
-                  ← Zurück
-                </button>
-                <button
-                  type="button"
-                  className="ghost"
-                  disabled={busy || cardIndex + 1 >= orderedCards.length}
-                  onClick={() => goToCard(cardIndex + 1)}
-                >
-                  Weiter →
-                </button>
-              </div>
               <div className="quiz-status-row">
                 <div className="trainer-progress-wrap">
                   <div className="trainer-progress-bar" aria-hidden="true">
@@ -1308,24 +1272,6 @@ export function InteractiveTrainer({
 
       {tab === "quiz" && currentQuestion && (
         <div className="trainer-quiz">
-          <div className="quiz-nav-row">
-            <button
-              type="button"
-              className="ghost"
-              disabled={busy || quizIndex <= 0}
-              onClick={() => goToQuizQuestion(quizIndex - 1)}
-            >
-              ← Zurück
-            </button>
-            <button
-              type="button"
-              className="ghost"
-              disabled={busy || quizIndex + 1 >= activeQuestions.length}
-              onClick={() => goToQuizQuestion(quizIndex + 1)}
-            >
-              Weiter →
-            </button>
-          </div>
           <div className="quiz-status-row">
             <div className="trainer-progress-wrap">
               <div className="trainer-progress-bar" aria-hidden="true">
