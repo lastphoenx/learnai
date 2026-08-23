@@ -454,6 +454,41 @@ button:disabled {
   line-height: 1.5;
 }
 
+.quiz-explanation-variants {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  margin-top: 0.55rem;
+}
+
+.quiz-variant {
+  padding: 0.55rem 0.7rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--card) 88%, var(--bg));
+}
+
+.quiz-variant-heft {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: color-mix(in srgb, var(--accent) 8%, var(--card));
+}
+
+.quiz-variant-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.quiz-variant-title {
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.quiz-variant .quiz-explanation-text {
+  margin-top: 0.4rem;
+}
+
 .quiz-nav-row {
   display: flex;
   align-items: center;

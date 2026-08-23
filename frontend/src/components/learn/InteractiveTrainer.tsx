@@ -18,7 +18,8 @@ import {
 import { CardInputExercise } from "@/components/learn/CardInputExercise";
 import { QuizWeaknessPanel } from "@/components/QuizWeaknessPanel";
 import { PracticeExercise } from "@/components/learn/PracticeExercise";
-import { formatQuizOption, formatQuizExplanation, quizOptionClassName } from "@/lib/quizOption";
+import { formatQuizOption, quizOptionClassName } from "@/lib/quizOption";
+import { QuizExplanation } from "@/components/learn/QuizExplanation";
 import {
   countAnsweredInDeck,
   firstOpenQuizIndex,
@@ -1199,9 +1200,7 @@ export function InteractiveTrainer({
               ) : (
                 <strong style={{ color: "var(--danger)" }}>Nicht ganz — schau nochmal hin.</strong>
               )}
-              {answerResult.explanation && (
-                <p className="muted quiz-explanation-text">{formatQuizExplanation(answerResult.explanation)}</p>
-              )}
+              {answerResult.explanation && <QuizExplanation text={answerResult.explanation} />}
             </div>
           )}
           <div className="learn-actions">

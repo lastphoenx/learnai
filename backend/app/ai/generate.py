@@ -69,7 +69,7 @@ MODULE_SYSTEM = (
     "content.practice: 2–3 Übungsaufgaben zum Selberlösen (optional bei reinem Erklärmodus, sonst Pflicht bei Mathe/Übungen).\n"
     "  answer_type: number (Brüche als Dezimal oder Bruch im answer-Feld) oder text.\n"
     "quiz: genau 4 Multiple-Choice-Fragen, je 4 Optionen, answer=Index.\n"
-    "  explanation: bei Rechenaufgaben 2–3 Sätze mit Lösungsweg (Zwischenschritte); sonst 1–2 Sätze.\n"
+    "  explanation: bei Rechenaufgaben 2–3 Varianten mit ausgerechneten Gleichungen; sonst 1–2 Sätze.\n"
     "Keine Trivialfragen. Kein LaTeX mit Backslashes."
 )
 

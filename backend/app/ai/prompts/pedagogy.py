@@ -39,9 +39,10 @@ QUIZ_PEDAGOGY_RULES = (
     "Quiz-Didaktik:\n"
     "- Ca. 20–30 % Fragen mit question_type=method (Strategiewahl).\n"
     "- method-Fragen: options = Lösungswege aus dem Didaktik-Block (Heft-Wortlaut).\n"
-    "- Rechenfragen: question_type=calculation; explanation mit mindestens 2 Varianten.\n"
-    "- Wenn im Didaktik-Block worked_examples stehen: mindestens eine Variante daraus übernehmen.\n"
-    "- Bezug zu Methoden-Labels aus dem Didaktik-Block, wenn vorhanden.\n"
+    "- Rechenfragen: question_type=calculation; explanation mit 2–3 Varianten, jede mit Gleichung.\n"
+    "- Wenn im Didaktik-Block worked_examples stehen: mindestens eine Variante daraus ableiten "
+    "(gleiche Strategie, Zahlen der aktuellen Aufgabe).\n"
+    "- Bezug zu Methoden-Labels aus dem Didaktik-Block, wenn vorhanden — keine feste Methodenliste.\n"
 )
 
 

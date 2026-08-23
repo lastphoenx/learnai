@@ -1,6 +1,7 @@
 from app.core.quiz_explanation import (
     build_worked_solution,
     enrich_quiz_explanation,
+    explanation_has_derivation,
     explanation_is_weak,
     parse_arithmetic_operands,
 )
@@ -26,6 +27,49 @@ def test_multiply_simple():
     assert text is not None
     assert "Zuerst" in text
     assert "52,38" in text
+    assert "Variante 2 (Notizen)" in text
+
+
+def test_multiply_small_decimal_has_reihe_and_notes():
+    text = build_worked_solution("Berechne im Kopf: 8 · 1.5", 12.0)
+    assert text is not None
+    assert "Variante 1 (Kopfrechnen)" in text
+    assert "Variante 2 (Notizen)" in text
+    assert "8 × 1 = 8" in text or "8 × 1 = 8" in text.replace(",", ".")
+    assert "8 × 5 = 40" in text or "8 × 5 = 40" in text.replace(",", ".")
+    assert "8er-Reihe" in text
+    assert "1,5 = 1 + 0,5" in text or "1.5 = 1 + 0.5" in text.replace(",", ".")
+    assert "12" in text
+
+
+def test_recipe_variants_are_weak():
+    recipe = (
+        "Variante 1 (Kopfrechnen): Du multiplizierst 8 mit 1 und dann addierst du 8 mal 0,5.\n"
+        "Variante 2 (Notizen): Schreibe 1.5 als Summe von 1 und 0.5, multipliziere beide Teile mit 8 "
+        "und addiere die Ergebnisse."
+    )
+    assert not explanation_has_derivation(recipe)
+    assert explanation_is_weak(recipe, "Berechne im Kopf: 8 · 1.5")
+
+
+def test_enrich_replaces_recipe_variants_for_8_times_1_5():
+    recipe = (
+        "Variante 1 (Kopfrechnen): Du multiplizierst 8 mit 1 und dann addierst du 8 mal 0,5.\n"
+        "Variante 2 (Notizen): Schreibe 1.5 als Summe von 1 und 0.5, multipliziere beide Teile mit 8 "
+        "und addiere die Ergebnisse."
+    )
+    q = {
+        "q": "Berechne im Kopf: 8 · 1.5",
+        "options": ["12", "13", "14", "15"],
+        "answer": 0,
+        "explanation": recipe,
+        "question_type": "calculation",
+    }
+    enriched = enrich_quiz_explanation(q)
+    assert enriched != recipe
+    assert "8 × 1 = 8" in enriched or "8 × 1 = 8" in enriched.replace(",", ".")
+    assert "8 × 0,5 = 4" in enriched or "8 × 0.5 = 4" in enriched.replace(",", ".")
+    assert "8 + 4 = 12" in enriched or "8 + 4 = 12" in enriched.replace(",", ".")
 
 
 def test_enrich_replaces_weak():
@@ -99,8 +143,8 @@ def test_sub_has_two_variants():
 
 def test_enrich_keeps_strong_multi_variant():
     explanation = (
-        "Variante 1 (Reihen): 7,2 ÷ 9 aus der 9er-Reihe. "
-        "Variante 2 (Komma verschieben): 72 Hundertstel ÷ 9 = 8 Hundertstel."
+        "Variante 1 (Reihen): 72 ÷ 9 = 8, Komma eine Stelle → 0,8. "
+        "Variante 2 (Komma verschieben): 72 ÷ 9 = 8, das sind 8 Hundertstel = 0,8."
     )
     q = {
         "q": "Wie berechnest du 7.2 : 9?",
@@ -109,6 +153,7 @@ def test_enrich_keeps_strong_multi_variant():
         "explanation": explanation,
         "question_type": "calculation",
     }
+    assert explanation_has_derivation(explanation)
     assert enrich_quiz_explanation(q) == explanation
 
 

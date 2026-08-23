@@ -12,6 +12,34 @@ export function formatQuizExplanation(text: string): string {
     .replace(/ (?=Variante [2-9])/g, "\n\n");
 }
 
+export type QuizExplanationVariant = {
+  index: number;
+  label: string;
+  badge: "heft" | "alt";
+  body: string;
+};
+
+const VARIANT_HEAD = /Variante\s+(\d+)\s*(?:\(([^)]*)\))?\s*:/gi;
+
+export function splitQuizExplanationVariants(text: string): QuizExplanationVariant[] {
+  const src = formatQuizExplanation(text || "").trim();
+  if (!src) return [];
+  const matches = [...src.matchAll(new RegExp(VARIANT_HEAD.source, "gi"))];
+  if (matches.length === 0) {
+    return [{ index: 1, label: "", badge: "heft", body: src }];
+  }
+  return matches.map((match, i) => {
+    const start = (match.index ?? 0) + match[0].length;
+    const end = i + 1 < matches.length ? (matches[i + 1].index ?? src.length) : src.length;
+    return {
+      index: Number(match[1]),
+      label: (match[2] || "").trim(),
+      badge: i === 0 ? "heft" : "alt",
+      body: src.slice(start, end).trim(),
+    };
+  });
+}
+
 export function quizOptionClassName(
   index: number,
   selected: number | null,
