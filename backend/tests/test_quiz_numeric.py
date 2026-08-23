@@ -68,3 +68,25 @@ def test_resolve_quiz_non_numeric_answer_string():
         "answer": "b",
     }
     assert resolve_quiz_correct_index(q) == -1
+
+
+def test_method_question_is_not_graded_by_embedded_product():
+    correct = (
+        "Man zerlegt 14 in 10 und 4, dann rechnet man 10 · 0.85 = 8.5 und 4 · 0.85 = 3.4"
+    )
+    q = {
+        "q": "Wie löst du die Aufgabe 14 · 0.85 mit der Zerlegungsmethode?",
+        "options": [
+            "Man zerlegt 14 in 13 und 1, dann rechnet man 13 · 0.85 und 1 · 0.85",
+            correct,
+            "Man zerlegt 14 in 20 und -6, dann rechnet man 20 · 0.85 und -6 · 0.85",
+            "Man zerlegt 14 in 7 und 7, dann rechnet man 7 · 0.85 zweimal",
+        ],
+        "answer": 1,
+        "explanation": correct,
+    }
+    assert try_compute_from_question(q["q"]) is None
+    assert resolve_quiz_correct_index(q) == 1
+    assert is_quiz_selection_correct(q, 1)
+    assert not is_quiz_selection_correct(q, 0)
+    assert not is_quiz_selection_correct(q, 2)
