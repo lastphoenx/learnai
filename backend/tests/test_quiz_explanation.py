@@ -25,21 +25,52 @@ def test_multiply_worked_solution():
 def test_multiply_simple():
     text = build_worked_solution("Was ergibt sich aus der Multiplikation von 9 · 5.82?", 52.38)
     assert text is not None
-    assert "Zuerst" in text
+    assert "schriftlich" in text
+    assert "582" in text
     assert "52,38" in text
-    assert "Variante 2 (Notizen)" in text
+    assert "Variante 2 (Zerlegung)" in text
 
 
 def test_multiply_small_decimal_has_reihe_and_notes():
     text = build_worked_solution("Berechne im Kopf: 8 · 1.5", 12.0)
     assert text is not None
     assert "Variante 1 (Kopfrechnen)" in text
-    assert "Variante 2 (Notizen)" in text
-    assert "8 × 1 = 8" in text or "8 × 1 = 8" in text.replace(",", ".")
-    assert "8 × 5 = 40" in text or "8 × 5 = 40" in text.replace(",", ".")
     assert "8er-Reihe" in text
-    assert "1,5 = 1 + 0,5" in text or "1.5 = 1 + 0.5" in text.replace(",", ".")
     assert "12" in text
+    assert "Variante 2 (schriftlich)" in text
+    assert "8 × 15 = 120" in text
+
+
+def test_written_multiply_uses_algorithm_not_product_only():
+    text = build_worked_solution("Wie löst du die Aufgabe 5 · 13.6 schriftlich?", 68.0)
+    assert text is not None
+    assert "Variante 1 (schriftlich)" in text
+    assert "5 × 136 = 680" in text
+    assert "Variante 2 (Zerlegung)" in text
+    assert "5 × 13 = 65" in text
+    assert "Dann 5 × 0,6 = 3" in text
+    assert ", 5 ×" not in text
+
+
+def test_product_only_variant_is_weak():
+    expl = (
+        "Variante 1 (Schriftliches Rechnen): 5 · 13.6 = 68\n"
+        "Variante 2 (Notieren): 5 · 13 = 65, 5 · 0.6 = 3 → 65 + 3 = 68"
+    )
+    q = "Wie löst du die Aufgabe 5 · 13.6 schriftlich?"
+    assert explanation_is_weak(expl, q)
+    enriched = enrich_quiz_explanation(
+        {
+            "q": q,
+            "options": ["6800", "680", "68", "6.8"],
+            "answer": 2,
+            "explanation": expl,
+            "question_type": "calculation",
+        }
+    )
+    assert "5 × 136 = 680" in enriched
+    assert "Dann 5 × 0,6 = 3" in enriched
+    assert "65, 5" not in enriched
 
 
 def test_recipe_variants_are_weak():
@@ -80,7 +111,7 @@ def test_enrich_replaces_weak():
         "explanation": "Das Ergebnis von 9 multipliziert mit 5.82 ist 52.38.",
     }
     enriched = enrich_quiz_explanation(q)
-    assert "Zuerst" in enriched
+    assert "52,38" in enriched
     assert enriched != q["explanation"]
 
 

@@ -8,6 +8,7 @@ export function formatQuizOption(option: string, index: number): string {
 /** Zeilenumbrüche zwischen Rechenweg-Varianten sichtbar machen. */
 export function formatQuizExplanation(text: string): string {
   return text
+    .replace(/(=\s*-?\d+(?:[.,]\d+)?)\s*,\s*(?=-?\d+(?:[.,]\d+)?\s*[·×*+\-−:÷/])/g, "$1.\nDann ")
     .replace(/\. Variante /g, ".\n\nVariante ")
     .replace(/ (?=Variante [2-9])/g, "\n\n");
 }
