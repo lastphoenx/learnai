@@ -84,6 +84,16 @@ def test_grade_input_card_numeric():
     assert graded["correct"] is True
 
 
+def test_grade_worked_solution_accepts_decomposition_steps():
+    ok, _ = grade_worked_solution(
+        "Rechne: 14 × 0,85",
+        "11,9",
+        "Ich zerlege 14 in 10 und 4. 10 x 0.85 = 8.5 und 4 x 0.85 = 3.4",
+        expected_method="decomposition",
+    )
+    assert ok is True
+
+
 def test_grade_worked_solution_accepts_steps():
     ok, _ = grade_worked_solution(
         "Was ist 24,68 : 8?",
