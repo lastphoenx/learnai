@@ -66,20 +66,26 @@ def _slug_filename(name: str, *, suffix: str) -> str:
 
 def html_to_pdf(html_body: str) -> bytes:
     """HTML-Fragment (+ CSS) → PDF-Bytes (A4)."""
-    doc_html = f"<html><head><style>{_PDF_CSS}</style></head><body>{html_body}</body></html>"
-    buffer = io.BytesIO()
-    writer = fitz.DocumentWriter(buffer)
-    story = fitz.Story(html=doc_html)
-    mediabox = fitz.paper_rect("a4")
-    where = mediabox + (42, 42, -42, -42)
-    more = True
-    while more:
-        page = writer.begin_page(mediabox)
-        more, _ = story.place(where)
-        story.draw(page)
-        writer.end_page()
-    writer.close()
-    return buffer.getvalue()
+    archive = fitz.Archive()
+    font_css = fitz.css_for_pymupdf_font("helv", archive=archive)
+    merged_css = f"{font_css}\n{_PDF_CSS}\nbody {{ font-family: helv, sans-serif; }}"
+    doc_html = f"<html><head><style>{merged_css}</style></head><body>{html_body}</body></html>"
+    try:
+        buffer = io.BytesIO()
+        writer = fitz.DocumentWriter(buffer)
+        story = fitz.Story(html=doc_html, archive=archive)
+        mediabox = fitz.paper_rect("a4")
+        where = mediabox + (42, 42, -42, -42)
+        more = True
+        while more:
+            page = writer.begin_page(mediabox)
+            more, _ = story.place(where)
+            story.draw(page)
+            writer.end_page()
+        writer.close()
+        return buffer.getvalue()
+    except Exception as exc:
+        raise UnitError(f"PDF-Erzeugung fehlgeschlagen: {exc}", "pdf_failed") from exc
 
 
 def _transfer_line(transfer: dict | None) -> str:
