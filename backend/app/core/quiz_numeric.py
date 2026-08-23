@@ -5,7 +5,13 @@ from __future__ import annotations
 import re
 
 _NUMERIC_OPTION = re.compile(r"-?\d+(?:[.,]\d+)?")
+_PURE_NUMERIC_OPTION = re.compile(r"^-?\d+(?:[.,]\d+)?(?:\s*/\s*-?\d+(?:[.,]\d+)?)?$")
 _OPTION_LABEL = re.compile(r"^[a-d]\)\s*", re.I)
+_METHOD_QUESTION = re.compile(
+    r"zerlegungsmethode|schriftliche\s+methode|wie löst du|welche methode|"
+    r"mit der (?:zerlegungs|reihen|komma|stellenwert).{0,12}methode",
+    re.I,
+)
 _ERGIBT = re.compile(r"ergibt\s+(-?\d+(?:[.,]\d+)?)", re.I)
 _ADDITION = re.compile(
     r"addition\s+von\s+(-?\d+(?:[.,]\d+)?)\s+und\s+(-?\d+(?:[.,]\d+)?)",
@@ -40,6 +46,17 @@ def strip_option_label(text: str) -> str:
     return _OPTION_LABEL.sub("", str(text or "").strip()).strip()
 
 
+def is_numeric_choice_option(text: str) -> bool:
+    """True nur bei Optionen, die im Wesentlichen eine Zahl sind — nicht bei Fliesstext."""
+    stripped = strip_option_label(text)
+    compact = re.sub(r"\s+", "", stripped)
+    return bool(compact) and bool(_PURE_NUMERIC_OPTION.match(compact))
+
+
+def _normalize_choice_text(text: str) -> str:
+    return re.sub(r"\s+", " ", strip_option_label(text).lower().replace(",", ".")).strip()
+
+
 def parse_quiz_numeric(text: str) -> float | None:
     raw = strip_option_label(text).lower().replace(",", ".")
     compact = re.sub(r"\s+", "", raw)
@@ -70,7 +87,10 @@ def parse_expected_from_explanation(explanation: str) -> float | None:
 
 
 def try_compute_from_question(question: str) -> float | None:
-    text = str(question or "").replace(",", ".")
+    raw = str(question or "")
+    if _METHOD_QUESTION.search(raw):
+        return None
+    text = raw.replace(",", ".")
     match = _ADD_SYMBOL.search(text)
     if match:
         return float(match.group(1)) + float(match.group(2))
@@ -114,6 +134,8 @@ def resolve_quiz_expected_value(q: dict) -> float | None:
 def option_indices_matching_value(options: list, value: float) -> list[int]:
     matches: list[int] = []
     for i, opt in enumerate(options):
+        if not is_numeric_choice_option(str(opt)):
+            continue
         parsed = parse_quiz_numeric(str(opt))
         if parsed is not None and abs(parsed - value) < 1e-6:
             matches.append(i)
@@ -172,6 +194,10 @@ def quiz_options_numeric_equivalent(options: list, idx_a: int, idx_b: int) -> bo
         return True
     if not (0 <= idx_a < len(options) and 0 <= idx_b < len(options)):
         return False
+    if not is_numeric_choice_option(str(options[idx_a])) or not is_numeric_choice_option(
+        str(options[idx_b])
+    ):
+        return False
     a = parse_quiz_numeric(str(options[idx_a]))
     b = parse_quiz_numeric(str(options[idx_b]))
     if a is None or b is None:
@@ -184,8 +210,13 @@ def is_quiz_selection_correct(q: dict, selected: int) -> bool:
     if not isinstance(options, list) or not (0 <= selected < len(options)):
         return False
 
+    selected_text = _normalize_choice_text(str(options[selected]))
+    explanation = _normalize_choice_text(str(q.get("explanation") or ""))
+    if selected_text and explanation and selected_text == explanation:
+        return True
+
     expected = resolve_quiz_expected_value(q)
-    if expected is not None:
+    if expected is not None and is_numeric_choice_option(str(options[selected])):
         selected_value = parse_quiz_numeric(str(options[selected]))
         if selected_value is not None:
             return abs(selected_value - expected) < 1e-6
