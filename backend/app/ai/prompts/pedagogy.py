@@ -23,6 +23,8 @@ TYPED_CARDS_PEDAGOGY_RULES = (
     "- method_label: Bezeichnung aus dem Heft (Pflicht, wenn Strategie aus dem Material).\n"
     "- method_id: optional, nur für UI-Gruppierung — nie erfinden, wenn keine passt.\n"
     "- mental_cards: kurze direkte Abfragen ohne Hilfsmittel.\n"
+    "- answer bei Ergebnisfragen: Resultat zuerst (Gleichung), dann Weg; bei mehreren Wegen "
+    "Variante 1 (Aus dem Heft) / Variante 2 (Alternativer Weg) wie im Quiz.\n"
     "- input_cards: passend zum Aufgabentyp (numeric, short_text oder cloze); method_label optional.\n"
 )
 

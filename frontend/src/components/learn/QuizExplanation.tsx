@@ -1,18 +1,24 @@
 "use client";
 
-import { splitQuizExplanationVariants } from "@/lib/quizOption";
+import { splitQuizExplanation } from "@/lib/quizOption";
 
 export function QuizExplanation({ text }: { text: string }) {
-  const variants = splitQuizExplanationVariants(text);
-  if (variants.length === 0) return null;
+  const { preamble, variants } = splitQuizExplanation(text);
+  if (!preamble && variants.length === 0) return null;
 
   const named = /Variante\s+\d+/i.test(text);
   if (!named) {
-    return <p className="muted quiz-explanation-text">{variants[0].body}</p>;
+    return (
+      <div className="quiz-explanation">
+        {preamble ? <p className="quiz-result-line">{preamble}</p> : null}
+        <p className="muted quiz-explanation-text">{variants[0]?.body}</p>
+      </div>
+    );
   }
 
   return (
     <div className="quiz-explanation-variants">
+      {preamble ? <p className="quiz-result-line">{preamble}</p> : null}
       {variants.map((variant) => (
         <div key={variant.index} className="quiz-variant-line">
           <div className="quiz-variant-head">
