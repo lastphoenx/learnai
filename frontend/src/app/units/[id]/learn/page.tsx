@@ -24,7 +24,8 @@ import {
   type User,
 } from "@/lib/api";
 import { languageLabel, taskTypeLabel } from "@/lib/taskTypes";
-import { formatQuizExplanation, formatQuizOption, quizOptionClassName } from "@/lib/quizOption";
+import { formatQuizOption, quizOptionClassName } from "@/lib/quizOption";
+import { QuizExplanation } from "@/components/learn/QuizExplanation";
 
 type AnswerResult = {
   correct: boolean;
@@ -711,11 +712,7 @@ export default function UnitLearnPage() {
                       ) : (
                         <strong style={{ color: "var(--danger)" }}>Nicht ganz — schau nochmal hin.</strong>
                       )}
-                      {answerResult.explanation && (
-                        <p className="muted quiz-explanation-text">
-                          {formatQuizExplanation(answerResult.explanation)}
-                        </p>
-                      )}
+                      {answerResult.explanation && <QuizExplanation text={answerResult.explanation} />}
                     </div>
                   )}
                   {saved !== null && saved !== undefined && !answerResult && (

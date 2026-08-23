@@ -14,6 +14,10 @@ _WEAK_EXPLANATION = re.compile(
     r"(ist|ergibt|beträgt|lautet|entspricht)\s+[\d,.]+",
     re.I | re.S,
 )
+_EQUATION = re.compile(
+    rf"{_NUM}\s*(?:{_OP_SYMBOL}|[+\-−]|[:÷/])\s*{_NUM}\s*=\s*{_NUM}",
+)
+_VARIANT_SPLIT = re.compile(r"(?=Variante\s+\d+\s*(?:\([^)]*\))?\s*:)", re.I)
 _PARSE_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     (
         "mul",
@@ -69,33 +73,36 @@ def parse_arithmetic_operands(question: str) -> tuple[str, float, float] | None:
     return None
 
 
+def _variant_chunks(text: str) -> list[str]:
+    parts = _VARIANT_SPLIT.split(str(text or ""))
+    return [part.strip() for part in parts if part.strip()]
+
+
+def explanation_has_derivation(explanation: str) -> bool:
+    """True nur wenn jede Variante mindestens eine ausgerechnete Gleichung enthält."""
+    expl = str(explanation or "").strip()
+    if not expl:
+        return False
+    chunks = _variant_chunks(expl)
+    if len(chunks) >= 2:
+        return all(_EQUATION.search(chunk) for chunk in chunks)
+    return bool(_EQUATION.search(expl))
+
+
 def explanation_is_weak(explanation: str, question: str) -> bool:
     expl = str(explanation or "").strip()
     if not expl:
         return True
-    lower = expl.lower()
-    if any(
-        token in lower
-        for token in (
-            "zuerst",
-            "rechnung:",
-            "variante 1",
-            "variante 2",
-            "schritt",
-            "addiere",
-            "subtrahiere",
-            "multipliziere",
-            "teile",
-            "hundertstel",
-            "zerlegung",
-        )
-    ):
+    if explanation_has_derivation(expl):
         return False
     if _WEAK_EXPLANATION.search(expl):
         return True
-    if try_compute_from_question(question) is not None and len(expl) < 110:
+    computable = (
+        parse_arithmetic_operands(question) is not None or try_compute_from_question(question) is not None
+    )
+    if computable:
         return True
-    return False
+    return len(expl) < 40
 
 
 def _join_variants(primary: str, alt: str | None) -> str:
@@ -318,8 +325,65 @@ def _div_steps(a: float, b: float, result: float) -> str:
     )
 
 
+def _mul_reihe_for_frac(a_int: int, frac: float) -> str | None:
+    """8 × 0,5 über 8 × 5 = 40, Komma eine Stelle → 4."""
+    decimals = _decimal_places(frac)
+    if decimals < 1:
+        return None
+    scaled = int(round(frac * (10**decimals)))
+    if scaled <= 0:
+        return None
+    product = a_int * scaled
+    shifted = product / (10**decimals)
+    unit = _place_unit(decimals)
+    stelle = "Stelle" if decimals == 1 else "Stellen"
+    return (
+        f"{_fmt_num(float(a_int))} × {scaled} = {_fmt_num(float(product))} "
+        f"(aus der {_reihe_label(a_int)}). "
+        f"Komma {decimals} {stelle} nach links ({unit}): {_fmt_num(shifted)}"
+    )
+
+
+def _mul_kopf_steps(a_int: int, b: float, result: float) -> str:
+    whole = int(b) if b >= 0 else -int(-b)
+    frac = round(b - whole, 10)
+    a_s = _fmt_num(float(a_int))
+    parts = [f"Variante 1 (Kopfrechnen): {a_s} × {_fmt_num(b)}."]
+    if whole:
+        parts.append(f"Zuerst {a_s} × {_fmt_num(float(whole))} = {_fmt_num(float(a_int * whole))}.")
+    if abs(frac) >= 1e-9:
+        reihe = _mul_reihe_for_frac(a_int, frac)
+        if reihe:
+            parts.append(f"Dann {a_s} × {_fmt_num(frac)}: {reihe}.")
+        else:
+            parts.append(f"Dann {a_s} × {_fmt_num(frac)} = {_fmt_num(a_int * frac)}.")
+    if whole and abs(frac) >= 1e-9:
+        parts.append(
+            f"Addiere: {_fmt_num(float(a_int * whole))} + {_fmt_num(a_int * frac)} = {_fmt_num(result)}."
+        )
+    else:
+        parts.append(f"Ergebnis: {_fmt_num(result)}.")
+    return " ".join(parts)
+
+
+def _mul_notes_steps(a_int: int, b: float, result: float) -> str | None:
+    whole = int(b) if b >= 0 else -int(-b)
+    frac = round(b - whole, 10)
+    if abs(frac) < 1e-9:
+        return None
+    a_s = _fmt_num(float(a_int))
+    part_whole = a_int * whole
+    part_frac = a_int * frac
+    return (
+        f"Variante 2 (Notizen): {_fmt_num(b)} = {_fmt_num(float(whole))} + {_fmt_num(frac)}. "
+        f"{a_s} × {_fmt_num(float(whole))} = {_fmt_num(part_whole)}. "
+        f"{a_s} × {_fmt_num(frac)} = {_fmt_num(part_frac)}. "
+        f"{_fmt_num(part_whole)} + {_fmt_num(part_frac)} = {_fmt_num(result)}."
+    )
+
+
 def _mul_alternative_steps(a: float, b: float, result: float) -> str | None:
-    """Zweiter Weg über Stellenwert-Zerlegung, z. B. 250,1 → (20+5)×10 + 0,1."""
+    """Dritter Weg über Stellenwert-Zerlegung, z. B. 250,1 → (20+5)×10 + 0,1."""
     if abs(a - round(a)) >= 1e-6:
         return None
     a_int = int(round(a))
@@ -342,7 +406,7 @@ def _mul_alternative_steps(a: float, b: float, result: float) -> str | None:
     p_frac = a_int * frac
     a_s = _fmt_num(float(a_int))
     return (
-        f"Variante 2 (Stellenwert): {_fmt_num(b)} = {_fmt_num(t_high)}×10 + {_fmt_num(t_low)}×10 + {_fmt_num(frac)}. "
+        f"Variante 3 (Stellenwert): {_fmt_num(b)} = {_fmt_num(t_high)}×10 + {_fmt_num(t_low)}×10 + {_fmt_num(frac)}. "
         f"{a_s}×{_fmt_num(t_high)}={_fmt_num(p_high)}, {a_s}×{_fmt_num(t_low)}={_fmt_num(p_low)}, "
         f"{_fmt_num(p_high)}+{_fmt_num(p_low)}={_fmt_num(sub_sum)}, {_fmt_num(sub_sum)}×10={_fmt_num(prod_whole)}. "
         f"Dann {a_s}×{_fmt_num(frac)}={_fmt_num(p_frac)}, "
@@ -351,26 +415,25 @@ def _mul_alternative_steps(a: float, b: float, result: float) -> str | None:
 
 
 def _mul_steps(a: float, b: float, result: float) -> str:
+    if abs(a - round(a)) >= 1e-6 and abs(b - round(b)) < 1e-6:
+        a, b = b, a
     a_s, b_s, r_s = _fmt_num(a), _fmt_num(b), _fmt_num(result)
     if abs(b - round(b)) < 1e-6:
         return f"Rechnung: {a_s} × {b_s} = {r_s}."
     if abs(a - round(a)) < 1e-6 and abs(b - round(b)) >= 1e-6:
-        whole = int(b) if b >= 0 else -int(-b)
-        frac = round(b - whole, 10)
+        a_int = int(round(a))
+        frac = round(b - (int(b) if b >= 0 else -int(-b)), 10)
         if abs(frac) < 1e-9:
             return f"Rechnung: {a_s} × {b_s} = {r_s}."
-        part_whole = a * whole
-        part_frac = a * frac
-        primary = (
-            f"Variante 1 (Ganzes + Dezimal): {a_s} × {b_s}. "
-            f"Zuerst {a_s} × {_fmt_num(whole)} = {_fmt_num(part_whole)}. "
-            f"Dann {a_s} × {_fmt_num(frac)} = {_fmt_num(part_frac)}. "
-            f"Addiere: {_fmt_num(part_whole)} + {_fmt_num(part_frac)} = {r_s}."
-        )
-        alt = _mul_alternative_steps(a, b, result)
-        if alt:
-            return _join_variants(primary, alt)
-        return primary
+        primary = _mul_kopf_steps(a_int, b, result)
+        notes = _mul_notes_steps(a_int, b, result)
+        place = _mul_alternative_steps(float(a_int), b, result)
+        text = primary
+        if notes:
+            text = _join_variants(text, notes)
+        if place:
+            text = _join_variants(text, place)
+        return text
     return f"Rechnung: {a_s} × {b_s} = {r_s}."
 
 
@@ -429,11 +492,13 @@ def _merge_explanations(primary: str, secondary: str, *, question: str) -> str:
         return primary
     if primary == secondary:
         return primary
+    if explanation_is_weak(primary, question):
+        return secondary
 
     p_variants = _count_variants(primary)
     s_variants = _count_variants(secondary)
 
-    if p_variants >= 2:
+    if p_variants >= 2 and explanation_has_derivation(primary):
         return primary
 
     if p_variants == 0 and not explanation_is_weak(primary, question):
@@ -468,8 +533,6 @@ def enrich_quiz_explanation(q: dict) -> str:
         return original
 
     if worked:
-        if original and original != worked:
-            return _merge_explanations(original, worked, question=question)
         return worked
 
     return original
