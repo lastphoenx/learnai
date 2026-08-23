@@ -25,7 +25,7 @@ Volume-Mount — **kein** `pip install`, **kein** Image-Rebuild:
 
 ```bash
 cd /opt/learnai
-git pull origin feature/interactive-trainer-v1
+git pull origin main
 docker compose restart api worker
 curl -sS https://learn.example.app/api/v1/health
 ```
@@ -37,7 +37,7 @@ Pakete werden **nur beim Image-Build** installiert (`backend/Dockerfile` → `pi
 
 ```bash
 cd /opt/learnai
-git pull origin feature/interactive-trainer-v1
+git pull origin main
 docker compose build api worker
 docker compose up -d api worker
 ```
@@ -236,6 +236,6 @@ bash scripts/backup-db.sh   # falls konfiguriert
 
 ## Branch & Releases
 
-Aktueller Feature-Branch: `feature/interactive-trainer-v1`  
-Stand 23.08.2026: Lerntrainer v1 inkl. Sprungleiste, Kind-Ansicht, Fach-Schwerpunkte, Feld-Vorlagen, STT.  
-Siehe `docs/UNIT_CREATION.md`. Merge nach `main` wenn Trainer end-to-end stabil.
+Produktion: **`main`** (Trainer v1 am 23.08.2026 gemergt: Sprungleiste, Kind-Ansicht, Fach-Schwerpunkte, Feld-Vorlagen, STT).  
+Nächstes Feature: `feature/parent-ai-access` (Eltern-KI-Zugang / BYOK).  
+Siehe `docs/UNIT_CREATION.md`.
