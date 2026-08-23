@@ -61,17 +61,17 @@ def extract_pdf_text(path: Path, *, max_pages: int = 20) -> str:
 def _pdf_vision_fallback(path: Path, *, max_pages: int = 5) -> str:
     """Gescannte PDFs: erste Seiten als Bild an Vision-Modell."""
     try:
-        import fitz  # pymupdf
+        import pymupdf
     except ImportError:
         return "(PDF ohne Textschicht — für gescannte PDFs «pymupdf» installieren)"
 
     from app.ai.providers import describe_image
 
-    doc = fitz.open(str(path))
+    doc = pymupdf.open(str(path))
     parts: list[str] = []
     for i in range(min(len(doc), max_pages)):
         page = doc[i]
-        pix = page.get_pixmap(matrix=fitz.Matrix(1.5, 1.5))
+        pix = page.get_pixmap(matrix=pymupdf.Matrix(1.5, 1.5))
         data = pix.tobytes("png")
         described = describe_image(
             image_bytes=data,

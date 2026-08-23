@@ -568,7 +568,12 @@ export default function UnitDetailPage() {
             <h3 className="aside-subhead">Einheit</h3>
             <div className="action-grid action-grid-aside">
               {(unit.modules || []).length > 0 && (
-                <a className="action-tile" href={unitWorksheetPdfUrl(unit.id)}>
+                <a
+                  className="action-tile"
+                  href={unitWorksheetPdfUrl(unit.id)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
                   <strong>
                     {unit.task_type === "interactive" ? "Trainer-Arbeitsblatt (PDF)" : "Arbeitsblatt (PDF)"}
                   </strong>
