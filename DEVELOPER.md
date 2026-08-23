@@ -151,6 +151,8 @@ Endpoints: `GET /api/v1/ai/status`, `GET /api/v1/ai/effective`, `POST /api/v1/ai
 
 **Einheit anlegen:** `GET /api/v1/units/task-types` liefert `task_types`, `focus_groups`, `math_focus` (flat). Schwerpunkte in `backend/app/ai/subject_focus.py`. UI-Hinweise: `frontend/src/lib/unitFieldHints.ts`. Siehe [docs/UNIT_CREATION.md](docs/UNIT_CREATION.md).
 
+**Lerntrainer-UI:** `InteractiveTrainer.tsx`, `JumpStrip.tsx`, `CardInputExercise.tsx`. Admin-Kind-Ansicht: `childPreview.ts`.
+
 ---
 
 ## API-Übersicht

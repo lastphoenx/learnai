@@ -43,3 +43,10 @@ Bei neuen Einheiten/Kopien automatisch vergeben; bestehende beim ersten Laden na
 - Frontend → `docker compose build frontend` + `up -d frontend`
 
 Siehe `docs/RUNBOOK.md`.
+
+## Trainer-UI
+
+- Check, Lernkarten und Übungsaufgaben teilen die **Sprungleiste** (`JumpStrip.tsx`). Keine extra Zurück/Weiter-Zeile wieder einbauen.
+- Offene Nummern **neutral/grau**, nicht Akzentgrün. Grün/Rot nur nach Bewertung.
+- Inhalt (Frage, Optionen, Eingabe) in ~36rem, nicht auf 27" strecken.
+- Admin-Vorschau Kinder-Navigation: `frontend/src/lib/childPreview.ts` (Kopfzeile «Kind-Ansicht»).

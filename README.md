@@ -7,7 +7,7 @@ Login + 2FA in der App (kein externer Identity-Provider nötig).
 ## Features
 
 - **Lerneinheiten** — Foto, PDF, Audio, URL; KI-Aufbereitung; Modi inkl. **Lerntrainer**; Fach-Schwerpunkte (Mathe, Sprachen, MGU, …); Auftrags-Vorlagen
-- **Lernmodus** — Fortschritt, Pause, TTS, Übungsaufgaben, didaktische Phasen (Einstieg → Verstehen → Üben → Check)
+- **Lernmodus** — Fortschritt, Pause, TTS, Übungsaufgaben, didaktische Phasen (Einstieg → Verstehen → Üben → Check); Sprungleiste im Trainer
 - **Adaptive Nacharbeit** — Quiz-Schwächen und Prüfungs-`error_tags` fließen in Nacharbeit und Trainer-Einheiten
 - **Kinder & Eltern** — Lernprofile, Zuweisung an mehrere Kinder (inkl. Vorlagen-Kopie mit Blöcken), Eltern-Dashboard
 - **Schulprüfungen** — Upload, KI-Analyse (Fehlermuster, Tags), Kurzbericht als Lern-Einstieg, Langzeit-Trends

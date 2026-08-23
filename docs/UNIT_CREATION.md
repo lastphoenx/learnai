@@ -1,6 +1,6 @@
 # Lerneinheit anlegen — Aufgabentypen & Schwerpunkte
 
-Stand: August 2026.
+Stand: 23. August 2026.
 
 ---
 
@@ -73,8 +73,14 @@ Nach «Mit KI aufbereiten»:
 - Karten: 30 % Merk, 30 % Kopf, 40 % Eingabe (`_split_card_kinds` in `generate_interactive.py`)
 - UI-Tabs: Einstieg · Verstehen · Üben · **Check** (Quiz)
 - Eingabe-Karten: STT via `SpeechInputButton` + Profil-`stt_provider` (Whisper lokal oder Browser)
+- **Navigation:** Sprungleiste (eine Zeile, ‹ ›), keine Zurück/Weiter-Zeile. Offen = grau, richtig = Grün, falsch = Rot. **Später** schiebt ohne Bewertung ans Ende.
+- Inhaltsspalte ~36rem (Tablet voll, grosse Monitore nicht strecken)
+- Quiz-Varianten = Ableitungen mit Gleichungen (Badges «Aus dem Heft» / «Alternativer Weg»)
+- Admin: Kopfzeile **Kind-Ansicht** simuliert Kinder-Navigation (sessionStorage)
 
 Bestehende Einheiten ohne Neu-Generierung: keine `kind` auf Karten → alle = Kopf.
+
+Implementierung: `frontend/src/components/learn/InteractiveTrainer.tsx`, `JumpStrip.tsx`, `CardInputExercise.tsx`, `frontend/src/lib/childPreview.ts`.
 
 ---
 
@@ -82,6 +88,7 @@ Bestehende Einheiten ohne Neu-Generierung: keine `kind` auf Karten → alle = Ko
 
 - `backend/tests/test_quiz_explanation.py`
 - `backend/tests/test_content_analysis.py`
+- `backend/tests/test_quiz_numeric.py`
 
 ---
 
