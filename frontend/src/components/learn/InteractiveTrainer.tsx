@@ -21,12 +21,15 @@ import { PracticeExercise } from "@/components/learn/PracticeExercise";
 import { formatQuizOption, quizOptionClassName } from "@/lib/quizOption";
 import { QuizExplanation } from "@/components/learn/QuizExplanation";
 import {
+  cardJumpClassName,
+  cardJumpTitle,
   countAnsweredInDeck,
   firstOpenQuizIndex,
   getStoredQuizAnswer,
   hasOtherOpenQuizQuestions,
   isQuizAnswered,
   nextOpenQuizIndex,
+  orderCardsWithDeferred,
   quizJumpClassName,
   quizJumpTitle,
   quizQuestionKey,
@@ -122,6 +125,7 @@ export function InteractiveTrainer({
   const [childGoalMerk, setChildGoalMerk] = useState("");
   const [tab, setTab] = useState<Tab>("home");
   const [cardIndex, setCardIndex] = useState(0);
+  const [deferredCardKeys, setDeferredCardKeys] = useState<string[]>([]);
   const [flipped, setFlipped] = useState(false);
   const [quizIndex, setQuizIndex] = useState(0);
   const [quizChallenge, setQuizChallenge] = useState(false);
@@ -175,6 +179,10 @@ export function InteractiveTrainer({
     }
     return list;
   }, [cards, cardFilter, progress]);
+  const orderedCards = useMemo(
+    () => orderCardsWithDeferred(filteredCards, deferredCardKeys),
+    [filteredCards, deferredCardKeys],
+  );
 
   const practiceExercises = useMemo(
     () =>
@@ -204,7 +212,13 @@ export function InteractiveTrainer({
     setCardIndex(0);
     setFlipped(false);
     setCardInputResult(null);
+    setDeferredCardKeys([]);
   }, [cardFilter]);
+
+  useEffect(() => {
+    if (orderedCards.length === 0) return;
+    if (cardIndex >= orderedCards.length) setCardIndex(orderedCards.length - 1);
+  }, [cardIndex, orderedCards.length]);
 
   const allQuestions = useMemo(
     () =>
@@ -236,7 +250,7 @@ export function InteractiveTrainer({
   );
 
   const activeQuestions = quizDeck.length > 0 ? quizDeck : allQuestions;
-  const currentCard = filteredCards[cardIndex];
+  const currentCard = orderedCards[cardIndex];
   const currentQuestion = activeQuestions[quizIndex];
   const learnProgress = state.progress;
   const currentStoredAnswer = currentQuestion
@@ -310,11 +324,12 @@ export function InteractiveTrainer({
 
   const goToCard = useCallback(
     (index: number) => {
-      if (index < 0 || index >= filteredCards.length) return;
+      if (index < 0 || index >= orderedCards.length) return;
       setCardIndex(index);
       setFlipped(false);
+      setCardInputResult(null);
     },
-    [filteredCards.length],
+    [orderedCards.length],
   );
 
   const refreshLearnState = useCallback(async () => {
@@ -329,7 +344,7 @@ export function InteractiveTrainer({
 
   const markCard = useCallback(
     async (status: "known" | "review") => {
-      const card = filteredCards[cardIndex];
+      const card = orderedCards[cardIndex];
       if (!card) return;
       setBusy(true);
       setError(null);
@@ -360,18 +375,35 @@ export function InteractiveTrainer({
         });
         await refreshLearnState();
         setFlipped(false);
-        if (cardIndex + 1 < filteredCards.length) setCardIndex(cardIndex + 1);
+        if (cardIndex + 1 < orderedCards.length) setCardIndex(cardIndex + 1);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Speichern fehlgeschlagen");
       } finally {
         setBusy(false);
       }
     },
-    [cardIndex, filteredCards, onStateChange, refreshLearnState, setBusy, setError, state, unitId],
+    [cardIndex, orderedCards, onStateChange, refreshLearnState, setBusy, setError, state, unitId],
   );
 
+  const deferCurrentCard = useCallback(() => {
+    const card = orderedCards[cardIndex];
+    if (!card || orderedCards.length < 2) return;
+    if (deferredCardKeys.includes(card.card_key)) {
+      goToCard((cardIndex + 1) % orderedCards.length);
+      return;
+    }
+    const nextKey = orderedCards[(cardIndex + 1) % orderedCards.length].card_key;
+    const keys = [...deferredCardKeys, card.card_key];
+    const nextList = orderCardsWithDeferred(filteredCards, keys);
+    const nextIndex = Math.max(0, nextList.findIndex((item) => item.card_key === nextKey));
+    setDeferredCardKeys(keys);
+    setCardIndex(nextIndex);
+    setFlipped(false);
+    setCardInputResult(null);
+  }, [cardIndex, deferredCardKeys, filteredCards, goToCard, orderedCards]);
+
   useEffect(() => {
-    if (tab !== "cards" || busy) return;
+    if (tab !== "cards" || busy || !currentCard) return;
 
     function onKeyDown(event: KeyboardEvent) {
       const target = event.target;
@@ -383,7 +415,9 @@ export function InteractiveTrainer({
         return;
       }
 
-      if (event.key === " " || event.key === "Spacebar") {
+      const isInputCard = currentCard ? cardKind(currentCard) === "input" : false;
+
+      if ((event.key === " " || event.key === "Spacebar") && !isInputCard) {
         event.preventDefault();
         setFlipped((value) => !value);
         return;
@@ -398,20 +432,25 @@ export function InteractiveTrainer({
         goToCard(cardIndex + 1);
         return;
       }
-      if (event.key === "g" || event.key === "G") {
+      if (!isInputCard && (event.key === "g" || event.key === "G")) {
         event.preventDefault();
         void markCard("known");
         return;
       }
-      if (event.key === "n" || event.key === "N") {
+      if (!isInputCard && (event.key === "n" || event.key === "N")) {
         event.preventDefault();
         void markCard("review");
+        return;
+      }
+      if ((event.key === "s" || event.key === "S") && orderedCards.length > 1) {
+        event.preventDefault();
+        deferCurrentCard();
       }
     }
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [tab, busy, cardIndex, goToCard, markCard]);
+  }, [tab, busy, cardIndex, currentCard, deferCurrentCard, goToCard, markCard, orderedCards.length]);
 
   const goToQuizQuestion = useCallback(
     (index: number) => {
@@ -1013,110 +1052,188 @@ export function InteractiveTrainer({
             <p className="muted">Keine Übungsaufgaben in dieser Einheit — nach «Mit KI aufbereiten» neu generieren.</p>
           )}
 
-          {cardFilter !== "practice" && currentCard && cardKind(currentCard) === "input" && (
-            <CardInputExercise
-              question={currentCard.question}
-              expectedMethod={currentCard.expected_method}
-              cardIndex={cardIndex}
-              total={filteredCards.length}
-              domain={currentCard.domain}
-              language={state.unit.language || "de"}
-              sttProvider={sttProvider}
-              profileId={state.unit.profile_id || undefined}
-              busy={busy}
-              result={cardInputResult}
-              onSpeechError={setError}
-              onSubmit={async (answer, workedSolution) => {
-                setBusy(true);
-                setError(null);
-                try {
-                  const res = await submitCardInputAnswer(unitId, {
-                    module_id: currentCard.module_id,
-                    card_index: currentCard.card_index,
-                    answer,
-                    worked_solution: workedSolution,
-                  });
-                  onStateChange({
-                    ...state,
-                    progress: res.progress,
-                    summary: res.summary,
-                    trainer: state.trainer
-                      ? {
-                          ...state.trainer,
-                          flashcard_progress: res.flashcard_progress || {
-                            ...state.trainer.flashcard_progress,
-                            [res.card_key]: {
-                              ...(state.trainer.flashcard_progress[res.card_key] || {
-                                status: res.correct ? "known" : "review",
-                                attempts: 1,
-                              }),
-                              status: res.correct ? "known" : "review",
-                              due: !res.correct,
-                            },
-                          },
-                        }
-                      : state.trainer,
-                  });
-                  setCardInputResult({
-                    correct: res.correct,
-                    result_correct: res.result_correct,
-                    worked_correct: res.worked_correct,
-                    worked_feedback: res.worked_feedback,
-                    explanation: res.explanation,
-                    expected: res.expected,
-                  });
-                } catch (err) {
-                  setError(err instanceof Error ? err.message : "Antwort fehlgeschlagen");
-                } finally {
-                  setBusy(false);
-                }
-              }}
-              onContinue={() => {
-                setCardInputResult(null);
-                if (cardIndex + 1 < filteredCards.length) {
-                  setCardIndex(cardIndex + 1);
-                }
-              }}
-            />
-          )}
-
-          {cardFilter !== "practice" && currentCard && cardKind(currentCard) !== "input" && (
-            <>
-              <p className="learn-quiz-meta muted">
-                {cardKind(currentCard) === "merk"
-                  ? "Merkkarte"
-                  : cardKind(currentCard) === "input"
-                    ? "Eingabe"
-                    : "Kurzfrage"}{" "}
-                {cardIndex + 1} von {filteredCards.length}
-                {progress[currentCard.card_key]?.status === "known"
-                  ? " · gewusst"
-                  : progress[currentCard.card_key]?.status === "review"
-                    ? " · wiederholen"
-                    : ""}
-              </p>
-              <button
-                type="button"
-                className={`trainer-flashcard${flipped ? " flipped" : ""}`}
-                onClick={() => setFlipped(!flipped)}
-              >
-                <span className="trainer-flashcard-label">{flipped ? "Antwort" : "Frage"}</span>
-                <p>{flipped ? currentCard.answer : currentCard.question}</p>
-                {flipped && currentCard.tip && <p className="muted">{currentCard.tip}</p>}
-              </button>
-              <p className="trainer-shortcuts muted">Space = umdrehen · ← → = Karte · G = gewusst · N = nochmal</p>
-              <div className="learn-actions">
-                <button type="button" className="ghost" disabled={busy || cardIndex === 0} onClick={() => goToCard(cardIndex - 1)}>
-                  Zurück
+          {cardFilter !== "practice" && currentCard && (
+            <div className="trainer-cards">
+              <div className="quiz-nav-row">
+                <button
+                  type="button"
+                  className="ghost"
+                  disabled={busy || cardIndex === 0}
+                  onClick={() => goToCard(cardIndex - 1)}
+                >
+                  ← Zurück
                 </button>
-                <button type="button" className="ghost" disabled={busy} onClick={() => void markCard("review")}>
-                  Wiederholen (N)
-                </button>
-                <button type="button" className="btn-primary" disabled={busy} onClick={() => void markCard("known")}>
-                  Gewusst (G)
+                <button
+                  type="button"
+                  className="ghost"
+                  disabled={busy || cardIndex + 1 >= orderedCards.length}
+                  onClick={() => goToCard(cardIndex + 1)}
+                >
+                  Weiter →
                 </button>
               </div>
-            </>
+              <div className="trainer-progress-wrap">
+                <div className="trainer-progress-bar" aria-hidden="true">
+                  <div
+                    className="trainer-progress-fill"
+                    style={{
+                      width: `${Math.round((100 * (cardIndex + 1)) / Math.max(1, orderedCards.length))}%`,
+                    }}
+                  />
+                </div>
+              </div>
+              <p className="learn-quiz-meta muted">
+                {[
+                  `${
+                    cardKind(currentCard) === "merk"
+                      ? "Merkkarte"
+                      : cardKind(currentCard) === "input"
+                        ? "Eingabe-Karte"
+                        : "Kurzfrage"
+                  } ${cardIndex + 1} von ${orderedCards.length}`,
+                  currentCard.domain || null,
+                  progress[currentCard.card_key]?.status === "known"
+                    ? cardKind(currentCard) === "input"
+                      ? "richtig"
+                      : "gewusst"
+                    : progress[currentCard.card_key]?.status === "review"
+                      ? cardKind(currentCard) === "input"
+                        ? "falsch"
+                        : "wiederholen"
+                      : deferredCardKeys.includes(currentCard.card_key)
+                        ? "später"
+                        : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </p>
+              <div className="quiz-nav-strip" role="tablist" aria-label="Lernkarten">
+                {orderedCards.map((card, i) => {
+                  const jumpKind = cardKind(card) === "input" ? "input" : "merk";
+                  const opts = {
+                    kind: jumpKind as "input" | "merk",
+                    status: progress[card.card_key]?.status,
+                    deferred: deferredCardKeys.includes(card.card_key),
+                  };
+                  const title = cardJumpTitle(i, opts);
+                  return (
+                    <button
+                      key={card.card_key}
+                      type="button"
+                      className={cardJumpClassName(i, cardIndex, opts)}
+                      disabled={busy}
+                      title={title}
+                      aria-label={title}
+                      aria-current={i === cardIndex ? "true" : undefined}
+                      onClick={() => goToCard(i)}
+                    >
+                      {i + 1}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {cardKind(currentCard) === "input" ? (
+                <>
+                <CardInputExercise
+                  key={currentCard.card_key}
+                  question={currentCard.question}
+                  expectedMethod={currentCard.expected_method}
+                  language={state.unit.language || "de"}
+                  sttProvider={sttProvider}
+                  profileId={state.unit.profile_id || undefined}
+                  busy={busy}
+                  result={cardInputResult}
+                  onSpeechError={setError}
+                  onSubmit={async (answer, workedSolution) => {
+                    setBusy(true);
+                    setError(null);
+                    try {
+                      const res = await submitCardInputAnswer(unitId, {
+                        module_id: currentCard.module_id,
+                        card_index: currentCard.card_index,
+                        answer,
+                        worked_solution: workedSolution,
+                      });
+                      onStateChange({
+                        ...state,
+                        progress: res.progress,
+                        summary: res.summary,
+                        trainer: state.trainer
+                          ? {
+                              ...state.trainer,
+                              flashcard_progress: res.flashcard_progress || {
+                                ...state.trainer.flashcard_progress,
+                                [res.card_key]: {
+                                  ...(state.trainer.flashcard_progress[res.card_key] || {
+                                    status: res.correct ? "known" : "review",
+                                    attempts: 1,
+                                  }),
+                                  status: res.correct ? "known" : "review",
+                                  due: !res.correct,
+                                },
+                              },
+                            }
+                          : state.trainer,
+                      });
+                      setCardInputResult({
+                        correct: res.correct,
+                        result_correct: res.result_correct,
+                        worked_correct: res.worked_correct,
+                        worked_feedback: res.worked_feedback,
+                        explanation: res.explanation,
+                        expected: res.expected,
+                      });
+                    } catch (err) {
+                      setError(err instanceof Error ? err.message : "Antwort fehlgeschlagen");
+                    } finally {
+                      setBusy(false);
+                    }
+                  }}
+                />
+                <p className="trainer-shortcuts muted">← → = weiter · S = später</p>
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    className={`trainer-flashcard${flipped ? " flipped" : ""}`}
+                    onClick={() => setFlipped(!flipped)}
+                  >
+                    <span className="trainer-flashcard-label">{flipped ? "Antwort" : "Frage"}</span>
+                    <p>{flipped ? currentCard.answer : currentCard.question}</p>
+                    {flipped && currentCard.tip && <p className="muted">{currentCard.tip}</p>}
+                  </button>
+                  <p className="trainer-shortcuts muted">
+                    Space = umdrehen · ← → = weiter · G = gewusst · N = nochmal · S = später
+                  </p>
+                </>
+              )}
+
+              <div className="learn-actions">
+                {cardKind(currentCard) !== "input" && (
+                  <>
+                    <button type="button" className="ghost" disabled={busy} onClick={() => void markCard("review")}>
+                      Wiederholen (N)
+                    </button>
+                    <button type="button" className="btn-primary" disabled={busy} onClick={() => void markCard("known")}>
+                      Gewusst (G)
+                    </button>
+                  </>
+                )}
+                {orderedCards.length > 1 && (
+                  <button
+                    type="button"
+                    className="ghost"
+                    disabled={busy}
+                    title="Karte ans Ende legen, ohne Bewertung"
+                    onClick={deferCurrentCard}
+                  >
+                    Später
+                  </button>
+                )}
+              </div>
+            </div>
           )}
 
           {cardFilter !== "practice" && !currentCard && (

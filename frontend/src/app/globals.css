@@ -484,16 +484,23 @@ button:disabled {
   margin-top: 0.3rem;
 }
 
-.trainer-quiz {
+.trainer-quiz,
+.trainer-cards {
   max-width: 36rem;
 }
 
-.trainer-quiz .trainer-progress-wrap {
+.trainer-quiz .trainer-progress-wrap,
+.trainer-cards .trainer-progress-wrap {
   margin: 0.15rem 0 0.35rem;
 }
 
-.trainer-quiz .learn-quiz-meta {
+.trainer-quiz .learn-quiz-meta,
+.trainer-cards .learn-quiz-meta {
   margin: 0 0 0.65rem;
+}
+
+.trainer-cards .card-input-form {
+  max-width: none;
 }
 
 .quiz-options {
@@ -590,6 +597,26 @@ button.quiz-nav-jump {
 
 .quiz-nav-jump.active.wrong {
   box-shadow: 0 0 0 2px var(--danger);
+}
+
+.quiz-nav-jump.known {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 22%, var(--card));
+  color: var(--accent);
+}
+
+.quiz-nav-jump.review {
+  border-color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 18%, var(--card));
+  color: var(--warn);
+}
+
+.quiz-nav-jump.active.known {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.quiz-nav-jump.active.review {
+  box-shadow: 0 0 0 2px var(--warn);
 }
 
 .quiz-nav-jump.deferred {
@@ -2388,6 +2415,7 @@ button.btn.action-tile {
 .trainer-flashcard {
   perspective: 1200px;
   margin: 1rem 0;
+  width: 100%;
 }
 .trainer-flashcard-inner {
   position: relative;
