@@ -1,4 +1,9 @@
 {
+  "_meta": {
+    "subject_group": "math",
+    "subject_hint": "Dezimalzahlen",
+    "min_method_labels": 2
+  },
   "summary": "Dezimalzahlen addieren und subtrahieren mit verschiedenen Lösungswegen.",
   "is_metadata_only": false,
   "methods": [

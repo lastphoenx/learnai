@@ -1,0 +1,33 @@
+{
+  "_meta": {
+    "subject_group": "mgu",
+    "subject_hint": "Geografie Schweiz",
+    "min_method_labels": 2
+  },
+  "summary": "Die Schweiz: Kantone, Sprachregionen und Landesgeografie.",
+  "is_metadata_only": false,
+  "methods": [
+    {
+      "label": "Karte beschriften",
+      "when": "Wenn eine Karte der Schweiz vorgegeben ist",
+      "example": "Kantone eintragen"
+    },
+    {
+      "label": "Merksatz Sprachregionen",
+      "when": "Zum Einprägen der vier Landessprachen",
+      "example": "Deutsch, Französisch, Italienisch, Rätoromanisch"
+    }
+  ],
+  "worked_examples": [
+    {
+      "problem": "Aufgabe 1: Welcher Kanton ist das?",
+      "method_label": "Karte beschriften",
+      "steps": ["Form erkennen", "mit Kantonsliste abgleichen", "Zürich"]
+    }
+  ],
+  "exercises": [
+    {"ref": "2b", "text": "Nenne zwei Kantone mit Rätoromanisch", "suggested_method": "Merksatz Sprachregionen"}
+  ],
+  "exercise_patterns": ["Kantone zuordnen", "Sprachregionen benennen"],
+  "teaching_notes": ["Von West nach Ost auf der Karte arbeiten"]
+}
