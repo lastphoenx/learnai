@@ -14,7 +14,7 @@ export function QuizExplanation({ text }: { text: string }) {
   return (
     <div className="quiz-explanation-variants">
       {variants.map((variant) => (
-        <div key={variant.index} className={`quiz-variant quiz-variant-${variant.badge}`}>
+        <div key={variant.index} className="quiz-variant-line">
           <div className="quiz-variant-head">
             <span className={`badge ${variant.badge === "heft" ? "badge-ready" : "badge-neutral"}`}>
               {variant.badge === "heft" ? "Aus dem Heft" : "Alternativer Weg"}
