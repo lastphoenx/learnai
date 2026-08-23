@@ -16,11 +16,17 @@ const sans = Source_Sans_3({
 export const metadata: Metadata = {
   title: "LearnAI",
   description: "Self-hosted KI-Lernplattform",
+  appleWebApp: {
+    capable: true,
+    title: "LearnAI",
+    statusBarStyle: "default",
+  },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  themeColor: "#0f6e62",
 };
 
 export default function RootLayout({
