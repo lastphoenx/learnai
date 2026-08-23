@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -18,6 +19,8 @@ from app.ai.task_types import UNIT_TASK_KEYS, augment_brief
 from app.schemas import LearnGoalsSchema, TrainerOptionsSchema
 from app.services.profile_service import child_user_ids, get_profile_for_actor
 from app.services.unit_reference_service import attach_reference_fields, ensure_unit_reference_codes
+
+_log = logging.getLogger(__name__)
 
 
 class UnitError(Exception):
@@ -254,8 +257,15 @@ def list_units(db: Session, user: User) -> list[dict]:
         row = _dec_unit(u, sources=False, modules=False)
         record = records_by_unit.get(u.id)
         _attach_template_fields(row, record)
-        refs = ensure_unit_reference_codes(db, u, record)
-        attach_reference_fields(row, refs)
+        try:
+            refs = ensure_unit_reference_codes(db, u, record)
+            attach_reference_fields(row, refs)
+        except Exception:
+            _log.exception("reference codes failed unit_id=%s", u.id)
+            attach_reference_fields(
+                row,
+                {"reference_family": None, "reference_instance": None, "reference_code": None},
+            )
         prog = learn_progress_for_unit(db, u.id)
         if prog:
             row["learn_progress"] = prog

@@ -4,11 +4,21 @@ from __future__ import annotations
 
 import re
 import uuid
+from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
 from app.models import LearningRecord, LearningUnit
 from app.services.crypto_json import decrypt_json, encrypt_json
+
+_AWARE_MIN = datetime.min.replace(tzinfo=timezone.utc)
+
+
+def _created_sort_key(value: object | None) -> datetime:
+    if isinstance(value, datetime):
+        return value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
+    return _AWARE_MIN
+
 
 _REF_RE = re.compile(r"^(\d{4})(?:\.(\d{4}))?$")
 
@@ -72,15 +82,26 @@ def _family_groups(db: Session, tenant_id: uuid.UUID) -> dict[uuid.UUID, list[tu
         root_id = _template_root_for_unit(unit, recon)
         groups.setdefault(root_id, []).append((unit, record, unit.created_at))
     return {
-        root_id: [(unit, record) for unit, record, _ in sorted(items, key=lambda row: row[2] or 0)]
+        root_id: [
+            (unit, record)
+            for unit, record, _ in sorted(items, key=lambda row: _created_sort_key(row[2]))
+        ]
         for root_id, items in groups.items()
     }
 
 
-def _family_order(db: Session, tenant_id: uuid.UUID) -> dict[uuid.UUID, str]:
-    groups = _family_groups(db, tenant_id)
-    ordered_roots = sorted(groups.items(), key=lambda item: item[1][0][2] if item[1] else datetime.min)
+def _family_order_from_groups(
+    groups: dict[uuid.UUID, list[tuple[LearningUnit, LearningRecord]]],
+) -> dict[uuid.UUID, str]:
+    ordered_roots = sorted(
+        groups.items(),
+        key=lambda item: _created_sort_key(item[1][0][0].created_at if item[1] else None),
+    )
     return {root_id: f"{index:04d}" for index, (root_id, _) in enumerate(ordered_roots, start=1)}
+
+
+def _family_order(db: Session, tenant_id: uuid.UUID) -> dict[uuid.UUID, str]:
+    return _family_order_from_groups(_family_groups(db, tenant_id))
 
 
 def _compute_codes_for_unit(
@@ -93,14 +114,13 @@ def _compute_codes_for_unit(
     if not isinstance(recon, dict):
         recon = {}
     root_id = _template_root_for_unit(unit, recon)
-    family_map = _family_order(db, tenant_id)
-    family = family_map.get(root_id)
-    if not family:
-        family = f"{len(family_map) + 1:04d}"
+    groups = _family_groups(db, tenant_id)
+    family_map = _family_order_from_groups(groups)
+    family = family_map.get(root_id) or f"{len(family_map) + 1:04d}"
 
-    siblings = _family_groups(db, tenant_id).get(root_id, [])
+    siblings = groups.get(root_id, [])
     instance = "0001"
-    for index, (sibling_unit, _, _) in enumerate(siblings, start=1):
+    for index, (sibling_unit, _record) in enumerate(siblings, start=1):
         if sibling_unit.id == unit.id:
             instance = f"{index:04d}"
             break
