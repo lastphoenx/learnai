@@ -53,7 +53,7 @@ docker compose up -d api worker
 
 ```bash
 docker compose exec api pip show pymupdf pymupdf-fonts | grep -E '^Name:|^Version:'
-docker compose exec api python -c "import fitz; print('pymupdf', fitz.__doc__[:20]); print('ubuntu font', 'ubuntu' in fitz.fitz_fontdescriptors)"
+docker compose exec api python -c "import pymupdf; print('ubuntu font', 'ubuntu' in pymupdf.fitz_fontdescriptors)"
 ```
 
 Erwartung nach PDF-Fix: `pymupdf` ≥ 1.28, `pymupdf-fonts` 1.0.5, `ubuntu font True`.
