@@ -13,6 +13,7 @@ type Props = {
   exerciseIndex: number;
   total: number;
   busy: boolean;
+  hideMeta?: boolean;
   result: { correct: boolean; hint?: string | null; expected?: string | null } | null;
   onSubmit: (answer: string) => void;
   onContinue: () => void;
@@ -23,6 +24,7 @@ export function PracticeExercise({
   exerciseIndex,
   total,
   busy,
+  hideMeta = false,
   result,
   onSubmit,
   onContinue,
@@ -38,10 +40,12 @@ export function PracticeExercise({
 
   return (
     <div className="practice-exercise stack">
+      {!hideMeta && (
       <p className="learn-quiz-meta muted">
         Übung {exerciseIndex + 1} von {total}
         {isNumber ? " · Zahl eingeben" : " · Antwort eingeben"}
       </p>
+      )}
       <p className="learn-quiz-question">{exercise.prompt}</p>
       {exercise.hint && !result && <p className="muted practice-hint">Tipp: {exercise.hint}</p>}
       <form onSubmit={onFormSubmit} className="practice-form">

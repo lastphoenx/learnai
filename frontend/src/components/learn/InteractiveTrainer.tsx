@@ -16,6 +16,7 @@ import {
   type SttProvider,
 } from "@/lib/api";
 import { CardInputExercise } from "@/components/learn/CardInputExercise";
+import { JumpStrip } from "@/components/learn/JumpStrip";
 import { QuizWeaknessPanel } from "@/components/QuizWeaknessPanel";
 import { PracticeExercise } from "@/components/learn/PracticeExercise";
 import { formatQuizOption, quizOptionClassName } from "@/lib/quizOption";
@@ -271,10 +272,6 @@ export function InteractiveTrainer({
     () => countAnsweredInDeck(allQuestions, learnProgress),
     [allQuestions, learnProgress],
   );
-  const checkQuizAnsweredCount = useMemo(
-    () => countAnsweredInDeck(activeQuestions, learnProgress),
-    [activeQuestions, learnProgress],
-  );
   const canSkipOrDefer = useMemo(() => {
     if (!currentQuestion || quizChallenge || quizWeakOnly) return false;
     if (isQuizAnswered(learnProgress, currentQuestion)) return false;
@@ -321,6 +318,15 @@ export function InteractiveTrainer({
     state.summary.quiz_total > 0
       ? Math.round((100 * state.summary.quiz_correct) / state.summary.quiz_total)
       : null;
+
+  const goToPractice = useCallback(
+    (index: number) => {
+      if (index < 0 || index >= practiceExercises.length) return;
+      setPracticeIndex(index);
+      setPracticeResult(null);
+    },
+    [practiceExercises.length],
+  );
 
   const goToCard = useCallback(
     (index: number) => {
@@ -1009,13 +1015,64 @@ export function InteractiveTrainer({
           </div>
 
           {cardFilter === "practice" && currentPractice && (
-            <>
-              <p className="muted">{currentPractice.domain}</p>
+            <div className="trainer-cards">
+              <div className="quiz-nav-row">
+                <button
+                  type="button"
+                  className="ghost"
+                  disabled={busy || practiceIndex === 0}
+                  onClick={() => goToPractice(practiceIndex - 1)}
+                >
+                  ← Zurück
+                </button>
+                <button
+                  type="button"
+                  className="ghost"
+                  disabled={busy || practiceIndex + 1 >= practiceExercises.length}
+                  onClick={() => goToPractice(practiceIndex + 1)}
+                >
+                  Weiter →
+                </button>
+              </div>
+              <div className="quiz-status-row">
+                <div className="trainer-progress-wrap">
+                  <div className="trainer-progress-bar" aria-hidden="true">
+                    <div
+                      className="trainer-progress-fill"
+                      style={{
+                        width: `${Math.round(
+                          (100 * (practiceIndex + 1)) / Math.max(1, practiceExercises.length),
+                        )}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+                <p className="learn-quiz-meta muted">
+                  {[
+                    `Aufgabe ${practiceIndex + 1} von ${practiceExercises.length}`,
+                    currentPractice.domain || null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </p>
+              </div>
+              <JumpStrip
+                count={practiceExercises.length}
+                currentIndex={practiceIndex}
+                disabled={busy}
+                ariaLabel="Übungsaufgaben"
+                itemKey={(i) => `${practiceExercises[i].module_id}:${practiceExercises[i].exercise_index}`}
+                itemClassName={(i) => `quiz-nav-jump${i === practiceIndex ? " active" : ""}`}
+                itemTitle={(i) => `Aufgabe ${i + 1}`}
+                onSelect={goToPractice}
+              />
               <PracticeExercise
+                key={`${currentPractice.module_id}:${currentPractice.exercise_index}`}
                 exercise={currentPractice}
                 exerciseIndex={practiceIndex}
                 total={practiceExercises.length}
                 busy={busy}
+                hideMeta
                 result={practiceResult}
                 onSubmit={async (answer) => {
                   setBusy(true);
@@ -1045,7 +1102,7 @@ export function InteractiveTrainer({
                   }
                 }}
               />
-            </>
+            </div>
           )}
 
           {cardFilter === "practice" && !currentPractice && (
@@ -1072,66 +1129,69 @@ export function InteractiveTrainer({
                   Weiter →
                 </button>
               </div>
-              <div className="trainer-progress-wrap">
-                <div className="trainer-progress-bar" aria-hidden="true">
-                  <div
-                    className="trainer-progress-fill"
-                    style={{
-                      width: `${Math.round((100 * (cardIndex + 1)) / Math.max(1, orderedCards.length))}%`,
-                    }}
-                  />
+              <div className="quiz-status-row">
+                <div className="trainer-progress-wrap">
+                  <div className="trainer-progress-bar" aria-hidden="true">
+                    <div
+                      className="trainer-progress-fill"
+                      style={{
+                        width: `${Math.round((100 * (cardIndex + 1)) / Math.max(1, orderedCards.length))}%`,
+                      }}
+                    />
+                  </div>
                 </div>
-              </div>
-              <p className="learn-quiz-meta muted">
-                {[
-                  `${
-                    cardKind(currentCard) === "merk"
-                      ? "Merkkarte"
-                      : cardKind(currentCard) === "input"
-                        ? "Eingabe-Karte"
-                        : "Kurzfrage"
-                  } ${cardIndex + 1} von ${orderedCards.length}`,
-                  currentCard.domain || null,
-                  progress[currentCard.card_key]?.status === "known"
-                    ? cardKind(currentCard) === "input"
-                      ? "richtig"
-                      : "gewusst"
-                    : progress[currentCard.card_key]?.status === "review"
+                <p className="learn-quiz-meta muted">
+                  {[
+                    `${
+                      cardKind(currentCard) === "merk"
+                        ? "Merkkarte"
+                        : cardKind(currentCard) === "input"
+                          ? "Eingabe-Karte"
+                          : "Kurzfrage"
+                    } ${cardIndex + 1} von ${orderedCards.length}`,
+                    currentCard.domain || null,
+                    progress[currentCard.card_key]?.status === "known"
                       ? cardKind(currentCard) === "input"
-                        ? "falsch"
-                        : "wiederholen"
-                      : deferredCardKeys.includes(currentCard.card_key)
-                        ? "später"
-                        : null,
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
-              </p>
-              <div className="quiz-nav-strip" role="tablist" aria-label="Lernkarten">
-                {orderedCards.map((card, i) => {
+                        ? "richtig"
+                        : "gewusst"
+                      : progress[currentCard.card_key]?.status === "review"
+                        ? cardKind(currentCard) === "input"
+                          ? "falsch"
+                          : "wiederholen"
+                        : deferredCardKeys.includes(currentCard.card_key)
+                          ? "später"
+                          : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </p>
+              </div>
+              <JumpStrip
+                count={orderedCards.length}
+                currentIndex={cardIndex}
+                disabled={busy}
+                ariaLabel="Lernkarten"
+                itemKey={(i) => orderedCards[i].card_key}
+                itemClassName={(i) => {
+                  const card = orderedCards[i];
                   const jumpKind = cardKind(card) === "input" ? "input" : "merk";
-                  const opts = {
-                    kind: jumpKind as "input" | "merk",
+                  return cardJumpClassName(i, cardIndex, {
+                    kind: jumpKind,
                     status: progress[card.card_key]?.status,
                     deferred: deferredCardKeys.includes(card.card_key),
-                  };
-                  const title = cardJumpTitle(i, opts);
-                  return (
-                    <button
-                      key={card.card_key}
-                      type="button"
-                      className={cardJumpClassName(i, cardIndex, opts)}
-                      disabled={busy}
-                      title={title}
-                      aria-label={title}
-                      aria-current={i === cardIndex ? "true" : undefined}
-                      onClick={() => goToCard(i)}
-                    >
-                      {i + 1}
-                    </button>
-                  );
-                })}
-              </div>
+                  });
+                }}
+                itemTitle={(i) => {
+                  const card = orderedCards[i];
+                  const jumpKind = cardKind(card) === "input" ? "input" : "merk";
+                  return cardJumpTitle(i, {
+                    kind: jumpKind,
+                    status: progress[card.card_key]?.status,
+                    deferred: deferredCardKeys.includes(card.card_key),
+                  });
+                }}
+                onSelect={goToCard}
+              />
 
               {cardKind(currentCard) === "input" ? (
                 <>
@@ -1266,50 +1326,40 @@ export function InteractiveTrainer({
               Weiter →
             </button>
           </div>
-          <div className="trainer-progress-wrap">
-            <div className="trainer-progress-bar" aria-hidden="true">
-              <div
-                className="trainer-progress-fill"
-                style={{
-                  width: `${Math.round(
-                    (100 * (quizIndex + 1)) / Math.max(1, activeQuestions.length),
-                  )}%`,
-                }}
-              />
+          <div className="quiz-status-row">
+            <div className="trainer-progress-wrap">
+              <div className="trainer-progress-bar" aria-hidden="true">
+                <div
+                  className="trainer-progress-fill"
+                  style={{
+                    width: `${Math.round(
+                      (100 * (quizIndex + 1)) / Math.max(1, activeQuestions.length),
+                    )}%`,
+                  }}
+                />
+              </div>
             </div>
+            <p className="learn-quiz-meta muted">
+              {[
+                `Frage ${quizIndex + 1} von ${activeQuestions.length}`,
+                isReviewMode ? "Ansicht" : null,
+                currentQuestion.domain || null,
+                quizChallenge ? "Challenge" : quizWeakOnly ? "nur Schwächen" : "Check",
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </p>
           </div>
-          <p className="learn-quiz-meta muted">
-            {[
-              `Frage ${quizIndex + 1} von ${activeQuestions.length}`,
-              isReviewMode ? "Ansicht" : null,
-              currentQuestion.domain || null,
-              quizChallenge ? "Challenge" : quizWeakOnly ? "nur Schwächen" : "Check",
-              !quizChallenge && !quizWeakOnly && checkQuizAnsweredCount > 0
-                ? `${checkQuizAnsweredCount}/${activeQuestions.length} beantwortet`
-                : null,
-            ]
-              .filter(Boolean)
-              .join(" · ")}
-          </p>
-          <div className="quiz-nav-strip" role="tablist" aria-label="Quiz-Fragen">
-            {activeQuestions.map((q, i) => {
-              const title = quizJumpTitle(i, learnProgress, q);
-              return (
-                <button
-                  key={quizQuestionKey(q)}
-                  type="button"
-                  className={quizJumpClassName(i, quizIndex, learnProgress, q)}
-                  disabled={busy}
-                  title={title}
-                  aria-label={title}
-                  aria-current={i === quizIndex ? "true" : undefined}
-                  onClick={() => goToQuizQuestion(i)}
-                >
-                  {i + 1}
-                </button>
-              );
-            })}
-          </div>
+          <JumpStrip
+            count={activeQuestions.length}
+            currentIndex={quizIndex}
+            disabled={busy}
+            ariaLabel="Quiz-Fragen"
+            itemKey={(i) => quizQuestionKey(activeQuestions[i])}
+            itemClassName={(i) => quizJumpClassName(i, quizIndex, learnProgress, activeQuestions[i])}
+            itemTitle={(i) => quizJumpTitle(i, learnProgress, activeQuestions[i])}
+            onSelect={goToQuizQuestion}
+          />
           <p className="learn-quiz-question">{currentQuestion.q}</p>
           <div className="quiz-options">
             {(currentQuestion.options || []).map((opt, i) => (
