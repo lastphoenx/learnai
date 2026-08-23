@@ -18,6 +18,11 @@ _EQUATION = re.compile(
     rf"{_NUM}\s*(?:{_OP_SYMBOL}|[+\-−]|[:÷/])\s*{_NUM}\s*=\s*{_NUM}",
 )
 _VARIANT_SPLIT = re.compile(r"(?=Variante\s+\d+\s*(?:\([^)]*\))?\s*:)", re.I)
+_STEP_COMMA = re.compile(
+    rf"(=\s*{_NUM})\s*,\s*(?={_NUM}\s*(?:{_OP_SYMBOL}|[+\-−]|[:÷/]))",
+)
+_WRITTEN_HINT = re.compile(r"schriftlich", re.I)
+_MENTAL_HINT = re.compile(r"im kopf|kopfrechn", re.I)
 _PARSE_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     (
         "mul",
@@ -78,12 +83,53 @@ def _variant_chunks(text: str) -> list[str]:
     return [part.strip() for part in parts if part.strip()]
 
 
-def explanation_has_derivation(explanation: str) -> bool:
-    """True nur wenn jede Variante mindestens eine ausgerechnete Gleichung enthält."""
+def _clarify_step_separators(text: str) -> str:
+    """Verhindert '65, 5 ·' → gelesen als 65,5."""
+    return _STEP_COMMA.sub(r"\1. Dann ", str(text or ""))
+
+
+def _equation_restates_problem(equation: str, question: str) -> bool:
+    parsed = parse_arithmetic_operands(question)
+    if not parsed:
+        return False
+    op, a, b = parsed
+    if op == "add":
+        expected = a + b
+    elif op == "sub":
+        expected = a - b
+    elif op == "mul":
+        expected = a * b
+    elif op == "div":
+        if abs(b) < 1e-12:
+            return False
+        expected = a / b
+    else:
+        return False
+    nums = [_to_float(raw) for raw in re.findall(_NUM, equation)]
+    if len(nums) < 3:
+        return False
+    left = {round(nums[0], 6), round(nums[1], 6)}
+    operands = {round(a, 6), round(b, 6)}
+    return left == operands and abs(nums[2] - expected) < 1e-4
+
+
+def _chunk_has_intermediate(chunk: str, question: str) -> bool:
+    matches = list(_EQUATION.finditer(chunk))
+    if not matches:
+        return False
+    return any(not _equation_restates_problem(match.group(0), question) for match in matches)
+
+
+def explanation_has_derivation(explanation: str, question: str = "") -> bool:
+    """True nur wenn jede Variante eine Zwischenrechnung hat, nicht nur a · b = Ergebnis."""
     expl = str(explanation or "").strip()
     if not expl:
         return False
     chunks = _variant_chunks(expl)
+    if question:
+        if len(chunks) >= 2:
+            return all(_chunk_has_intermediate(chunk, question) for chunk in chunks)
+        return _chunk_has_intermediate(expl, question)
     if len(chunks) >= 2:
         return all(_EQUATION.search(chunk) for chunk in chunks)
     return bool(_EQUATION.search(expl))
@@ -93,7 +139,7 @@ def explanation_is_weak(explanation: str, question: str) -> bool:
     expl = str(explanation or "").strip()
     if not expl:
         return True
-    if explanation_has_derivation(expl):
+    if explanation_has_derivation(expl, question):
         return False
     if _WEAK_EXPLANATION.search(expl):
         return True
@@ -325,6 +371,31 @@ def _div_steps(a: float, b: float, result: float) -> str:
     )
 
 
+def _question_mul_style(question: str) -> str:
+    text = str(question or "")
+    if _WRITTEN_HINT.search(text):
+        return "written"
+    if _MENTAL_HINT.search(text):
+        return "mental"
+    return "default"
+
+
+def _mul_written_steps(a_int: int, b: float, result: float) -> str | None:
+    decimals = _decimal_places(b)
+    if decimals < 1:
+        return None
+    scaled = int(round(b * (10**decimals)))
+    raw = a_int * scaled
+    stelle = "Stelle" if decimals == 1 else "Stellen"
+    dez = "Dezimalstelle" if decimals == 1 else "Dezimalstellen"
+    return (
+        f"Variante 1 (schriftlich): Rechne ohne Komma: "
+        f"{_fmt_num(float(a_int))} × {scaled} = {_fmt_num(float(raw))}. "
+        f"{_fmt_num(b)} hat {decimals} {dez} — Komma im Ergebnis "
+        f"{decimals} {stelle} nach links: {_fmt_num(result)}."
+    )
+
+
 def _mul_reihe_for_frac(a_int: int, frac: float) -> str | None:
     """8 × 0,5 über 8 × 5 = 40, Komma eine Stelle → 4."""
     decimals = _decimal_places(frac)
@@ -354,7 +425,9 @@ def _mul_kopf_steps(a_int: int, b: float, result: float) -> str:
     if abs(frac) >= 1e-9:
         reihe = _mul_reihe_for_frac(a_int, frac)
         if reihe:
-            parts.append(f"Dann {a_s} × {_fmt_num(frac)}: {reihe}.")
+            parts.append(
+                f"Dann {a_s} × {_fmt_num(frac)}: {reihe} — also {a_s} × {_fmt_num(frac)} = {_fmt_num(a_int * frac)}."
+            )
         else:
             parts.append(f"Dann {a_s} × {_fmt_num(frac)} = {_fmt_num(a_int * frac)}.")
     if whole and abs(frac) >= 1e-9:
@@ -366,7 +439,7 @@ def _mul_kopf_steps(a_int: int, b: float, result: float) -> str:
     return " ".join(parts)
 
 
-def _mul_notes_steps(a_int: int, b: float, result: float) -> str | None:
+def _mul_zerlegung_steps(a_int: int, b: float, result: float) -> str | None:
     whole = int(b) if b >= 0 else -int(-b)
     frac = round(b - whole, 10)
     if abs(frac) < 1e-9:
@@ -375,10 +448,10 @@ def _mul_notes_steps(a_int: int, b: float, result: float) -> str | None:
     part_whole = a_int * whole
     part_frac = a_int * frac
     return (
-        f"Variante 2 (Notizen): {_fmt_num(b)} = {_fmt_num(float(whole))} + {_fmt_num(frac)}. "
+        f"Variante 2 (Zerlegung): {_fmt_num(b)} = {_fmt_num(float(whole))} + {_fmt_num(frac)}. "
         f"{a_s} × {_fmt_num(float(whole))} = {_fmt_num(part_whole)}. "
-        f"{a_s} × {_fmt_num(frac)} = {_fmt_num(part_frac)}. "
-        f"{_fmt_num(part_whole)} + {_fmt_num(part_frac)} = {_fmt_num(result)}."
+        f"Dann {a_s} × {_fmt_num(frac)} = {_fmt_num(part_frac)}. "
+        f"Zusammen: {_fmt_num(part_whole)} + {_fmt_num(part_frac)} = {_fmt_num(result)}."
     )
 
 
@@ -407,14 +480,16 @@ def _mul_alternative_steps(a: float, b: float, result: float) -> str | None:
     a_s = _fmt_num(float(a_int))
     return (
         f"Variante 3 (Stellenwert): {_fmt_num(b)} = {_fmt_num(t_high)}×10 + {_fmt_num(t_low)}×10 + {_fmt_num(frac)}. "
-        f"{a_s}×{_fmt_num(t_high)}={_fmt_num(p_high)}, {a_s}×{_fmt_num(t_low)}={_fmt_num(p_low)}, "
-        f"{_fmt_num(p_high)}+{_fmt_num(p_low)}={_fmt_num(sub_sum)}, {_fmt_num(sub_sum)}×10={_fmt_num(prod_whole)}. "
-        f"Dann {a_s}×{_fmt_num(frac)}={_fmt_num(p_frac)}, "
-        f"{_fmt_num(prod_whole)}+{_fmt_num(p_frac)}={_fmt_num(result)}."
+        f"{a_s} × {_fmt_num(t_high)} = {_fmt_num(p_high)}. "
+        f"Dann {a_s} × {_fmt_num(t_low)} = {_fmt_num(p_low)}. "
+        f"{_fmt_num(p_high)} + {_fmt_num(p_low)} = {_fmt_num(sub_sum)}. "
+        f"{_fmt_num(sub_sum)} × 10 = {_fmt_num(prod_whole)}. "
+        f"Dann {a_s} × {_fmt_num(frac)} = {_fmt_num(p_frac)}. "
+        f"Zusammen: {_fmt_num(prod_whole)} + {_fmt_num(p_frac)} = {_fmt_num(result)}."
     )
 
 
-def _mul_steps(a: float, b: float, result: float) -> str:
+def _mul_steps(a: float, b: float, result: float, *, question: str = "") -> str:
     if abs(a - round(a)) >= 1e-6 and abs(b - round(b)) < 1e-6:
         a, b = b, a
     a_s, b_s, r_s = _fmt_num(a), _fmt_num(b), _fmt_num(result)
@@ -425,12 +500,22 @@ def _mul_steps(a: float, b: float, result: float) -> str:
         frac = round(b - (int(b) if b >= 0 else -int(-b)), 10)
         if abs(frac) < 1e-9:
             return f"Rechnung: {a_s} × {b_s} = {r_s}."
-        primary = _mul_kopf_steps(a_int, b, result)
-        notes = _mul_notes_steps(a_int, b, result)
+        written = _mul_written_steps(a_int, b, result)
+        kopf = _mul_kopf_steps(a_int, b, result)
+        zerlegung = _mul_zerlegung_steps(a_int, b, result)
         place = _mul_alternative_steps(float(a_int), b, result)
+        style = _question_mul_style(question)
+        if style == "written" and written:
+            primary, alt = written, zerlegung
+        elif style == "mental":
+            primary, alt = kopf, written or zerlegung
+        else:
+            primary, alt = written or kopf, zerlegung
+        if alt and alt.startswith("Variante 1"):
+            alt = re.sub(r"^Variante 1", "Variante 2", alt, count=1)
         text = primary
-        if notes:
-            text = _join_variants(text, notes)
+        if alt:
+            text = _join_variants(text, alt)
         if place:
             text = _join_variants(text, place)
         return text
@@ -457,7 +542,7 @@ def build_worked_solution(question: str, expected: float | None = None) -> str |
         if op == "sub":
             return _sub_steps(a, b, expected)
         if op == "mul":
-            return _mul_steps(a, b, expected)
+            return _mul_steps(a, b, expected, question=question)
         if op == "div":
             return _div_steps(a, b, expected)
 
@@ -498,7 +583,7 @@ def _merge_explanations(primary: str, secondary: str, *, question: str) -> str:
     p_variants = _count_variants(primary)
     s_variants = _count_variants(secondary)
 
-    if p_variants >= 2 and explanation_has_derivation(primary):
+    if p_variants >= 2 and explanation_has_derivation(primary, question):
         return primary
 
     if p_variants == 0 and not explanation_is_weak(primary, question):
@@ -529,10 +614,10 @@ def enrich_quiz_explanation(q: dict) -> str:
 
     if original and not explanation_is_weak(original, question):
         if worked and _count_variants(original) < 2 and _count_variants(worked) >= 1:
-            return _merge_explanations(original, worked, question=question)
-        return original
+            return _clarify_step_separators(_merge_explanations(original, worked, question=question))
+        return _clarify_step_separators(original)
 
     if worked:
-        return worked
+        return _clarify_step_separators(worked)
 
-    return original
+    return _clarify_step_separators(original)
