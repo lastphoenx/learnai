@@ -32,6 +32,7 @@ from app.services.unit_service import (
     create_unit,
     get_learn_goals,
     get_trainer_options,
+    unit_is_sandbox_copy,
 )
 from app.ai.error_tags import aggregate_quiz_error_tags, infer_quiz_error_tags, label_for_tag
 from app.ai.source_pedagogy import collect_pedagogy_from_unit_sources
@@ -217,7 +218,7 @@ def get_learn_state(db: Session, user: User, unit_id: uuid.UUID) -> dict:
         "summary": _progress_summary(stats, len(modules)),
     }
     if unit.task_type == "interactive":
-        profile_id = _profile_id_for_learn(unit, record)
+        profile_id = _profile_id_for_learn(db, user, unit, record)
         payload["trainer"] = _interactive_trainer_payload(
             db, unit, modules, record, profile_id=profile_id
         )
@@ -557,7 +558,7 @@ def submit_card_input_answer(
     unit = _get_unit_or_404(db, user, unit_id)
     record = _get_record_for_unit(db, unit.id)
     module = _find_module(unit, module_id)
-    profile_id = _profile_id_for_learn(unit, record)
+    profile_id = _profile_id_for_learn(db, user, unit, record)
     content = decrypt_json(module.content_encrypted) or {}
     cards = content.get("cards") if isinstance(content, dict) else []
     if card_index < 0 or card_index >= len(cards):
@@ -675,7 +676,7 @@ def save_child_learn_goals(
     stats["learn"] = learn
     _save_stats(db, record, stats)
     modules = sorted(unit.modules, key=lambda m: m.order_index)
-    profile_id = _profile_id_for_learn(unit, record)
+    profile_id = _profile_id_for_learn(db, user, unit, record)
     trainer = _interactive_trainer_payload(db, unit, modules, record, profile_id=profile_id)
     return {
         "child_goals": trainer.get("child_goals"),
@@ -739,11 +740,25 @@ def _find_module(unit: LearningUnit, module_id: uuid.UUID) -> UnitModule:
     raise UnitError("Lernblock nicht gefunden", "not_found")
 
 
-def _profile_id_for_learn(unit: LearningUnit, record: LearningRecord) -> uuid.UUID:
+def _profile_id_for_learn(
+    db: Session,
+    user: User,
+    unit: LearningUnit,
+    record: LearningRecord,
+) -> uuid.UUID:
     profile_id = record.profile_id or unit.profile_id
-    if not profile_id:
+    if profile_id:
+        return profile_id
+    if user.is_child:
         raise UnitError("Kein Lernprofil zugeordnet", "forbidden")
-    return profile_id
+    if unit_is_sandbox_copy(unit, record):
+        if user.profile_id:
+            return user.profile_id
+        raise UnitError(
+            "Test-Kopie ohne Zuweisung — bitte unter «Kinder & Zuweisung» ein Profil zum Testen wählen.",
+            "forbidden",
+        )
+    raise UnitError("Kein Lernprofil zugeordnet", "forbidden")
 
 
 def _flashcard_key(module_id: uuid.UUID, card_index: int) -> str:
@@ -865,7 +880,7 @@ def mark_flashcard_status(
     unit = _get_unit_or_404(db, user, unit_id)
     record = _get_record_for_unit(db, unit.id)
     module = _find_module(unit, module_id)
-    profile_id = _profile_id_for_learn(unit, record)
+    profile_id = _profile_id_for_learn(db, user, unit, record)
     content = decrypt_json(module.content_encrypted) or {}
     cards = content.get("cards") if isinstance(content, dict) else []
     if card_index < 0 or card_index >= len(cards):

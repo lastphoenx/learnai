@@ -96,13 +96,41 @@ def _template_ids_from_recon(recon: dict | None) -> tuple[str | None, str | None
     return template_unit_id, template_root_id
 
 
+def _sandbox_fields_from_recon(recon: dict | None) -> tuple[str | None, bool]:
+    if not isinstance(recon, dict):
+        return None, False
+    sandbox_copy_of = str(recon.get("sandbox_copy_of") or "").strip() or None
+    return sandbox_copy_of, bool(sandbox_copy_of)
+
+
+def unit_is_sandbox_copy(unit: LearningUnit, record: LearningRecord | None) -> bool:
+    """Test-/Sandbox-Kopie ohne Kind-Zuordnung (oder mit Erwachsenen-Profil zum Testen)."""
+    if record and record.reconstruction_encrypted:
+        recon = decrypt_json(record.reconstruction_encrypted)
+        if isinstance(recon, dict) and recon.get("sandbox_copy_of"):
+            return True
+    try:
+        title = decrypt_text_master(unit.title_encrypted) if unit.title_encrypted else ""
+    except Exception:
+        title = ""
+    return str(title).strip().lower().startswith("test:")
+
+
 def _attach_template_fields(row: dict, record: LearningRecord | None) -> None:
     template_unit_id, template_root_id = None, None
+    sandbox_copy_of, is_sandbox_copy = None, False
     if record and record.reconstruction_encrypted:
         recon = decrypt_json(record.reconstruction_encrypted)
         template_unit_id, template_root_id = _template_ids_from_recon(recon)
+        sandbox_copy_of, is_sandbox_copy = _sandbox_fields_from_recon(recon)
+    if not is_sandbox_copy:
+        title = str(row.get("title") or "").strip()
+        if title.lower().startswith("test:"):
+            is_sandbox_copy = True
     row["template_unit_id"] = template_unit_id
     row["template_root_id"] = template_root_id or row["id"]
+    row["sandbox_copy_of"] = sandbox_copy_of
+    row["is_sandbox_copy"] = is_sandbox_copy
 
 
 def _dec_unit(unit: LearningUnit, *, sources: bool = True, modules: bool = True) -> dict:
@@ -885,22 +913,25 @@ def update_unit_profile(
     new_profile_id: uuid.UUID | None = None
     new_learner_id = unit.created_by_id
 
+    is_sandbox = unit_is_sandbox_copy(unit, record)
+
     if profile_id is not None:
         profile = get_profile_for_actor(db, user, profile_id)
-        if not profile.is_child_profile:
+        if not profile.is_child_profile and not is_sandbox:
             raise UnitError("Nur Kinder-Profile können zugewiesen werden", "invalid_profile")
-        conflict = _conflicting_template_sibling(
-            db,
-            tenant_id=user.tenant_id,
-            template_root=template_root,
-            profile_id=profile.id,
-            exclude_unit_id=unit.id,
-        )
-        if conflict:
-            raise UnitError(
-                "Dieses Kind hat bereits eine Kopie dieser Einheit",
-                "already_assigned",
+        if profile.is_child_profile:
+            conflict = _conflicting_template_sibling(
+                db,
+                tenant_id=user.tenant_id,
+                template_root=template_root,
+                profile_id=profile.id,
+                exclude_unit_id=unit.id,
             )
+            if conflict:
+                raise UnitError(
+                    "Dieses Kind hat bereits eine Kopie dieser Einheit",
+                    "already_assigned",
+                )
         new_profile_id = profile.id
         if profile.user_id:
             new_learner_id = profile.user_id
