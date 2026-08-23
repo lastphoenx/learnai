@@ -9,7 +9,7 @@
   --accent-fg: #f7fffc;
   --border: #d9cbb8;
   --danger: #b42318;
-  --warn: #9a6700;
+  --warn: #e8590c;
   --shadow: 0 18px 40px rgba(48, 32, 16, 0.08);
   --radius: 16px;
   /* Responsive layout — skaliert mit Viewport */
@@ -32,7 +32,7 @@
   --accent-fg: #06201c;
   --border: #3a322b;
   --danger: #f97066;
-  --warn: #f5b944;
+  --warn: #ff8a3d;
   --shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
 }
 
@@ -639,7 +639,7 @@ button.quiz-nav-jump.review,
 button.quiz-nav-jump.active.review {
   border-width: 2px;
   border-color: var(--warn);
-  background: color-mix(in srgb, var(--warn) 18%, var(--card));
+  background: color-mix(in srgb, var(--warn) 34%, var(--card));
   color: var(--warn);
   font-weight: 800;
 }
@@ -672,7 +672,7 @@ button.quiz-nav-jump.active.review {
 .learn-actions .btn-review {
   border-color: var(--warn);
   color: var(--warn);
-  background: color-mix(in srgb, var(--warn) 12%, var(--card));
+  background: color-mix(in srgb, var(--warn) 22%, var(--card));
   font-weight: 700;
 }
 

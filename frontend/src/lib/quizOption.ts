@@ -28,19 +28,27 @@ export function splitQuizExplanation(text: string): {
 } {
   const src = formatQuizExplanation(text || "").trim();
   if (!src) return { preamble: "", variants: [] };
-  const matches = [...src.matchAll(new RegExp(VARIANT_HEAD.source, "gi"))];
+  const ergebnis = src.match(/^Ergebnis:\s*(.+)(?:\n+|$)/i);
+  const preambleFromResult = ergebnis ? `Ergebnis: ${ergebnis[1].trim()}` : "";
+  const rest = ergebnis ? src.slice(ergebnis[0].length).trim() : src;
+  const matches = [...rest.matchAll(new RegExp(VARIANT_HEAD.source, "gi"))];
   if (matches.length === 0) {
-    return { preamble: "", variants: [{ index: 1, label: "", badge: "heft", body: src }] };
+    return {
+      preamble: preambleFromResult,
+      variants: rest ? [{ index: 1, label: "", badge: "heft", body: rest }] : [],
+    };
   }
-  const preamble = src.slice(0, matches[0].index ?? 0).trim();
+  const preamble = [preambleFromResult, rest.slice(0, matches[0].index ?? 0).trim()]
+    .filter(Boolean)
+    .join("\n\n");
   const variants: QuizExplanationVariant[] = matches.map((match, i) => {
     const start = (match.index ?? 0) + match[0].length;
-    const end = i + 1 < matches.length ? (matches[i + 1].index ?? src.length) : src.length;
+    const end = i + 1 < matches.length ? (matches[i + 1].index ?? rest.length) : rest.length;
     return {
       index: Number(match[1]),
       label: (match[2] || "").trim(),
       badge: (i === 0 ? "heft" : "alt") as QuizExplanationVariant["badge"],
-      body: src.slice(start, end).trim(),
+      body: rest.slice(start, end).trim(),
     };
   });
   return { preamble, variants };
