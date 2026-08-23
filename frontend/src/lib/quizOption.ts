@@ -33,13 +33,13 @@ export function splitQuizExplanation(text: string): {
     return { preamble: "", variants: [{ index: 1, label: "", badge: "heft", body: src }] };
   }
   const preamble = src.slice(0, matches[0].index ?? 0).trim();
-  const variants = matches.map((match, i) => {
+  const variants: QuizExplanationVariant[] = matches.map((match, i) => {
     const start = (match.index ?? 0) + match[0].length;
     const end = i + 1 < matches.length ? (matches[i + 1].index ?? src.length) : src.length;
     return {
       index: Number(match[1]),
       label: (match[2] || "").trim(),
-      badge: i === 0 ? "heft" : "alt",
+      badge: (i === 0 ? "heft" : "alt") as QuizExplanationVariant["badge"],
       body: src.slice(start, end).trim(),
     };
   });
