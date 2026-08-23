@@ -59,3 +59,12 @@ def test_is_quiz_selection_correct_accepts_numeric_equivalent():
     }
     assert is_quiz_selection_correct(q, 0)
     assert is_quiz_selection_correct(q, 1)
+
+
+def test_resolve_quiz_non_numeric_answer_string():
+    q = {
+        "q": "Welche Farbe?",
+        "options": ["rot", "blau", "grün", "gelb"],
+        "answer": "b",
+    }
+    assert resolve_quiz_correct_index(q) == -1

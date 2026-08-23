@@ -9,7 +9,7 @@ from app.services.unit_service import UnitError
 
 
 def test_html_to_pdf_returns_pdf_bytes():
-    pdf = html_to_pdf("<h1>Test</h1><p>Hallo Welt</p>")
+    pdf = html_to_pdf("<h1>Test</h1><p>Hallo Welt — äöü ß</p>")
     assert pdf.startswith(b"%PDF")
     assert len(pdf) > 100
 
