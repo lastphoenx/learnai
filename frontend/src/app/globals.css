@@ -598,8 +598,8 @@ button.quiz-nav-jump {
   padding: 0.2rem 0.35rem;
   border-radius: 10px;
   border: 1px solid var(--border);
-  background: var(--card);
-  color: inherit;
+  background: var(--bg-2);
+  color: var(--muted);
   font-size: 0.92rem;
   font-weight: 600;
   line-height: 1;
@@ -609,6 +609,8 @@ button.quiz-nav-jump {
 .quiz-nav-jump.active {
   transform: scale(1.12);
   font-weight: 800;
+  color: var(--fg);
+  background: var(--card);
   box-shadow: 0 0 0 2px var(--text);
   z-index: 1;
 }
