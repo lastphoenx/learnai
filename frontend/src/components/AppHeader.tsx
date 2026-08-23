@@ -40,6 +40,7 @@ export function AppHeader({ user, title }: AppHeaderProps) {
         <Link href="/history">Verlauf</Link>
         <Link href="/settings">Einstellungen</Link>
         {user?.is_admin && <Link href="/admin/users">Benutzer</Link>}
+        {user?.is_admin && <Link href="/admin/golden-set">Golden Set</Link>}
       </nav>
       {title ? (
         <div className="page-heading">
