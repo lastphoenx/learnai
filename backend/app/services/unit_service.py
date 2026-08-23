@@ -17,6 +17,7 @@ from app.services.crypto_json import decrypt_json, encrypt_json
 from app.ai.task_types import UNIT_TASK_KEYS, augment_brief
 from app.schemas import LearnGoalsSchema, TrainerOptionsSchema
 from app.services.profile_service import child_user_ids, get_profile_for_actor
+from app.services.unit_reference_service import attach_reference_fields, ensure_unit_reference_codes
 
 
 class UnitError(Exception):
@@ -223,7 +224,10 @@ def list_units(db: Session, user: User) -> list[dict]:
     out = []
     for u in units:
         row = _dec_unit(u, sources=False, modules=False)
-        _attach_template_fields(row, records_by_unit.get(u.id))
+        record = records_by_unit.get(u.id)
+        _attach_template_fields(row, record)
+        refs = ensure_unit_reference_codes(db, u, record)
+        attach_reference_fields(row, refs)
         prog = learn_progress_for_unit(db, u.id)
         if prog:
             row["learn_progress"] = prog
@@ -248,6 +252,8 @@ def get_unit(db: Session, user: User, unit_id: uuid.UUID) -> dict:
     data["exams"] = [_dec_exam(e, db) for e in exam_rows]
     record = db.query(LearningRecord).filter(LearningRecord.unit_id == unit.id).first()
     _attach_template_fields(data, record)
+    refs = ensure_unit_reference_codes(db, unit, record)
+    attach_reference_fields(data, refs)
     recon: dict | None = None
     if record and record.reconstruction_encrypted:
         raw_recon = decrypt_json(record.reconstruction_encrypted)
@@ -379,6 +385,7 @@ def create_unit(
     db.add(record)
     db.flush()
     _add_event(db, record, "unit_created", {"title": title})
+    ensure_unit_reference_codes(db, unit, record)
     log_event(
         db,
         tenant_id=user.tenant_id,
@@ -724,6 +731,7 @@ def _copy_template_metadata(
                 str(src_recon.get("template_root_id") or "").strip() or str(from_unit.id)
             )
             to_record.reconstruction_encrypted = encrypt_json(dst_recon)
+    ensure_unit_reference_codes(db, to_unit, to_record)
     if module_count:
         _add_event(
             db,

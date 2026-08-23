@@ -126,7 +126,9 @@ def units_create_review(unit_id: UUID, user: User = Depends(get_app_user), db: S
 
 @router.get("")
 def units_list(user: User = Depends(get_app_user), db: Session = Depends(get_db)):
-    return list_units(db, user)
+    result = list_units(db, user)
+    db.commit()
+    return result
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
@@ -196,8 +198,11 @@ def units_assign(
 @router.get("/{unit_id}")
 def units_get(unit_id: UUID, user: User = Depends(get_app_user), db: Session = Depends(get_db)):
     try:
-        return get_unit(db, user, unit_id)
+        result = get_unit(db, user, unit_id)
+        db.commit()
+        return result
     except UnitError as exc:
+        db.rollback()
         raise _http(exc) from exc
 
 
