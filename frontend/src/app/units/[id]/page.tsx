@@ -9,6 +9,7 @@ import { UnitDeleteDialog } from "@/components/UnitDeleteDialog";
 import { UnitEditDialog } from "@/components/UnitEditDialog";
 import { UnitExamSection } from "@/components/UnitExamSection";
 import { SourcePreviewModal } from "@/components/SourcePreviewModal";
+import { useChildPreview } from "@/lib/childPreview";
 import {
   addSourceUrl,
   createReviewUnit,
@@ -73,6 +74,7 @@ export default function UnitDetailPage() {
   const searchParams = useSearchParams();
   const unitId = params.id as string;
   const [user, setUser] = useState<User | null>(null);
+  const { asChild } = useChildPreview(user);
   const [unit, setUnit] = useState<LearningUnit | null>(null);
   const [taskTypes, setTaskTypes] = useState<UnitTaskType[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -336,7 +338,7 @@ export default function UnitDetailPage() {
             )}
           </section>
 
-          {user && !user.is_child && unit && (
+          {user && !asChild && unit && (
             <UnitAssignSection
               unitId={unitId}
               currentUnit={unit}
@@ -702,7 +704,7 @@ export default function UnitDetailPage() {
                   </span>
                 )}
               </button>
-              {user && !user.is_child && (
+              {user && !asChild && (
               <button
                 type="button"
                 className="action-tile"

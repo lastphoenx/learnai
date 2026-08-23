@@ -249,6 +249,20 @@ button:disabled {
   white-space: nowrap;
 }
 
+.child-preview-toggle.active {
+  border-color: var(--warn);
+  color: var(--warn);
+}
+
+.child-preview-banner {
+  margin: 0.55rem 0 0;
+  padding: 0.45rem 0.75rem;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--warn) 14%, var(--card));
+  border: 1px solid color-mix(in srgb, var(--warn) 40%, var(--border));
+  font-size: 0.88rem;
+}
+
 .btn-sm {
   padding: 0.35rem 0.75rem;
   font-size: 0.88rem;
