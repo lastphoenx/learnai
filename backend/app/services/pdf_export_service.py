@@ -64,16 +64,30 @@ def _slug_filename(name: str, *, suffix: str) -> str:
     return f"{base[:48]}-{suffix}.pdf"
 
 
+_PDF_FONT_FAMILY = "ubuntu"
+
+
+def _story_document(html_body: str) -> tuple[str, fitz.Archive | None]:
+    """HTML inkl. CSS für fitz.Story; eingebettete Ubuntu-Font wenn pymupdf-fonts da ist."""
+    archive = fitz.Archive()
+    try:
+        font_css = fitz.css_for_pymupdf_font(_PDF_FONT_FAMILY, archive=archive)
+        css = f"{font_css}\n{_PDF_CSS}\nbody {{ font-family: {_PDF_FONT_FAMILY}, sans-serif; }}"
+        return f"<html><head><style>{css}</style></head><body>{html_body}</body></html>", archive
+    except ValueError:
+        css = (
+            f'{_PDF_CSS}\nbody {{ font-family: "DejaVu Sans", "Liberation Sans", sans-serif; }}'
+        )
+        return f"<html><head><style>{css}</style></head><body>{html_body}</body></html>", None
+
+
 def html_to_pdf(html_body: str) -> bytes:
     """HTML-Fragment (+ CSS) → PDF-Bytes (A4)."""
-    archive = fitz.Archive()
-    font_css = fitz.css_for_pymupdf_font("helv", archive=archive)
-    merged_css = f"{font_css}\n{_PDF_CSS}\nbody {{ font-family: helv, sans-serif; }}"
-    doc_html = f"<html><head><style>{merged_css}</style></head><body>{html_body}</body></html>"
+    doc_html, archive = _story_document(html_body)
     try:
         buffer = io.BytesIO()
         writer = fitz.DocumentWriter(buffer)
-        story = fitz.Story(html=doc_html, archive=archive)
+        story = fitz.Story(html=doc_html, archive=archive) if archive else fitz.Story(html=doc_html)
         mediabox = fitz.paper_rect("a4")
         where = mediabox + (42, 42, -42, -42)
         more = True

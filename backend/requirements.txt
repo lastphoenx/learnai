@@ -15,6 +15,7 @@ redis==6.4.0
 httpx==0.28.1
 pypdf==6.15.0
 pymupdf==1.26.3
+pymupdf-fonts==1.0.5
 
 # Tests
 pytest==9.0.3
