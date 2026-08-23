@@ -19,6 +19,7 @@ import { CardInputExercise } from "@/components/learn/CardInputExercise";
 import { JumpStrip } from "@/components/learn/JumpStrip";
 import { QuizWeaknessPanel } from "@/components/QuizWeaknessPanel";
 import { PracticeExercise } from "@/components/learn/PracticeExercise";
+import { answerWithVisibleResult } from "@/lib/cardResult";
 import { formatQuizOption, quizOptionClassName } from "@/lib/quizOption";
 import { QuizExplanation } from "@/components/learn/QuizExplanation";
 import {
@@ -1244,7 +1245,7 @@ export function InteractiveTrainer({
                     <span className="trainer-flashcard-label">{flipped ? "Antwort" : "Frage"}</span>
                     {flipped ? (
                       <div className="trainer-flashcard-answer">
-                        <QuizExplanation text={currentCard.answer} />
+                        <QuizExplanation text={answerWithVisibleResult(currentCard.question, currentCard.answer)} />
                         {currentCard.tip ? <p className="muted">{currentCard.tip}</p> : null}
                       </div>
                     ) : (
