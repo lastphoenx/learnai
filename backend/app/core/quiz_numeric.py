@@ -146,7 +146,10 @@ def resolve_quiz_correct_index(q: dict) -> int:
         except (TypeError, ValueError):
             return -1
 
-    stored = int(q.get("answer", -1))
+    try:
+        stored = int(q.get("answer", -1))
+    except (TypeError, ValueError):
+        stored = -1
     expected = resolve_quiz_expected_value(q)
     if expected is not None:
         matches = option_indices_matching_value(options, expected)
