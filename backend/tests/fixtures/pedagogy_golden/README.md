@@ -1,7 +1,5 @@
-# Pedagogy Golden Set
+# Pedagogy Golden Set (archiviert)
 
-Fest eingecheckte Vision-Extraktionen (JSON) als Regression-Tests für `parse_pedagogy_extraction`.
+Die kanonischen Fixtures liegen jetzt unter `backend/app/fixtures/pedagogy_golden/` (im Docker-Image enthalten).
+Admin-UI: `/admin/golden-set`
 
-- Keine echten Schülerfotos — nur synthetische/repräsentative Inhalte.
-- Bei Prompt-Änderungen: Fixture aktualisieren oder Mindestwerte anpassen.
-- Optional manuell gegen Live-Vision prüfen: Foto → JSON speichern → hier ablegen.

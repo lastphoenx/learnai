@@ -64,7 +64,7 @@ from app.services.exam_service import (
     update_exam,
     update_exam_analysis,
 )
-from app.services.unit_service import UnitError, _get_unit_or_404, add_source, add_source_url, assign_unit_to_profiles, create_unit, create_review_from_unit, create_unit_from_record, create_units, delete_source, delete_unit, get_record, get_unit, list_records, list_units, purge_source_file_keep_meta, update_unit, update_unit_flags, update_unit_profile
+from app.services.unit_service import UnitError, _get_unit_or_404, add_source, add_source_url, assign_unit_to_profiles, create_test_copy_from_unit, create_unit, create_review_from_unit, create_unit_from_record, create_units, delete_source, delete_unit, get_record, get_source_file, get_unit, list_records, list_units, purge_source_file_keep_meta, update_unit, update_unit_flags, update_unit_profile
 from app.services.pedagogy_service import extract_unit_pedagogy, get_unit_pedagogy
 from app.services.pdf_export_service import unit_worksheet_pdf
 from app.services.trainer_export_service import export_trainer_json, import_trainer_json
@@ -156,6 +156,17 @@ def units_create(
         if len(results) == 1:
             return results[0]
         return {"units": results, "created_count": len(results)}
+    except UnitError as exc:
+        db.rollback()
+        raise _http(exc) from exc
+
+
+@router.post("/{unit_id}/test-copy", status_code=status.HTTP_201_CREATED)
+def units_test_copy(unit_id: UUID, user: User = Depends(get_app_user), db: Session = Depends(get_db)):
+    try:
+        result = create_test_copy_from_unit(db, user, unit_id)
+        db.commit()
+        return result
     except UnitError as exc:
         db.rollback()
         raise _http(exc) from exc
@@ -405,6 +416,27 @@ async def units_upload_source(
         return result
     except UnitError as exc:
         db.rollback()
+        raise _http(exc) from exc
+
+
+@router.get("/{unit_id}/sources/{source_id}/file")
+def units_source_file(
+    unit_id: UUID,
+    source_id: UUID,
+    user: User = Depends(get_app_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        source, path = get_source_file(db, user, unit_id, source_id)
+        from app.core.crypto import decrypt_text_master
+
+        name = (
+            decrypt_text_master(source.original_name_encrypted)
+            if source.original_name_encrypted
+            else "quelle"
+        )
+        return FileResponse(path, media_type=source.content_type or "application/octet-stream", filename=name)
+    except UnitError as exc:
         raise _http(exc) from exc
 
 

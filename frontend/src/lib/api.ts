@@ -605,6 +605,61 @@ export const updateChildGuardians = (userId: string, parent_ids: string[]) =>
     json: { parent_ids },
   });
 
+export type PedagogyGoldenFixtureSummary = {
+  name: string;
+  editable: boolean;
+  ok: boolean;
+  min_method_labels?: number;
+  subject_hint?: string | null;
+  method_count?: number;
+  label_count?: number;
+  pattern_count?: number;
+  digest_preview?: string;
+  summary?: string | null;
+  error?: string;
+};
+
+export type PedagogyGoldenFixture = {
+  name: string;
+  editable: boolean;
+  content: Record<string, unknown>;
+  min_method_labels: number;
+  subject_hint?: string | null;
+};
+
+export type PedagogyGoldenRunResult = {
+  total: number;
+  passed: number;
+  failed: number;
+  fixtures: PedagogyGoldenFixtureSummary[];
+};
+
+export const fetchPedagogyGoldenFixtures = () =>
+  apiFetch<{ fixtures: PedagogyGoldenFixtureSummary[] }>("/api/v1/admin/pedagogy-golden");
+
+export const runPedagogyGoldenSuite = () =>
+  apiFetch<PedagogyGoldenRunResult>("/api/v1/admin/pedagogy-golden/run", { method: "POST" });
+
+export const fetchPedagogyGoldenFixture = (name: string) =>
+  apiFetch<PedagogyGoldenFixture>(`/api/v1/admin/pedagogy-golden/${encodeURIComponent(name)}`);
+
+export const savePedagogyGoldenFixture = (
+  name: string,
+  body: {
+    name: string;
+    content: Record<string, unknown>;
+    min_method_labels?: number;
+    subject_hint?: string | null;
+  },
+) =>
+  apiFetch<PedagogyGoldenFixture>(`/api/v1/admin/pedagogy-golden/${encodeURIComponent(name)}`, {
+    method: "PUT",
+    json: body,
+  });
+
+export const deletePedagogyGoldenFixture = (name: string) =>
+  apiFetch<void>(`/api/v1/admin/pedagogy-golden/${encodeURIComponent(name)}`, { method: "DELETE" });
+
 export const updateMySettings = (body: { display_name?: string }) =>
   apiFetch<User>("/api/v1/auth/me", { method: "PATCH", json: body });
 
@@ -678,6 +733,9 @@ export const assignUnitToProfiles = (unitId: string, profileIds: string[]) =>
     method: "POST",
     json: { profile_ids: profileIds },
   });
+
+export const createTestCopyUnit = (unitId: string) =>
+  apiFetch<LearningUnit>(`/api/v1/units/${unitId}/test-copy`, { method: "POST" });
 export type UnitPatchBody = {
   title?: string;
   brief?: string | null;
@@ -718,6 +776,10 @@ export const deleteSource = (unitId: string, sourceId: string) =>
   apiFetch<void>(`/api/v1/units/${unitId}/sources/${sourceId}`, { method: "DELETE" });
 export const purgeSource = (unitId: string, sourceId: string) =>
   apiFetch<UnitSource>(`/api/v1/units/${unitId}/sources/${sourceId}/purge`, { method: "POST" });
+
+export function sourceFileUrl(unitId: string, sourceId: string) {
+  return `${API_URL}/api/v1/units/${unitId}/sources/${sourceId}/file`;
+}
 
 export async function uploadExam(unitId: string, file: File, meta: ExamUploadMeta): Promise<ExamResult> {
   const form = new FormData();
