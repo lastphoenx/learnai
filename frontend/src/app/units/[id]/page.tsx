@@ -8,9 +8,11 @@ import { UnitAssignSection } from "@/components/UnitAssignSection";
 import { UnitDeleteDialog } from "@/components/UnitDeleteDialog";
 import { UnitEditDialog } from "@/components/UnitEditDialog";
 import { UnitExamSection } from "@/components/UnitExamSection";
+import { SourcePreviewModal } from "@/components/SourcePreviewModal";
 import {
   addSourceUrl,
   createReviewUnit,
+  createTestCopyUnit,
   reviewUnitHref,
   deleteSource,
   deleteUnit,
@@ -24,6 +26,7 @@ import {
   fetchQuizWeaknesses,
   patchUnit,
   purgeSource,
+  sourceFileUrl,
   speak,
   unitWorksheetPdfUrl,
   unitTrainerExportUrl,
@@ -83,6 +86,7 @@ export default function UnitDetailPage() {
   const [pedagogyBusy, setPedagogyBusy] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
+  const [previewSource, setPreviewSource] = useState<UnitSource | null>(null);
   const autogenStarted = useRef(false);
 
   function reload() {
@@ -365,11 +369,44 @@ export default function UnitDetailPage() {
               <p className="muted empty-hint">Noch keine Quellen hochgeladen.</p>
             ) : (
               <ul className="source-list">
-                {(unit.sources || []).map((s: UnitSource) => (
+                {(unit.sources || []).map((s: UnitSource) => {
+                  const isImage = s.kind === "image" || (s.content_type || "").startsWith("image/");
+                  return (
                   <li key={s.id} className="source-item">
+                    {s.has_file && isImage ? (
+                      <button
+                        type="button"
+                        className="source-thumb-btn"
+                        onClick={() => setPreviewSource(s)}
+                        aria-label={`${s.original_name || "Quelle"} anzeigen`}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          className="source-thumb"
+                          src={sourceFileUrl(unit.id, s.id)}
+                          alt=""
+                          loading="lazy"
+                        />
+                      </button>
+                    ) : s.has_file ? (
+                      <button
+                        type="button"
+                        className="source-thumb-btn source-thumb-placeholder"
+                        onClick={() => setPreviewSource(s)}
+                        aria-label={`${s.original_name || "Quelle"} anzeigen`}
+                      >
+                        {sourceKindLabel(s.kind)}
+                      </button>
+                    ) : (
+                      <div className="source-thumb-btn source-thumb-placeholder source-thumb-missing" aria-hidden>
+                        —
+                      </div>
+                    )}
                     <div className="source-meta">
                       <span className="badge badge-source">{sourceKindLabel(s.kind)}</span>
-                      <strong>{s.original_name || "Unbenannt"}</strong>
+                      <button type="button" className="source-name-btn" onClick={() => setPreviewSource(s)}>
+                        <strong>{s.original_name || "Unbenannt"}</strong>
+                      </button>
                       <span className="muted source-flags">
                         {!s.has_file && "Datei entfernt · "}
                         {s.has_extracted_text ? "Text extrahiert" : "Kein Text"}
@@ -377,33 +414,57 @@ export default function UnitDetailPage() {
                     </div>
                     <div className="source-actions">
                       {s.has_file && (
-                        <button type="button" className="btn-sm ghost" onClick={() => purgeSource(unit.id, s.id).then(reload)}>
+                        <button
+                          type="button"
+                          className="btn-sm ghost"
+                          title="Datei von der Platte entfernen — extrahierter Text bleibt für die KI"
+                          onClick={() => purgeSource(unit.id, s.id).then(reload)}
+                        >
                           Datei löschen
                         </button>
                       )}
-                      <button type="button" className="btn-sm ghost danger-text" onClick={() => deleteSource(unit.id, s.id).then(reload)}>
-                        Entfernen
+                      <button
+                        type="button"
+                        className="btn-sm ghost danger-text"
+                        title="Quelle vollständig entfernen (Datei + Text)"
+                        onClick={() => deleteSource(unit.id, s.id).then(reload)}
+                      >
+                        Quelle entfernen
                       </button>
                     </div>
                   </li>
-                ))}
+                  );
+                })}
               </ul>
             )}
           </section>
 
           {sourceCount > 0 && unit.task_type === "interactive" && (
-            <section className="card unit-section unit-pedagogy-section">
-              <div className="section-head">
-                <h2>Didaktik aus Quellen</h2>
-                {pedagogy?.has_pedagogy ? (
-                  <span className="badge badge-ready">Erkannt</span>
-                ) : (
-                  <span className="badge badge-neutral">Noch nicht gelesen</span>
-                )}
-              </div>
-              <p className="muted section-lead">
-                Lösungswege und Aufgabentypen aus dem Heft — Grundlage für Verstehen, Üben und Check.
-              </p>
+            <details className="card unit-section unit-pedagogy-section unit-pedagogy-collapsible" open={!pedagogy?.has_pedagogy}>
+              <summary className="unit-pedagogy-summary">
+                <span className="section-head unit-pedagogy-summary-head">
+                  <h2>Didaktik aus Quellen</h2>
+                  {pedagogy?.has_pedagogy ? (
+                    <span className="badge badge-ready">Erkannt</span>
+                  ) : (
+                    <span className="badge badge-neutral">Noch nicht gelesen</span>
+                  )}
+                </span>
+                <span className="muted section-lead unit-pedagogy-summary-lead">
+                  Lösungswege und Aufgabentypen aus dem Heft — Grundlage für Verstehen, Üben und Check.
+                  {pedagogy?.has_pedagogy && pedagogy.quality ? (
+                    <>
+                      {" "}
+                      ({pedagogy.quality.method_count} Strategien
+                      {pedagogy.quality.worked_with_steps != null
+                        ? `, ${pedagogy.quality.worked_with_steps} Beispiele`
+                        : ""}
+                      )
+                    </>
+                  ) : null}
+                </span>
+              </summary>
+              <div className="unit-pedagogy-body">
               {pedagogy?.has_pedagogy ? (
                 <>
                   {pedagogy.profile?.methods && pedagogy.profile.methods.length > 0 && (
@@ -466,7 +527,8 @@ export default function UnitDetailPage() {
                   {pedagogyBusy ? "Lese Quellen…" : pedagogy?.has_pedagogy ? "Didaktik aktualisieren" : "Didaktik einlesen"}
                 </button>
               </div>
-            </section>
+              </div>
+            </details>
           )}
 
           <UnitExamSection
@@ -635,6 +697,37 @@ export default function UnitDetailPage() {
                   </span>
                 )}
               </button>
+              {user && !user.is_child && (
+              <button
+                type="button"
+                className="action-tile"
+                disabled={busy}
+                onClick={async () => {
+                  if (
+                    !confirm(
+                      "Es wird eine Testkopie ohne Kind-Zuordnung erstellt — gleiche Quellen und Lernblöcke, aber kein Lernfortschritt des Kindes. Fortfahren?"
+                    )
+                  ) {
+                    return;
+                  }
+                  setBusy(true);
+                  setError(null);
+                  try {
+                    const copy = await createTestCopyUnit(unitId);
+                    router.push(`/units/${copy.id}`);
+                  } catch (err) {
+                    setError(err instanceof Error ? err.message : "Testkopie konnte nicht erstellt werden");
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+              >
+                <strong>Testkopie erstellen</strong>
+                <span className="muted">
+                  Für Geräte- und Layout-Tests — Fortschritt des Kindes bleibt unberührt
+                </span>
+              </button>
+              )}
               <button
                 type="button"
                 className="action-tile"
@@ -697,6 +790,14 @@ export default function UnitDetailPage() {
             onClose={() => setDeleteOpen(false)}
             onDelete={onDeleteUnit}
           />
+
+          {previewSource && (
+            <SourcePreviewModal
+              unitId={unitId}
+              source={previewSource}
+              onClose={() => setPreviewSource(null)}
+            />
+          )}
         </div>
       )}
     </main>

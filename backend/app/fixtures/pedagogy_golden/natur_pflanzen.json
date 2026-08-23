@@ -1,0 +1,28 @@
+{
+  "summary": "Pflanzenaufbau — Wurzel, Spross und Blatt erkennen und benennen.",
+  "is_metadata_only": false,
+  "methods": [
+    {
+      "label": "Schema beschriften",
+      "when": "Wenn ein Pflanzenschema vorgegeben ist",
+      "example": "Wurzel → Spross → Blatt"
+    },
+    {
+      "label": "Merksatz",
+      "when": "Zum Einprägen der Reihenfolge",
+      "example": "Von unten nach oben: Wurzel, Stängel, Blatt"
+    }
+  ],
+  "worked_examples": [
+    {
+      "problem": "Aufgabe 1: Beschrifte die Pflanze",
+      "method_label": "Schema beschriften",
+      "steps": ["Wurzel unten", "Stängel in der Mitte", "Blatt oben"]
+    }
+  ],
+  "exercises": [
+    {"ref": "2a", "text": "Welches Organ nimmt Wasser auf?", "suggested_method": "Schema beschriften"}
+  ],
+  "exercise_patterns": ["Pflanzenteile benennen", "Funktion zuordnen"],
+  "teaching_notes": ["Von der Wurzel nach oben arbeiten"]
+}

@@ -9,6 +9,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 
+from app.api.admin_pedagogy import router as admin_pedagogy_router
 from app.api.dashboard import router as dashboard_router
 from app.api.health import router as health_router
 from app.api.profiles import router as profiles_router
@@ -61,6 +62,7 @@ app.add_middleware(
 app.include_router(health_router, prefix="/api/v1")
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(users_router, prefix="/api/v1")
+app.include_router(admin_pedagogy_router, prefix="/api/v1")
 app.include_router(profiles_router, prefix="/api/v1")
 app.include_router(units_router, prefix="/api/v1")
 app.include_router(records_router, prefix="/api/v1")

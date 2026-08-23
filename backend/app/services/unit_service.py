@@ -296,6 +296,7 @@ def create_unit(
     auto_purge_sources: bool = False,
     profile_id: uuid.UUID | None = None,
     math_focus: str | None = None,
+    unassigned: bool = False,
 ) -> dict:
     if difficulty < 1 or difficulty > 5:
         raise UnitError("Schwierigkeit muss 1–5 sein", "invalid_difficulty")
@@ -307,8 +308,11 @@ def create_unit(
     effective_brief = augment_brief(brief, task_key=kind, math_focus=focus)
 
     learner_id = user.id
-    chosen_profile_id = profile_id or user.profile_id
-    if profile_id:
+    chosen_profile_id: uuid.UUID | None = None
+    if unassigned:
+        chosen_profile_id = None
+        learner_id = user.id
+    elif profile_id:
         profile = get_profile_for_actor(db, user, profile_id)
         chosen_profile_id = profile.id
         if profile.user_id:
@@ -520,6 +524,90 @@ def assign_unit_to_profiles(
         detail=f"copies={len(created)} modules_template={template_modules}",
     )
     return created
+
+
+def create_test_copy_from_unit(db: Session, user: User, unit_id: uuid.UUID) -> dict:
+    """Sandbox-Kopie ohne Kind-Zuordnung — gleiche Quellen/Blöcke, eigener (leerer) Fortschritt."""
+    if user.is_child:
+        raise UnitError("Nur für Eltern-Accounts", "forbidden")
+    unit = _get_unit_or_404(db, user, unit_id)
+    src_record = db.query(LearningRecord).filter(LearningRecord.unit_id == unit.id).first()
+
+    title = decrypt_text_master(unit.title_encrypted)
+    if not title.lower().startswith("test:"):
+        title = f"Test: {title}"
+    brief = decrypt_text_master(unit.brief_encrypted) if unit.brief_encrypted else None
+    math_focus = None
+    if src_record and src_record.reconstruction_encrypted:
+        src_recon = decrypt_json(src_record.reconstruction_encrypted)
+        if isinstance(src_recon, dict):
+            focus = (src_recon.get("math_focus") or "").strip()
+            math_focus = focus or None
+
+    result = create_unit(
+        db,
+        user,
+        title=title,
+        brief=brief,
+        subject=unit.subject,
+        language=unit.language,
+        target_age=unit.target_age,
+        difficulty=unit.difficulty,
+        task_type=unit.task_type or "mixed",
+        math_focus=math_focus,
+        auto_purge_sources=unit.auto_purge_sources,
+        unassigned=True,
+    )
+    new_unit = db.get(LearningUnit, uuid.UUID(result["id"]))
+    if not new_unit:
+        return result
+
+    _copy_sources(db, unit, new_unit)
+    new_record = db.query(LearningRecord).filter(LearningRecord.unit_id == new_unit.id).first()
+    if new_record:
+        _copy_template_metadata(
+            db,
+            from_unit=unit,
+            from_record=src_record,
+            to_unit=new_unit,
+            to_record=new_record,
+        )
+        dst_recon = decrypt_json(new_record.reconstruction_encrypted) or {}
+        if isinstance(dst_recon, dict):
+            dst_recon["sandbox_copy_of"] = str(unit.id)
+            new_record.reconstruction_encrypted = encrypt_json(dst_recon)
+
+    db.refresh(new_unit, attribute_names=["modules", "sources", "status"])
+    row = _dec_unit(new_unit)
+    _attach_template_fields(row, new_record)
+    log_event(
+        db,
+        tenant_id=user.tenant_id,
+        actor_id=user.id,
+        action="unit.test_copy",
+        resource_type="learning_unit",
+        resource_id=new_unit.id,
+        detail=f"from={unit.id}",
+    )
+    return row
+
+
+def get_source_file(
+    db: Session,
+    user: User,
+    unit_id: uuid.UUID,
+    source_id: uuid.UUID,
+) -> tuple[UnitSource, Path]:
+    unit = _get_unit_or_404(db, user, unit_id)
+    source = db.get(UnitSource, source_id)
+    if not source or source.unit_id != unit.id:
+        raise UnitError("Quelle nicht gefunden", "not_found")
+    if not source.storage_path or source.purged_at is not None:
+        raise UnitError("Datei nicht vorhanden", "not_found")
+    path = upload_dir() / source.storage_path
+    if not path.is_file():
+        raise UnitError("Datei nicht vorhanden", "not_found")
+    return source, path
 
 
 def create_unit_from_record(
