@@ -615,10 +615,17 @@ button.quiz-nav-jump {
   z-index: 1;
 }
 
-.quiz-nav-jump.correct {
+.quiz-nav-jump.correct,
+.quiz-nav-jump.known,
+button.quiz-nav-jump.correct,
+button.quiz-nav-jump.known,
+button.quiz-nav-jump.active.correct,
+button.quiz-nav-jump.active.known {
+  border-width: 2px;
   border-color: var(--accent);
   background: color-mix(in srgb, var(--accent) 22%, var(--card));
   color: var(--accent);
+  font-weight: 800;
 }
 
 .quiz-nav-jump.wrong {
@@ -627,28 +634,23 @@ button.quiz-nav-jump {
   color: var(--danger);
 }
 
-.quiz-nav-jump.active.correct {
+.quiz-nav-jump.review,
+button.quiz-nav-jump.review,
+button.quiz-nav-jump.active.review {
+  border-width: 2px;
+  border-color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 18%, var(--card));
+  color: var(--warn);
+  font-weight: 800;
+}
+
+.quiz-nav-jump.active.correct,
+.quiz-nav-jump.active.known {
   box-shadow: 0 0 0 2px var(--accent);
 }
 
 .quiz-nav-jump.active.wrong {
   box-shadow: 0 0 0 2px var(--danger);
-}
-
-.quiz-nav-jump.known {
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 22%, var(--card));
-  color: var(--accent);
-}
-
-.quiz-nav-jump.review {
-  border-color: var(--warn);
-  background: color-mix(in srgb, var(--warn) 18%, var(--card));
-  color: var(--warn);
-}
-
-.quiz-nav-jump.active.known {
-  box-shadow: 0 0 0 2px var(--accent);
 }
 
 .quiz-nav-jump.active.review {
@@ -665,6 +667,29 @@ button.quiz-nav-jump {
   flex-wrap: wrap;
   margin-top: 1.5rem;
   align-items: center;
+}
+
+.learn-actions .btn-review {
+  border-color: var(--warn);
+  color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 12%, var(--card));
+  font-weight: 700;
+}
+
+.learn-actions .btn-known {
+  font-weight: 700;
+}
+
+.quiz-result-line {
+  margin: 0 0 0.5rem;
+  font-weight: 800;
+  font-size: 1.08rem;
+  line-height: 1.4;
+}
+
+.trainer-flashcard-answer {
+  width: 100%;
+  text-align: left;
 }
 
 .learn-badge {
@@ -2457,6 +2482,20 @@ button.btn.action-tile {
   perspective: 1200px;
   margin: 1rem 0;
   width: 100%;
+}
+button.trainer-flashcard {
+  display: block;
+  min-height: 10rem;
+  padding: 1.25rem 1.1rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  text-align: center;
+  cursor: pointer;
+}
+button.trainer-flashcard.flipped {
+  text-align: left;
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
 }
 .trainer-flashcard-inner {
   position: relative;

@@ -142,7 +142,7 @@ def _parse_cards(text: str, expected: int) -> list[dict]:
         out.append(
             {
                 "question": q[:240],
-                "answer": a[:800],
+                "answer": a[:2000],
                 "tip": str(raw.get("tip") or "")[:240],
             }
         )
@@ -170,7 +170,7 @@ def _parse_card_list(raw_cards: object, *, kind: str, expected: int) -> list[dic
         item: dict = {
             "kind": kind,
             "question": q[:240],
-            "answer": a[:800],
+            "answer": a[:2000],
             "tip": str(raw.get("tip") or "")[:240],
         }
         if kind == "merk":

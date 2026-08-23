@@ -147,13 +147,10 @@ export function cardJumpClassName(
 ): string {
   let cls = "quiz-nav-jump";
   if (index === currentIndex) cls += " active";
-  if (opts.kind === "input") {
-    if (opts.status === "known") cls += " correct";
-    else if (opts.status === "review") cls += " wrong";
-  } else if (opts.status === "known") {
-    cls += " known";
+  if (opts.status === "known") {
+    cls += opts.kind === "input" ? " correct" : " correct known";
   } else if (opts.status === "review") {
-    cls += " review";
+    cls += opts.kind === "input" ? " wrong" : " review";
   }
   if (opts.deferred) cls += " deferred";
   return cls;
