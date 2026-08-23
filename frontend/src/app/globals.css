@@ -1331,6 +1331,11 @@ button.btn.action-tile {
   font-size: 0.88rem;
 }
 
+.unit-ref-badge {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  letter-spacing: 0.02em;
+}
+
 .admin-golden-report {
   margin: 0;
   padding: 0.85rem 1rem;
