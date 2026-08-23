@@ -8,9 +8,6 @@ import { METHOD_LABELS } from "@/lib/api";
 
 type Props = {
   question: string;
-  cardIndex: number;
-  total: number;
-  domain?: string;
   expectedMethod?: string;
   language?: string;
   sttProvider?: SttProvider;
@@ -25,15 +22,11 @@ type Props = {
     expected?: string | null;
   } | null;
   onSubmit: (answer: string, workedSolution?: string) => void;
-  onContinue: () => void;
   onSpeechError?: (message: string) => void;
 };
 
 export function CardInputExercise({
   question,
-  cardIndex,
-  total,
-  domain,
   expectedMethod,
   language = "de",
   sttProvider = "browser",
@@ -41,7 +34,6 @@ export function CardInputExercise({
   busy,
   result,
   onSubmit,
-  onContinue,
   onSpeechError,
 }: Props) {
   const [answer, setAnswer] = useState("");
@@ -55,10 +47,6 @@ export function CardInputExercise({
 
   return (
     <div className="card-input-exercise stack">
-      <p className="learn-quiz-meta muted">
-        Eingabe-Karte {cardIndex + 1} von {total}
-        {domain ? ` · ${domain}` : ""}
-      </p>
       <p className="learn-quiz-question">{question}</p>
       {expectedMethod && (
         <p className="muted card-method-hint">
@@ -122,40 +110,26 @@ export function CardInputExercise({
             disabled={busy || Boolean(result)}
           />
         </label>
-        {!result ? (
+        {!result && (
           <div className="card-input-actions">
             <button type="submit" className="btn-primary" disabled={busy || !answer.trim()}>
               Antwort prüfen
             </button>
           </div>
-        ) : (
-          <div className="card-input-actions">
-            <button type="button" className="btn-primary" onClick={onContinue} disabled={busy}>
-              Nächste Karte
-            </button>
-          </div>
         )}
       </form>
       {result && (
-        <div className={`learn-feedback ${result.correct ? "ok" : "bad"}`}>
+        <div className="quiz-answer-block">
           {result.correct ? (
-            <strong style={{ color: "var(--accent)" }}>Richtig!</strong>
+            <p className="quiz-verdict ok">Richtig!</p>
           ) : (
-            <strong style={{ color: "var(--danger)" }}>
+            <p className="quiz-verdict bad">
               {result.result_correct ? "Ergebnis passt — Lösungsweg noch ergänzen." : "Noch nicht ganz."}
-            </strong>
-          )}
-          {result.worked_feedback && (
-            <p className="muted" style={{ margin: "0.35rem 0 0" }}>
-              {result.worked_feedback}
             </p>
           )}
+          {result.worked_feedback && <p className="muted">{result.worked_feedback}</p>}
           {result.explanation && <QuizExplanation text={result.explanation} />}
-          {result.expected && (
-            <p className="muted" style={{ margin: "0.35rem 0 0" }}>
-              Lösung: {result.expected}
-            </p>
-          )}
+          {result.expected && <p className="muted">Lösung: {result.expected}</p>}
         </div>
       )}
     </div>
