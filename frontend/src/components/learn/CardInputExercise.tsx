@@ -2,7 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { SpeechInputButton } from "@/components/SpeechInputButton";
-import { formatQuizExplanation } from "@/lib/quizOption";
+import { QuizExplanation } from "@/components/learn/QuizExplanation";
 import type { SttProvider } from "@/lib/api";
 import { METHOD_LABELS } from "@/lib/api";
 
@@ -146,11 +146,7 @@ export function CardInputExercise({
               {result.worked_feedback}
             </p>
           )}
-          {result.explanation && (
-            <p className="muted quiz-explanation-text" style={{ margin: "0.35rem 0 0" }}>
-              {formatQuizExplanation(result.explanation)}
-            </p>
-          )}
+          {result.explanation && <QuizExplanation text={result.explanation} />}
           {result.expected && (
             <p className="muted" style={{ margin: "0.35rem 0 0" }}>
               Lösung: {result.expected}

@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.ai.source_pedagogy import build_pedagogy_digest, collect_pedagogy_from_unit_sources
 from app.core.crypto import decrypt_text_master
+from app.core.quiz_explanation import enrich_quiz_explanation, explanation_is_weak
 from app.models import LearningRecord, LearningUnit, User
 from app.services.crypto_json import decrypt_json
 from app.services.learn_service import learn_progress_for_unit
@@ -34,6 +35,7 @@ def _quiz_lines(quiz: dict, *, module_ref: str) -> list[str]:
         explanation = str(question.get("explanation") or "").strip()
         qtype = str(question.get("question_type") or "").strip()
         method_id = str(question.get("method_id") or question.get("method_label") or "").strip()
+        shown = enrich_quiz_explanation(question)
         lines.append(f"#### Quiz {module_ref}.{qi:02d}")
         if qtype:
             lines.append(f"- Typ: {qtype}")
@@ -44,8 +46,10 @@ def _quiz_lines(quiz: dict, *, module_ref: str) -> list[str]:
             for oi, opt in enumerate(options):
                 mark = " ✓" if answer == oi else ""
                 lines.append(f"  - [{chr(65 + oi)}]{mark} {opt}")
-        if explanation:
-            lines.append(f"- Erklärung: {explanation}")
+        if qtype != "method" and explanation and explanation_is_weak(explanation, qtext):
+            lines.append("- Warnung: gespeicherte Erklärung ohne ausgerechnete Zwischenschritte (Rezept).")
+        if shown:
+            lines.append(f"- Erklärung: {shown}")
         lines.append("")
     return lines
 
@@ -75,6 +79,12 @@ def _card_lines(content: dict, *, module_ref: str) -> list[str]:
 def _module_section(unit: LearningUnit, *, family: str, instance: str) -> list[str]:
     lines: list[str] = []
     modules = sorted(unit.modules or [], key=lambda m: m.order_index)
+    if not modules:
+        status = str(unit.status or "").strip() or "unbekannt"
+        return [
+            f"_Keine Module auf dieser Instanz (Status: {status} — noch nicht generiert oder draft)._",
+            "",
+        ]
     for mod in modules:
         order = mod.order_index + 1
         module_ref = f"{family}.{order:02d}"
