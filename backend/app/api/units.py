@@ -66,6 +66,7 @@ from app.services.exam_service import (
 )
 from app.services.unit_service import UnitError, _get_unit_or_404, add_source, add_source_url, assign_unit_to_profiles, create_unit, create_review_from_unit, create_unit_from_record, create_units, delete_source, delete_unit, get_record, get_unit, list_records, list_units, purge_source_file_keep_meta, update_unit, update_unit_flags, update_unit_profile
 from app.services.pedagogy_service import extract_unit_pedagogy, get_unit_pedagogy
+from app.services.pdf_export_service import unit_worksheet_pdf
 from app.services.trainer_export_service import export_trainer_json, import_trainer_json
 from app.ai.task_types import math_focus_public, task_types_public
 from app.ai.subject_focus import focus_groups_public
