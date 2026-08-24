@@ -44,12 +44,46 @@ def test_multiply_small_decimal_has_reihe_and_notes():
 def test_written_multiply_uses_algorithm_not_product_only():
     text = build_worked_solution("Wie löst du die Aufgabe 5 · 13.6 schriftlich?", 68.0)
     assert text is not None
-    assert "Variante 1 (schriftlich)" in text
+    assert "Variante 1 (Spaltenrechnung)" in text
     assert "5 × 136 = 680" in text
+    assert "merke" in text
     assert "Variante 2 (Zerlegung)" in text
     assert "5 × 13 = 65" in text
     assert "Dann 5 × 0,6 = 3" in text
     assert ", 5 ×" not in text
+
+
+def test_multiply_two_digit_uses_zehner_einer_and_column():
+    text = build_worked_solution("Was ergibt 24 · 9,36?", 224.64)
+    assert text is not None
+    assert "Variante 1 (Zerlegung Zehner/Einer)" in text
+    assert "24 = 20 + 4" in text
+    assert "20 × 9,36 = 187,2" in text
+    assert "Dann 4 × 9,36 = 37,44" in text
+    assert "187,2 + 37,44 = 224,64" in text
+    assert "Variante 2 (Spaltenrechnung)" in text
+    assert "24 × 936 = 22464" in text
+    assert "Mit den Einern (4)" in text
+    assert "merke" in text
+    assert "Mit den Zehnern (2)" in text
+    assert "3744 + 18720 = 22464" in text
+    assert "Variante 3 (Zerlegung)" in text
+    assert "9,36 = 9 + 0,36" in text
+
+
+def test_written_two_digit_puts_column_first():
+    text = build_worked_solution("Wie löst du 24 · 9,36 schriftlich?", 224.64)
+    assert text is not None
+    assert text.startswith("Variante 1 (Spaltenrechnung)")
+    assert "Variante 2 (Zerlegung Zehner/Einer)" in text
+    assert "24 = 20 + 4" in text
+
+
+def test_zehner_einer_skipped_when_ones_digit_zero():
+    text = build_worked_solution("Was ergibt 20 · 9,36?", 187.2)
+    assert text is not None
+    assert "Zerlegung Zehner/Einer" not in text
+    assert "schriftlich" in text or "Spaltenrechnung" in text
 
 
 def test_product_only_variant_is_weak():
