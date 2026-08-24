@@ -236,6 +236,46 @@ def _place_unit(decimals: int) -> str:
     return {1: "Zehntel", 2: "Hundertstel", 3: "Tausendstel"}.get(decimals, f"10⁻{decimals}-tel")
 
 
+_COLUMN_PLACES = ("Einer", "Zehner", "Hunderter", "Tausender", "Zehntausender", "Hunderttausender")
+
+
+def _column_place_name(index: int) -> str:
+    if 0 <= index < len(_COLUMN_PLACES):
+        return _COLUMN_PLACES[index]
+    return f"10^{index}-Stelle"
+
+
+def _integer_place_parts(n: int) -> list[int]:
+    """24 → [20, 4], 135 → [100, 30, 5]. Nullstellen entfallen."""
+    n = abs(n)
+    parts: list[int] = []
+    place = 1
+    while n:
+        digit = n % 10
+        if digit:
+            parts.append(digit * place)
+        n //= 10
+        place *= 10
+    parts.reverse()
+    return parts
+
+
+def _number_mul_variants(parts: list[str | None]) -> str:
+    numbered: list[str] = []
+    index = 1
+    for part in parts:
+        if not part:
+            continue
+        numbered.append(re.sub(r"^Variante \d+", f"Variante {index}", part.strip(), count=1))
+        index += 1
+    if not numbered:
+        return ""
+    text = numbered[0]
+    for extra in numbered[1:]:
+        text = _join_variants(text, extra)
+    return text
+
+
 def _find_scale_for_division(value: float, divisor: int, *, max_decimals: int = 4) -> tuple[int, int] | None:
     for decimals in range(0, max_decimals + 1):
         scaled = int(round(value * (10**decimals)))
@@ -380,6 +420,84 @@ def _question_mul_style(question: str) -> str:
     return "default"
 
 
+def _mul_by_digit_with_carry(top: int, digit: int) -> tuple[int, str]:
+    """Ziffer × mehrstellige Zahl, Überträge wie von Hand. Gibt (Teilprodukt, Text) zurück."""
+    if digit == 0:
+        return 0, f"{digit} × {top} = 0"
+    top_digits = [int(ch) for ch in reversed(str(top))]
+    steps: list[str] = []
+    written: list[str] = []
+    carry = 0
+    last = len(top_digits) - 1
+    for i, td in enumerate(top_digits):
+        prod = td * digit
+        total = prod + carry
+        place = _column_place_name(i)
+        if carry:
+            bit = f"{digit} × {td} ({place}) = {prod}, plus Übertrag {carry} = {total}"
+        else:
+            bit = f"{digit} × {td} ({place}) = {prod}"
+        if i == last:
+            bit += f" → schreibe {total}"
+            written.extend(reversed(str(total)))
+            carry = 0
+        else:
+            write = total % 10
+            carry = total // 10
+            if carry:
+                bit += f" → schreibe {write}, merke {carry}"
+            else:
+                bit += f" → schreibe {write}"
+            written.append(str(write))
+        steps.append(bit)
+    product = int("".join(reversed(written)))
+    return product, ". ".join(steps)
+
+
+def _mul_column_steps(a_int: int, b: float, result: float) -> str | None:
+    """Echte Spaltenmultiplikation mit Überträgen, danach Komma zurückschieben."""
+    if a_int <= 0 or b <= 0:
+        return None
+    decimals = _decimal_places(b)
+    if decimals < 1:
+        return None
+    top = int(round(b * (10**decimals)))
+    if top <= 0:
+        return None
+    raw = a_int * top
+    stelle = "Stelle" if decimals == 1 else "Stellen"
+    dez = "Dezimalstelle" if decimals == 1 else "Dezimalstellen"
+    bottom_digits = [int(ch) for ch in reversed(str(a_int))]
+    parts: list[str] = [
+        f"Variante 1 (Spaltenrechnung): Rechne ohne Komma: "
+        f"{_fmt_num(float(a_int))} × {top} = {_fmt_num(float(raw))}."
+    ]
+    partials: list[int] = []
+    for shift, digit in enumerate(bottom_digits):
+        if digit == 0:
+            continue
+        product, walk = _mul_by_digit_with_carry(top, digit)
+        shifted = product * (10**shift)
+        partials.append(shifted)
+        if shift == 0:
+            head = f"Mit den Einern ({digit}): {walk}. Teilprodukt: {product}."
+        else:
+            shift_word = "eine Stelle" if shift == 1 else f"{shift} Stellen"
+            head = (
+                f"Mit den {_column_place_name(shift)}n ({digit}), {shift_word} nach links: "
+                f"{walk}. Teilprodukt {product}, geschrieben als {shifted}."
+            )
+        parts.append(head)
+    if len(partials) > 1:
+        add_left = " + ".join(str(p) for p in partials)
+        parts.append(f"Addiere die Teilprodukte: {add_left} = {raw}.")
+    parts.append(
+        f"{_fmt_num(b)} hat {decimals} {dez} — Komma im Ergebnis "
+        f"{decimals} {stelle} nach links: {_fmt_num(result)}."
+    )
+    return " ".join(parts)
+
+
 def _mul_written_steps(a_int: int, b: float, result: float) -> str | None:
     decimals = _decimal_places(b)
     if decimals < 1:
@@ -455,6 +573,29 @@ def _mul_zerlegung_steps(a_int: int, b: float, result: float) -> str | None:
     )
 
 
+def _mul_zehner_einer_steps(a_int: int, b: float, result: float) -> str | None:
+    """Zerlegung des mehrstelligen Faktors, z. B. 24 = 20 + 4, beide × Dezimalzahl."""
+    if a_int <= 0 or b <= 0 or a_int % 10 == 0:
+        return None
+    parts = _integer_place_parts(a_int)
+    if len(parts) < 2:
+        return None
+    decimals = _decimal_places(b)
+    scaled_b = int(round(b * (10**decimals)))
+    label = "Zerlegung Zehner/Einer" if a_int < 100 else "Zerlegung Stellenwerte"
+    split = " + ".join(_fmt_num(float(p)) for p in parts)
+    bits = [f"Variante 1 ({label}): {_fmt_num(float(a_int))} = {split}."]
+    shown_parts: list[str] = []
+    for i, part in enumerate(parts):
+        shown = (part * scaled_b) / (10**decimals)
+        shown_s = _fmt_num(shown)
+        shown_parts.append(shown_s)
+        eq = f"{_fmt_num(float(part))} × {_fmt_num(b)} = {shown_s}."
+        bits.append(eq if i == 0 else f"Dann {eq}")
+    bits.append(f"Zusammen: {' + '.join(shown_parts)} = {_fmt_num(result)}.")
+    return " ".join(bits)
+
+
 def _mul_alternative_steps(a: float, b: float, result: float) -> str | None:
     """Dritter Weg über Stellenwert-Zerlegung, z. B. 250,1 → (20+5)×10 + 0,1."""
     if abs(a - round(a)) >= 1e-6:
@@ -501,24 +642,23 @@ def _mul_steps(a: float, b: float, result: float, *, question: str = "") -> str:
         if abs(frac) < 1e-9:
             return f"Rechnung: {a_s} × {b_s} = {r_s}."
         written = _mul_written_steps(a_int, b, result)
+        column = _mul_column_steps(a_int, b, result)
         kopf = _mul_kopf_steps(a_int, b, result)
         zerlegung = _mul_zerlegung_steps(a_int, b, result)
+        zehner = _mul_zehner_einer_steps(a_int, b, result)
         place = _mul_alternative_steps(float(a_int), b, result)
         style = _question_mul_style(question)
-        if style == "written" and written:
-            primary, alt = written, zerlegung
+        if style == "written":
+            variants = [column or written, zehner or zerlegung]
         elif style == "mental":
-            primary, alt = kopf, written or zerlegung
+            variants = [kopf, zehner or written or zerlegung]
+        elif zehner:
+            variants = [zehner, column or written, zerlegung]
         else:
-            primary, alt = written or kopf, zerlegung
-        if alt and alt.startswith("Variante 1"):
-            alt = re.sub(r"^Variante 1", "Variante 2", alt, count=1)
-        text = primary
-        if alt:
-            text = _join_variants(text, alt)
+            variants = [written or kopf, zerlegung]
         if place:
-            text = _join_variants(text, place)
-        return text
+            variants.append(place)
+        return _number_mul_variants(variants) or f"Rechnung: {a_s} × {b_s} = {r_s}."
     return f"Rechnung: {a_s} × {b_s} = {r_s}."
 
 
