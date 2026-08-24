@@ -1,8 +1,10 @@
 from app.core.quiz_explanation import (
     build_worked_solution,
+    complete_method_explanation,
     enrich_quiz_explanation,
     explanation_has_derivation,
     explanation_is_weak,
+    method_explanation_incomplete,
     parse_arithmetic_operands,
 )
 
@@ -46,7 +48,8 @@ def test_written_multiply_uses_algorithm_not_product_only():
     assert text is not None
     assert "Variante 1 (Spaltenrechnung)" in text
     assert "5 × 136 = 680" in text
-    assert "merke" in text
+    assert "<<spalten:" in text
+    assert '"kind":"column_mul"' in text
     assert "Variante 2 (Zerlegung)" in text
     assert "5 × 13 = 65" in text
     assert "Dann 5 × 0,6 = 3" in text
@@ -63,10 +66,8 @@ def test_multiply_two_digit_uses_zehner_einer_and_column():
     assert "187,2 + 37,44 = 224,64" in text
     assert "Variante 2 (Spaltenrechnung)" in text
     assert "24 × 936 = 22464" in text
-    assert "Mit den Einern (4)" in text
-    assert "merke" in text
-    assert "Mit den Zehnern (2)" in text
-    assert "3744 + 18720 = 22464" in text
+    assert "<<spalten:" in text
+    assert "3744" in text and "18720" in text
     assert "Variante 3 (Zerlegung)" in text
     assert "9,36 = 9 + 0,36" in text
 
@@ -222,12 +223,46 @@ def test_enrich_keeps_strong_multi_variant():
     assert enrich_quiz_explanation(q) == explanation
 
 
-def test_enrich_keeps_method_question():
+def test_enrich_completes_method_question_with_sum():
+    q = {
+        "q": "Wie löst du die Aufgabe 15 · 6.28 mit der Zerlegungsmethode?",
+        "options": [
+            "Zerlege 15 in 10 und 5, dann berechne: 10 · 6.28 = 62.8 und 5 · 6.28 = 31.4.",
+            "Zerlege 15 in 9 und 6",
+        ],
+        "answer": 0,
+        "explanation": (
+            "Die Zerlegungsmethode vereinfacht die Multiplikation, indem man eine Zahl "
+            "in kleinere Teile zerlegt: Zerlege 15 in 10 und 5, dann berechne: "
+            "10 · 6.28 = 62.8 und 5 · 6.28 = 31.4."
+        ),
+        "question_type": "method",
+    }
+    assert method_explanation_incomplete(q["explanation"], q["q"], q)
+    enriched = enrich_quiz_explanation(q)
+    assert "62,8 + 31,4 = 94,2" in enriched
+    assert enriched.startswith("Die Zerlegungsmethode")
+
+
+def test_enrich_completes_method_mentions_without_stated_products():
     q = {
         "q": "Welches Vorgehen passt zu 24 · 9,36?",
         "options": ["Zerlegung", "Im Kopf", "Nur schätzen", "Raten"],
         "answer": 0,
         "explanation": "Zerlegung in 20·9,36 und 4·9,36 — wie im Heft gezeigt.",
+        "question_type": "method",
+    }
+    filled = complete_method_explanation(q["explanation"], q["q"], q)
+    assert "187,2 + 37,44 = 224,64" in filled
+    assert enrich_quiz_explanation(q) == filled
+
+
+def test_enrich_keeps_qualitative_method_question():
+    q = {
+        "q": "Welches Vorgehen passt bei großen Zahlen?",
+        "options": ["Schriftlich", "Raten"],
+        "answer": 0,
+        "explanation": "Schriftlich rechnen, weil Kopfrechnen unsicher wird.",
         "question_type": "method",
     }
     assert enrich_quiz_explanation(q) == q["explanation"]

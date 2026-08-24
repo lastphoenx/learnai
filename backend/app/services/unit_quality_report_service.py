@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.ai.source_pedagogy import build_pedagogy_digest, collect_pedagogy_from_unit_sources
 from app.core.crypto import decrypt_text_master
-from app.core.quiz_explanation import enrich_quiz_explanation, explanation_is_weak
+from app.core.quiz_explanation import enrich_quiz_explanation, explanation_is_weak, method_explanation_incomplete
 from app.models import LearningRecord, LearningUnit, User
 from app.services.crypto_json import decrypt_json
 from app.services.learn_service import learn_progress_for_unit
@@ -46,7 +46,10 @@ def _quiz_lines(quiz: dict, *, module_ref: str) -> list[str]:
             for oi, opt in enumerate(options):
                 mark = " ✓" if answer == oi else ""
                 lines.append(f"  - [{chr(65 + oi)}]{mark} {opt}")
-        if qtype != "method" and explanation and explanation_is_weak(explanation, qtext):
+        if explanation and (
+            (qtype == "method" and method_explanation_incomplete(explanation, qtext, question))
+            or (qtype != "method" and explanation_is_weak(explanation, qtext))
+        ):
             lines.append("- Warnung: gespeicherte Erklärung ohne ausgerechnete Zwischenschritte (Rezept).")
         if shown:
             lines.append(f"- Erklärung: {shown}")
