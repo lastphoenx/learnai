@@ -27,7 +27,7 @@ def test_multiply_worked_solution():
 def test_multiply_simple():
     text = build_worked_solution("Was ergibt sich aus der Multiplikation von 9 · 5.82?", 52.38)
     assert text is not None
-    assert "schriftlich" in text
+    assert "Spaltenrechnung" in text
     assert "582" in text
     assert "52,38" in text
     assert "Variante 2 (Zerlegung)" in text
@@ -78,6 +78,15 @@ def test_written_two_digit_puts_column_first():
     assert text.startswith("Variante 1 (Spaltenrechnung)")
     assert "Variante 2 (Zerlegung Zehner/Einer)" in text
     assert "24 = 20 + 4" in text
+
+
+def test_notes_question_puts_zerlegung_first_and_column_second():
+    text = build_worked_solution("Wie löst du die Aufgabe 9 · 7.2 mit Notizen?", 64.8)
+    assert text is not None
+    assert text.startswith("Variante 1 (Zerlegung)")
+    assert "7,2 = 7 + 0,2" in text
+    assert "Variante 2 (Spaltenrechnung)" in text
+    assert "<<spalten:" in text
 
 
 def test_zehner_einer_skipped_when_ones_digit_zero():

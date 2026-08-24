@@ -52,9 +52,11 @@ export function ColumnMulGrid({ layout }: { layout: ColumnMulLayout }) {
         <Row op="" cells={top} className="mul-column-digit" />
         <Row op="×" cells={bottom} className="mul-column-digit" />
         <span className="mul-column-rule" style={{ gridColumn: `1 / span ${cols}` }} />
-        {partials.map((row, i) => (
-          <Row key={`p-${i}`} op={i === 0 ? "" : "+"} cells={row} className="mul-column-digit" />
-        ))}
+        {partials.length > 1
+          ? partials.map((row, i) => (
+              <Row key={`p-${i}`} op={i === 0 ? "" : "+"} cells={row} className="mul-column-digit" />
+            ))
+          : null}
         {partials.length > 1 ? (
           <span className="mul-column-rule" style={{ gridColumn: `1 / span ${cols}` }} />
         ) : null}
