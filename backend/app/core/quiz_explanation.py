@@ -27,6 +27,7 @@ _STEP_COMMA = re.compile(
 )
 _WRITTEN_HINT = re.compile(r"schriftlich", re.I)
 _MENTAL_HINT = re.compile(r"im kopf|kopfrechn", re.I)
+_NOTES_HINT = re.compile(r"notiz", re.I)
 _PARSE_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     (
         "mul",
@@ -412,6 +413,8 @@ def _question_mul_style(question: str) -> str:
         return "written"
     if _MENTAL_HINT.search(text):
         return "mental"
+    if _NOTES_HINT.search(text):
+        return "notes"
     return "default"
 
 
@@ -643,10 +646,12 @@ def _mul_steps(a: float, b: float, result: float, *, question: str = "") -> str:
             variants = [column or written, zehner or zerlegung]
         elif style == "mental":
             variants = [kopf, zehner or written or zerlegung]
+        elif style == "notes":
+            variants = [zehner or zerlegung, column or written]
         elif zehner:
             variants = [zehner, column or written, zerlegung]
         else:
-            variants = [written or kopf, zerlegung]
+            variants = [column or written or kopf, zerlegung]
         if place:
             variants.append(place)
         return _number_mul_variants(variants) or f"Rechnung: {a_s} × {b_s} = {r_s}."
