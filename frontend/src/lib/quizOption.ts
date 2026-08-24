@@ -20,7 +20,35 @@ export type QuizExplanationVariant = {
   body: string;
 };
 
+export type ColumnMulLayout = {
+  kind: "column_mul";
+  top: string;
+  bottom: string;
+  carries: string[];
+  partials: string[];
+  total: string;
+  decimals: number;
+  result: string;
+};
+
 const VARIANT_HEAD = /Variante\s+(\d+)\s*(?:\(([^)]*)\))?\s*:/gi;
+const COLUMN_MUL_MARK = /<<spalten:(\{[\s\S]*?\})>>/;
+
+export function extractColumnMul(text: string): { layout: ColumnMulLayout | null; rest: string } {
+  const src = text || "";
+  const match = src.match(COLUMN_MUL_MARK);
+  if (!match) return { layout: null, rest: src.trim() };
+  try {
+    const parsed = JSON.parse(match[1]) as ColumnMulLayout;
+    if (parsed?.kind !== "column_mul" || !parsed.top || !parsed.bottom) {
+      return { layout: null, rest: src.trim() };
+    }
+    const rest = `${src.slice(0, match.index ?? 0)}${src.slice((match.index ?? 0) + match[0].length)}`;
+    return { layout: parsed, rest: rest.replace(/\s+/g, " ").trim() };
+  } catch {
+    return { layout: null, rest: src.trim() };
+  }
+}
 
 export function splitQuizExplanation(text: string): {
   preamble: string;

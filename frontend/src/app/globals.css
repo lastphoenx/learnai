@@ -500,6 +500,50 @@ button:disabled {
   margin-top: 0.3rem;
 }
 
+.mul-column-wrap {
+  margin: 0.45rem 0 0.2rem;
+}
+
+.mul-column {
+  display: grid;
+  width: max-content;
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: 1.12rem;
+  line-height: 1.2;
+  gap: 0.08rem 0.1rem;
+  text-align: center;
+}
+
+.mul-column-digit,
+.mul-column-op,
+.mul-column-carry {
+  min-height: 1.15em;
+}
+
+.mul-column-carry {
+  font-size: 0.72em;
+  font-weight: 700;
+  color: var(--warn);
+  line-height: 1;
+  padding-bottom: 0.15em;
+}
+
+.mul-column-op {
+  font-weight: 650;
+  color: var(--muted);
+}
+
+.mul-column-rule {
+  border-top: 2px solid var(--fg);
+  margin: 0.12rem 0 0.18rem;
+}
+
+.mul-column-total {
+  font-weight: 800;
+}
+
 .trainer-quiz,
 .trainer-cards {
   max-width: 36rem;

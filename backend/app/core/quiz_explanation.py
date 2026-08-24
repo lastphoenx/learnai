@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 
 from app.core.quiz_numeric import try_compute_from_question
@@ -16,6 +17,9 @@ _WEAK_EXPLANATION = re.compile(
 )
 _EQUATION = re.compile(
     rf"{_NUM}\s*(?:{_OP_SYMBOL}|[+\-−]|[:÷/])\s*{_NUM}\s*=\s*{_NUM}",
+)
+_MUL_MENTION = re.compile(
+    rf"({_NUM})\s*(?:{_OP_SYMBOL})\s*({_NUM})(?:\s*=\s*({_NUM}))?",
 )
 _VARIANT_SPLIT = re.compile(r"(?=Variante\s+\d+\s*(?:\([^)]*\))?\s*:)", re.I)
 _STEP_COMMA = re.compile(
@@ -236,15 +240,6 @@ def _place_unit(decimals: int) -> str:
     return {1: "Zehntel", 2: "Hundertstel", 3: "Tausendstel"}.get(decimals, f"10⁻{decimals}-tel")
 
 
-_COLUMN_PLACES = ("Einer", "Zehner", "Hunderter", "Tausender", "Zehntausender", "Hunderttausender")
-
-
-def _column_place_name(index: int) -> str:
-    if 0 <= index < len(_COLUMN_PLACES):
-        return _COLUMN_PLACES[index]
-    return f"10^{index}-Stelle"
-
-
 def _integer_place_parts(n: int) -> list[int]:
     """24 → [20, 4], 135 → [100, 30, 5]. Nullstellen entfallen."""
     n = abs(n)
@@ -420,42 +415,34 @@ def _question_mul_style(question: str) -> str:
     return "default"
 
 
-def _mul_by_digit_with_carry(top: int, digit: int) -> tuple[int, str]:
-    """Ziffer × mehrstellige Zahl, Überträge wie von Hand. Gibt (Teilprodukt, Text) zurück."""
+def _mul_by_digit_with_carry(top: int, digit: int) -> tuple[int, list[str]]:
+    """Ziffer × mehrstellige Zahl. Gibt (Teilprodukt, Überträge LTR über den Top-Ziffern) zurück."""
+    n = len(str(top))
     if digit == 0:
-        return 0, f"{digit} × {top} = 0"
+        return 0, [""] * n
     top_digits = [int(ch) for ch in reversed(str(top))]
-    steps: list[str] = []
     written: list[str] = []
+    carries_from_right: list[str] = [""] * n
     carry = 0
-    last = len(top_digits) - 1
+    last = n - 1
     for i, td in enumerate(top_digits):
-        prod = td * digit
-        total = prod + carry
-        place = _column_place_name(i)
-        if carry:
-            bit = f"{digit} × {td} ({place}) = {prod}, plus Übertrag {carry} = {total}"
-        else:
-            bit = f"{digit} × {td} ({place}) = {prod}"
+        total = td * digit + carry
         if i == last:
-            bit += f" → schreibe {total}"
             written.extend(reversed(str(total)))
             carry = 0
         else:
             write = total % 10
             carry = total // 10
-            if carry:
-                bit += f" → schreibe {write}, merke {carry}"
-            else:
-                bit += f" → schreibe {write}"
             written.append(str(write))
-        steps.append(bit)
+            if carry:
+                carries_from_right[i + 1] = str(carry)
     product = int("".join(reversed(written)))
-    return product, ". ".join(steps)
+    carries_ltr = list(reversed(carries_from_right))
+    return product, carries_ltr
 
 
 def _mul_column_steps(a_int: int, b: float, result: float) -> str | None:
-    """Echte Spaltenmultiplikation mit Überträgen, danach Komma zurückschieben."""
+    """Spaltenmultiplikation: Kurztext plus strukturierte Darstellung für das Frontend."""
     if a_int <= 0 or b <= 0:
         return None
     decimals = _decimal_places(b)
@@ -468,34 +455,38 @@ def _mul_column_steps(a_int: int, b: float, result: float) -> str | None:
     stelle = "Stelle" if decimals == 1 else "Stellen"
     dez = "Dezimalstelle" if decimals == 1 else "Dezimalstellen"
     bottom_digits = [int(ch) for ch in reversed(str(a_int))]
-    parts: list[str] = [
-        f"Variante 1 (Spaltenrechnung): Rechne ohne Komma: "
-        f"{_fmt_num(float(a_int))} × {top} = {_fmt_num(float(raw))}."
-    ]
     partials: list[int] = []
+    carries: list[str] = [""] * len(str(top))
     for shift, digit in enumerate(bottom_digits):
         if digit == 0:
             continue
-        product, walk = _mul_by_digit_with_carry(top, digit)
+        product, row_carries = _mul_by_digit_with_carry(top, digit)
         shifted = product * (10**shift)
         partials.append(shifted)
         if shift == 0:
-            head = f"Mit den Einern ({digit}): {walk}. Teilprodukt: {product}."
-        else:
-            shift_word = "eine Stelle" if shift == 1 else f"{shift} Stellen"
-            head = (
-                f"Mit den {_column_place_name(shift)}n ({digit}), {shift_word} nach links: "
-                f"{walk}. Teilprodukt {product}, geschrieben als {shifted}."
-            )
-        parts.append(head)
+            carries = row_carries
+    payload = {
+        "kind": "column_mul",
+        "top": str(top),
+        "bottom": str(a_int),
+        "carries": carries,
+        "partials": [str(p) for p in partials],
+        "total": str(raw),
+        "decimals": decimals,
+        "result": _fmt_num(result),
+    }
+    marker = f"<<spalten:{json.dumps(payload, separators=(',', ':'))}>>"
+    bits = [
+        f"Variante 1 (Spaltenrechnung): {marker}",
+        f"Rechne ohne Komma: {_fmt_num(float(a_int))} × {top} = {_fmt_num(float(raw))}.",
+    ]
     if len(partials) > 1:
-        add_left = " + ".join(str(p) for p in partials)
-        parts.append(f"Addiere die Teilprodukte: {add_left} = {raw}.")
-    parts.append(
+        bits.append(f"Teilprodukte: {' + '.join(str(p) for p in partials)} = {raw}.")
+    bits.append(
         f"{_fmt_num(b)} hat {decimals} {dez} — Komma im Ergebnis "
         f"{decimals} {stelle} nach links: {_fmt_num(result)}."
     )
-    return " ".join(parts)
+    return " ".join(bits)
 
 
 def _mul_written_steps(a_int: int, b: float, result: float) -> str | None:
@@ -742,13 +733,112 @@ def _merge_explanations(primary: str, secondary: str, *, question: str) -> str:
     return _join_variants(primary, secondary)
 
 
+def _near(a: float, b: float) -> bool:
+    return abs(a - b) < 1e-3
+
+
+def _closes_with_expected(text: str, expected: float) -> bool:
+    stripped = str(text or "").rstrip()
+    if not stripped:
+        return False
+    closing = re.search(
+        rf"(?:zusammen|ergebnis|gesamt)\s*:?\s*.*?=\s*({_NUM})\s*\.?\s*$",
+        stripped,
+        re.I | re.S,
+    )
+    if closing and _near(_to_float(closing.group(1)), expected):
+        return True
+    tail_eq = re.search(rf"=\s*({_NUM})\s*\.?\s*$", stripped)
+    if tail_eq and _near(_to_float(tail_eq.group(1)), expected):
+        eqs = list(_EQUATION.finditer(stripped))
+        if eqs:
+            last_nums = re.findall(_NUM, eqs[-1].group(0))
+            if last_nums and _near(_to_float(last_nums[-1]), expected):
+                return True
+        elif _near(_to_float(tail_eq.group(1)), expected):
+            return True
+    return False
+
+
+def _decomp_partial_products(text: str, a: float, b: float) -> list[float]:
+    """Teilprodukte einer Zehner/Einer-Zerlegung, z. B. 10·6,28 und 5·6,28."""
+    seen: set[tuple[float, float]] = set()
+    pieces_a: list[float] = []
+    prods_a: list[float] = []
+    pieces_b: list[float] = []
+    prods_b: list[float] = []
+    for match in _MUL_MENTION.finditer(text or ""):
+        x, y = _to_float(match.group(1)), _to_float(match.group(2))
+        key = (round(x, 6), round(y, 6))
+        swapped = (key[1], key[0])
+        if key in seen or swapped in seen:
+            continue
+        seen.add(key)
+        if (_near(x, a) and _near(y, b)) or (_near(x, b) and _near(y, a)):
+            continue
+        stated = _to_float(match.group(3)) if match.group(3) else None
+        prod = stated if stated is not None else x * y
+        if _near(y, b):
+            pieces_a.append(x)
+            prods_a.append(prod)
+        elif _near(x, b):
+            pieces_a.append(y)
+            prods_a.append(prod)
+        elif _near(y, a):
+            pieces_b.append(x)
+            prods_b.append(prod)
+        elif _near(x, a):
+            pieces_b.append(y)
+            prods_b.append(prod)
+    if len(pieces_a) >= 2 and _near(sum(pieces_a), a):
+        return prods_a
+    if len(pieces_b) >= 2 and _near(sum(pieces_b), b):
+        return prods_b
+    return []
+
+
+def complete_method_explanation(text: str, question: str, q: dict | None = None) -> str:
+    """Hängt die fehlende Summe an eine Strategiewahl-Herleitung, wenn berechenbar."""
+    original = str(text or "").strip()
+    parsed = parse_arithmetic_operands(question)
+    if not parsed or parsed[0] != "mul":
+        return original
+    _, a, b = parsed
+    expected = a * b
+    corpus = original
+    if q:
+        options = q.get("options") or []
+        answer = q.get("answer")
+        if isinstance(options, list) and isinstance(answer, int) and 0 <= answer < len(options):
+            opt = str(options[answer] or "").strip()
+            if opt and opt not in original:
+                corpus = f"{original}\n{opt}"
+    if _closes_with_expected(original, expected) or _closes_with_expected(corpus, expected):
+        return original
+    products = _decomp_partial_products(corpus, a, b) or _decomp_partial_products(original, a, b)
+    if len(products) < 2 or not _near(sum(products), expected):
+        return original
+    line = f"Zusammen: {' + '.join(_fmt_num(p) for p in products)} = {_fmt_num(expected)}."
+    if _fmt_num(expected) in original.replace(".", ",") and "zusammen" in original.lower():
+        return original
+    return f"{original.rstrip('. ')}. {line}"
+
+
+def method_explanation_incomplete(text: str, question: str, q: dict | None = None) -> bool:
+    original = str(text or "").strip()
+    return complete_method_explanation(original, question, q) != original
+
+
 def enrich_quiz_explanation(q: dict) -> str:
     question = str(q.get("q") or "")
     original = str(q.get("explanation") or "").strip()
     q_type = str(q.get("question_type") or "").strip().lower()
 
     if q_type == "method":
-        return original or "Wähle den Lösungsweg, der zur Aufgabe am besten passt."
+        filled = complete_method_explanation(original, question, q)
+        return _clarify_step_separators(
+            filled or "Wähle den Lösungsweg, der zur Aufgabe am besten passt."
+        )
 
     worked = build_worked_solution(question)
 
