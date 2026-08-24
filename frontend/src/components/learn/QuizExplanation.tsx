@@ -1,6 +1,17 @@
 "use client";
 
-import { splitQuizExplanation } from "@/lib/quizOption";
+import { ColumnMulGrid } from "@/components/learn/ColumnMulGrid";
+import { extractColumnMul, splitQuizExplanation } from "@/lib/quizOption";
+
+function VariantBody({ text }: { text: string }) {
+  const { layout, rest } = extractColumnMul(text);
+  return (
+    <>
+      {layout ? <ColumnMulGrid layout={layout} /> : null}
+      {rest ? <p className="muted quiz-explanation-text">{rest}</p> : null}
+    </>
+  );
+}
 
 export function QuizExplanation({ text }: { text: string }) {
   const { preamble, variants } = splitQuizExplanation(text);
@@ -11,7 +22,7 @@ export function QuizExplanation({ text }: { text: string }) {
     return (
       <div className="quiz-explanation">
         {preamble ? <p className="quiz-result-line">{preamble}</p> : null}
-        <p className="muted quiz-explanation-text">{variants[0]?.body}</p>
+        <VariantBody text={variants[0]?.body || ""} />
       </div>
     );
   }
@@ -30,7 +41,7 @@ export function QuizExplanation({ text }: { text: string }) {
               {variant.label ? ` (${variant.label})` : ""}
             </span>
           </div>
-          <p className="muted quiz-explanation-text">{variant.body}</p>
+          <VariantBody text={variant.body} />
         </div>
       ))}
     </div>
