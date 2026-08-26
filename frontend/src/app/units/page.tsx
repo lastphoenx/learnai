@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { fetchMe, fetchUnits, importTrainerJson, type LearningUnit, type User } from "@/lib/api";
+import { warmupSpeechInput } from "@/lib/speechWarmup";
 import { FALLBACK_TASK_TYPES, languageLabel, taskTypeLabel } from "@/lib/taskTypes";
 
 function statusBadge(status: string) {
@@ -111,7 +112,11 @@ export default function UnitsPage() {
           und Ergebnisse bleiben.
         </p>
         <p style={{ margin: 0, display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "center" }}>
-          <Link className="btn btn-primary" href="/units/new">
+          <Link
+            className="btn btn-primary"
+            href="/units/new"
+            onClick={() => warmupSpeechInput({ language: "de" })}
+          >
             Neue Einheit
           </Link>
           <label className="btn ghost" style={{ cursor: "pointer", margin: 0 }}>

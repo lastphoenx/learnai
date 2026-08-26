@@ -138,7 +138,11 @@ def units_create(
     db: Session = Depends(get_db),
 ):
     try:
-        profile_ids = [UUID(x) for x in body.profile_ids] if body.profile_ids else None
+        try:
+            profile_ids = [UUID(x) for x in body.profile_ids] if body.profile_ids else None
+            profile_id = UUID(body.profile_id) if body.profile_id else None
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Ungültige Profil-ID") from None
         results = create_units(
             db,
             user,
@@ -151,7 +155,7 @@ def units_create(
             task_type=body.task_type,
             math_focus=body.math_focus,
             auto_purge_sources=body.auto_purge_sources,
-            profile_id=UUID(body.profile_id) if body.profile_id else None,
+            profile_id=profile_id,
             profile_ids=profile_ids,
         )
         db.commit()

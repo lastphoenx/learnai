@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import os
 import re
+import struct
+import tempfile
 from html.parser import HTMLParser
 from io import BytesIO
 from pathlib import Path
@@ -178,6 +181,36 @@ def transcribe_audio(path: Path, *, language: str = "de", provider: str | None =
     if name == "openai":
         return _transcribe_whisper_openai(path, language=language)
     raise LlmError(f"Unbekannter STT-Provider: {name}", "bad_stt_provider")
+
+
+def _silent_wav_bytes(*, duration_ms: int = 80, rate: int = 16000) -> bytes:
+    frames = max(1, rate * duration_ms // 1000)
+    data = b"\x00\x00" * frames
+    header = b"RIFF" + struct.pack("<I", 36 + len(data)) + b"WAVEfmt "
+    header += struct.pack("<IHHIIHH", 16, 1, 1, rate, rate * 2, 2, 16)
+    return header + b"data" + struct.pack("<I", len(data)) + data
+
+
+def warmup_stt(provider: str | None = None) -> dict:
+    """Lädt lokales Whisper vor. Browser/OpenAI brauchen keinen Server-Modellload."""
+    name = (provider or "").strip().lower() or _default_server_stt_provider()
+    if name in {"browser", "anthropic", "openai"}:
+        return {"ok": True, "provider": name}
+    if name == "local" and not _whisper_transcription_url():
+        return {"ok": False, "provider": name, "error": "WHISPER_URL fehlt"}
+    handle, tmp_name = tempfile.mkstemp(suffix=".wav")
+    tmp_path = Path(tmp_name)
+    try:
+        os.close(handle)
+        tmp_path.write_bytes(_silent_wav_bytes())
+        transcribe_audio(tmp_path, language="de", provider=name)
+        return {"ok": True, "provider": name}
+    except LlmError as exc:
+        return {"ok": False, "provider": name, "error": exc.message}
+    except Exception as exc:
+        return {"ok": False, "provider": name, "error": str(exc)[:200]}
+    finally:
+        tmp_path.unlink(missing_ok=True)
 
 
 def fetch_url_text(url: str, *, max_bytes: int = 2_000_000) -> str:
