@@ -369,7 +369,7 @@ def create_unit(
         chosen_profile_id = profile.id
         if profile.user_id:
             learner_id = profile.user_id
-    elif user.profile_id:
+    elif user.is_child and user.profile_id:
         profile = _managed_profile(db, user, user.profile_id)
         chosen_profile_id = profile.id
         if profile.user_id:

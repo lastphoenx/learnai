@@ -163,6 +163,9 @@ def can_manage_profile(db: Session, actor: User, profile: LearningProfile) -> bo
     if profile.managed_by_id == actor.id:
         return True
     if profile.user_id and profile.is_child_profile:
+        subject = db.get(User, profile.user_id)
+        if subject and subject.parent_id == actor.id:
+            return True
         if (
             db.query(ChildGuardian.id)
             .filter(
