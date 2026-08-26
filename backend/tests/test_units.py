@@ -392,3 +392,37 @@ def test_create_unit_parent_ignores_actor_profile_id(monkeypatch):
     result = create_unit(db, parent, title="Test", profile_id=None)
     assert result["profile_id"] is None
     assert managed_calls == []
+
+
+def test_profile_for_unit_child_own_profile(monkeypatch):
+    import uuid
+    from unittest.mock import MagicMock
+
+    from app.models import LearningProfile, User
+    from app.services.unit_service import UnitError, _profile_for_unit
+
+    tenant_id = uuid.uuid4()
+    child_id = uuid.uuid4()
+    profile_id = uuid.uuid4()
+
+    child = MagicMock(spec=User)
+    child.id = child_id
+    child.tenant_id = tenant_id
+    child.is_child = True
+    child.profile_id = profile_id
+
+    profile = MagicMock(spec=LearningProfile)
+    profile.id = profile_id
+    profile.tenant_id = tenant_id
+    profile.user_id = child_id
+
+    db = MagicMock()
+    db.get.return_value = profile
+
+    got = _profile_for_unit(db, child, profile_id)
+    assert got is profile
+
+    other_id = uuid.uuid4()
+    with pytest.raises(UnitError) as exc:
+        _profile_for_unit(db, child, other_id)
+    assert exc.value.code == "forbidden"
