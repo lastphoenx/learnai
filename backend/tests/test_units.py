@@ -348,3 +348,47 @@ def test_resolve_profile_targets_maps_profile_error(monkeypatch):
         )
     assert exc.value.code == "not_found"
     assert "Profil" in exc.value.message
+
+
+def test_create_unit_parent_ignores_actor_profile_id(monkeypatch):
+    import uuid
+    from unittest.mock import MagicMock
+
+    from app.models import User
+    from app.services.profile_service import ProfileError
+    from app.services.unit_service import create_unit
+
+    tenant_id = uuid.uuid4()
+    parent_id = uuid.uuid4()
+    stray_profile_id = uuid.uuid4()
+
+    parent = MagicMock(spec=User)
+    parent.id = parent_id
+    parent.tenant_id = tenant_id
+    parent.is_child = False
+    parent.is_admin = False
+    parent.profile_id = stray_profile_id
+
+    db = MagicMock()
+    db.add = MagicMock()
+    db.flush = MagicMock()
+    managed_calls: list[uuid.UUID] = []
+
+    def managed(_db, _user, profile_id):
+        managed_calls.append(profile_id)
+        raise ProfileError("Kein Zugriff auf dieses Profil", "forbidden")
+
+    monkeypatch.setattr("app.services.unit_service._managed_profile", managed)
+    monkeypatch.setattr("app.services.unit_service.encrypt_text_master", lambda text: text.encode())
+    monkeypatch.setattr("app.services.unit_service.encrypt_json", lambda data: b"{}")
+    monkeypatch.setattr("app.services.unit_service._add_event", lambda *a, **k: None)
+    monkeypatch.setattr("app.services.unit_service.ensure_unit_reference_codes", lambda *a, **k: {})
+    monkeypatch.setattr("app.services.unit_service.log_event", lambda *a, **k: None)
+    monkeypatch.setattr(
+        "app.services.unit_service._dec_unit",
+        lambda unit, **kwargs: {"id": str(unit.id), "profile_id": None},
+    )
+
+    result = create_unit(db, parent, title="Test", profile_id=None)
+    assert result["profile_id"] is None
+    assert managed_calls == []

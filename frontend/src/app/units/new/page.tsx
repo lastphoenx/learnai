@@ -151,6 +151,10 @@ export default function NewUnitPage() {
       setError("Bitte einen Titel eingeben.");
       return;
     }
+    if (!asChild && profiles.some((p) => p.is_child_profile) && profileIds.length === 0) {
+      setError("Bitte mindestens ein Kind auswählen.");
+      return;
+    }
     setError(null);
     setSaving(true);
     try {
