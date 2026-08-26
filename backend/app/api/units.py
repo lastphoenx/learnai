@@ -349,8 +349,6 @@ def units_generate_status(
     raw = get_generate_job(uid)
     if not raw:
         return GenerateStatusResponse(job=GenerateJobStatus(status="idle"))
-    if raw.get("user_id") != str(user.id):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Kein Zugriff")
     job = GenerateJobStatus.model_validate(raw)
     unit_payload = get_unit(db, user, unit_id) if job.status in {"done", "partial"} else None
     return GenerateStatusResponse(job=job, unit=unit_payload)
