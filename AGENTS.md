@@ -1,5 +1,52 @@
 # LearnAI — Hinweise für KI-Assistenten (Cursor, Copilot, …)
 
+## Git & Branches (Pflicht — immer gleicher Ablauf)
+
+Quelle der Wahrheit: `doku/pve2/vm/135-learnai/betrieb.md`
+
+| Was | Branch | CT 135 |
+|-----|--------|--------|
+| **Produktion / Live-Bug** | `main` (oder kurzer `fix/…` **von** `main`) | `git pull origin main` — **nie** Feature-Branches pullen |
+| **Unfertiges Feature** (Eltern-KI, BYOK, …) | `feature/parent-ai-access` | erst mergen, wenn live |
+
+### Live-Fix — Checkliste (jedes Mal, in dieser Reihenfolge)
+
+```powershell
+cd learnai
+git fetch origin
+git checkout -f main
+git pull origin main
+git checkout -b fix/kurzbeschreibung
+# … ändern …
+git add …
+git commit -m "fix: …"
+git push -u origin fix/kurzbeschreibung
+git checkout main
+git merge --ff-only fix/kurzbeschreibung
+git push origin main
+git checkout feature/parent-ai-access
+git merge origin/main -m "Merge branch 'main' into feature/parent-ai-access"
+git push origin feature/parent-ai-access
+```
+
+**Nicht:** `git push origin <sha>:main` (Refspec-Hack), Merge ohne vorher `git pull`, Feature-Branch auf CT deployen, `main` vergessen nachzuziehen.
+
+### Windows: Checkout blockiert durch `scripts/generate_keys.py`
+
+Nur CRLF-Rauschen — **nicht committen.** Vor Branch-Wechsel:
+
+```powershell
+git checkout -f -B <branch> origin/<branch>
+```
+
+### Deploy CT 135 (nach `main`-Push)
+
+```bash
+cd /opt/learnai && git pull origin main && bash scripts/deploy.sh
+```
+
+Lokales Repo nach Prod-Fix: `git checkout feature/parent-ai-access` (weiterarbeiten auf Feature-Branch).
+
 ## Pedagogy Golden Set (Pflicht)
 
 Bei Arbeit an **Didaktik**, **source_pedagogy**, **Pedagogy-Prompts**, **neuen Fach-Schwerpunkten** oder **interaktivem Trainer**:
