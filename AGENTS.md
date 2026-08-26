@@ -33,11 +33,13 @@ git push origin feature/parent-ai-access
 
 ### Windows: Checkout blockiert durch `scripts/generate_keys.py`
 
-Nur CRLF-Rauschen — **nicht committen.** Vor Branch-Wechsel:
+Index ist **LF** (`git ls-files --eol` → `i/lf`). Phantom-«modified» kommt von Editor/Checkout, nicht vom Repo — **nicht committen.**
 
 ```powershell
 git checkout -f -B <branch> origin/<branch>
 ```
+
+Abdeckung wie SlitProjektHub: `.gitattributes` (`*.py text eol=lf`) + `.editorconfig` (`end_of_line = lf`). Kein `core.autocrlf` anfassen.
 
 ### Deploy CT 135 (nach `main`-Push)
 
