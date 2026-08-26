@@ -72,6 +72,7 @@ export function SpeechInputButton({
   const [busy, setBusy] = useState(false);
   const [browserSupported, setBrowserSupported] = useState(false);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const pendingTranscriptRef = useRef("");
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -165,14 +166,21 @@ export function SpeechInputButton({
     recognition.lang = speechLocale(language);
     recognition.continuous = continuous;
     recognition.interimResults = true;
+    pendingTranscriptRef.current = "";
     recognition.onresult = (event) => {
       let chunk = "";
       for (let i = event.resultIndex; i < event.results.length; i += 1) {
         chunk += event.results[i][0].transcript;
       }
-      if (!chunk.trim()) return;
+      const text = chunk.trim();
+      if (!text) return;
       const isFinal = event.results[event.results.length - 1]?.isFinal ?? false;
-      onTranscript(chunk, isFinal);
+      if (isFinal) {
+        pendingTranscriptRef.current = "";
+        onTranscript(text, true);
+      } else {
+        pendingTranscriptRef.current = text;
+      }
     };
     recognition.onerror = (event) => {
       const code = event.error || "";
@@ -186,8 +194,11 @@ export function SpeechInputButton({
       stop();
     };
     recognition.onend = () => {
+      const leftover = pendingTranscriptRef.current.trim();
+      pendingTranscriptRef.current = "";
       recognitionRef.current = null;
       setListening(false);
+      if (leftover) onTranscript(leftover, true);
     };
     recognitionRef.current = recognition;
     recognition.start();
@@ -229,6 +240,7 @@ export function SpeechInputButton({
     <button
       type="button"
       className={`speech-input-btn${active ? " speech-input-btn-active" : ""}`}
+      onMouseDown={(event) => event.preventDefault()}
       onClick={toggle}
       disabled={disabled || busy}
       title={

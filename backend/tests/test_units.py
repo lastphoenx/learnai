@@ -323,3 +323,28 @@ def test_profile_id_for_learn_sandbox_uses_actor_profile(monkeypatch):
 
     db = MagicMock()
     assert _profile_id_for_learn(db, user, unit, record) == user.profile_id
+
+
+def test_resolve_profile_targets_maps_profile_error(monkeypatch):
+    import uuid
+    from unittest.mock import MagicMock
+
+    import pytest
+
+    from app.services.profile_service import ProfileError
+    from app.services.unit_service import UnitError, _resolve_profile_targets
+
+    def boom(*_a, **_k):
+        raise ProfileError("Profil nicht gefunden", "not_found")
+
+    monkeypatch.setattr("app.services.unit_service.get_profile_for_actor", boom)
+
+    with pytest.raises(UnitError) as exc:
+        _resolve_profile_targets(
+            MagicMock(),
+            MagicMock(),
+            profile_id=None,
+            profile_ids=[uuid.uuid4()],
+        )
+    assert exc.value.code == "not_found"
+    assert "Profil" in exc.value.message

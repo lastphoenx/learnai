@@ -35,8 +35,6 @@ export function warmupBrowserSpeech(language = "de"): void {
     recognition.interimResults = false;
     recognition.onerror = () => undefined;
     recognition.onend = () => undefined;
-    recognition.start();
-    recognition.stop();
   } catch {
     /* Engine lädt trotzdem bzw. Permission-Dialog ist schon offen. */
   }

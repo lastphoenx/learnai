@@ -6,6 +6,7 @@ import type { SttProvider } from "@/lib/api";
 
 type Props = {
   label: string;
+  htmlFor?: string;
   language?: string;
   continuous?: boolean;
   sttProvider?: SttProvider;
@@ -17,6 +18,7 @@ type Props = {
 
 export function LabelWithSpeech({
   label,
+  htmlFor,
   language,
   continuous,
   sttProvider,
@@ -26,9 +28,9 @@ export function LabelWithSpeech({
   children,
 }: Props) {
   return (
-    <label className="label-with-speech">
-      <span className="label-with-speech-head">
-        <span>{label}</span>
+    <div className="label-with-speech">
+      <div className="label-with-speech-head">
+        {htmlFor ? <label htmlFor={htmlFor}>{label}</label> : <span>{label}</span>}
         <SpeechInputButton
           language={language}
           continuous={continuous}
@@ -37,8 +39,8 @@ export function LabelWithSpeech({
           onTranscript={onTranscript}
           onError={onError}
         />
-      </span>
+      </div>
       {children}
-    </label>
+    </div>
   );
 }

@@ -55,6 +55,16 @@ def reference_codes_from_recon(recon: dict | None) -> tuple[str | None, str | No
     return family, instance, code
 
 
+def _recon_from_blob(blob: bytes | None) -> dict:
+    if not blob:
+        return {}
+    try:
+        recon = decrypt_json(blob)
+    except Exception:
+        return {}
+    return recon if isinstance(recon, dict) else {}
+
+
 def _template_root_for_unit(unit: LearningUnit, recon: dict | None) -> uuid.UUID:
     if isinstance(recon, dict):
         root = str(recon.get("template_root_id") or "").strip()
@@ -76,9 +86,7 @@ def _family_groups(db: Session, tenant_id: uuid.UUID) -> dict[uuid.UUID, list[tu
         .all()
     )
     for unit, record in rows:
-        recon = decrypt_json(record.reconstruction_encrypted) if record.reconstruction_encrypted else {}
-        if not isinstance(recon, dict):
-            recon = {}
+        recon = _recon_from_blob(record.reconstruction_encrypted)
         root_id = _template_root_for_unit(unit, recon)
         groups.setdefault(root_id, []).append((unit, record, unit.created_at))
     return {
@@ -110,9 +118,7 @@ def _compute_codes_for_unit(
     unit: LearningUnit,
     record: LearningRecord,
 ) -> tuple[str, str, str]:
-    recon = decrypt_json(record.reconstruction_encrypted) if record.reconstruction_encrypted else {}
-    if not isinstance(recon, dict):
-        recon = {}
+    recon = _recon_from_blob(record.reconstruction_encrypted)
     root_id = _template_root_for_unit(unit, recon)
     groups = _family_groups(db, tenant_id)
     family_map = _family_order_from_groups(groups)
@@ -139,9 +145,7 @@ def ensure_unit_reference_codes(
     if not record:
         return {"reference_family": None, "reference_instance": None, "reference_code": None}
 
-    recon = decrypt_json(record.reconstruction_encrypted) if record.reconstruction_encrypted else {}
-    if not isinstance(recon, dict):
-        recon = {}
+    recon = _recon_from_blob(record.reconstruction_encrypted)
 
     family, instance, code = reference_codes_from_recon(recon)
     if code:
