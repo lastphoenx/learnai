@@ -174,7 +174,17 @@ export function SpeechInputButton({
       const isFinal = event.results[event.results.length - 1]?.isFinal ?? false;
       onTranscript(chunk, isFinal);
     };
-    recognition.onerror = () => stop();
+    recognition.onerror = (event) => {
+      const code = event.error || "";
+      if (code && code !== "aborted" && code !== "no-speech") {
+        onError?.(
+          code === "not-allowed" || code === "service-not-allowed"
+            ? "Mikrofon-Zugriff verweigert"
+            : "Spracheingabe fehlgeschlagen",
+        );
+      }
+      stop();
+    };
     recognition.onend = () => {
       recognitionRef.current = null;
       setListening(false);
