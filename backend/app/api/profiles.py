@@ -7,11 +7,12 @@ from sqlalchemy.orm import Session
 
 from app.core.auth.dependencies import get_current_user, require_admin
 from app.core.db import get_db
-from app.models import User
+from app.models import LearningProfile, User
 from app.schemas import ProfileCreateRequest, ProfileResponse, ProfileSettingsUpdateRequest
 from app.services.profile_service import (
     ProfileError,
     apply_recommended_settings,
+    can_view_profile_data,
     create_profile,
     get_profile_for_actor,
     list_manageable_profiles,
@@ -57,7 +58,11 @@ def profiles_get(
     db: Session = Depends(get_db),
 ):
     try:
-        profile = get_profile_for_actor(db, user, profile_id)
+        profile = db.get(LearningProfile, profile_id)
+        if not profile or profile.tenant_id != user.tenant_id:
+            raise ProfileError("Profil nicht gefunden", "not_found")
+        if not can_view_profile_data(db, user, profile_id):
+            raise ProfileError("Kein Zugriff auf dieses Profil", "forbidden")
         return ProfileResponse(**profile_public_dict(profile))
     except ProfileError as exc:
         raise HTTPException(status_code=404 if exc.code == "not_found" else 403, detail=exc.message) from exc

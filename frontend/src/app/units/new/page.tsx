@@ -93,6 +93,7 @@ export default function NewUnitPage() {
         setUser(u);
         if (u.must_enroll_2fa) window.location.href = "/settings";
         if (u.is_child && u.profile_id) {
+          setProfileIds([u.profile_id]);
           fetchProfile(u.profile_id)
             .then((p) => {
               setSttProvider((p.stt_provider as SttProvider) || "browser");
@@ -168,7 +169,9 @@ export default function NewUnitPage() {
         task_type: taskType,
         math_focus: mathFocusVisible && mathFocus ? mathFocus : undefined,
         auto_purge_sources: autoPurge,
-        profile_ids: profileIds.length > 0 ? profileIds : undefined,
+        profile_id: user?.is_child && user.profile_id ? user.profile_id : undefined,
+        profile_ids:
+          !user?.is_child && profileIds.length > 0 ? profileIds : undefined,
       });
       const nextId = isUnitCreateBatch(result) ? result.units[0]?.id : result.id;
       if (!nextId) {

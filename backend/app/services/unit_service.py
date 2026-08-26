@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.config import settings
 from app.core.crypto import decrypt_text_master, encrypt_text_master
 from app.core.crypto.classification import DataClassification
-from app.models import LearningEvent, LearningRecord, LearningUnit, UnitModule, UnitSource, User
+from app.models import LearningEvent, LearningProfile, LearningRecord, LearningUnit, UnitModule, UnitSource, User
 from app.services.audit import log_event
 from app.services.crypto_json import decrypt_json, encrypt_json
 from app.ai.task_types import UNIT_TASK_KEYS, augment_brief
@@ -36,6 +36,18 @@ def _managed_profile(db: Session, user: User, profile_id: uuid.UUID):
         return get_profile_for_actor(db, user, profile_id)
     except ProfileError as exc:
         raise UnitError(exc.message, exc.code) from exc
+
+
+def _profile_for_unit(db: Session, user: User, profile_id: uuid.UUID):
+    """Profil für Einheit anlegen — Kind darf das eigene Lerner-Profil nutzen."""
+    profile = db.get(LearningProfile, profile_id)
+    if not profile or profile.tenant_id != user.tenant_id:
+        raise UnitError("Profil nicht gefunden", "not_found")
+    if user.is_child:
+        if user.profile_id != profile.id or profile.user_id != user.id:
+            raise UnitError("Kein Zugriff auf dieses Profil", "forbidden")
+        return profile
+    return _managed_profile(db, user, profile_id)
 
 
 def reconstruction_payload(
@@ -365,12 +377,12 @@ def create_unit(
         chosen_profile_id = None
         learner_id = user.id
     elif profile_id:
-        profile = _managed_profile(db, user, profile_id)
+        profile = _profile_for_unit(db, user, profile_id)
         chosen_profile_id = profile.id
         if profile.user_id:
             learner_id = profile.user_id
     elif user.is_child and user.profile_id:
-        profile = _managed_profile(db, user, user.profile_id)
+        profile = _profile_for_unit(db, user, user.profile_id)
         chosen_profile_id = profile.id
         if profile.user_id:
             learner_id = profile.user_id
@@ -456,14 +468,14 @@ def _resolve_profile_targets(
         for pid in profile_ids:
             if pid in seen:
                 continue
-            profile = _managed_profile(db, user, pid)
+            profile = _profile_for_unit(db, user, pid)
             seen.add(profile.id)
             ordered.append(profile.id)
         if not ordered:
             raise UnitError("Kein Profil gewählt", "invalid_profile")
         return ordered
     if profile_id:
-        profile = _managed_profile(db, user, profile_id)
+        profile = _profile_for_unit(db, user, profile_id)
         return [profile.id]
     return [None]
 
