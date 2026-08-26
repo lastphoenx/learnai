@@ -402,6 +402,11 @@ def generate_modules(
 
     from app.services.profile_service import resolve_prefs_for_profile
 
+    def report(stage: str, **extra: object) -> None:
+        if progress:
+            progress(stage, **extra)
+
+    report("extracting_sources")
     prefs = resolve_prefs_for_profile(db, unit.profile_id) or get_user_settings(user)
     ai_task = AI_TASK_FOR_UNIT.get(task, "mixed")
     name, model = resolve_task_ai(prefs, ai_task, override=provider)
@@ -430,6 +435,7 @@ def generate_modules(
         len(notes),
         len(pedagogy_profile.get("methods") or []),
     )
+    report("planning")
     hint = hint_for_task(task)
     recon = None
     from app.services.crypto_json import decrypt_json as _dj
@@ -466,6 +472,7 @@ def generate_modules(
         len(base_prompt),
     )
     t_chat = time.monotonic()
+    report("category", index=1, total=1, message="Lernmodule werden erstellt…")
     try:
         modules, result = _generate_modules_content(
             base_prompt=base_prompt,
@@ -496,6 +503,7 @@ def generate_modules(
 
     log_pedagogy_coverage_warnings(modules, pedagogy_profile, unit_id=str(unit_id))
 
+    report("saving")
     saved = _save_generated_modules(
         db,
         unit,
@@ -509,6 +517,7 @@ def generate_modules(
         len(saved),
         int((time.monotonic() - t0) * 1000),
     )
+    report("done", message="Lernblöcke wurden erstellt.", modules=len(saved))
     return _dec_unit(unit)
 
 
