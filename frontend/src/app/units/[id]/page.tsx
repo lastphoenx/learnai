@@ -208,7 +208,7 @@ export default function UnitDetailPage() {
   async function onGenerate() {
     setBusy(true);
     setError(null);
-    setGenerateJob(null);
+    setGenerateJob({ status: "queued", message: "Starte…", progress_pct: 0 });
     try {
       const started = await generateUnit(unitId, unit?.trainer_options?.llm_provider || undefined);
       if (started.mode === "sync") {
@@ -252,7 +252,11 @@ export default function UnitDetailPage() {
             });
         }
       })
-      .catch(() => undefined);
+      .catch((err) => {
+        if (!cancelled && err instanceof Error && err.message !== "Kein laufender Generierungsjob") {
+          setError(err.message);
+        }
+      });
     return () => {
       cancelled = true;
     };
