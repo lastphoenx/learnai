@@ -17,7 +17,7 @@ from app.services.audit import log_event
 from app.services.crypto_json import decrypt_json, encrypt_json
 from app.ai.task_types import UNIT_TASK_KEYS, augment_brief
 from app.schemas import LearnGoalsSchema, TrainerOptionsSchema
-from app.services.profile_service import child_user_ids, get_profile_for_actor
+from app.services.profile_service import ProfileError, child_user_ids, get_profile_for_actor
 from app.services.unit_reference_service import attach_reference_fields, ensure_unit_reference_codes
 
 _log = logging.getLogger(__name__)
@@ -28,6 +28,14 @@ class UnitError(Exception):
         self.message = message
         self.code = code
         super().__init__(message)
+
+
+def _managed_profile(db: Session, user: User, profile_id: uuid.UUID):
+    """Profil laden; ProfileError als UnitError, damit die API keinen 500 liefert."""
+    try:
+        return get_profile_for_actor(db, user, profile_id)
+    except ProfileError as exc:
+        raise UnitError(exc.message, exc.code) from exc
 
 
 def reconstruction_payload(
@@ -153,8 +161,8 @@ def _dec_unit(unit: LearningUnit, *, sources: bool = True, modules: bool = True)
         "auto_purge_sources": unit.auto_purge_sources,
         "profile_id": str(unit.profile_id) if unit.profile_id else None,
         "learner_name": learner_name,
-        "created_at": unit.created_at.isoformat(),
-        "updated_at": unit.updated_at.isoformat(),
+        "created_at": (unit.created_at or datetime.now(timezone.utc)).isoformat(),
+        "updated_at": (unit.updated_at or datetime.now(timezone.utc)).isoformat(),
         "source_count": len(unit.sources),
         "module_count": len(unit.modules),
     }
@@ -357,12 +365,12 @@ def create_unit(
         chosen_profile_id = None
         learner_id = user.id
     elif profile_id:
-        profile = get_profile_for_actor(db, user, profile_id)
+        profile = _managed_profile(db, user, profile_id)
         chosen_profile_id = profile.id
         if profile.user_id:
             learner_id = profile.user_id
     elif user.profile_id:
-        profile = get_profile_for_actor(db, user, user.profile_id)
+        profile = _managed_profile(db, user, user.profile_id)
         chosen_profile_id = profile.id
         if profile.user_id:
             learner_id = profile.user_id
@@ -448,14 +456,14 @@ def _resolve_profile_targets(
         for pid in profile_ids:
             if pid in seen:
                 continue
-            profile = get_profile_for_actor(db, user, pid)
+            profile = _managed_profile(db, user, pid)
             seen.add(profile.id)
             ordered.append(profile.id)
         if not ordered:
             raise UnitError("Kein Profil gewählt", "invalid_profile")
         return ordered
     if profile_id:
-        profile = get_profile_for_actor(db, user, profile_id)
+        profile = _managed_profile(db, user, profile_id)
         return [profile.id]
     return [None]
 
@@ -523,7 +531,7 @@ def assign_unit_to_profiles(
     for pid in profile_ids:
         if pid in seen:
             continue
-        get_profile_for_actor(db, user, pid)
+        _managed_profile(db, user, pid)
         seen.add(pid)
         result = create_unit(
             db,
@@ -926,7 +934,7 @@ def update_unit_profile(
     is_sandbox = unit_is_sandbox_copy(unit, record)
 
     if profile_id is not None:
-        profile = get_profile_for_actor(db, user, profile_id)
+        profile = _managed_profile(db, user, profile_id)
         if not profile.is_child_profile and not is_sandbox:
             raise UnitError("Nur Kinder-Profile können zugewiesen werden", "invalid_profile")
         if profile.is_child_profile:

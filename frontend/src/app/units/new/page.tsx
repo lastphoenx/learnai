@@ -195,6 +195,7 @@ export default function NewUnitPage() {
         {error && <p className="err" role="alert">{error}</p>}
         <LabelWithSpeech
           label="Titel"
+          htmlFor="new-unit-title"
           language={language}
           sttProvider={sttProvider}
           profileId={speechProfileId}
@@ -207,6 +208,7 @@ export default function NewUnitPage() {
         >
           <>
             <input
+              id="new-unit-title"
               required
               maxLength={256}
               value={title}
@@ -280,6 +282,7 @@ export default function NewUnitPage() {
 
         <LabelWithSpeech
           label="Beschreibung / Auftrag an die KI"
+          htmlFor="new-unit-brief"
           language={language}
           continuous
           sttProvider={sttProvider}
@@ -293,6 +296,7 @@ export default function NewUnitPage() {
         >
           <>
             <textarea
+              id="new-unit-brief"
               value={brief}
               onChange={(e) => setBrief(e.target.value)}
               rows={8}
@@ -315,6 +319,7 @@ export default function NewUnitPage() {
           Zielalter
           <input
             value={targetAge}
+            maxLength={32}
             onChange={(e) => setTargetAge(e.target.value)}
             placeholder={targetAgeGuide.placeholder}
           />

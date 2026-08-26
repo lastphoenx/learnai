@@ -4,6 +4,7 @@ import logging
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse, JSONResponse, Response
+from sqlalchemy.exc import DataError, IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.auth.dependencies import get_app_user
@@ -96,6 +97,7 @@ def _http(exc: UnitError) -> HTTPException:
         "invalid_upload": status.HTTP_400_BAD_REQUEST,
         "no_weaknesses": status.HTTP_400_BAD_REQUEST,
         "already_assigned": status.HTTP_400_BAD_REQUEST,
+        "invalid_profile": status.HTTP_400_BAD_REQUEST,
         "rate_limited": status.HTTP_429_TOO_MANY_REQUESTS,
         "no_file": status.HTTP_400_BAD_REQUEST,
         "analysis_failed": status.HTTP_400_BAD_REQUEST,
@@ -162,9 +164,26 @@ def units_create(
         if len(results) == 1:
             return results[0]
         return {"units": results, "created_count": len(results)}
+    except HTTPException:
+        db.rollback()
+        raise
     except UnitError as exc:
         db.rollback()
         raise _http(exc) from exc
+    except (IntegrityError, DataError) as exc:
+        db.rollback()
+        _log.exception("Unit create database error")
+        raise HTTPException(
+            status_code=400,
+            detail="Speichern fehlgeschlagen — bitte Titel, Fach, Zielalter und Profil prüfen.",
+        ) from exc
+    except Exception as exc:
+        db.rollback()
+        _log.exception("Unit create failed")
+        raise HTTPException(
+            status_code=500,
+            detail="Speichern fehlgeschlagen. Bitte erneut versuchen.",
+        ) from exc
 
 
 @router.post("/{unit_id}/test-copy", status_code=status.HTTP_201_CREATED)

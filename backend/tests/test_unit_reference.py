@@ -83,3 +83,14 @@ def test_compute_codes_for_siblings_without_created_at_tuple(monkeypatch):
     assert family == "0001"
     assert instance == "0002"
     assert code == "0001.0002"
+
+
+def test_recon_from_blob_skips_corrupt_payload(monkeypatch):
+    from app.services.unit_reference_service import _recon_from_blob
+
+    def boom(_blob):
+        raise ValueError("bad ciphertext")
+
+    monkeypatch.setattr("app.services.unit_reference_service.decrypt_json", boom)
+    assert _recon_from_blob(b"not-valid") == {}
+    assert _recon_from_blob(None) == {}
