@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.ai.catalog import resolve_task_ai
 from app.ai.effective import effective_ai_config
 from app.ai.errors import LlmError
-from app.ai.extract import STT_PROVIDERS, effective_stt_provider, transcribe_audio
+from app.ai.extract import STT_PROVIDERS, effective_stt_provider, transcribe_audio, warmup_stt
 from app.ai.providers import complete, provider_status
 from app.ai.tts import TtsError, synthesize_openai
 from app.core.auth.dependencies import get_app_user
@@ -162,3 +162,28 @@ async def transcribe_speech(
         raise HTTPException(status_code=400, detail=exc.message) from exc
 
     return TranscribeResponse(text=text, provider=provider)
+
+
+@router.post("/stt/warmup")
+def stt_warmup(
+    profile_id: UUID | None = Query(default=None),
+    user: User = Depends(get_app_user),
+    db: Session = Depends(get_db),
+):
+    prefs: dict = {}
+    if profile_id:
+        try:
+            get_profile_for_actor(db, user, profile_id)
+            prefs = resolve_prefs_for_profile(db, profile_id)
+        except ProfileError as exc:
+            code = 404 if exc.code == "not_found" else 403
+            raise HTTPException(status_code=code, detail=exc.message) from exc
+    else:
+        prefs = get_user_settings(user)
+        if user.profile_id:
+            prefs = resolve_prefs_for_profile(db, user.profile_id)
+    stt = str(prefs.get("stt_provider") or "browser").strip().lower()
+    if stt not in STT_PROVIDERS:
+        stt = "browser"
+    provider = stt if stt == "browser" else effective_stt_provider(prefs)
+    return warmup_stt(provider)

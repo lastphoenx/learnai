@@ -2,6 +2,29 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 
 type FetchOptions = RequestInit & { json?: unknown };
 
+function apiDetailMessage(detail: unknown, status: number): string {
+  if (typeof detail === "string" && detail.trim()) return detail;
+  if (Array.isArray(detail)) {
+    const parts = detail.map((item) => {
+      if (typeof item === "string") return item;
+      if (item && typeof item === "object" && "msg" in item) {
+        const rec = item as { msg?: unknown; loc?: unknown };
+        const loc = Array.isArray(rec.loc)
+          ? rec.loc.filter((part) => part !== "body" && part !== "query").join(".")
+          : "";
+        const msg = String(rec.msg || "");
+        return loc ? `${loc}: ${msg}` : msg;
+      }
+      return "";
+    }).filter(Boolean);
+    if (parts.length) return parts.join(" · ");
+  }
+  if (detail && typeof detail === "object" && "message" in detail) {
+    return String((detail as { message: unknown }).message);
+  }
+  return `API ${status}`;
+}
+
 async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T> {
   const { json, headers, ...rest } = options;
   const res = await fetch(`${API_URL}${path}`, {
@@ -16,7 +39,7 @@ async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T>
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new Error(typeof err.detail === "string" ? err.detail : `API ${res.status}`);
+    throw new Error(apiDetailMessage(err.detail ?? err, res.status));
   }
   if (res.status === 204) return undefined as T;
   return res.json();
@@ -1169,10 +1192,17 @@ export async function transcribeSpeech(
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new Error(typeof err.detail === "string" ? err.detail : `API ${res.status}`);
+    throw new Error(apiDetailMessage(err.detail ?? err, res.status));
   }
   return res.json();
 }
+
+export const warmupStt = (profileId?: string) => {
+  const q = profileId ? `?profile_id=${encodeURIComponent(profileId)}` : "";
+  return apiFetch<{ ok: boolean; provider: string; error?: string }>(`/api/v1/ai/stt/warmup${q}`, {
+    method: "POST",
+  });
+};
 
 export const fetchRecords = () => apiFetch<LearningRecord[]>("/api/v1/records");
 export const rebuildFromRecord = (recordId: string, difficulty?: number, task_type?: string) =>

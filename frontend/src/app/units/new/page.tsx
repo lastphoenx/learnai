@@ -15,6 +15,7 @@ import {
   fetchProfiles,
   fetchUnitTaskTypes,
   isUnitCreateBatch,
+  warmupStt,
   type LearnerProfile,
   type SttProvider,
   type User,
@@ -29,6 +30,7 @@ import {
 } from "@/lib/subjectFocus";
 import { FALLBACK_TASK_TYPES, type UnitTaskType } from "@/lib/taskTypes";
 import { getUnitFieldGuide } from "@/lib/unitFieldHints";
+import { warmupSpeechInput } from "@/lib/speechWarmup";
 
 export default function NewUnitPage() {
   const router = useRouter();
@@ -48,6 +50,8 @@ export default function NewUnitPage() {
   const [taskTypes, setTaskTypes] = useState<UnitTaskType[]>(FALLBACK_TASK_TYPES);
   const [focusGroups, setFocusGroups] = useState<FocusGroup[]>(FALLBACK_FOCUS_GROUPS);
   const [error, setError] = useState<string | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const [sttProvider, setSttProvider] = useState<SttProvider>("browser");
   const [speechProfileId, setSpeechProfileId] = useState<string | undefined>(undefined);
 
@@ -111,7 +115,7 @@ export default function NewUnitPage() {
             .catch(() => undefined);
         }
       })
-      .catch(() => setError("Nicht angemeldet"));
+      .catch(() => setAuthError("Nicht angemeldet"));
     fetchUnitTaskTypes()
       .then((data) => {
         if (data.task_types?.length) setTaskTypes(data.task_types);
@@ -124,6 +128,16 @@ export default function NewUnitPage() {
   }, []);
 
   useEffect(() => {
+    warmupSpeechInput({ language: "de" });
+  }, []);
+
+  useEffect(() => {
+    if (sttProvider === "local" || sttProvider === "openai") {
+      void warmupStt(speechProfileId).catch(() => undefined);
+    }
+  }, [speechProfileId, sttProvider]);
+
+  useEffect(() => {
     if (!mathFocus) return;
     const valid = focusOptions.some((o) => o.key === mathFocus);
     if (!valid && focusGroupId) setMathFocus("");
@@ -131,9 +145,17 @@ export default function NewUnitPage() {
 
   async function onCreate(e: FormEvent) {
     e.preventDefault();
+    if (saving) return;
+    const trimmedTitle = title.trim();
+    if (!trimmedTitle) {
+      setError("Bitte einen Titel eingeben.");
+      return;
+    }
+    setError(null);
+    setSaving(true);
     try {
       const result = await createUnit({
-        title: title.trim(),
+        title: trimmedTitle,
         brief: brief.trim() || undefined,
         subject: subject.trim() || undefined,
         language,
@@ -144,20 +166,23 @@ export default function NewUnitPage() {
         auto_purge_sources: autoPurge,
         profile_ids: profileIds.length > 0 ? profileIds : undefined,
       });
-      if (isUnitCreateBatch(result)) {
-        router.push(`/units/${result.units[0]?.id || ""}`);
-      } else {
-        router.push(`/units/${result.id}`);
+      const nextId = isUnitCreateBatch(result) ? result.units[0]?.id : result.id;
+      if (!nextId) {
+        setError("Einheit wurde angelegt, aber ohne ID zurückgegeben.");
+        return;
       }
+      router.push(`/units/${nextId}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Fehler");
+      setError(err instanceof Error ? err.message : "Speichern fehlgeschlagen");
+    } finally {
+      setSaving(false);
     }
   }
 
-  if (error && !user) {
+  if (authError && !user) {
     return (
       <main className="shell">
-        <p>{error}</p>
+        <p>{authError}</p>
         <Link href="/login">Zum Login</Link>
       </main>
     );
@@ -167,6 +192,7 @@ export default function NewUnitPage() {
     <main className="shell">
       <AppHeader user={user} title="Neue Lerneinheit" />
       <form onSubmit={onCreate} className="card stack">
+        {error && <p className="err" role="alert">{error}</p>}
         <LabelWithSpeech
           label="Titel"
           language={language}
@@ -182,6 +208,7 @@ export default function NewUnitPage() {
           <>
             <input
               required
+              maxLength={256}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder={titleGuide.placeholder}
@@ -244,6 +271,7 @@ export default function NewUnitPage() {
           Fach / Thema
           <input
             value={subject}
+            maxLength={64}
             onChange={(e) => setSubject(e.target.value)}
             placeholder={subjectGuide.placeholder}
           />
@@ -314,9 +342,9 @@ export default function NewUnitPage() {
           <input type="checkbox" checked={autoPurge} onChange={(e) => setAutoPurge(e.target.checked)} />
           Quellenfotos nach OCR/Vision automatisch löschen (Metadaten bleiben)
         </label>
-        {error && <p className="err">{error}</p>}
-        <button type="submit" className="btn-primary">
-          Einheit anlegen
+        {error && <p className="err" role="alert">{error}</p>}
+        <button type="submit" className="btn-primary" disabled={saving}>
+          {saving ? "Wird angelegt…" : "Einheit anlegen"}
         </button>
       </form>
     </main>

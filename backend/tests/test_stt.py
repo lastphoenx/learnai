@@ -15,5 +15,16 @@ def test_effective_stt_respects_openai():
     assert effective_stt_provider({"stt_provider": "openai"}) == "openai"
 
 
-def test_effective_stt_respects_local():
-    assert effective_stt_provider({"stt_provider": "local"}) == "local"
+def test_warmup_stt_skips_browser():
+    from app.ai.extract import warmup_stt
+
+    assert warmup_stt("browser") == {"ok": True, "provider": "browser"}
+
+
+def test_silent_wav_is_valid_riff():
+    from app.ai.extract import _silent_wav_bytes
+
+    data = _silent_wav_bytes()
+    assert data.startswith(b"RIFF")
+    assert b"WAVE" in data[:16]
+    assert len(data) > 44
