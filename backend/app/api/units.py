@@ -11,7 +11,6 @@ from app.core.auth.dependencies import get_app_user
 from app.core.db import get_db
 from app.models import User
 from app.ai.errors import LlmError
-from app.ai.generate import generate_modules
 from app.schemas import (
     ChildLearnGoalsRequest,
     LearnAnswerRequest,
@@ -35,7 +34,7 @@ from app.schemas import (
     UnitUpdateRequest,
 )
 from app.services.generate_job import get_generate_job, job_is_active, set_generate_job
-from app.services.generate_limits import acquire_generate_slot, release_generate_slot
+from app.services.generate_limits import acquire_generate_slot
 from app.tasks.generate import generate_unit_task
 from app.services.learn_service import (
     collect_quiz_weaknesses,
@@ -285,45 +284,28 @@ def units_generate(
     db: Session = Depends(get_db),
 ):
     try:
-        unit = _get_unit_or_404(db, user, unit_id)
-        if (unit.task_type or "mixed") == "interactive":
-            uid = str(unit_id)
-            existing = get_generate_job(uid)
-            if job_is_active(existing) and existing.get("user_id") == str(user.id):
-                job = GenerateJobStatus.model_validate(existing)
-                return JSONResponse(
-                    status_code=status.HTTP_202_ACCEPTED,
-                    content=GenerateStartResponse(async_job=True, job=job).model_dump(),
-                )
-            acquire_generate_slot(
-                user_id=str(user.id),
-                tenant_id=str(user.tenant_id),
-                unit_id=uid,
-            )
-            set_generate_job(uid, user_id=str(user.id), status="queued", stage="queued")
-            generate_unit_task.delay(uid, str(user.id), body.provider)
-            job_raw = get_generate_job(uid) or {"status": "queued", "stage": "queued"}
-            job = GenerateJobStatus.model_validate(job_raw)
+        _get_unit_or_404(db, user, unit_id)
+        uid = str(unit_id)
+        existing = get_generate_job(uid)
+        if job_is_active(existing):
+            job = GenerateJobStatus.model_validate(existing)
             return JSONResponse(
                 status_code=status.HTTP_202_ACCEPTED,
                 content=GenerateStartResponse(async_job=True, job=job).model_dump(),
             )
-
         acquire_generate_slot(
             user_id=str(user.id),
             tenant_id=str(user.tenant_id),
-            unit_id=str(unit_id),
+            unit_id=uid,
         )
-        try:
-            generate_modules(db, user, unit_id, provider=body.provider)
-            db.commit()
-            return get_unit(db, user, unit_id)
-        finally:
-            release_generate_slot(
-                user_id=str(user.id),
-                tenant_id=str(user.tenant_id),
-                unit_id=str(unit_id),
-            )
+        set_generate_job(uid, user_id=str(user.id), status="queued", stage="queued")
+        generate_unit_task.delay(uid, str(user.id), body.provider)
+        job_raw = get_generate_job(uid) or {"status": "queued", "stage": "queued"}
+        job = GenerateJobStatus.model_validate(job_raw)
+        return JSONResponse(
+            status_code=status.HTTP_202_ACCEPTED,
+            content=GenerateStartResponse(async_job=True, job=job).model_dump(),
+        )
     except UnitError as exc:
         db.rollback()
         raise _http(exc) from exc

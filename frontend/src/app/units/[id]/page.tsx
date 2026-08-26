@@ -227,7 +227,7 @@ export default function UnitDetailPage() {
   }
 
   useEffect(() => {
-    if (!unit || unit.task_type !== "interactive" || (unit.modules || []).length > 0 || busy) return;
+    if (!unit || (unit.modules || []).length > 0 || busy) return;
     let cancelled = false;
     fetchGenerateStatus(unitId)
       .then((res) => {
