@@ -36,6 +36,16 @@ Bei neuen Einheiten/Kopien automatisch vergeben; bestehende beim ersten Laden na
 
 **Bewusst nicht Teil des Golden Sets:** Live-Foto-Regression (Vision End-to-End) — separates späteres Thema.
 
+## Tests (Pflicht — aber nicht auf Windows raten)
+
+**Lokal Windows:** Kein Python/pytest verfügbar (nur Microsoft-Store-Alias). **Nicht** wiederholt `python`/`py` probieren.
+
+**Stattdessen:**
+1. **GitHub CI** nach Push (`/.github/workflows/ci.yml`) — Ergebnis abwarten oder im PR prüfen.
+2. **CT 135 (Prod-VM):** `cd /opt/learnai && docker compose exec -T api python -m pytest tests/test_units.py tests/test_unit_reference.py -q`
+
+Vollständiger Lauf lokal nur mit echtem Python oder Docker: `cd backend && python -m pytest tests/ -q` (siehe `DEVELOPER.md`).
+
 ## Deploy-Hinweis
 
 - Nur `backend/app/` geändert → `docker compose restart api worker`

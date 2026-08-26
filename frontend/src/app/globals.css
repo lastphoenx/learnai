@@ -3054,6 +3054,11 @@ button.trainer-flashcard.flipped {
   font-weight: 600;
 }
 
+.label-with-speech-head > label {
+  display: block;
+  margin: 0;
+}
+
 .speech-input-btn {
   flex-shrink: 0;
   border: 1px solid var(--border);
