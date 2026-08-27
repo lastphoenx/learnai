@@ -1,6 +1,7 @@
 from app.core.pedagogy_labels import (
     collect_content_blob,
     count_label_coverage,
+    is_competency_heading,
     is_schema_placeholder,
     label_in_text,
     material_labels_from_methods,
@@ -33,6 +34,18 @@ def test_resolve_method_entry_guesses_known_id():
     entry = resolve_method_entry({"label": "im Kopf", "when": "einfache Zahlen"})
     assert entry["label"] == "im Kopf"
     assert entry.get("id") == "mental"
+
+
+def test_competency_headings_are_not_methods():
+    assert is_competency_heading("Du kannst Additionen mit Dezimalzahlen lösen")
+    assert is_competency_heading("A1: Du kennst ein geeignetes Vorgehen")
+    assert not is_competency_heading("Kopfrechnen")
+    assert resolve_method_entry(
+        {
+            "label": "Du kannst Additionen und Subtraktionen im Kopf lösen",
+            "when": "Themenbuch S.48",
+        }
+    ) == {}
 
 
 def test_label_in_text_substring_and_tokens():
