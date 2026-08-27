@@ -143,6 +143,13 @@ def parse_json_object(text: str) -> dict:
         data = _loads_json_object(raw[start : end + 1])
         if data is not None:
             return data
+    compact = raw.replace("\n", " ")
+    _log.warning(
+        "parse_json_object fail chars=%d head=%s tail=%s",
+        len(raw),
+        compact[:160],
+        compact[-120:] if len(compact) > 120 else compact,
+    )
     raise LlmError("KI-Antwort war kein JSON", "bad_json")
 
 
@@ -182,6 +189,14 @@ def _ollama_chat(
     )
     data = _ollama_post("/api/chat", payload, timeout=float(settings.ollama_chat_timeout_sec))
     text = (data.get("message") or {}).get("content") or ""
+    _log.info(
+        "ollama_chat done model=%s done_reason=%s eval_count=%s prompt_eval_count=%s chars=%d",
+        model,
+        data.get("done_reason") or "?",
+        data.get("eval_count"),
+        data.get("prompt_eval_count"),
+        len(text),
+    )
     if not text.strip():
         raise LlmError("Ollama lieferte keinen Text", "empty_response")
     return LlmResult(provider="ollama", model=model, text=text.strip())
@@ -210,6 +225,13 @@ def _ollama_vision(b64: str, prompt: str, model: str | None = None) -> LlmResult
     _log.info("ollama_vision start model=%s timeout_s=%d", model, settings.ollama_vision_timeout_sec)
     data = _ollama_post("/api/chat", payload, timeout=float(settings.ollama_vision_timeout_sec))
     text = (data.get("message") or {}).get("content") or ""
+    _log.info(
+        "ollama_vision done model=%s done_reason=%s eval_count=%s chars=%d",
+        model,
+        data.get("done_reason") or "?",
+        data.get("eval_count"),
+        len(text),
+    )
     if not text.strip():
         raise LlmError("Ollama-Vision lieferte keinen Text", "empty_response")
     return LlmResult(provider="ollama", model=model, text=text.strip())
