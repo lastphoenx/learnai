@@ -130,11 +130,11 @@ def is_competency_phrasing(text: str | None) -> bool:
     normalized = normalize_label(text)
     if not normalized:
         return False
-    if re.search(r"\bzu losen\b", normalized):
+    if re.search(r"\bzu loe?sen\b", normalized):
         return True
     if re.search(r"\bso einsetzen\b", normalized):
         return True
-    if len(normalized) >= 40 and re.search(r"(losen|einsetzen)$", normalized):
+    if len(normalized) >= 40 and re.search(r"(loe?sen|einsetzen)$", normalized):
         return True
     return False
 

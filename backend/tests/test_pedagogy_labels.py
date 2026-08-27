@@ -57,6 +57,10 @@ def test_redundant_label_when_and_competency_infinitive_are_not_methods():
     )
     assert method_fields_are_redundant(same, f"bei {same}")
     assert is_competency_phrasing(same)
+    assert is_competency_phrasing(
+        "bei Additionen und Subtraktionen mit Dezimalzahlen im Kopf, "
+        "sowie in schriftlicher und halbschriftlicher Form lösen."
+    )
     assert resolve_method_entry({"label": same, "when": f"bei {same}"}) == {}
     assert resolve_method_entry(
         {
