@@ -3,9 +3,14 @@
 from __future__ import annotations
 
 import json
+import math
 import re
+from difflib import SequenceMatcher
 
 from app.core.quiz_numeric import try_compute_from_question
+
+TIMES_TABLE_MIN = 2
+TIMES_TABLE_MAX = 12
 
 _NUM = r"-?\d+(?:[.,]\d+)?"
 _OP_SYMBOL = r"[·×*]"
@@ -22,6 +27,8 @@ _MUL_MENTION = re.compile(
     rf"({_NUM})\s*(?:{_OP_SYMBOL})\s*({_NUM})(?:\s*=\s*({_NUM}))?",
 )
 _VARIANT_SPLIT = re.compile(r"(?=Variante\s+\d+\s*(?:\([^)]*\))?\s*:)", re.I)
+_VARIANT_HEAD = re.compile(r"^Variante\s+\d+\s*(?:\([^)]*\))?\s*:?\s*", re.I)
+_REIHE_CLAIM = re.compile(r"(\d+)\s*er-reihe", re.I)
 _STEP_COMMA = re.compile(
     rf"(=\s*{_NUM})\s*,\s*(?={_NUM}\s*(?:{_OP_SYMBOL}|[+\-−]|[:÷/]))",
 )
@@ -45,7 +52,10 @@ _PARSE_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
     ("sub", re.compile(rf"({_NUM})\s*-\s*({_NUM})")),
     (
         "sub",
-        re.compile(rf"(?:subtraktion|differenz)\s+von\s+({_NUM})\s+und\s+({_NUM})", re.I),
+        re.compile(
+            rf"(?:subtraktion|differenz)\s+(?:von|zwischen)\s+({_NUM})\s+und\s+({_NUM})",
+            re.I,
+        ),
     ),
     (
         "div",
@@ -86,6 +96,69 @@ def parse_arithmetic_operands(question: str) -> tuple[str, float, float] | None:
 def _variant_chunks(text: str) -> list[str]:
     parts = _VARIANT_SPLIT.split(str(text or ""))
     return [part.strip() for part in parts if part.strip()]
+
+
+def times_table_ok(n: int) -> bool:
+    return TIMES_TABLE_MIN <= int(n) <= TIMES_TABLE_MAX
+
+
+def explanation_uses_invalid_times_table(text: str) -> bool:
+    """True bei «40er-Reihe» u. ä. — Einmaleins gilt nur 2–12."""
+    for match in _REIHE_CLAIM.finditer(str(text or "")):
+        if not times_table_ok(int(match.group(1))):
+            return True
+    return False
+
+
+def _variant_body(chunk: str) -> str:
+    text = _VARIANT_HEAD.sub("", str(chunk or "").strip())
+    text = text.replace(",", ".")
+    return re.sub(r"\s+", " ", text).strip().lower()
+
+
+def _bodies_near_duplicate(left: str, right: str) -> bool:
+    if not left or not right:
+        return False
+    if left == right:
+        return True
+    return SequenceMatcher(None, left, right).ratio() >= 0.92
+
+
+def distinct_variant_count(text: str) -> int:
+    """Zählt inhaltlich verschiedene Varianten, nicht nur «Variante N»-Labels."""
+    chunks = _variant_chunks(text)
+    labeled = [chunk for chunk in chunks if _VARIANT_HEAD.match(chunk)]
+    if not labeled:
+        return 1 if str(text or "").strip() else 0
+    unique: list[str] = []
+    for chunk in labeled:
+        body = _variant_body(chunk)
+        if not body:
+            continue
+        if any(_bodies_near_duplicate(body, seen) for seen in unique):
+            continue
+        unique.append(body)
+    return len(unique)
+
+
+def collapse_duplicate_variants(text: str) -> str:
+    """Entfernt wortgleiche / fast gleiche Varianten-Blöcke, Labels neu nummerieren."""
+    original = str(text or "").strip()
+    chunks = _variant_chunks(original)
+    labeled = [chunk for chunk in chunks if _VARIANT_HEAD.match(chunk)]
+    if len(labeled) < 2:
+        return original
+    unique: list[str] = []
+    seen: list[str] = []
+    for chunk in labeled:
+        body = _variant_body(chunk)
+        if not body or any(_bodies_near_duplicate(body, prev) for prev in seen):
+            continue
+        seen.append(body)
+        unique.append(chunk)
+    if len(unique) == len(labeled):
+        return original
+    return _number_mul_variants(unique) or unique[0]
 
 
 def _clarify_step_separators(text: str) -> str:
@@ -143,6 +216,8 @@ def explanation_has_derivation(explanation: str, question: str = "") -> bool:
 def explanation_is_weak(explanation: str, question: str) -> bool:
     expl = str(explanation or "").strip()
     if not expl:
+        return True
+    if explanation_uses_invalid_times_table(expl):
         return True
     if explanation_has_derivation(expl, question):
         return False
@@ -436,8 +511,105 @@ def _div_kopf_nullen_steps(a: float, b: float, result: float) -> str | None:
     )
 
 
-def _reihe_label(divisor: int) -> str:
+def _reihe_label(divisor: int) -> str | None:
+    if not times_table_ok(divisor):
+        return None
     return f"{divisor}er-Reihe"
+
+
+def _split_trailing_tens(n: int) -> tuple[int, int]:
+    if n <= 0:
+        return n, 0
+    zeros = 0
+    value = abs(int(n))
+    while value % 10 == 0:
+        value //= 10
+        zeros += 1
+    return value, zeros
+
+
+def _div_kuerzen_cancel_zeros(a: float, b: float, result: float) -> str | None:
+    """960 : 40 → Nullen streichen → 96 : 4 (4er-Reihe)."""
+    if abs(a - round(a)) >= 1e-6 or abs(b - round(b)) >= 1e-6:
+        return None
+    a_int, b_int = int(round(a)), int(round(b))
+    if a_int <= 0 or b_int <= 0:
+        return None
+    _core_b, zeros_b = _split_trailing_tens(b_int)
+    _core_a, zeros_a = _split_trailing_tens(a_int)
+    cancel = min(zeros_a, zeros_b)
+    if cancel < 1:
+        return None
+    a_reduced = a_int // (10 ** cancel)
+    b_reduced = b_int // (10 ** cancel)
+    if b_reduced <= 0 or a_reduced % b_reduced != 0:
+        return None
+    if not times_table_ok(b_reduced):
+        return None
+    quotient = a_reduced // b_reduced
+    if not _near(float(quotient), result):
+        return None
+    reihe = _reihe_label(b_reduced)
+    zeros_word = "Null" if cancel == 1 else "Nullen"
+    return (
+        f"Variante 1 (Kürzen): {_fmt_num(float(a_int))} ÷ {b_int} — "
+        f"{cancel} {zeros_word} streichen: {_fmt_num(float(a_reduced))} ÷ {b_reduced}. "
+        f"Aus der {reihe}: {_fmt_num(float(a_reduced))} ÷ {b_reduced} = {_fmt_num(float(quotient))}."
+    )
+
+
+def _div_kuerzen_factor_power10(a: float, b: float, result: float) -> str | None:
+    """40 = 4 × 10: zuerst ÷10, dann 4er-Reihe."""
+    if abs(b - round(b)) >= 1e-6:
+        return None
+    b_int = int(round(b))
+    if b_int <= 0:
+        return None
+    core_b, zeros_b = _split_trailing_tens(b_int)
+    if zeros_b < 1 or not times_table_ok(core_b):
+        return None
+    power = 10 ** zeros_b
+    mid = a / power
+    final = mid / core_b
+    if not _near(final, result):
+        return None
+    reihe = _reihe_label(core_b)
+    if zeros_b == 1:
+        shift = "durch 10 teilen (Komma eine Stelle / eine Null)"
+    else:
+        shift = (
+            f"durch {power} teilen (Komma {zeros_b} Stellen / {zeros_b} Nullen)"
+        )
+    return (
+        f"Variante 2 (Zehnerpotenz): {b_int} = {core_b} × {power}. "
+        f"Zuerst {shift}: {_fmt_num(a)} → {_fmt_num(mid)}. "
+        f"Dann aus der {reihe}: {_fmt_num(mid)} ÷ {core_b} = {_fmt_num(result)}."
+    )
+
+
+def _div_kuerzen_gcd(a: float, b: float, result: float) -> str | None:
+    """90 : 150 — durch gcd kürzen, Rest mit Einmaleins wenn möglich."""
+    if abs(a - round(a)) >= 1e-6 or abs(b - round(b)) >= 1e-6:
+        return None
+    a_int, b_int = int(round(a)), int(round(b))
+    if a_int <= 0 or b_int <= 0:
+        return None
+    g = math.gcd(a_int, b_int)
+    if g <= 1:
+        return None
+    a2, b2 = a_int // g, b_int // g
+    if b2 <= 1:
+        return None
+    if not _near(a2 / b2, result):
+        return None
+    extra = f"{_fmt_num(float(a2))} ÷ {b2} = {_fmt_num(result)}"
+    reihe = _reihe_label(b2)
+    if reihe:
+        extra = f"Aus der {reihe}: {extra}"
+    return (
+        f"Variante 1 (Kürzen): {_fmt_num(float(a_int))} ÷ {b_int} — "
+        f"durch {g} kürzen: {_fmt_num(float(a2))} ÷ {b2}. {extra}."
+    )
 
 
 def _place_unit(decimals: int) -> str:
@@ -505,6 +677,8 @@ def _div_reihen_scaled(a: float, b_int: int, result: float) -> str | None:
     quotient = scaled // b_int
     unit = _place_unit(decimals)
     reihe = _reihe_label(b_int)
+    if not reihe:
+        return None
     v_result = quotient / (10**decimals)
     return (
         f"Variante 1 (Reihen): {_fmt_num(a)} = {scaled} {unit}. "
@@ -524,6 +698,8 @@ def _div_steps_reihen(a: float, b: float, result: float) -> str | None:
     whole = int(a) if a >= 0 else -int(-a)
     frac = round(a - whole, 10)
     reihe = _reihe_label(b_int)
+    if not reihe:
+        return None
     a_s, r_s = _fmt_num(a), _fmt_num(result)
 
     if frac <= 0:
@@ -591,23 +767,21 @@ def _div_steps(a: float, b: float, result: float) -> str:
     if b_int == 0:
         return f"Variante 1: {a_s} ÷ {b_s} = {r_s}."
 
-    primary = _div_steps_reihen(a, b, result)
+    reihen = _div_steps_reihen(a, b, result)
+    cancel = _div_kuerzen_cancel_zeros(a, b, result)
+    factor = _div_kuerzen_factor_power10(a, b, result)
+    gcd_v = _div_kuerzen_gcd(a, b, result)
     alt = _div_steps_stellenwert(a, b, result)
     kopf = _div_kopf_nullen_steps(a, b, result)
-    merged = _number_mul_variants([variant for variant in (primary, alt, kopf) if variant])
+    if times_table_ok(b_int):
+        parts = [reihen, alt, kopf, cancel]
+    elif _divisor_trailing_zero_count(b_int) is not None:
+        parts = [kopf, alt, cancel, factor]
+    else:
+        parts = [cancel, factor, gcd_v, alt, kopf]
+    merged = _number_mul_variants([variant for variant in parts if variant])
     if merged:
         return merged
-    if primary:
-        return primary
-    if alt:
-        return alt
-    if abs(a - round(a)) < 1e-6 and int(round(a)) % b_int == 0:
-        q = int(round(a)) // b_int
-        return (
-            f"Variante 1 (Reihen): {_fmt_num(a)} ÷ {b_int}. "
-            f"Aus der {_reihe_label(b_int)}: {_fmt_num(float(int(round(a))))} ÷ {b_int} = {_fmt_num(float(q))}."
-        )
-    # Letzter Ausweg: trotzdem Schritte aus der Berechnung
     computed = a / b_int
     return (
         f"Variante 1: {_fmt_num(a)} ÷ {b_int} = {_fmt_num(computed)}.\n\n"
@@ -728,9 +902,11 @@ def _mul_reihe_for_frac(a_int: int, frac: float) -> str | None:
     shifted = product / (10**decimals)
     unit = _place_unit(decimals)
     stelle = "Stelle" if decimals == 1 else "Stellen"
+    reihe = _reihe_label(a_int)
+    series = f" (aus der {reihe})" if reihe else ""
     return (
-        f"{_fmt_num(float(a_int))} × {scaled} = {_fmt_num(float(product))} "
-        f"(aus der {_reihe_label(a_int)}). "
+        f"{_fmt_num(float(a_int))} × {scaled} = {_fmt_num(float(product))}"
+        f"{series}. "
         f"Komma {decimals} {stelle} nach links ({unit}): {_fmt_num(shifted)}"
     )
 
@@ -924,8 +1100,8 @@ def _merge_explanations(primary: str, secondary: str, *, question: str) -> str:
     if explanation_is_weak(primary, question):
         return secondary
 
-    p_variants = _count_variants(primary)
-    s_variants = _count_variants(secondary)
+    p_variants = distinct_variant_count(primary)
+    s_variants = distinct_variant_count(secondary)
 
     if p_variants >= 2 and explanation_has_derivation(primary, question):
         return primary
@@ -941,9 +1117,16 @@ def _merge_explanations(primary: str, secondary: str, *, question: str) -> str:
     if p_variants == 1 and s_variants >= 2:
         alt = _extract_from_variant(secondary, 2)
         if alt:
+            if not _VARIANT_HEAD.match(primary):
+                return f"Variante 1 (Heft): {primary}\n\n{alt}"
             return f"{primary}\n\n{alt}"
 
     return _join_variants(primary, secondary)
+
+
+def merge_worked_variants(primary: str, secondary: str, *, question: str) -> str:
+    """Öffentlicher Einstieg: Heft-/KI-Text mit Template-Varianten kombinieren."""
+    return _merge_explanations(primary, secondary, question=question)
 
 
 def _near(a: float, b: float) -> bool:
@@ -1044,7 +1227,7 @@ def method_explanation_incomplete(text: str, question: str, q: dict | None = Non
 
 def enrich_quiz_explanation(q: dict) -> str:
     question = str(q.get("q") or "")
-    original = str(q.get("explanation") or "").strip()
+    original = collapse_duplicate_variants(str(q.get("explanation") or "").strip())
     q_type = str(q.get("question_type") or "").strip().lower()
 
     if q_type == "method":
@@ -1064,7 +1247,7 @@ def enrich_quiz_explanation(q: dict) -> str:
     worked = build_worked_solution(question)
 
     if original and not explanation_is_weak(original, question):
-        if worked and _count_variants(original) < 2 and _count_variants(worked) >= 1:
+        if worked and distinct_variant_count(original) < 2 and distinct_variant_count(worked) >= 1:
             return _clarify_step_separators(_merge_explanations(original, worked, question=question))
         return _clarify_step_separators(original)
 

@@ -13,6 +13,7 @@ from app.core.crypto import decrypt_text_master
 from app.core.card_answer import grade_input_card
 from app.core.content_analysis import analyze_interactive_modules
 from app.core.quiz_explanation import enrich_quiz_explanation
+from app.core.solution_repair import enrich_card, enrich_knowledge_item
 from app.core.quiz_numeric import is_quiz_selection_correct, resolve_quiz_correct_index
 from app.models import FlashcardProgress, LearningRecord, LearningUnit, UnitModule, User
 from app.services.crypto_json import decrypt_json, encrypt_json
@@ -941,6 +942,7 @@ def _interactive_trainer_payload(
         section_items: list[dict] = []
         for item in content.get("knowledge") or []:
             if isinstance(item, dict):
+                item = enrich_knowledge_item(item)
                 enriched = {**item, "domain": domain, "module_id": str(module.id)}
                 knowledge.append(enriched)
                 section_items.append(item)
@@ -955,6 +957,7 @@ def _interactive_trainer_payload(
             )
         for index, card in enumerate(content.get("cards") or []):
             if isinstance(card, dict):
+                card = enrich_card(card)
                 cards.append(
                     {
                         **card,

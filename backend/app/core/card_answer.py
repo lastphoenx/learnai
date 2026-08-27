@@ -16,7 +16,6 @@ _STEP_HINTS = (
     "multipliz",
     "teile",
     "divid",
-    "reihe",
     "komma",
     "hundertstel",
     "zehntel",
@@ -25,7 +24,10 @@ _STEP_HINTS = (
     "schritt",
     "zuerst",
     "dann",
+    "kürz",
+    "kuerz",
 )
+_REIHE_CLAIM = re.compile(r"(\d+)\s*er[- ]?reihe", re.I)
 
 _MULT_STEP = re.compile(
     r"(\d+(?:[.,]\d+)?)\s*[x×*·]\s*(\d+(?:[.,]\d+)?)\s*=\s*(\d+(?:[.,]\d+)?)",
@@ -56,6 +58,17 @@ def _decomposition_steps_ok(question: str, user_text: str, expected_answer: str)
     if len(partials) < 2:
         return False
     return abs(sum(partials) - exp_num) < 0.02
+
+
+def _valid_times_table_mention(text: str) -> bool:
+    blob = str(text or "").lower()
+    if "einmaleins" in blob or "1x1" in blob or "1×1" in blob:
+        return True
+    for match in _REIHE_CLAIM.finditer(blob):
+        n = int(match.group(1))
+        if 2 <= n <= 12:
+            return True
+    return False
 
 
 def _normalize_free_text(text: str) -> str:
@@ -129,12 +142,16 @@ def grade_worked_solution(
                     break
 
     step_hits = sum(1 for hint in _STEP_HINTS if hint in text)
+    if _valid_times_table_mention(text):
+        step_hits += 1
     worked = build_worked_solution(question, exp_num)
     variant_hits = 0
     if worked:
-        for token in ("variante", "reihe", "zerlegung", "komma", "addier", "teile"):
+        for token in ("variante", "zerlegung", "komma", "addier", "teile", "kürz", "kuerz"):
             if token in worked.lower() and token in text:
                 variant_hits += 1
+        if _valid_times_table_mention(worked) and _valid_times_table_mention(text):
+            variant_hits += 1
 
     method_hits = _method_hint_hits(
         expected_method,

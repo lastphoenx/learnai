@@ -16,6 +16,7 @@ from app.services.exam_insights_service import exam_insights_for_profile
 from app.services.profile_service import get_profile_for_actor
 from app.services.unit_service import UnitError, _get_unit_or_404, get_unit
 from app.core.quiz_numeric import resolve_quiz_correct_index, strip_option_label
+from app.core.solution_repair import enrich_card_answer, enrich_knowledge_text
 
 _PDF_CSS = """
 body { font-family: sans-serif; font-size: 11pt; line-height: 1.45; color: #1a1a1a; }
@@ -324,7 +325,7 @@ def build_interactive_trainer_worksheet_html(unit: dict) -> str:
                 if not isinstance(item, dict):
                     continue
                 k_title = (item.get("title") or "").strip()
-                k_text = (item.get("text") or "").strip()
+                k_text = enrich_knowledge_text((item.get("text") or "").strip())
                 if not k_text and not k_title:
                     continue
                 inner = f"<strong>{_esc(k_title)}</strong>" if k_title else ""
@@ -344,7 +345,7 @@ def build_interactive_trainer_worksheet_html(unit: dict) -> str:
                 if not isinstance(card, dict):
                     continue
                 question = (card.get("question") or "").strip()
-                answer = (card.get("answer") or "").strip()
+                answer = enrich_card_answer(card)
                 if not question and not answer:
                     continue
                 card_count += 1
