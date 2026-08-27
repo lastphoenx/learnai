@@ -278,6 +278,11 @@ export type UnitPedagogy = {
   digest: string;
   source_count: number;
   refreshed_sources?: number;
+  can_reread?: number;
+  skipped_no_file?: number;
+  analysis_current?: boolean;
+  analysis_version?: number;
+  image_count?: number;
   quality?: {
     level: "good" | "partial" | "low" | string;
     method_count: number;
@@ -301,6 +306,7 @@ export type UnitPedagogy = {
     kind: string;
     original_name: string | null;
     has_pedagogy: boolean;
+    analysis_current?: boolean;
     method_count: number;
     exercise_count: number;
   }[];
@@ -452,6 +458,7 @@ export type LearningUnit = {
   sources?: UnitSource[];
   modules?: UnitModule[];
   exams?: ExamResult[];
+  last_generate?: GenerateJobStatus | null;
 };
 
 export type ExamTransfer = {

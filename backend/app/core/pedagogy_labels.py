@@ -113,6 +113,16 @@ def sanitize_pedagogy_field(text: str | None) -> str:
     return cleaned
 
 
+def is_competency_heading(text: str | None) -> bool:
+    """Lernziel-Überschriften («Du kannst…») sind keine Lösungswege."""
+    normalized = normalize_label(text)
+    if not normalized:
+        return False
+    return bool(
+        re.search(r"(?:^|\s)(du kannst|du kennst|du weisst|du weiszt)\b", normalized)
+    )
+
+
 def label_tokens(label: str) -> list[str]:
     tokens = [t.lower() for t in _TOKEN_RE.findall(label or "")]
     return [t for t in tokens if len(t) >= 3 and t not in _STOPWORDS]
@@ -151,6 +161,10 @@ def resolve_method_entry(item: dict) -> dict[str, str]:
     label = sanitize_pedagogy_field(str(item.get("label") or "").strip())
     when = sanitize_pedagogy_field(str(item.get("when") or "").strip())
     example = sanitize_pedagogy_field(str(item.get("example") or "").strip())
+    if is_competency_heading(example):
+        example = ""
+    if is_competency_heading(label) or is_competency_heading(when):
+        return {}
     raw_id = str(item.get("id") or "").strip().lower()
     method_id = normalize_method_id(raw_id) if raw_id else None
     if not method_id:

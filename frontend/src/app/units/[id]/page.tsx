@@ -57,6 +57,28 @@ function statusBadge(status: string) {
   return { label: status, className: "badge" };
 }
 
+function generateStatusLabel(status: string) {
+  if (status === "done") return { label: "Erfolg", className: "badge badge-ready" };
+  if (status === "partial") return { label: "Teilweise", className: "badge badge-draft" };
+  if (status === "failed") return { label: "Fehlgeschlagen", className: "badge badge-fail" };
+  if (status === "running" || status === "queued") return { label: "Läuft", className: "badge" };
+  return null;
+}
+
+function formatZurich(iso: string | null | undefined) {
+  if (!iso) return null;
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleString("de-CH", {
+    timeZone: "Europe/Zurich",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 function sourceKindLabel(kind: string) {
   const map: Record<string, string> = {
     image: "Foto",
@@ -86,6 +108,10 @@ export default function UnitDetailPage() {
   const [quizWeaknesses, setQuizWeaknesses] = useState<QuizWeaknesses | null>(null);
   const [pedagogy, setPedagogy] = useState<UnitPedagogy | null>(null);
   const [pedagogyBusy, setPedagogyBusy] = useState(false);
+  const [pedagogyLastRefresh, setPedagogyLastRefresh] = useState<{
+    refreshed: number;
+    skipped: number;
+  } | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [previewSource, setPreviewSource] = useState<UnitSource | null>(null);
@@ -130,6 +156,10 @@ export default function UnitDetailPage() {
     try {
       const data = await extractUnitPedagogy(unitId);
       setPedagogy(data);
+      setPedagogyLastRefresh({
+        refreshed: data.refreshed_sources ?? 0,
+        skipped: data.skipped_no_file ?? 0,
+      });
       reload();
     } catch {
       setError("Didaktik konnte nicht aus den Quellen gelesen werden.");
@@ -218,7 +248,6 @@ export default function UnitDetailPage() {
       setGenerateJob(started.job);
       const next = await waitForGenerateJob(unitId, setGenerateJob);
       setUnit(next);
-      setGenerateJob(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "KI-Aufbereitung fehlgeschlagen");
     } finally {
@@ -227,7 +256,7 @@ export default function UnitDetailPage() {
   }
 
   useEffect(() => {
-    if (!unit || (unit.modules || []).length > 0 || busy) return;
+    if (!unitId) return;
     let cancelled = false;
     fetchGenerateStatus(unitId)
       .then((res) => {
@@ -245,23 +274,18 @@ export default function UnitDetailPage() {
               }
             })
             .finally(() => {
-              if (!cancelled) {
-                setBusy(false);
-                setGenerateJob(null);
-              }
+              if (!cancelled) setBusy(false);
             });
         }
-      })
-      .catch((err) => {
-        if (!cancelled && err instanceof Error && err.message !== "Kein laufender Generierungsjob") {
-          setError(err.message);
+        if (res.job.status === "done" || res.job.status === "partial" || res.job.status === "failed") {
+          setGenerateJob(res.job);
         }
-      });
+      })
+      .catch(() => undefined);
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [unit?.id, unit?.task_type, unit?.modules?.length]);
+  }, [unitId]);
 
   useEffect(() => {
     if (searchParams.get("autogen") !== "1" || !unit || busy || autogenStarted.current) return;
@@ -285,6 +309,12 @@ export default function UnitDetailPage() {
   const badge = unit ? statusBadge(unit.status) : null;
   const moduleCount = unit?.modules?.length ?? 0;
   const sourceCount = unit?.sources?.length ?? 0;
+  const lastGenerate =
+    generateJob && (generateJob.status === "done" || generateJob.status === "partial" || generateJob.status === "failed")
+      ? generateJob
+      : unit?.last_generate;
+  const lastGenerateWhen = formatZurich(lastGenerate?.updated_at || lastGenerate?.started_at);
+  const lastGenerateBadge = lastGenerate ? generateStatusLabel(lastGenerate.status) : null;
 
   return (
     <main className="shell shell-wide unit-page">
@@ -451,7 +481,7 @@ export default function UnitDetailPage() {
           </section>
 
           {sourceCount > 0 && unit.task_type === "interactive" && (
-            <details className="card unit-section unit-pedagogy-section unit-pedagogy-collapsible" open={!pedagogy?.has_pedagogy}>
+            <details className="card unit-section unit-pedagogy-section unit-pedagogy-collapsible" open={!pedagogy?.has_pedagogy || pedagogy?.analysis_current === false}>
               <summary className="unit-pedagogy-summary">
                 <span className="section-head unit-pedagogy-summary-head">
                   <h2>Didaktik aus Quellen</h2>
@@ -524,8 +554,8 @@ export default function UnitDetailPage() {
                 </>
               ) : (
                 <p className="muted empty-hint">
-                  Noch keine strukturierte Didaktik. Lies die Quellen ein, bevor du generierst — oder starte
-                  «Mit KI aufbereiten» (extrahiert automatisch).
+                  Noch keine strukturierte Didaktik. Zuerst «Didaktik neu einlesen» — «Mit KI aufbereiten»
+                  verwendet danach den gespeicherten Stand und visiert die Bilder nicht noch einmal.
                 </p>
               )}
               <div className="unit-pedagogy-actions">
@@ -533,10 +563,35 @@ export default function UnitDetailPage() {
                   type="button"
                   className="btn"
                   onClick={onExtractPedagogy}
-                  disabled={busy || pedagogyBusy}
+                  disabled={busy || pedagogyBusy || (pedagogy != null && (pedagogy.can_reread ?? 0) === 0)}
+                  title={
+                    pedagogy != null && (pedagogy.can_reread ?? 0) === 0
+                      ? "Bilddateien fehlen (gelöscht oder automatisch bereinigt) — bitte neu hochladen."
+                      : "Vision erneut ausführen, gespeicherte Didaktik wird überschrieben."
+                  }
                 >
-                  {pedagogyBusy ? "Lese Quellen…" : pedagogy?.has_pedagogy ? "Didaktik aktualisieren" : "Didaktik einlesen"}
+                  {pedagogyBusy ? "Lese Quellen…" : "Didaktik neu einlesen"}
                 </button>
+                {pedagogyLastRefresh && !pedagogyBusy ? (
+                  <p className="muted">
+                    Zuletzt: {pedagogyLastRefresh.refreshed} Quelle(n) neu analysiert
+                    {pedagogyLastRefresh.skipped > 0
+                      ? ` · ${pedagogyLastRefresh.skipped} ohne Bilddatei übersprungen`
+                      : ""}
+                    .
+                  </p>
+                ) : null}
+                {pedagogy?.analysis_current === false && (pedagogy.can_reread ?? 0) > 0 ? (
+                  <p className="muted">
+                    Der gespeicherte Stand ist älter als die aktuelle Didaktik-Auswertung. Neu einlesen, damit
+                    Prompt und Filter greifen — «Mit KI aufbereiten» allein reicht nicht.
+                  </p>
+                ) : null}
+                {pedagogy != null && (pedagogy.can_reread ?? 0) === 0 && (pedagogy.image_count ?? 0) > 0 ? (
+                  <p className="muted">
+                    Die Originalbilder sind nicht mehr gespeichert. Zum Neu-Einlesen die Fotos erneut hochladen.
+                  </p>
+                ) : null}
               </div>
               </div>
             </details>
@@ -671,9 +726,13 @@ export default function UnitDetailPage() {
                 aria-busy={busy}
               >
                 <strong>{busy ? "KI arbeitet…" : "Mit KI aufbereiten"}</strong>
-                {unit.task_type === "interactive" && sourceCount > 0 && !pedagogy?.has_pedagogy && !busy && (
+                {unit.task_type === "interactive" && sourceCount > 0 && !busy && (
                   <span className="muted" style={{ display: "block", marginTop: "0.35rem" }}>
-                    Tipp: Zuerst «Didaktik einlesen» — dann siehst du die erkannten Lösungswege.
+                    {pedagogy?.analysis_current
+                      ? "Verwendet die gespeicherte Didaktik. Neu visieren: «Didaktik neu einlesen»."
+                      : pedagogy?.has_pedagogy
+                        ? "Didaktik-Stand ist veraltet — Aufbereiten visiert die Bilder erneut, oder «Didaktik neu einlesen»."
+                        : "Tipp: Zuerst «Didaktik neu einlesen» — dann siehst du die erkannten Lösungswege."}
                   </span>
                 )}
                 {busy ? (
@@ -699,13 +758,25 @@ export default function UnitDetailPage() {
                     </span>
                   </div>
                 ) : (
-                  <span className="muted">
-                    {unit.task_type === "interactive" && sourceCount > 0
-                      ? `${sourceCount} Quelle(n) — Tab offen lassen`
-                      : sourceCount > 0
-                        ? `${sourceCount} Quelle(n)`
-                        : "Aus Titel & Auftrag"}
-                  </span>
+                  <>
+                    <span className="muted">
+                      {unit.task_type === "interactive" && sourceCount > 0
+                        ? `${sourceCount} Quelle(n) — Tab offen lassen`
+                        : sourceCount > 0
+                          ? `${sourceCount} Quelle(n)`
+                          : "Aus Titel & Auftrag"}
+                    </span>
+                    {lastGenerateWhen && lastGenerateBadge && (
+                      <span className="generate-last-run">
+                        Letztes Mal: {lastGenerateWhen}
+                        {" · "}
+                        <span className={lastGenerateBadge.className}>{lastGenerateBadge.label}</span>
+                        {lastGenerate?.message ? (
+                          <span className="muted generate-last-run-msg"> — {lastGenerate.message}</span>
+                        ) : null}
+                      </span>
+                    )}
+                  </>
                 )}
               </button>
               {user && !asChild && (

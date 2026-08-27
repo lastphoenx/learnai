@@ -86,14 +86,66 @@ def get_generate_job(unit_id: str) -> dict[str, Any] | None:
         return None
 
 
+_TERMINAL_STATUSES = frozenset({"done", "partial", "failed"})
+
+
+def snapshot_last_generate(job: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not job or job.get("status") not in _TERMINAL_STATUSES:
+        return None
+    snapshot: dict[str, Any] = {
+        "status": job["status"],
+        "message": job.get("message"),
+        "error": job.get("error"),
+        "started_at": job.get("started_at"),
+        "updated_at": job.get("updated_at"),
+    }
+    for key in ("modules", "cards", "questions"):
+        if key in job:
+            snapshot[key] = job[key]
+    return snapshot
+
+
+def persist_last_generate(db, unit_id: str) -> None:
+    """Letzten Endstand in reconstruction speichern (überlebt Redis-TTL)."""
+    snapshot = snapshot_last_generate(get_generate_job(unit_id))
+    if not snapshot:
+        return
+    import uuid as _uuid
+
+    from app.models import LearningRecord
+    from app.services.crypto_json import decrypt_json, encrypt_json
+
+    record = db.query(LearningRecord).filter(LearningRecord.unit_id == _uuid.UUID(unit_id)).first()
+    if not record:
+        return
+    recon = decrypt_json(record.reconstruction_encrypted) if record.reconstruction_encrypted else {}
+    if not isinstance(recon, dict):
+        recon = {}
+    recon["last_generate"] = snapshot
+    record.reconstruction_encrypted = encrypt_json(recon)
+
+
+def last_generate_from_recon(recon: dict | None) -> dict[str, Any] | None:
+    if not isinstance(recon, dict):
+        return None
+    return snapshot_last_generate(recon.get("last_generate") if isinstance(recon.get("last_generate"), dict) else None)
+
+
 def set_generate_job(unit_id: str, *, user_id: str, **fields: Any) -> dict[str, Any]:
     existing = get_generate_job(unit_id) or {}
+    if fields.get("status") == "queued":
+        existing = {}
     stage = str(fields.get("stage") or existing.get("stage") or "queued")
     extra = {k: v for k, v in fields.items() if k not in {"status", "stage", "error", "user_id"}}
     message = str(fields.get("message") or STAGE_MESSAGES.get(stage, stage))
     progress_pct = fields.get("progress_pct")
     if progress_pct is None:
         progress_pct = _estimate_progress(stage, extra)
+
+    if fields.get("status") == "queued":
+        started_at = _now_iso()
+    else:
+        started_at = existing.get("started_at") or _now_iso()
 
     payload: dict[str, Any] = {
         "unit_id": unit_id,
@@ -103,7 +155,7 @@ def set_generate_job(unit_id: str, *, user_id: str, **fields: Any) -> dict[str, 
         "message": message,
         "progress_pct": progress_pct,
         "error": fields.get("error"),
-        "started_at": existing.get("started_at") or _now_iso(),
+        "started_at": started_at,
         "updated_at": _now_iso(),
     }
     for key in ("index", "total", "category", "modules", "cards", "questions"):

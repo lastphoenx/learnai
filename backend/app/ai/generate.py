@@ -13,12 +13,11 @@ from app.ai.catalog import resolve_task_ai
 from app.ai.errors import LlmError
 from app.ai.providers import complete, describe_image, parse_json_object, resolve_provider
 from app.ai.source_pedagogy import (
+    blob_needs_pedagogy_refresh,
     build_pedagogy_digest,
     collect_pedagogy_from_unit_sources,
     encode_source_analysis,
-    has_pedagogy_content,
     parse_pedagogy_extraction,
-    pedagogy_from_analysis_blob,
     vision_pedagogy_prompt,
 )
 from app.ai.prompts.pedagogy import pedagogy_context_block
@@ -608,7 +607,7 @@ def _collect_source_notes(db: Session, unit: LearningUnit, prefs: dict) -> str:
                 source.kind == "image"
                 and source.storage_path
                 and source.purged_at is None
-                and not has_pedagogy_content(pedagogy_from_analysis_blob(source.analysis_encrypted))
+                and blob_needs_pedagogy_refresh(source.analysis_encrypted)
             ):
                 refreshed = _vision_extract_image_source(
                     db=db, unit=unit, source=source, label=label, prefs=prefs
@@ -616,7 +615,7 @@ def _collect_source_notes(db: Session, unit: LearningUnit, prefs: dict) -> str:
                 if refreshed and not refreshed.startswith("("):
                     text = refreshed
                     _log.info(
-                        "generate_llm source_pedagogy_refresh label=%s chars=%d",
+                        "generate_llm source_pedagogy_refresh label=%s chars=%d reason=stale_or_empty",
                         label,
                         len(text),
                     )

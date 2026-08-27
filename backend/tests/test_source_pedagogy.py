@@ -1,6 +1,7 @@
 import json
 
 from app.ai.source_pedagogy import (
+    PEDAGOGY_ANALYSIS_VERSION,
     build_pedagogy_digest,
     decode_source_analysis,
     encode_source_analysis,
@@ -69,6 +70,34 @@ def test_merge_pedagogy_profiles_dedupes_methods():
     assert merged["exercise_patterns"] == ["zuordnen"]
 
 
+def test_merge_drops_cached_competency_headings_and_wrong_results():
+    dirty = {
+        "is_metadata_only": False,
+        "methods": [
+            {
+                "label": "Du kannst Additionen und Subtraktionen mit Dezimalzahlen lösen",
+                "when": "Themenbuch S.48",
+            }
+        ],
+        "worked_examples": [{"problem": "3,7 + 1,301 = 5,004", "steps": []}],
+        "exercises": [],
+        "exercise_patterns": [],
+        "teaching_notes": ["Die Aufgaben werden mit Kreisen und Strichen korrigiert."],
+    }
+    clean = {
+        "is_metadata_only": False,
+        "methods": [{"label": "Kopfrechnen", "when": "einfach", "example": ""}],
+        "worked_examples": [],
+        "exercises": [],
+        "exercise_patterns": [],
+        "teaching_notes": [],
+    }
+    merged = merge_pedagogy_profiles([dirty, clean])
+    assert [m["label"] for m in merged["methods"]] == ["Kopfrechnen"]
+    assert merged["worked_examples"] == []
+    assert merged["teaching_notes"] == []
+
+
 def test_build_pedagogy_digest_includes_methods_and_verstehen_examples():
     profile = {
         "is_metadata_only": False,
@@ -91,6 +120,33 @@ def test_encode_decode_source_analysis_roundtrip():
     assert parsed is not None
     assert parsed["provider"] == "openai"
     assert parsed["pedagogy"]["methods"][0]["label"] == "im Kopf"
+    assert parsed["version"] == PEDAGOGY_ANALYSIS_VERSION
+
+
+def test_legacy_analysis_without_version_needs_refresh():
+    from app.ai.source_pedagogy import PEDAGOGY_ANALYSIS_VERSION, parsed_analysis_needs_refresh
+
+    stale = {
+        "provider": "ollama",
+        "model": "qwen2.5:32b",
+        "pedagogy": {"methods": [{"label": "im Kopf", "when": "", "example": ""}]},
+    }
+    assert parsed_analysis_needs_refresh(stale) is True
+    current = {
+        "provider": "ollama",
+        "model": "qwen2.5:32b",
+        "version": PEDAGOGY_ANALYSIS_VERSION,
+        "pedagogy": {"methods": [{"label": "im Kopf", "when": "", "example": ""}]},
+    }
+    assert parsed_analysis_needs_refresh(current) is False
+    assert parsed_analysis_needs_refresh(None) is True
+    empty = {
+        "provider": "ollama",
+        "model": "x",
+        "version": PEDAGOGY_ANALYSIS_VERSION,
+        "pedagogy": {"methods": []},
+    }
+    assert parsed_analysis_needs_refresh(empty) is True
 
 
 def test_has_pedagogy_content_and_digest_do_not_crash():
@@ -208,6 +264,9 @@ def test_vision_pedagogy_prompt_uses_empty_schema_values():
     assert "handschriftliche" in prompt
     assert "Lernziel-Überschriften" in prompt
     assert "Du kannst" in prompt
+    assert "Du kennst" in prompt
+    assert "Malpunkt" in prompt
+    assert "4 · 60,2" in prompt
 
 
 def test_parse_pedagogy_strips_placeholder_method_label_from_worked_examples():
@@ -238,3 +297,94 @@ def test_parse_pedagogy_strips_placeholder_method_label_from_worked_examples():
     )
     assert "Bezeichnung wie im Heft" not in digest
     assert "Aufgabe 4a" in digest
+
+
+def test_parse_pedagogy_drops_competency_headings_and_bad_equations():
+    payload = {
+        "summary": "Dezimalzahlen.",
+        "is_metadata_only": False,
+        "methods": [
+            {
+                "label": "Kopfrechnen",
+                "when": "bei einfachen Zahlen",
+                "example": "0,303 + 0,25",
+            },
+            {
+                "label": "Du kannst Additionen und Subtraktionen mit Dezimalzahlen im Kopf lösen",
+                "when": "Themenbuch S.48 Nr.1",
+                "example": "",
+            },
+            {
+                "label": "Du kennst ein geeignetes Vorgehen um Multiplikationen zu lösen",
+                "when": "Themenbuch S.54",
+            },
+            {
+                "label": "halbschriftlich",
+                "when": "bei Multiplikationen mit Dezimalzahlen",
+                "example": "4.602 = 240.8",
+            },
+        ],
+        "worked_examples": [
+            {
+                "problem": "3,7 + 1,301 = 5,004",
+                "method_label": "Kopfrechnen",
+                "steps": ["68,37 + 2,4 = 70,77"],
+            },
+            {
+                "problem": "0,303 + 0,25 = 0,553",
+                "method_label": "Kopfrechnen",
+                "steps": [
+                    "0,300 + 0,250 = 0,550",
+                    "2015,37 + 87,075 = 2102,445",
+                    "748 - 70,25 = 04,165",
+                ],
+            },
+            {
+                "problem": "4.602 = 240.8",
+                "steps": ["4 · 60,2"],
+            },
+            {
+                "problem": "3,7 + 1,301 = 5,001",
+                "method_label": "Kopfrechnen",
+                "steps": ["3,7 + 1,3 = 5,0", "5,0 + 0,001 = 5,001"],
+            },
+        ],
+        "exercises": [
+            {"ref": "A1", "text": "Du kannst Additionen und Subtraktionen mit Dezimalzahlen lösen."},
+            {"ref": "450:50", "text": "450 : 50"},
+        ],
+        "exercise_patterns": ["Additionen und Subtraktionen mit Dezimalzahlen"],
+        "teaching_notes": [
+            "Die Aufgaben sind in verschiedenen Formen zu lösen: Kopfrechnen, schriftlich und halbschriftlich.",
+            "Die Aufgaben werden mit Kreisen und Strichen korrigiert.",
+        ],
+    }
+    _, pedagogy = parse_pedagogy_extraction(json.dumps(payload))
+
+    labels = [m["label"] for m in pedagogy["methods"]]
+    assert "Kopfrechnen" in labels
+    assert "halbschriftlich" in labels
+    assert all("Du kannst" not in label and "Du kennst" not in label for label in labels)
+    half = next(m for m in pedagogy["methods"] if m["label"] == "halbschriftlich")
+    assert "4.602" not in (half.get("example") or "")
+
+    problems = [ex["problem"] for ex in pedagogy["worked_examples"]]
+    assert "3,7 + 1,301 = 5,004" not in problems
+    assert "4.602 = 240.8" not in problems
+    assert "3,7 + 1,301 = 5,001" in problems
+    assert "0,303 + 0,25 = 0,553" in problems
+
+    mashed = next(ex for ex in pedagogy["worked_examples"] if ex["problem"].startswith("0,303"))
+    step_blob = " ".join(mashed["steps"])
+    assert "04,165" not in step_blob
+    assert "2015,37" not in step_blob
+    assert "0,300 + 0,250 = 0,550" in mashed["steps"]
+
+    exercise_texts = [ex["text"] for ex in pedagogy["exercises"]]
+    assert any("450 : 50" in text for text in exercise_texts)
+    assert all("Du kannst" not in text for text in exercise_texts)
+
+    notes = " ".join(pedagogy["teaching_notes"])
+    assert "verschiedenen Formen" in notes
+    assert "Kreisen" not in notes
+    assert "Strichen" not in notes
