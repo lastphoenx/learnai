@@ -21,8 +21,10 @@ from app.core.quiz_numeric import parse_quiz_numeric
 _EQ = re.compile(
     r"(-?\d+(?:[.,]\d+)?)\s*([+\-·×*:÷/x])\s*(-?\d+(?:[.,]\d+)?)\s*=\s*(-?\d+(?:[.,]\d+)?)"
 )
-_REIHE_CLAIM = re.compile(r"(\d+)\s*er-reihe", re.I)
-_AUS_DER_EMPTY = re.compile(r"aus der\s*:?\s*", re.I)
+_INVALID_REIHE_PHRASE = re.compile(
+    r"(?:oft\s+)?(?:aus\s+der\s+)?(\d+)\s*er-reihe\s*:?\s*",
+    re.I,
+)
 
 
 def _drop_false_equations(text: str) -> str:
@@ -43,8 +45,7 @@ def _scrub_invalid_reihe(text: str) -> str:
             return match.group(0)
         return ""
 
-    cleaned = _REIHE_CLAIM.sub(repl, str(text or ""))
-    cleaned = _AUS_DER_EMPTY.sub("", cleaned)
+    cleaned = _INVALID_REIHE_PHRASE.sub(repl, str(text or ""))
     cleaned = re.sub(r"[ \t]{2,}", " ", cleaned)
     cleaned = re.sub(r"\s+([.,;:])", r"\1", cleaned)
     return cleaned.strip()

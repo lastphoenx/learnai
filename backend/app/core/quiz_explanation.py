@@ -198,16 +198,37 @@ def _chunk_has_intermediate(chunk: str, question: str) -> bool:
     return any(not _equation_restates_problem(match.group(0), question) for match in matches)
 
 
+def _chunks_for_derivation(text: str, question: str = "") -> list[str]:
+    """Führende «Ergebnis zuerst»-Zeile vor Variante 1 zählt nicht als eigener Weg."""
+    chunks = _variant_chunks(text)
+    if len(chunks) < 2:
+        return chunks
+    first, *rest = chunks
+    if _VARIANT_HEAD.match(first):
+        return chunks
+    if not any(_VARIANT_HEAD.match(chunk) for chunk in rest):
+        return chunks
+    if question:
+        if _chunk_has_intermediate(first, question):
+            return chunks
+        return rest
+    if _EQUATION.search(first) and len(first) > 80:
+        return chunks
+    return rest
+
+
 def explanation_has_derivation(explanation: str, question: str = "") -> bool:
     """True nur wenn jede Variante eine Zwischenrechnung hat, nicht nur a · b = Ergebnis."""
     expl = str(explanation or "").strip()
     if not expl:
         return False
-    chunks = _variant_chunks(expl)
+    chunks = _chunks_for_derivation(expl, question)
     if question:
         if len(chunks) >= 2:
             return all(_chunk_has_intermediate(chunk, question) for chunk in chunks)
-        return _chunk_has_intermediate(expl, question)
+        if chunks:
+            return _chunk_has_intermediate(chunks[0], question)
+        return False
     if len(chunks) >= 2:
         return all(_EQUATION.search(chunk) for chunk in chunks)
     return bool(_EQUATION.search(expl))
