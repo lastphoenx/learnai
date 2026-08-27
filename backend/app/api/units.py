@@ -97,6 +97,7 @@ def _http(exc: UnitError) -> HTTPException:
         "already_assigned": status.HTTP_400_BAD_REQUEST,
         "invalid_profile": status.HTTP_400_BAD_REQUEST,
         "rate_limited": status.HTTP_429_TOO_MANY_REQUESTS,
+        "modules_exist": status.HTTP_409_CONFLICT,
         "no_file": status.HTTP_400_BAD_REQUEST,
         "analysis_failed": status.HTTP_400_BAD_REQUEST,
         "not_analyzed": status.HTTP_400_BAD_REQUEST,
@@ -283,7 +284,7 @@ def units_generate(
     db: Session = Depends(get_db),
 ):
     try:
-        _get_unit_or_404(db, user, unit_id)
+        unit = _get_unit_or_404(db, user, unit_id)
         uid = str(unit_id)
         stale = fail_stale_generate_job(db, uid)
         if stale:
@@ -294,6 +295,11 @@ def units_generate(
             return JSONResponse(
                 status_code=status.HTTP_202_ACCEPTED,
                 content=GenerateStartResponse(async_job=True, job=job).model_dump(),
+            )
+        if (unit.modules or []) and not body.force:
+            raise UnitError(
+                "Diese Einheit hat schon Lernblöcke. Neu aufbereiten überschreibt sie — bitte bestätigen.",
+                "modules_exist",
             )
         job_raw = start_generate_job(user, uid, body.provider)
         job = GenerateJobStatus.model_validate(job_raw)

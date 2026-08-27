@@ -219,6 +219,7 @@ class UnitUpdateRequest(BaseModel):
 
 class UnitGenerateRequest(BaseModel):
     provider: str | None = Field(default=None, max_length=32)
+    force: bool = False
 
 
 class GenerateJobStatus(BaseModel):

@@ -246,11 +246,20 @@ export default function UnitDetailPage() {
   }
 
   async function onGenerate() {
+    const hasModules = (unit?.modules || []).length > 0;
+    if (hasModules) {
+      const ok = window.confirm(
+        "Es gibt bereits Lernblöcke. Neu aufbereiten überschreibt den Trainer vollständig. Trotzdem neu erzeugen?",
+      );
+      if (!ok) return;
+    }
     setBusy(true);
     setError(null);
     setGenerateJob({ status: "queued", message: "Starte…", progress_pct: 0 });
     try {
-      const started = await generateUnit(unitId, unit?.trainer_options?.llm_provider || undefined);
+      const started = await generateUnit(unitId, unit?.trainer_options?.llm_provider || undefined, {
+        force: hasModules,
+      });
       if (started.mode === "sync") {
         setUnit(started.unit);
         return;
@@ -778,7 +787,13 @@ export default function UnitDetailPage() {
                 disabled={busy}
                 aria-busy={busy}
               >
-                <strong>{busy ? "KI arbeitet…" : "Mit KI aufbereiten"}</strong>
+                <strong>
+                  {busy
+                    ? "KI arbeitet…"
+                    : (unit.modules || []).length > 0
+                      ? "Neu aufbereiten"
+                      : "Mit KI aufbereiten"}
+                </strong>
                 {unit.task_type === "interactive" && sourceCount > 0 && !busy && (
                   <span className="muted" style={{ display: "block", marginTop: "0.35rem" }}>
                     {pedagogy?.analysis_current
@@ -813,11 +828,13 @@ export default function UnitDetailPage() {
                 ) : (
                   <>
                     <span className="muted">
-                      {unit.task_type === "interactive" && sourceCount > 0
-                        ? `${sourceCount} Quelle(n) — Tab offen lassen`
-                        : sourceCount > 0
-                          ? `${sourceCount} Quelle(n)`
-                          : "Aus Titel & Auftrag"}
+                      {(unit.modules || []).length > 0
+                        ? "Überschreibt die bestehenden Lernblöcke — erst nach Rückfrage"
+                        : unit.task_type === "interactive" && sourceCount > 0
+                          ? `${sourceCount} Quelle(n) — Tab offen lassen`
+                          : sourceCount > 0
+                            ? `${sourceCount} Quelle(n)`
+                            : "Aus Titel & Auftrag"}
                     </span>
                     {lastGenerateWhen && lastGenerateBadge && (
                       <span className="generate-last-run">
