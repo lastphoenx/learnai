@@ -51,6 +51,7 @@ import {
   taskTypeLabel,
   type UnitTaskType,
 } from "@/lib/taskTypes";
+import { sandboxUnitTitle } from "@/lib/sandboxUnitTitle";
 
 function statusBadge(status: string) {
   if (status === "ready") return { label: "Bereit", className: "badge badge-ready" };
@@ -365,14 +366,14 @@ export default function UnitDetailPage() {
           <nav className="breadcrumb" aria-label="Brotkrumen">
             <Link href="/units">Einheiten</Link>
             <span aria-hidden="true">›</span>
-            <span>{unit.title}</span>
+            <span>{sandboxUnitTitle(unit)}</span>
           </nav>
 
-          <section className="unit-hero card">
+          <section className={`unit-hero card${unit.is_sandbox_copy ? " unit-hero-sandbox" : ""}`}>
             <div className="unit-hero-top">
               <div>
-                <p className="hero-kicker">Lerneinheit</p>
-                <h1 className="unit-title">{unit.title}</h1>
+                <p className="hero-kicker">{unit.is_sandbox_copy ? "Testkopie" : "Lerneinheit"}</p>
+                <h1 className="unit-title">{sandboxUnitTitle(unit)}</h1>
               </div>
               <button
                 type="button"
@@ -387,6 +388,7 @@ export default function UnitDetailPage() {
 
             <div className="badge-row">
               {badge && <span className={badge.className}>{badge.label}</span>}
+              {unit.is_sandbox_copy && <span className="badge badge-sandbox">Testkopie</span>}
               {unit.reference_code && (
                 <span className="badge badge-neutral unit-ref-badge" title="Referenz-Code für Support und Qualitätsreport">
                   Ref {unit.reference_code}
