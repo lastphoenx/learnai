@@ -329,11 +329,15 @@ def units_generate_status(
     _get_unit_or_404(db, user, unit_id)
     uid = str(unit_id)
     raw = get_generate_job(uid)
-    if not raw:
-        return GenerateStatusResponse(job=GenerateJobStatus(status="idle"))
-    job = GenerateJobStatus.model_validate(raw)
-    unit_payload = get_unit(db, user, unit_id) if job.status in {"done", "partial"} else None
-    return GenerateStatusResponse(job=job, unit=unit_payload)
+    if raw:
+        job = GenerateJobStatus.model_validate(raw)
+        unit_payload = get_unit(db, user, unit_id) if job.status in {"done", "partial"} else None
+        return GenerateStatusResponse(job=job, unit=unit_payload)
+    unit_payload = get_unit(db, user, unit_id)
+    last = unit_payload.get("last_generate")
+    if last:
+        return GenerateStatusResponse(job=GenerateJobStatus.model_validate(last))
+    return GenerateStatusResponse(job=GenerateJobStatus(status="idle"))
 
 
 @router.patch("/{unit_id}")

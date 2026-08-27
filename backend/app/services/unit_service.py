@@ -320,6 +320,11 @@ def get_unit(db: Session, user: User, unit_id: uuid.UUID) -> dict:
         focus = (recon.get("math_focus") or "").strip()
         if focus:
             data["math_focus"] = focus
+        from app.services.generate_job import last_generate_from_recon
+
+        last_generate = last_generate_from_recon(recon)
+        if last_generate:
+            data["last_generate"] = last_generate
     prog = learn_progress_for_unit(db, unit.id)
     if prog:
         data["learn_progress"] = prog
@@ -1025,6 +1030,7 @@ def update_unit(
     recon = decrypt_json(record.reconstruction_encrypted) if record and record.reconstruction_encrypted else {}
     if not isinstance(recon, dict):
         recon = {}
+    preserved_last_generate = recon.get("last_generate") if isinstance(recon.get("last_generate"), dict) else None
 
     if title is not None:
         cleaned = title.strip()
@@ -1104,6 +1110,8 @@ def update_unit(
             trainer_options=recon.get("trainer_options") if unit.task_type == "interactive" else None,
             learn_goals=recon.get("learn_goals") if unit.task_type == "interactive" else None,
         )
+        if preserved_last_generate:
+            recon["last_generate"] = preserved_last_generate
         record.reconstruction_encrypted = encrypt_json(recon)
 
     db.flush()

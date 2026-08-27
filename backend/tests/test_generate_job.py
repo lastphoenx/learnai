@@ -38,3 +38,46 @@ def test_progress_partial_status(mock_set):
     _, kwargs = mock_set.call_args
     assert kwargs["status"] == "partial"
     assert kwargs["modules"] == 5
+
+
+def test_snapshot_last_generate_terminal_only():
+    from app.services.generate_job import snapshot_last_generate
+
+    assert snapshot_last_generate({"status": "running"}) is None
+    snap = snapshot_last_generate(
+        {
+            "status": "partial",
+            "message": "Entwurf gespeichert",
+            "updated_at": "2026-08-27T11:59:52+00:00",
+            "modules": 6,
+        }
+    )
+    assert snap is not None
+    assert snap["status"] == "partial"
+    assert snap["modules"] == 6
+    assert snap["updated_at"] == "2026-08-27T11:59:52+00:00"
+
+
+def test_queued_job_resets_started_at(monkeypatch):
+    from app.services import generate_job as gj
+
+    stored = {
+        "status": "partial",
+        "started_at": "2026-08-26T19:40:45+00:00",
+        "modules": 6,
+        "cards": 49,
+        "index": 1,
+    }
+    monkeypatch.setattr(gj, "get_generate_job", lambda _uid: stored)
+    written = {}
+
+    class _FakeRedis:
+        def setex(self, key, ttl, value):
+            written["payload"] = value
+
+    monkeypatch.setattr(gj, "_redis_client", lambda: _FakeRedis())
+    payload = gj.set_generate_job("unit-1", user_id="user-1", status="queued", stage="queued")
+    assert payload["status"] == "queued"
+    assert payload["started_at"] != "2026-08-26T19:40:45+00:00"
+    assert "modules" not in payload
+    assert "index" not in payload
