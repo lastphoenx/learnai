@@ -148,9 +148,6 @@ def _loads_json_object(raw: str) -> dict | None:
 
 def parse_json_object(text: str) -> dict:
     raw = text.strip()
-    fence = re.search(r"```(?:json)?\s*([\s\S]*?)```", raw)
-    if fence:
-        raw = fence.group(1).strip()
     data = _loads_json_object(raw)
     if data is not None:
         return data
@@ -160,6 +157,19 @@ def parse_json_object(text: str) -> dict:
         data = _loads_json_object(raw[start : end + 1])
         if data is not None:
             return data
+    fence = re.search(r"```(?:json)?\s*([\s\S]*?)```", raw)
+    if fence:
+        inner = fence.group(1).strip()
+        if inner.startswith("{") or inner.startswith("["):
+            data = _loads_json_object(inner)
+            if data is not None:
+                return data
+            start = inner.find("{")
+            end = inner.rfind("}")
+            if start >= 0 and end > start:
+                data = _loads_json_object(inner[start : end + 1])
+                if data is not None:
+                    return data
     compact = raw.replace("\n", " ")
     _log.warning(
         "parse_json_object fail chars=%d head=%s tail=%s",
