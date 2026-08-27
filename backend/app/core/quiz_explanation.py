@@ -316,8 +316,13 @@ def _add_kopf_steps(a: float, b: float, result: float) -> str | None:
     b_whole = int(b) if b >= 0 else -int(-b)
     b_frac = round(b - b_whole, 10)
     if a_whole == 0 and b_whole == 0:
+        scaled_a, scaled_b, scale = _scale_to_int_pair(a, b)
+        total = scaled_a + scaled_b
+        stelle = "Stelle" if scale == 1 else "Stellen"
         return (
-            f"Variante 2 (Kopfrechnen): {_fmt_num(a_frac)} + {_fmt_num(b_frac)} = {_fmt_num(result)}."
+            f"Variante 2 (Kopfrechnen): {_fmt_num(a)} + {_fmt_num(b)} — "
+            f"ohne Komma: {_fmt_num(float(scaled_a))} + {_fmt_num(float(scaled_b))} = "
+            f"{_fmt_num(float(total))}. Komma {scale} {stelle} nach links: {_fmt_num(result)}."
         )
     parts = [f"Variante 2 (Kopfrechnen): {_fmt_num(a)} + {_fmt_num(b)}."]
     carry_whole = 0
@@ -345,8 +350,13 @@ def _sub_kopf_steps(a: float, b: float, result: float) -> str | None:
     b_whole = int(b) if b >= 0 else -int(-b)
     b_frac = round(b - b_whole, 10)
     if a_whole == 0 and b_whole == 0:
+        scaled_a, scaled_b, scale = _scale_to_int_pair(a, b)
+        diff = scaled_a - scaled_b
+        stelle = "Stelle" if scale == 1 else "Stellen"
         return (
-            f"Variante 2 (Kopfrechnen): {_fmt_num(a_frac)} − {_fmt_num(b_frac)} = {_fmt_num(result)}."
+            f"Variante 2 (Kopfrechnen): {_fmt_num(a)} − {_fmt_num(b)} — "
+            f"ohne Komma: {_fmt_num(float(scaled_a))} − {_fmt_num(float(scaled_b))} = "
+            f"{_fmt_num(float(diff))}. Komma {scale} {stelle} nach links: {_fmt_num(result)}."
         )
     parts = [f"Variante 2 (Kopfrechnen): {_fmt_num(a)} − {_fmt_num(b)}."]
     borrow_whole = 0
