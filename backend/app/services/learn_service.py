@@ -1070,22 +1070,12 @@ def maybe_auto_quiz_trainer(
 
 
 def enqueue_trainer_generate(unit_id: str, user: User) -> None:
-    from app.services.generate_job import get_generate_job, job_is_active, set_generate_job
-    from app.services.generate_limits import acquire_generate_slot
-    from app.tasks.generate import generate_unit_task
+    from app.services.generate_control import start_generate_job
 
-    if job_is_active(get_generate_job(unit_id)):
-        return
     try:
-        acquire_generate_slot(
-            user_id=str(user.id),
-            tenant_id=str(user.tenant_id),
-            unit_id=unit_id,
-        )
+        start_generate_job(user, unit_id, None)
     except Exception:
         return
-    set_generate_job(unit_id, user_id=str(user.id), status="queued", stage="queued")
-    generate_unit_task.delay(unit_id, str(user.id), None)
 
 
 def _parent_recon(record: LearningRecord) -> dict:

@@ -33,9 +33,8 @@ from app.schemas import (
     UnitProfileRequest,
     UnitUpdateRequest,
 )
-from app.services.generate_job import get_generate_job, job_is_active, set_generate_job
-from app.services.generate_limits import acquire_generate_slot
-from app.tasks.generate import generate_unit_task
+from app.services.generate_control import abort_generate_job, fail_stale_generate_job, start_generate_job, USER_CANCEL_MESSAGE
+from app.services.generate_job import get_generate_job, job_is_active
 from app.services.learn_service import (
     collect_quiz_weaknesses,
     complete_learn,
@@ -286,6 +285,9 @@ def units_generate(
     try:
         _get_unit_or_404(db, user, unit_id)
         uid = str(unit_id)
+        stale = fail_stale_generate_job(db, uid)
+        if stale:
+            db.commit()
         existing = get_generate_job(uid)
         if job_is_active(existing):
             job = GenerateJobStatus.model_validate(existing)
@@ -293,14 +295,7 @@ def units_generate(
                 status_code=status.HTTP_202_ACCEPTED,
                 content=GenerateStartResponse(async_job=True, job=job).model_dump(),
             )
-        acquire_generate_slot(
-            user_id=str(user.id),
-            tenant_id=str(user.tenant_id),
-            unit_id=uid,
-        )
-        set_generate_job(uid, user_id=str(user.id), status="queued", stage="queued")
-        generate_unit_task.delay(uid, str(user.id), body.provider)
-        job_raw = get_generate_job(uid) or {"status": "queued", "stage": "queued"}
+        job_raw = start_generate_job(user, uid, body.provider)
         job = GenerateJobStatus.model_validate(job_raw)
         return JSONResponse(
             status_code=status.HTTP_202_ACCEPTED,
@@ -328,6 +323,9 @@ def units_generate_status(
 ):
     _get_unit_or_404(db, user, unit_id)
     uid = str(unit_id)
+    stale = fail_stale_generate_job(db, uid)
+    if stale:
+        db.commit()
     raw = get_generate_job(uid)
     if raw:
         job = GenerateJobStatus.model_validate(raw)
@@ -338,6 +336,24 @@ def units_generate_status(
     if last:
         return GenerateStatusResponse(job=GenerateJobStatus.model_validate(last))
     return GenerateStatusResponse(job=GenerateJobStatus(status="idle"))
+
+
+@router.post("/{unit_id}/generate/cancel", response_model=GenerateStatusResponse)
+def units_generate_cancel(
+    unit_id: UUID,
+    user: User = Depends(get_app_user),
+    db: Session = Depends(get_db),
+):
+    _get_unit_or_404(db, user, unit_id)
+    uid = str(unit_id)
+    payload = abort_generate_job(uid, reason=USER_CANCEL_MESSAGE, db=db)
+    db.commit()
+    if payload:
+        job = GenerateJobStatus.model_validate(payload)
+    else:
+        raw = get_generate_job(uid)
+        job = GenerateJobStatus.model_validate(raw or {"status": "idle"})
+    return GenerateStatusResponse(job=job)
 
 
 @router.patch("/{unit_id}")

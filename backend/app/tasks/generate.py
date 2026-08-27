@@ -8,7 +8,13 @@ import uuid
 from app.ai.errors import LlmError
 from app.core.db.session import SessionLocal
 from app.models import User
-from app.services.generate_job import get_generate_job, make_progress_callback, persist_last_generate, set_generate_job
+from app.services.generate_job import (
+    get_generate_job,
+    job_was_stopped,
+    make_progress_callback,
+    persist_last_generate,
+    set_generate_job,
+)
 from app.services.generate_limits import release_generate_slot
 from app.services.unit_service import UnitError, _get_unit_or_404
 from app.worker import celery_app
@@ -26,7 +32,8 @@ def should_salvage_partial(module_count: int, job_stage: str | None) -> bool:
 @celery_app.task(name="learnai.generate_unit", bind=True, max_retries=0)
 def generate_unit_task(self, unit_id: str, user_id: str, provider: str | None = None) -> None:
     db = SessionLocal()
-    progress = make_progress_callback(unit_id, user_id)
+    job_id = (get_generate_job(unit_id) or {}).get("job_id")
+    progress = make_progress_callback(unit_id, user_id, job_id=job_id)
     tenant_id: str | None = None
     try:
         user = db.query(User).filter(User.id == uuid.UUID(user_id)).first()
@@ -42,6 +49,8 @@ def generate_unit_task(self, unit_id: str, user_id: str, provider: str | None = 
 
         tenant_id = str(user.tenant_id)
         unit = _get_unit_or_404(db, user, uuid.UUID(unit_id))
+        if job_was_stopped(unit_id, job_id):
+            return
         set_generate_job(unit_id, user_id=user_id, status="running", stage="extracting_sources")
 
         from app.ai.generate import generate_modules
@@ -53,6 +62,10 @@ def generate_unit_task(self, unit_id: str, user_id: str, provider: str | None = 
             provider=provider,
             progress=progress,
         )
+        if job_was_stopped(unit_id, job_id):
+            db.rollback()
+            _log.warning("generate_unit_task stopped_before_save unit_id=%s", unit_id)
+            return
         db.commit()
         job = get_generate_job(unit_id) or {}
         details: list[str] = []
@@ -69,10 +82,14 @@ def generate_unit_task(self, unit_id: str, user_id: str, provider: str | None = 
         _log.info("generate_unit_task done unit_id=%s", unit_id)
     except UnitError as exc:
         db.rollback()
-        progress("failed", error=exc.message)
+        if not job_was_stopped(unit_id, job_id):
+            progress("failed", error=exc.message)
         _log.warning("generate_unit_task unit_error unit_id=%s msg=%s", unit_id, exc.message)
     except LlmError as exc:
         db.rollback()
+        if exc.code == "cancelled" or job_was_stopped(unit_id, job_id):
+            _log.warning("generate_unit_task cancelled unit_id=%s msg=%s", unit_id, exc.message)
+            return
         try:
             unit = _get_unit_or_404(db, user, uuid.UUID(unit_id))
             module_count = len(unit.modules or [])
@@ -112,14 +129,18 @@ def generate_unit_task(self, unit_id: str, user_id: str, provider: str | None = 
     except Exception as exc:
         db.rollback()
         _log.exception("generate_unit_task failed unit_id=%s", unit_id)
-        progress("failed", error=_GENERIC_GENERATE_ERROR)
+        if not job_was_stopped(unit_id, job_id):
+            progress("failed", error=_GENERIC_GENERATE_ERROR)
     finally:
-        try:
-            persist_last_generate(db, unit_id)
-            db.commit()
-        except Exception:
-            db.rollback()
-            _log.exception("persist_last_generate failed unit_id=%s", unit_id)
-        if tenant_id:
-            release_generate_slot(user_id=user_id, tenant_id=tenant_id, unit_id=unit_id)
+        current = get_generate_job(unit_id) or {}
+        owns_job = not job_id or current.get("job_id") == job_id
+        if owns_job:
+            try:
+                persist_last_generate(db, unit_id)
+                db.commit()
+            except Exception:
+                db.rollback()
+                _log.exception("persist_last_generate failed unit_id=%s", unit_id)
+            if tenant_id:
+                release_generate_slot(user_id=user_id, tenant_id=tenant_id, unit_id=unit_id)
         db.close()

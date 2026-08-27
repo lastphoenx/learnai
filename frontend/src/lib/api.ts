@@ -923,6 +923,13 @@ export async function generateUnit(unitId: string, provider?: string): Promise<G
 export const fetchGenerateStatus = (unitId: string) =>
   apiFetch<GenerateStatusResponse>(`/api/v1/units/${unitId}/generate/status`);
 
+export async function cancelGenerate(unitId: string): Promise<GenerateJobStatus> {
+  const res = await apiFetch<GenerateStatusResponse>(`/api/v1/units/${unitId}/generate/cancel`, {
+    method: "POST",
+  });
+  return res.job;
+}
+
 export async function waitForGenerateJob(
   unitId: string,
   onUpdate?: (job: GenerateJobStatus) => void,
