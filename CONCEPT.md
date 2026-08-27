@@ -50,6 +50,7 @@ Lernen in der App (Quiz, Blöcke) ≠ echte Schulprüfung. Beides muss verbunden
 
 ### Qualitätssicherung (Entwicklung)
 - **Pedagogy Golden Set:** JSON-Fixtures im Repo (`backend/app/fixtures/pedagogy_golden/`), eine pro Fachgruppe (Mathe, Sprachen, MGU, Deutsch, Natur)
+- **Aufgabentyp Golden Set** (Feature-Branch `feature/task-type-golden`): je ein Fixture pro `task_type` — Validierung der Generierungs-Output-Struktur
 - CI + Admin **read-only** (`/admin/golden-set`): Ergebnis und kopierbarer Report für die KI — siehe [AGENTS.md](AGENTS.md)
 - Bewusst offen: echte Foto-Regression (Live-Vision)
 

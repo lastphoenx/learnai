@@ -19,6 +19,17 @@ nginx auf CT 108 nutzt bereits `snippets/proxy-headers.conf` — **kein** separa
 
 ## Deploy (CT 135)
 
+**Standard (nach jedem `main`-Push, gemischte Änderungen):**
+
+```bash
+cd /opt/learnai
+git fetch origin && git checkout main && git pull origin main
+bash scripts/deploy.sh
+curl -sS https://learn.santinel.li/api/v1/health
+```
+
+CT 135 bleibt immer auf **`main`** — keine Feature-Branches deployen. Details: private Doku `doku/pve2/vm/135-learnai/betrieb.md`.
+
 ### Nur Python-Code (`backend/app/`) geändert
 
 Volume-Mount — **kein** `pip install`, **kein** Image-Rebuild:
@@ -236,6 +247,22 @@ bash scripts/backup-db.sh   # falls konfiguriert
 
 ## Branch & Releases
 
-Produktion: **`main`** (Trainer v1 am 23.08.2026 gemergt: Sprungleiste, Kind-Ansicht, Fach-Schwerpunkte, Feld-Vorlagen, STT).  
-Nächstes Feature: `feature/task-type-golden` (Aufgabentyp Golden Set). Eltern-KI/BYOK: Konzept in `docs/`, Branch bei Start neu von `main`.  
-Siehe `docs/UNIT_CREATION.md`.
+| Branch | Zweck | CT 135 |
+|--------|--------|--------|
+| **`main`** | Produktion | `git pull origin main` + Deploy |
+| `feature/task-type-golden` | Aufgabentyp Golden Set (noch nicht live) | nicht pullen |
+| `fix/…` | Kurzlebig, nach Merge löschen | — |
+| `feature/parent-ai-access` | Eltern-KI/BYOK — erst bei Start neu von `main` | — |
+
+**Git-Regel:** Nach jedem FF-Merge auf `main` den `fix/…`-Branch sofort löschen: `git push origin --delete fix/…`
+
+### Letzte `main`-Releases (Auszug)
+
+| Datum | Inhalt |
+|-------|--------|
+| 27.08.2026 | Add/Sub-Herleitung (Spalten/Kopf), Method-Erklärungen angereichert, ÷100-Nullen, **alle Aufgabentypen** async via Celery, Kind-Profil-Fixes |
+| 26.08.2026 | Generate-Fortschritt für alle Nutzer, async Generate (vorher nur Trainer) |
+| 23.08.2026 | Trainer v1: Sprungleiste, Kind-Ansicht, Fach-Schwerpunkte, Feld-Vorlagen, STT |
+
+Nächstes Feature (nur Git, noch nicht Prod): `feature/task-type-golden` — Golden Set pro Aufgabentyp.  
+Siehe `docs/UNIT_CREATION.md`, `AGENTS.md`.

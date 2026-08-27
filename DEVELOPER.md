@@ -20,7 +20,7 @@ Browser
 |---------|------|-------|
 | `frontend` | 3000 | Next.js App Router, Theme, Login-UI |
 | `api` | 8000 | FastAPI REST, Auth, KI-Orchestrierung |
-| `worker` | — | Celery (async Jobs, falls konfiguriert) |
+| `worker` | — | Celery (KI-Generierung aller Aufgabentypen, Prüfungs-Jobs) |
 | `db` | 5433→5432 | PostgreSQL 18 |
 | `redis` | 6379 | Brute-Force-Zähler, Celery-Broker |
 

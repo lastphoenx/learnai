@@ -6,7 +6,8 @@ Login + 2FA in der App (kein externer Identity-Provider nötig).
 
 ## Features
 
-- **Lerneinheiten** — Foto, PDF, Audio, URL; KI-Aufbereitung; Modi inkl. **Lerntrainer**; Fach-Schwerpunkte (Mathe, Sprachen, MGU, …); Auftrags-Vorlagen
+- **Lerneinheiten** — Foto, PDF, Audio, URL; **KI-Aufbereitung asynchron** (alle Aufgabentypen, Celery + Fortschritt); Modi inkl. **Lerntrainer**; Fach-Schwerpunkte; Auftrags-Vorlagen
+- **Quiz-Erklärungen** — Laufzeit-Herleitung für Multiplikation, Addition, Subtraktion, Division (Spaltenrechnung, Kopfwege)
 - **Lernmodus** — Fortschritt, Pause, TTS, Übungsaufgaben, didaktische Phasen (Einstieg → Verstehen → Üben → Check); Sprungleiste im Trainer
 - **Adaptive Nacharbeit** — Quiz-Schwächen und Prüfungs-`error_tags` fließen in Nacharbeit und Trainer-Einheiten
 - **Kinder & Eltern** — Lernprofile, Zuweisung an mehrere Kinder (inkl. Vorlagen-Kopie mit Blöcken), Eltern-Dashboard
@@ -34,6 +35,7 @@ Lokal: `APP_ENV=development`, `COOKIE_SECURE=false`, `PUBLISH_BIND=127.0.0.1` (D
 | [docs/RUNBOOK.md](docs/RUNBOOK.md) | Betrieb, Deploy, Schnellbefehle (intern) |
 | [docs/UNIT_CREATION.md](docs/UNIT_CREATION.md) | Aufgabentypen, Schwerpunkte, Lerntrainer |
 | [CONCEPT.md](CONCEPT.md) | Fachmodell, Lernkreislauf, Roadmap |
+| [AGENTS.md](AGENTS.md) | Git-Workflow, Golden Sets, Regeln für KI-Assistenten |
 | [FOUNDATION.md](FOUNDATION.md) | Technische Basis (Scaffold) |
 | `deploy/` | nginx-Beispiele, `proxy-headers.conf` |
 | `scripts/check-env-safe.sh` | `.env` anzeigen ohne Secrets |
