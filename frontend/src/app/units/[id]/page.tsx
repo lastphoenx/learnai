@@ -108,6 +108,10 @@ export default function UnitDetailPage() {
   const [quizWeaknesses, setQuizWeaknesses] = useState<QuizWeaknesses | null>(null);
   const [pedagogy, setPedagogy] = useState<UnitPedagogy | null>(null);
   const [pedagogyBusy, setPedagogyBusy] = useState(false);
+  const [pedagogyLastRefresh, setPedagogyLastRefresh] = useState<{
+    refreshed: number;
+    skipped: number;
+  } | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [previewSource, setPreviewSource] = useState<UnitSource | null>(null);
@@ -152,6 +156,10 @@ export default function UnitDetailPage() {
     try {
       const data = await extractUnitPedagogy(unitId);
       setPedagogy(data);
+      setPedagogyLastRefresh({
+        refreshed: data.refreshed_sources ?? 0,
+        skipped: data.skipped_no_file ?? 0,
+      });
       reload();
     } catch {
       setError("Didaktik konnte nicht aus den Quellen gelesen werden.");
@@ -473,7 +481,7 @@ export default function UnitDetailPage() {
           </section>
 
           {sourceCount > 0 && unit.task_type === "interactive" && (
-            <details className="card unit-section unit-pedagogy-section unit-pedagogy-collapsible" open={!pedagogy?.has_pedagogy}>
+            <details className="card unit-section unit-pedagogy-section unit-pedagogy-collapsible" open={!pedagogy?.has_pedagogy || pedagogy?.analysis_current === false}>
               <summary className="unit-pedagogy-summary">
                 <span className="section-head unit-pedagogy-summary-head">
                   <h2>Didaktik aus Quellen</h2>
@@ -546,8 +554,8 @@ export default function UnitDetailPage() {
                 </>
               ) : (
                 <p className="muted empty-hint">
-                  Noch keine strukturierte Didaktik. Lies die Quellen ein, bevor du generierst — oder starte
-                  «Mit KI aufbereiten» (extrahiert automatisch).
+                  Noch keine strukturierte Didaktik. Zuerst «Didaktik neu einlesen» — «Mit KI aufbereiten»
+                  verwendet danach den gespeicherten Stand und visiert die Bilder nicht noch einmal.
                 </p>
               )}
               <div className="unit-pedagogy-actions">
@@ -555,10 +563,35 @@ export default function UnitDetailPage() {
                   type="button"
                   className="btn"
                   onClick={onExtractPedagogy}
-                  disabled={busy || pedagogyBusy}
+                  disabled={busy || pedagogyBusy || (pedagogy != null && (pedagogy.can_reread ?? 0) === 0)}
+                  title={
+                    pedagogy != null && (pedagogy.can_reread ?? 0) === 0
+                      ? "Bilddateien fehlen (gelöscht oder automatisch bereinigt) — bitte neu hochladen."
+                      : "Vision erneut ausführen, gespeicherte Didaktik wird überschrieben."
+                  }
                 >
-                  {pedagogyBusy ? "Lese Quellen…" : pedagogy?.has_pedagogy ? "Didaktik aktualisieren" : "Didaktik einlesen"}
+                  {pedagogyBusy ? "Lese Quellen…" : "Didaktik neu einlesen"}
                 </button>
+                {pedagogyLastRefresh && !pedagogyBusy ? (
+                  <p className="muted">
+                    Zuletzt: {pedagogyLastRefresh.refreshed} Quelle(n) neu analysiert
+                    {pedagogyLastRefresh.skipped > 0
+                      ? ` · ${pedagogyLastRefresh.skipped} ohne Bilddatei übersprungen`
+                      : ""}
+                    .
+                  </p>
+                ) : null}
+                {pedagogy?.analysis_current === false && (pedagogy.can_reread ?? 0) > 0 ? (
+                  <p className="muted">
+                    Der gespeicherte Stand ist älter als die aktuelle Didaktik-Auswertung. Neu einlesen, damit
+                    Prompt und Filter greifen — «Mit KI aufbereiten» allein reicht nicht.
+                  </p>
+                ) : null}
+                {pedagogy != null && (pedagogy.can_reread ?? 0) === 0 && (pedagogy.image_count ?? 0) > 0 ? (
+                  <p className="muted">
+                    Die Originalbilder sind nicht mehr gespeichert. Zum Neu-Einlesen die Fotos erneut hochladen.
+                  </p>
+                ) : null}
               </div>
               </div>
             </details>
@@ -693,9 +726,13 @@ export default function UnitDetailPage() {
                 aria-busy={busy}
               >
                 <strong>{busy ? "KI arbeitet…" : "Mit KI aufbereiten"}</strong>
-                {unit.task_type === "interactive" && sourceCount > 0 && !pedagogy?.has_pedagogy && !busy && (
+                {unit.task_type === "interactive" && sourceCount > 0 && !busy && (
                   <span className="muted" style={{ display: "block", marginTop: "0.35rem" }}>
-                    Tipp: Zuerst «Didaktik einlesen» — dann siehst du die erkannten Lösungswege.
+                    {pedagogy?.analysis_current
+                      ? "Verwendet die gespeicherte Didaktik. Neu visieren: «Didaktik neu einlesen»."
+                      : pedagogy?.has_pedagogy
+                        ? "Didaktik-Stand ist veraltet — Aufbereiten visiert die Bilder erneut, oder «Didaktik neu einlesen»."
+                        : "Tipp: Zuerst «Didaktik neu einlesen» — dann siehst du die erkannten Lösungswege."}
                   </span>
                 )}
                 {busy ? (
