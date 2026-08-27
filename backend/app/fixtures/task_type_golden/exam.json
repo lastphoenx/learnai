@@ -1,0 +1,258 @@
+﻿{
+    "_meta":  {
+                  "task_type":  "exam",
+                  "subject_hint":  "Kurzpruefung Grammatik"
+              },
+    "modules":  [
+                    {
+                        "title":  "Block 1",
+                        "content":  {
+                                        "text":  "Dieser Block erklaert exam Thema 1 Schritt fuer Schritt mit Beispielen aus dem Schulheft. Wir wiederholen Begriffe, zeigen einen Rechenweg und verbinden die Aufgabe mit bekanntem Stoff. inhalt1 inhalt2 inhalt3 inhalt4 inhalt5 inhalt6 inhalt7 inhalt8 inhalt9 inhalt10 inhalt11 inhalt12 inhalt13 inhalt14 inhalt15 inhalt16 inhalt17 inhalt18 inhalt19 inhalt20 inhalt21 inhalt22 inhalt23 inhalt24 inhalt25 inhalt26 inhalt27 inhalt28 inhalt29 inhalt30 inhalt31 inhalt32 inhalt33 inhalt34 inhalt35 inhalt36 inhalt37 inhalt38 inhalt39 inhalt40 inhalt41 inhalt42 inhalt43 inhalt44 inhalt45 inhalt46 inhalt47 inhalt48 inhalt49 inhalt50 inhalt51 inhalt52 inhalt53 inhalt54 inhalt55 inhalt56 inhalt57 inhalt58 inhalt59 inhalt60 inhalt61 inhalt62 inhalt63 inhalt64 inhalt65 inhalt66 inhalt67 inhalt68 inhalt69 inhalt70 inhalt71 inhalt72 inhalt73 inhalt74 inhalt75 inhalt76 inhalt77 inhalt78 inhalt79 inhalt80 inhalt81 inhalt82 inhalt83 inhalt84 inhalt85 inhalt86 inhalt87 inhalt88 inhalt89 inhalt90 inhalt91 inhalt92 inhalt93 inhalt94 inhalt95 inhalt96 inhalt97 inhalt98 inhalt99 inhalt100 inhalt101 inhalt102 inhalt103"
+                                    },
+                        "quiz":  {
+                                     "questions":  [
+                                                       {
+                                                           "q":  "Block 1 Frage 1?",
+                                                           "options":  [
+                                                                           "Antwort A0",
+                                                                           "Antwort B0",
+                                                                           "Antwort C0",
+                                                                           "Antwort D0"
+                                                                       ],
+                                                           "answer":  0
+                                                       },
+                                                       {
+                                                           "q":  "Block 1 Frage 2?",
+                                                           "options":  [
+                                                                           "Antwort A1",
+                                                                           "Antwort B1",
+                                                                           "Antwort C1",
+                                                                           "Antwort D1"
+                                                                       ],
+                                                           "answer":  0
+                                                       },
+                                                       {
+                                                           "q":  "Block 1 Frage 3?",
+                                                           "options":  [
+                                                                           "Antwort A2",
+                                                                           "Antwort B2",
+                                                                           "Antwort C2",
+                                                                           "Antwort D2"
+                                                                       ],
+                                                           "answer":  0
+                                                       },
+                                                       {
+                                                           "q":  "Block 1 Frage 4?",
+                                                           "options":  [
+                                                                           "Antwort A3",
+                                                                           "Antwort B3",
+                                                                           "Antwort C3",
+                                                                           "Antwort D3"
+                                                                       ],
+                                                           "answer":  0
+                                                       }
+                                                   ]
+                                 }
+                    },
+                    {
+                        "title":  "Block 2",
+                        "content":  {
+                                        "text":  "Dieser Block erklaert exam Thema 2 Schritt fuer Schritt mit Beispielen aus dem Schulheft. Wir wiederholen Begriffe, zeigen einen Rechenweg und verbinden die Aufgabe mit bekanntem Stoff. inhalt1 inhalt2 inhalt3 inhalt4 inhalt5 inhalt6 inhalt7 inhalt8 inhalt9 inhalt10 inhalt11 inhalt12 inhalt13 inhalt14 inhalt15 inhalt16 inhalt17 inhalt18 inhalt19 inhalt20 inhalt21 inhalt22 inhalt23 inhalt24 inhalt25 inhalt26 inhalt27 inhalt28 inhalt29 inhalt30 inhalt31 inhalt32 inhalt33 inhalt34 inhalt35 inhalt36 inhalt37 inhalt38 inhalt39 inhalt40 inhalt41 inhalt42 inhalt43 inhalt44 inhalt45 inhalt46 inhalt47 inhalt48 inhalt49 inhalt50 inhalt51 inhalt52 inhalt53 inhalt54 inhalt55 inhalt56 inhalt57 inhalt58 inhalt59 inhalt60 inhalt61 inhalt62 inhalt63 inhalt64 inhalt65 inhalt66 inhalt67 inhalt68 inhalt69 inhalt70 inhalt71 inhalt72 inhalt73 inhalt74 inhalt75 inhalt76 inhalt77 inhalt78 inhalt79 inhalt80 inhalt81 inhalt82 inhalt83 inhalt84 inhalt85 inhalt86 inhalt87 inhalt88 inhalt89 inhalt90 inhalt91 inhalt92 inhalt93 inhalt94 inhalt95 inhalt96 inhalt97 inhalt98 inhalt99 inhalt100 inhalt101 inhalt102 inhalt103"
+                                    },
+                        "quiz":  {
+                                     "questions":  [
+                                                       {
+                                                           "q":  "Block 2 Frage 1?",
+                                                           "options":  [
+                                                                           "Antwort A0",
+                                                                           "Antwort B0",
+                                                                           "Antwort C0",
+                                                                           "Antwort D0"
+                                                                       ],
+                                                           "answer":  0
+                                                       },
+                                                       {
+                                                           "q":  "Block 2 Frage 2?",
+                                                           "options":  [
+                                                                           "Antwort A1",
+                                                                           "Antwort B1",
+                                                                           "Antwort C1",
+                                                                           "Antwort D1"
+                                                                       ],
+                                                           "answer":  0
+                                                       },
+                                                       {
+                                                           "q":  "Block 2 Frage 3?",
+                                                           "options":  [
+                                                                           "Antwort A2",
+                                                                           "Antwort B2",
+                                                                           "Antwort C2",
+                                                                           "Antwort D2"
+                                                                       ],
+                                                           "answer":  0
+                                                       },
+                                                       {
+                                                           "q":  "Block 2 Frage 4?",
+                                                           "options":  [
+                                                                           "Antwort A3",
+                                                                           "Antwort B3",
+                                                                           "Antwort C3",
+                                                                           "Antwort D3"
+                                                                       ],
+                                                           "answer":  0
+                                                       }
+                                                   ]
+                                 }
+                    },
+                    {
+                        "title":  "Block 3",
+                        "content":  {
+                                        "text":  "Dieser Block erklaert exam Thema 3 Schritt fuer Schritt mit Beispielen aus dem Schulheft. Wir wiederholen Begriffe, zeigen einen Rechenweg und verbinden die Aufgabe mit bekanntem Stoff. inhalt1 inhalt2 inhalt3 inhalt4 inhalt5 inhalt6 inhalt7 inhalt8 inhalt9 inhalt10 inhalt11 inhalt12 inhalt13 inhalt14 inhalt15 inhalt16 inhalt17 inhalt18 inhalt19 inhalt20 inhalt21 inhalt22 inhalt23 inhalt24 inhalt25 inhalt26 inhalt27 inhalt28 inhalt29 inhalt30 inhalt31 inhalt32 inhalt33 inhalt34 inhalt35 inhalt36 inhalt37 inhalt38 inhalt39 inhalt40 inhalt41 inhalt42 inhalt43 inhalt44 inhalt45 inhalt46 inhalt47 inhalt48 inhalt49 inhalt50 inhalt51 inhalt52 inhalt53 inhalt54 inhalt55 inhalt56 inhalt57 inhalt58 inhalt59 inhalt60 inhalt61 inhalt62 inhalt63 inhalt64 inhalt65 inhalt66 inhalt67 inhalt68 inhalt69 inhalt70 inhalt71 inhalt72 inhalt73 inhalt74 inhalt75 inhalt76 inhalt77 inhalt78 inhalt79 inhalt80 inhalt81 inhalt82 inhalt83 inhalt84 inhalt85 inhalt86 inhalt87 inhalt88 inhalt89 inhalt90 inhalt91 inhalt92 inhalt93 inhalt94 inhalt95 inhalt96 inhalt97 inhalt98 inhalt99 inhalt100 inhalt101 inhalt102 inhalt103"
+                                    },
+                        "quiz":  {
+                                     "questions":  [
+                                                       {
+                                                           "q":  "Block 3 Frage 1?",
+                                                           "options":  [
+                                                                           "Antwort A0",
+                                                                           "Antwort B0",
+                                                                           "Antwort C0",
+                                                                           "Antwort D0"
+                                                                       ],
+                                                           "answer":  0
+                                                       },
+                                                       {
+                                                           "q":  "Block 3 Frage 2?",
+                                                           "options":  [
+                                                                           "Antwort A1",
+                                                                           "Antwort B1",
+                                                                           "Antwort C1",
+                                                                           "Antwort D1"
+                                                                       ],
+                                                           "answer":  0
+                                                       },
+                                                       {
+                                                           "q":  "Block 3 Frage 3?",
+                                                           "options":  [
+                                                                           "Antwort A2",
+                                                                           "Antwort B2",
+                                                                           "Antwort C2",
+                                                                           "Antwort D2"
+                                                                       ],
+                                                           "answer":  0
+                                                       },
+                                                       {
+                                                           "q":  "Block 3 Frage 4?",
+                                                           "options":  [
+                                                                           "Antwort A3",
+                                                                           "Antwort B3",
+                                                                           "Antwort C3",
+                                                                           "Antwort D3"
+                                                                       ],
+                                                           "answer":  0
+                                                       }
+                                                   ]
+                                 }
+                    },
+                    {
+                        "title":  "Block 4",
+                        "content":  {
+                                        "text":  "Dieser Block erklaert exam Thema 4 Schritt fuer Schritt mit Beispielen aus dem Schulheft. Wir wiederholen Begriffe, zeigen einen Rechenweg und verbinden die Aufgabe mit bekanntem Stoff. inhalt1 inhalt2 inhalt3 inhalt4 inhalt5 inhalt6 inhalt7 inhalt8 inhalt9 inhalt10 inhalt11 inhalt12 inhalt13 inhalt14 inhalt15 inhalt16 inhalt17 inhalt18 inhalt19 inhalt20 inhalt21 inhalt22 inhalt23 inhalt24 inhalt25 inhalt26 inhalt27 inhalt28 inhalt29 inhalt30 inhalt31 inhalt32 inhalt33 inhalt34 inhalt35 inhalt36 inhalt37 inhalt38 inhalt39 inhalt40 inhalt41 inhalt42 inhalt43 inhalt44 inhalt45 inhalt46 inhalt47 inhalt48 inhalt49 inhalt50 inhalt51 inhalt52 inhalt53 inhalt54 inhalt55 inhalt56 inhalt57 inhalt58 inhalt59 inhalt60 inhalt61 inhalt62 inhalt63 inhalt64 inhalt65 inhalt66 inhalt67 inhalt68 inhalt69 inhalt70 inhalt71 inhalt72 inhalt73 inhalt74 inhalt75 inhalt76 inhalt77 inhalt78 inhalt79 inhalt80 inhalt81 inhalt82 inhalt83 inhalt84 inhalt85 inhalt86 inhalt87 inhalt88 inhalt89 inhalt90 inhalt91 inhalt92 inhalt93 inhalt94 inhalt95 inhalt96 inhalt97 inhalt98 inhalt99 inhalt100 inhalt101 inhalt102 inhalt103"
+                                    },
+                        "quiz":  {
+                                     "questions":  [
+                                                       {
+                                                           "q":  "Block 4 Frage 1?",
+                                                           "options":  [
+                                                                           "Antwort A0",
+                                                                           "Antwort B0",
+                                                                           "Antwort C0",
+                                                                           "Antwort D0"
+                                                                       ],
+                                                           "answer":  0
+                                                       },
+                                                       {
+                                                           "q":  "Block 4 Frage 2?",
+                                                           "options":  [
+                                                                           "Antwort A1",
+                                                                           "Antwort B1",
+                                                                           "Antwort C1",
+                                                                           "Antwort D1"
+                                                                       ],
+                                                           "answer":  0
+                                                       },
+                                                       {
+                                                           "q":  "Block 4 Frage 3?",
+                                                           "options":  [
+                                                                           "Antwort A2",
+                                                                           "Antwort B2",
+                                                                           "Antwort C2",
+                                                                           "Antwort D2"
+                                                                       ],
+                                                           "answer":  0
+                                                       },
+                                                       {
+                                                           "q":  "Block 4 Frage 4?",
+                                                           "options":  [
+                                                                           "Antwort A3",
+                                                                           "Antwort B3",
+                                                                           "Antwort C3",
+                                                                           "Antwort D3"
+                                                                       ],
+                                                           "answer":  0
+                                                       }
+                                                   ]
+                                 }
+                    },
+                    {
+                        "title":  "Block 5",
+                        "content":  {
+                                        "text":  "Dieser Block erklaert exam Thema 5 Schritt fuer Schritt mit Beispielen aus dem Schulheft. Wir wiederholen Begriffe, zeigen einen Rechenweg und verbinden die Aufgabe mit bekanntem Stoff. inhalt1 inhalt2 inhalt3 inhalt4 inhalt5 inhalt6 inhalt7 inhalt8 inhalt9 inhalt10 inhalt11 inhalt12 inhalt13 inhalt14 inhalt15 inhalt16 inhalt17 inhalt18 inhalt19 inhalt20 inhalt21 inhalt22 inhalt23 inhalt24 inhalt25 inhalt26 inhalt27 inhalt28 inhalt29 inhalt30 inhalt31 inhalt32 inhalt33 inhalt34 inhalt35 inhalt36 inhalt37 inhalt38 inhalt39 inhalt40 inhalt41 inhalt42 inhalt43 inhalt44 inhalt45 inhalt46 inhalt47 inhalt48 inhalt49 inhalt50 inhalt51 inhalt52 inhalt53 inhalt54 inhalt55 inhalt56 inhalt57 inhalt58 inhalt59 inhalt60 inhalt61 inhalt62 inhalt63 inhalt64 inhalt65 inhalt66 inhalt67 inhalt68 inhalt69 inhalt70 inhalt71 inhalt72 inhalt73 inhalt74 inhalt75 inhalt76 inhalt77 inhalt78 inhalt79 inhalt80 inhalt81 inhalt82 inhalt83 inhalt84 inhalt85 inhalt86 inhalt87 inhalt88 inhalt89 inhalt90 inhalt91 inhalt92 inhalt93 inhalt94 inhalt95 inhalt96 inhalt97 inhalt98 inhalt99 inhalt100 inhalt101 inhalt102 inhalt103"
+                                    },
+                        "quiz":  {
+                                     "questions":  [
+                                                       {
+                                                           "q":  "Block 5 Frage 1?",
+                                                           "options":  [
+                                                                           "Antwort A0",
+                                                                           "Antwort B0",
+                                                                           "Antwort C0",
+                                                                           "Antwort D0"
+                                                                       ],
+                                                           "answer":  0
+                                                       },
+                                                       {
+                                                           "q":  "Block 5 Frage 2?",
+                                                           "options":  [
+                                                                           "Antwort A1",
+                                                                           "Antwort B1",
+                                                                           "Antwort C1",
+                                                                           "Antwort D1"
+                                                                       ],
+                                                           "answer":  0
+                                                       },
+                                                       {
+                                                           "q":  "Block 5 Frage 3?",
+                                                           "options":  [
+                                                                           "Antwort A2",
+                                                                           "Antwort B2",
+                                                                           "Antwort C2",
+                                                                           "Antwort D2"
+                                                                       ],
+                                                           "answer":  0
+                                                       },
+                                                       {
+                                                           "q":  "Block 5 Frage 4?",
+                                                           "options":  [
+                                                                           "Antwort A3",
+                                                                           "Antwort B3",
+                                                                           "Antwort C3",
+                                                                           "Antwort D3"
+                                                                       ],
+                                                           "answer":  0
+                                                       }
+                                                   ]
+                                 }
+                    }
+                ]
+}

@@ -70,6 +70,19 @@ Bei Arbeit an **Didaktik**, **source_pedagogy**, **Pedagogy-Prompts**, **neuen F
 
 Admin-UI (`/admin/golden-set`) ist **read-only**: zeigt nur Testergebnis + kopierbaren Report für die KI.
 
+## Aufgabentyp Golden Set (Pflicht)
+
+Bei Arbeit an **Generierung**, **Aufgabentypen**, **Modul-Validierung** oder **Trainer-Output**:
+
+1. Prüfe `backend/app/fixtures/task_type_golden/` — jeder Aufgabentyp braucht mindestens ein Fixture (`mixed`, `explain`, `quiz`, `practice`, `math`, `workbook`, `review`, `exam`, `vocab`, `interactive`).
+2. Fixture = eingefrorener `modules`-JSON-Output (nicht verschlüsselte DB-Unit).
+3. `_meta` enthält mindestens `task_type` und `subject_hint`; für `interactive` optional `min_cards` / `min_questions`.
+4. Validierung nutzt die bestehenden Produktions-Checks (`_validate_modules`, `validate_interactive_modules`, `explanation_has_derivation`, typ-spezifische Regeln für `exam`/`vocab`).
+5. Tests: `pytest backend/tests/test_task_type_golden.py`
+6. **Grenze:** Struktur/Regeln am Fixture — keine Live-KI-Regression (wie beim Pedagogy-Set).
+
+Seed-Skripte: `backend/scripts/seed_task_type_golden_fixtures.py` (Python) oder `.ps1` (Windows ohne Python).
+
 ## Referenz-Codes & Qualitätsreport
 
 Jede Lerneinheit erhält lesbare Codes in `reconstruction_encrypted`:

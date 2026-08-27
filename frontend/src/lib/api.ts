@@ -673,6 +673,44 @@ export const fetchPedagogyGoldenStatus = () =>
 export const runPedagogyGoldenSuite = () =>
   apiFetch<PedagogyGoldenStatus>("/api/v1/admin/pedagogy-golden/run", { method: "POST" });
 
+export type TaskTypeGoldenFixtureSummary = {
+  name: string;
+  file?: string;
+  ok: boolean;
+  task_type?: string | null;
+  task_type_label?: string | null;
+  subject_hint?: string | null;
+  module_count?: number;
+  question_count?: number;
+  card_count?: number;
+  derivation_checked?: number;
+  error?: string;
+};
+
+export type TaskTypeGoldenCoverage = {
+  expected_types: { id: string; label: string }[];
+  covered: { id: string; label: string; fixtures: string[] }[];
+  missing: { id: string; label: string }[];
+  complete: boolean;
+};
+
+export type TaskTypeGoldenStatus = {
+  fixtures: TaskTypeGoldenFixtureSummary[];
+  coverage: TaskTypeGoldenCoverage;
+  total: number;
+  passed: number;
+  failed: number;
+  coverage_complete: boolean;
+  ok: boolean;
+  report: string;
+};
+
+export const fetchTaskTypeGoldenStatus = () =>
+  apiFetch<TaskTypeGoldenStatus>("/api/v1/admin/task-type-golden");
+
+export const runTaskTypeGoldenSuite = () =>
+  apiFetch<TaskTypeGoldenStatus>("/api/v1/admin/task-type-golden/run", { method: "POST" });
+
 export type UnitQualityReport = {
   ref: string;
   scope: "family" | "instance";

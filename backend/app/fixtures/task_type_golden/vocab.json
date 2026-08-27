@@ -1,0 +1,298 @@
+﻿{
+    "_meta":  {
+                  "task_type":  "vocab",
+                  "subject_hint":  "Englisch Tiere"
+              },
+    "modules":  [
+                    {
+                        "title":  "Vokabeln Set 1",
+                        "content":  {
+                                        "text":  "Wort: apple - Bedeutung: Apfel - Beispiel: I eat an apple every day. Wort: house - Bedeutung: Haus - Beispiel: This is my house. Dieser Block erklaert Englisch Vokabeln Schritt fuer Schritt mit Beispielen aus dem Schulheft. Wir wiederholen Begriffe, zeigen einen Rechenweg und verbinden die Aufgabe mit bekanntem Stoff. inhalt1 inhalt2 inhalt3 inhalt4 inhalt5 inhalt6 inhalt7 inhalt8 inhalt9 inhalt10 inhalt11 inhalt12 inhalt13 inhalt14 inhalt15 inhalt16 inhalt17 inhalt18 inhalt19 inhalt20 inhalt21 inhalt22 inhalt23 inhalt24 inhalt25 inhalt26 inhalt27 inhalt28 inhalt29 inhalt30 inhalt31 inhalt32 inhalt33 inhalt34 inhalt35 inhalt36 inhalt37 inhalt38 inhalt39 inhalt40 inhalt41 inhalt42 inhalt43 inhalt44 inhalt45 inhalt46 inhalt47 inhalt48 inhalt49 inhalt50 inhalt51 inhalt52 inhalt53 inhalt54 inhalt55 inhalt56 inhalt57 inhalt58 inhalt59 inhalt60 inhalt61 inhalt62 inhalt63 inhalt64 inhalt65 inhalt66 inhalt67 inhalt68 inhalt69 inhalt70 inhalt71 inhalt72 inhalt73 inhalt74 inhalt75 inhalt76 inhalt77 inhalt78 inhalt79 inhalt80 inhalt81 inhalt82 inhalt83 inhalt84",
+                                        "practice":  [
+                                                         {
+                                                             "hint":  "Schulbuch",
+                                                             "answer_type":  "text",
+                                                             "prompt":  "Uebersetze: book",
+                                                             "answer":  "Buch"
+                                                         }
+                                                     ]
+                                    },
+                        "quiz":  {
+                                     "questions":  [
+                                                       {
+                                                           "q":  "Vokabel Frage 1?",
+                                                           "options":  [
+                                                                           "Antwort A0",
+                                                                           "Antwort B0",
+                                                                           "Antwort C0",
+                                                                           "Antwort D0"
+                                                                       ],
+                                                           "answer":  0
+                                                       },
+                                                       {
+                                                           "q":  "Vokabel Frage 2?",
+                                                           "options":  [
+                                                                           "Antwort A1",
+                                                                           "Antwort B1",
+                                                                           "Antwort C1",
+                                                                           "Antwort D1"
+                                                                       ],
+                                                           "answer":  0
+                                                       },
+                                                       {
+                                                           "q":  "Vokabel Frage 3?",
+                                                           "options":  [
+                                                                           "Antwort A2",
+                                                                           "Antwort B2",
+                                                                           "Antwort C2",
+                                                                           "Antwort D2"
+                                                                       ],
+                                                           "answer":  0
+                                                       },
+                                                       {
+                                                           "q":  "Vokabel Frage 4?",
+                                                           "options":  [
+                                                                           "Antwort A3",
+                                                                           "Antwort B3",
+                                                                           "Antwort C3",
+                                                                           "Antwort D3"
+                                                                       ],
+                                                           "answer":  0
+                                                       }
+                                                   ]
+                                 }
+                    },
+                    {
+                        "title":  "Vokabeln Set 2",
+                        "content":  {
+                                        "text":  "Wort: apple - Bedeutung: Apfel - Beispiel: I eat an apple every day. Wort: house - Bedeutung: Haus - Beispiel: This is my house. Dieser Block erklaert Englisch Vokabeln Schritt fuer Schritt mit Beispielen aus dem Schulheft. Wir wiederholen Begriffe, zeigen einen Rechenweg und verbinden die Aufgabe mit bekanntem Stoff. inhalt1 inhalt2 inhalt3 inhalt4 inhalt5 inhalt6 inhalt7 inhalt8 inhalt9 inhalt10 inhalt11 inhalt12 inhalt13 inhalt14 inhalt15 inhalt16 inhalt17 inhalt18 inhalt19 inhalt20 inhalt21 inhalt22 inhalt23 inhalt24 inhalt25 inhalt26 inhalt27 inhalt28 inhalt29 inhalt30 inhalt31 inhalt32 inhalt33 inhalt34 inhalt35 inhalt36 inhalt37 inhalt38 inhalt39 inhalt40 inhalt41 inhalt42 inhalt43 inhalt44 inhalt45 inhalt46 inhalt47 inhalt48 inhalt49 inhalt50 inhalt51 inhalt52 inhalt53 inhalt54 inhalt55 inhalt56 inhalt57 inhalt58 inhalt59 inhalt60 inhalt61 inhalt62 inhalt63 inhalt64 inhalt65 inhalt66 inhalt67 inhalt68 inhalt69 inhalt70 inhalt71 inhalt72 inhalt73 inhalt74 inhalt75 inhalt76 inhalt77 inhalt78 inhalt79 inhalt80 inhalt81 inhalt82 inhalt83 inhalt84",
+                                        "practice":  [
+                                                         {
+                                                             "hint":  "Schulbuch",
+                                                             "answer_type":  "text",
+                                                             "prompt":  "Uebersetze: book",
+                                                             "answer":  "Buch"
+                                                         }
+                                                     ]
+                                    },
+                        "quiz":  {
+                                     "questions":  [
+                                                       {
+                                                           "q":  "Vokabel Frage 1?",
+                                                           "options":  [
+                                                                           "Antwort A0",
+                                                                           "Antwort B0",
+                                                                           "Antwort C0",
+                                                                           "Antwort D0"
+                                                                       ],
+                                                           "answer":  0
+                                                       },
+                                                       {
+                                                           "q":  "Vokabel Frage 2?",
+                                                           "options":  [
+                                                                           "Antwort A1",
+                                                                           "Antwort B1",
+                                                                           "Antwort C1",
+                                                                           "Antwort D1"
+                                                                       ],
+                                                           "answer":  0
+                                                       },
+                                                       {
+                                                           "q":  "Vokabel Frage 3?",
+                                                           "options":  [
+                                                                           "Antwort A2",
+                                                                           "Antwort B2",
+                                                                           "Antwort C2",
+                                                                           "Antwort D2"
+                                                                       ],
+                                                           "answer":  0
+                                                       },
+                                                       {
+                                                           "q":  "Vokabel Frage 4?",
+                                                           "options":  [
+                                                                           "Antwort A3",
+                                                                           "Antwort B3",
+                                                                           "Antwort C3",
+                                                                           "Antwort D3"
+                                                                       ],
+                                                           "answer":  0
+                                                       }
+                                                   ]
+                                 }
+                    },
+                    {
+                        "title":  "Vokabeln Set 3",
+                        "content":  {
+                                        "text":  "Wort: apple - Bedeutung: Apfel - Beispiel: I eat an apple every day. Wort: house - Bedeutung: Haus - Beispiel: This is my house. Dieser Block erklaert Englisch Vokabeln Schritt fuer Schritt mit Beispielen aus dem Schulheft. Wir wiederholen Begriffe, zeigen einen Rechenweg und verbinden die Aufgabe mit bekanntem Stoff. inhalt1 inhalt2 inhalt3 inhalt4 inhalt5 inhalt6 inhalt7 inhalt8 inhalt9 inhalt10 inhalt11 inhalt12 inhalt13 inhalt14 inhalt15 inhalt16 inhalt17 inhalt18 inhalt19 inhalt20 inhalt21 inhalt22 inhalt23 inhalt24 inhalt25 inhalt26 inhalt27 inhalt28 inhalt29 inhalt30 inhalt31 inhalt32 inhalt33 inhalt34 inhalt35 inhalt36 inhalt37 inhalt38 inhalt39 inhalt40 inhalt41 inhalt42 inhalt43 inhalt44 inhalt45 inhalt46 inhalt47 inhalt48 inhalt49 inhalt50 inhalt51 inhalt52 inhalt53 inhalt54 inhalt55 inhalt56 inhalt57 inhalt58 inhalt59 inhalt60 inhalt61 inhalt62 inhalt63 inhalt64 inhalt65 inhalt66 inhalt67 inhalt68 inhalt69 inhalt70 inhalt71 inhalt72 inhalt73 inhalt74 inhalt75 inhalt76 inhalt77 inhalt78 inhalt79 inhalt80 inhalt81 inhalt82 inhalt83 inhalt84",
+                                        "practice":  [
+                                                         {
+                                                             "hint":  "Schulbuch",
+                                                             "answer_type":  "text",
+                                                             "prompt":  "Uebersetze: book",
+                                                             "answer":  "Buch"
+                                                         }
+                                                     ]
+                                    },
+                        "quiz":  {
+                                     "questions":  [
+                                                       {
+                                                           "q":  "Vokabel Frage 1?",
+                                                           "options":  [
+                                                                           "Antwort A0",
+                                                                           "Antwort B0",
+                                                                           "Antwort C0",
+                                                                           "Antwort D0"
+                                                                       ],
+                                                           "answer":  0
+                                                       },
+                                                       {
+                                                           "q":  "Vokabel Frage 2?",
+                                                           "options":  [
+                                                                           "Antwort A1",
+                                                                           "Antwort B1",
+                                                                           "Antwort C1",
+                                                                           "Antwort D1"
+                                                                       ],
+                                                           "answer":  0
+                                                       },
+                                                       {
+                                                           "q":  "Vokabel Frage 3?",
+                                                           "options":  [
+                                                                           "Antwort A2",
+                                                                           "Antwort B2",
+                                                                           "Antwort C2",
+                                                                           "Antwort D2"
+                                                                       ],
+                                                           "answer":  0
+                                                       },
+                                                       {
+                                                           "q":  "Vokabel Frage 4?",
+                                                           "options":  [
+                                                                           "Antwort A3",
+                                                                           "Antwort B3",
+                                                                           "Antwort C3",
+                                                                           "Antwort D3"
+                                                                       ],
+                                                           "answer":  0
+                                                       }
+                                                   ]
+                                 }
+                    },
+                    {
+                        "title":  "Vokabeln Set 4",
+                        "content":  {
+                                        "text":  "Wort: apple - Bedeutung: Apfel - Beispiel: I eat an apple every day. Wort: house - Bedeutung: Haus - Beispiel: This is my house. Dieser Block erklaert Englisch Vokabeln Schritt fuer Schritt mit Beispielen aus dem Schulheft. Wir wiederholen Begriffe, zeigen einen Rechenweg und verbinden die Aufgabe mit bekanntem Stoff. inhalt1 inhalt2 inhalt3 inhalt4 inhalt5 inhalt6 inhalt7 inhalt8 inhalt9 inhalt10 inhalt11 inhalt12 inhalt13 inhalt14 inhalt15 inhalt16 inhalt17 inhalt18 inhalt19 inhalt20 inhalt21 inhalt22 inhalt23 inhalt24 inhalt25 inhalt26 inhalt27 inhalt28 inhalt29 inhalt30 inhalt31 inhalt32 inhalt33 inhalt34 inhalt35 inhalt36 inhalt37 inhalt38 inhalt39 inhalt40 inhalt41 inhalt42 inhalt43 inhalt44 inhalt45 inhalt46 inhalt47 inhalt48 inhalt49 inhalt50 inhalt51 inhalt52 inhalt53 inhalt54 inhalt55 inhalt56 inhalt57 inhalt58 inhalt59 inhalt60 inhalt61 inhalt62 inhalt63 inhalt64 inhalt65 inhalt66 inhalt67 inhalt68 inhalt69 inhalt70 inhalt71 inhalt72 inhalt73 inhalt74 inhalt75 inhalt76 inhalt77 inhalt78 inhalt79 inhalt80 inhalt81 inhalt82 inhalt83 inhalt84",
+                                        "practice":  [
+                                                         {
+                                                             "hint":  "Schulbuch",
+                                                             "answer_type":  "text",
+                                                             "prompt":  "Uebersetze: book",
+                                                             "answer":  "Buch"
+                                                         }
+                                                     ]
+                                    },
+                        "quiz":  {
+                                     "questions":  [
+                                                       {
+                                                           "q":  "Vokabel Frage 1?",
+                                                           "options":  [
+                                                                           "Antwort A0",
+                                                                           "Antwort B0",
+                                                                           "Antwort C0",
+                                                                           "Antwort D0"
+                                                                       ],
+                                                           "answer":  0
+                                                       },
+                                                       {
+                                                           "q":  "Vokabel Frage 2?",
+                                                           "options":  [
+                                                                           "Antwort A1",
+                                                                           "Antwort B1",
+                                                                           "Antwort C1",
+                                                                           "Antwort D1"
+                                                                       ],
+                                                           "answer":  0
+                                                       },
+                                                       {
+                                                           "q":  "Vokabel Frage 3?",
+                                                           "options":  [
+                                                                           "Antwort A2",
+                                                                           "Antwort B2",
+                                                                           "Antwort C2",
+                                                                           "Antwort D2"
+                                                                       ],
+                                                           "answer":  0
+                                                       },
+                                                       {
+                                                           "q":  "Vokabel Frage 4?",
+                                                           "options":  [
+                                                                           "Antwort A3",
+                                                                           "Antwort B3",
+                                                                           "Antwort C3",
+                                                                           "Antwort D3"
+                                                                       ],
+                                                           "answer":  0
+                                                       }
+                                                   ]
+                                 }
+                    },
+                    {
+                        "title":  "Vokabeln Set 5",
+                        "content":  {
+                                        "text":  "Wort: apple - Bedeutung: Apfel - Beispiel: I eat an apple every day. Wort: house - Bedeutung: Haus - Beispiel: This is my house. Dieser Block erklaert Englisch Vokabeln Schritt fuer Schritt mit Beispielen aus dem Schulheft. Wir wiederholen Begriffe, zeigen einen Rechenweg und verbinden die Aufgabe mit bekanntem Stoff. inhalt1 inhalt2 inhalt3 inhalt4 inhalt5 inhalt6 inhalt7 inhalt8 inhalt9 inhalt10 inhalt11 inhalt12 inhalt13 inhalt14 inhalt15 inhalt16 inhalt17 inhalt18 inhalt19 inhalt20 inhalt21 inhalt22 inhalt23 inhalt24 inhalt25 inhalt26 inhalt27 inhalt28 inhalt29 inhalt30 inhalt31 inhalt32 inhalt33 inhalt34 inhalt35 inhalt36 inhalt37 inhalt38 inhalt39 inhalt40 inhalt41 inhalt42 inhalt43 inhalt44 inhalt45 inhalt46 inhalt47 inhalt48 inhalt49 inhalt50 inhalt51 inhalt52 inhalt53 inhalt54 inhalt55 inhalt56 inhalt57 inhalt58 inhalt59 inhalt60 inhalt61 inhalt62 inhalt63 inhalt64 inhalt65 inhalt66 inhalt67 inhalt68 inhalt69 inhalt70 inhalt71 inhalt72 inhalt73 inhalt74 inhalt75 inhalt76 inhalt77 inhalt78 inhalt79 inhalt80 inhalt81 inhalt82 inhalt83 inhalt84",
+                                        "practice":  [
+                                                         {
+                                                             "hint":  "Schulbuch",
+                                                             "answer_type":  "text",
+                                                             "prompt":  "Uebersetze: book",
+                                                             "answer":  "Buch"
+                                                         }
+                                                     ]
+                                    },
+                        "quiz":  {
+                                     "questions":  [
+                                                       {
+                                                           "q":  "Vokabel Frage 1?",
+                                                           "options":  [
+                                                                           "Antwort A0",
+                                                                           "Antwort B0",
+                                                                           "Antwort C0",
+                                                                           "Antwort D0"
+                                                                       ],
+                                                           "answer":  0
+                                                       },
+                                                       {
+                                                           "q":  "Vokabel Frage 2?",
+                                                           "options":  [
+                                                                           "Antwort A1",
+                                                                           "Antwort B1",
+                                                                           "Antwort C1",
+                                                                           "Antwort D1"
+                                                                       ],
+                                                           "answer":  0
+                                                       },
+                                                       {
+                                                           "q":  "Vokabel Frage 3?",
+                                                           "options":  [
+                                                                           "Antwort A2",
+                                                                           "Antwort B2",
+                                                                           "Antwort C2",
+                                                                           "Antwort D2"
+                                                                       ],
+                                                           "answer":  0
+                                                       },
+                                                       {
+                                                           "q":  "Vokabel Frage 4?",
+                                                           "options":  [
+                                                                           "Antwort A3",
+                                                                           "Antwort B3",
+                                                                           "Antwort C3",
+                                                                           "Antwort D3"
+                                                                       ],
+                                                           "answer":  0
+                                                       }
+                                                   ]
+                                 }
+                    }
+                ]
+}
