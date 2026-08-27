@@ -2,9 +2,11 @@ from app.core.pedagogy_labels import (
     collect_content_blob,
     count_label_coverage,
     is_competency_heading,
+    is_competency_phrasing,
     is_schema_placeholder,
     label_in_text,
     material_labels_from_methods,
+    method_fields_are_redundant,
     resolve_method_entry,
     sanitize_pedagogy_field,
 )
@@ -46,6 +48,45 @@ def test_competency_headings_are_not_methods():
             "when": "Themenbuch S.48",
         }
     ) == {}
+
+
+def test_redundant_label_when_and_competency_infinitive_are_not_methods():
+    same = (
+        "Multiplikationen und Divisionen mit Dezimalzahlen im Kopf, "
+        "sowie in schriftlicher und halbschriftlicher Form lösen"
+    )
+    assert method_fields_are_redundant(same, f"bei {same}")
+    assert is_competency_phrasing(same)
+    assert resolve_method_entry({"label": same, "when": f"bei {same}"}) == {}
+    assert resolve_method_entry(
+        {
+            "label": "Multiplikationen mit Dezimalzahlen zu lösen, bei denen der eine Faktor ein Mehrfaches von 10 oder 100 ist",
+            "when": "Themenbuch S.54",
+        }
+    ) == {}
+    assert resolve_method_entry(
+        {
+            "label": "Gleichung stimmt",
+            "when": "bei Additionen oder Subtraktionen mit Dezimalzahlen so einsetzen, dass die Gleichung stimmt.",
+        }
+    ) == {}
+    assert resolve_method_entry(
+        {
+            "label": "Addieren und Subtrahieren / Multiplizieren und Dividieren",
+            "when": "bei Additionen und Subtraktionen mit Dezimalzahlen im Kopf, sowie in schriftlicher und halbschriftlicher Form lösen.",
+        }
+    ) == {}
+    kept = resolve_method_entry(
+        {"label": "Kopfrechnen", "when": "bei kleinen Zahlen", "example": "0,303 + 0,25"}
+    )
+    assert kept["label"] == "Kopfrechnen"
+    half = resolve_method_entry(
+        {
+            "label": "halbschriftlicher Form",
+            "when": "bei Multiplikationen und Divisionen mit Dezimalzahlen",
+        }
+    )
+    assert half["label"] == "halbschriftlicher Form"
 
 
 def test_label_in_text_substring_and_tokens():
