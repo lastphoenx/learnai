@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+from datetime import datetime, timezone
 from typing import Any
 
 from app.ai.providers import parse_json_object
@@ -70,6 +71,7 @@ def encode_source_analysis(*, provider: str, model: str | None, pedagogy: dict[s
         "provider": provider,
         "model": model or "",
         "version": PEDAGOGY_ANALYSIS_VERSION,
+        "extracted_at": datetime.now(timezone.utc).isoformat(),
         "pedagogy": pedagogy,
     }
     return json.dumps(payload, ensure_ascii=False)
@@ -144,6 +146,18 @@ def blob_analysis_is_current(blob: bytes | None) -> bool:
 
     parsed = decode_source_analysis(decrypt_text_master(blob))
     return analysis_version_of(parsed) >= PEDAGOGY_ANALYSIS_VERSION
+
+
+def blob_extracted_at(blob: bytes | None) -> str | None:
+    if not blob:
+        return None
+    from app.core.crypto import decrypt_text_master
+
+    parsed = decode_source_analysis(decrypt_text_master(blob))
+    if not parsed:
+        return None
+    raw = str(parsed.get("extracted_at") or "").strip()
+    return raw or None
 
 
 def parse_pedagogy_extraction(text: str) -> tuple[str, dict[str, Any]]:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
@@ -10,6 +11,7 @@ from app.ai.generate import _vision_extract_image_source
 from app.ai.source_pedagogy import (
     PEDAGOGY_ANALYSIS_VERSION,
     blob_analysis_is_current,
+    blob_extracted_at,
     build_pedagogy_digest,
     collect_pedagogy_from_unit_sources,
     has_pedagogy_content,
@@ -53,6 +55,91 @@ def _pedagogy_quality(profile: dict) -> dict:
     }
 
 
+def pedagogy_extract_snapshot(
+    *,
+    refreshed: int,
+    skipped_no_file: int,
+    quality_level: str | None = None,
+) -> dict:
+    if refreshed <= 0:
+        status = "failed"
+        message = "Keine Quelle konnte neu analysiert werden."
+    elif skipped_no_file > 0:
+        status = "partial"
+        message = f"{refreshed} Quelle(n) neu analysiert, {skipped_no_file} ohne Bilddatei."
+    else:
+        status = "success"
+        message = f"{refreshed} Quelle(n) neu analysiert."
+    snapshot = {
+        "status": status,
+        "message": message,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "refreshed_sources": refreshed,
+        "skipped_no_file": skipped_no_file,
+    }
+    if quality_level:
+        snapshot["quality_level"] = quality_level
+    return snapshot
+
+
+def persist_last_pedagogy(db: Session, unit_id: uuid.UUID, snapshot: dict) -> None:
+    from app.models import LearningRecord
+    from app.services.crypto_json import decrypt_json, encrypt_json
+
+    record = db.query(LearningRecord).filter(LearningRecord.unit_id == unit_id).first()
+    if not record:
+        return
+    recon = decrypt_json(record.reconstruction_encrypted) if record.reconstruction_encrypted else {}
+    if not isinstance(recon, dict):
+        recon = {}
+    recon["last_pedagogy"] = snapshot
+    record.reconstruction_encrypted = encrypt_json(recon)
+
+
+def last_pedagogy_from_recon(recon: dict | None) -> dict | None:
+    if not isinstance(recon, dict):
+        return None
+    snap = recon.get("last_pedagogy")
+    if not isinstance(snap, dict) or not snap.get("updated_at"):
+        return None
+    return snap
+
+
+def _last_extract_payload(
+    db: Session,
+    unit,
+    *,
+    analysis_current: bool,
+    has_pedagogy: bool,
+) -> dict | None:
+    from app.models import LearningRecord
+    from app.services.crypto_json import decrypt_json
+
+    record = db.query(LearningRecord).filter(LearningRecord.unit_id == unit.id).first()
+    recon = decrypt_json(record.reconstruction_encrypted) if record and record.reconstruction_encrypted else {}
+    snapshot = last_pedagogy_from_recon(recon if isinstance(recon, dict) else None)
+    blob_times = [blob_extracted_at(source.analysis_encrypted) for source in unit.sources or []]
+    blob_times = [stamp for stamp in blob_times if stamp]
+    updated_at = (snapshot or {}).get("updated_at") or (max(blob_times) if blob_times else None)
+    if not updated_at:
+        return None
+    status = str((snapshot or {}).get("status") or "success")
+    if has_pedagogy and not analysis_current:
+        status = "stale"
+    out: dict = {
+        "status": status,
+        "updated_at": updated_at,
+    }
+    if snapshot:
+        if snapshot.get("message"):
+            out["message"] = snapshot["message"]
+        if snapshot.get("refreshed_sources") is not None:
+            out["refreshed_sources"] = snapshot["refreshed_sources"]
+        if snapshot.get("skipped_no_file") is not None:
+            out["skipped_no_file"] = snapshot["skipped_no_file"]
+    return out
+
+
 def get_unit_pedagogy(db: Session, user: User, unit_id: uuid.UUID) -> dict:
     unit = _get_unit_or_404(db, user, unit_id)
     profile = collect_pedagogy_from_unit_sources(unit.sources)
@@ -85,8 +172,10 @@ def get_unit_pedagogy(db: Session, user: User, unit_id: uuid.UUID) -> dict:
                 "exercise_count": len(pedagogy.get("exercises") or []),
             }
         )
-    return {
-        "has_pedagogy": has_pedagogy_content(profile),
+    analysis_current = bool(analysis_blobs) and analysis_current_count == analysis_blobs
+    has_pedagogy = has_pedagogy_content(profile)
+    payload = {
+        "has_pedagogy": has_pedagogy,
         "digest": build_pedagogy_digest(profile),
         "profile": profile,
         "quality": _pedagogy_quality(profile),
@@ -94,10 +183,16 @@ def get_unit_pedagogy(db: Session, user: User, unit_id: uuid.UUID) -> dict:
         "source_count": len(unit.sources or []),
         "can_reread": can_reread,
         "skipped_no_file": skipped_no_file,
-        "analysis_current": bool(analysis_blobs) and analysis_current_count == analysis_blobs,
+        "analysis_current": analysis_current,
         "analysis_version": PEDAGOGY_ANALYSIS_VERSION,
         "image_count": image_count,
     }
+    last_extract = _last_extract_payload(
+        db, unit, analysis_current=analysis_current, has_pedagogy=has_pedagogy
+    )
+    if last_extract:
+        payload["last_extract"] = last_extract
+    return payload
 
 
 def extract_unit_pedagogy(db: Session, user: User, unit_id: uuid.UUID) -> dict:
@@ -128,4 +223,17 @@ def extract_unit_pedagogy(db: Session, user: User, unit_id: uuid.UUID) -> dict:
     payload = get_unit_pedagogy(db, user, unit_id)
     payload["refreshed_sources"] = refreshed
     payload["skipped_no_file"] = skipped_no_file
+    quality_level = (payload.get("quality") or {}).get("level")
+    snapshot = pedagogy_extract_snapshot(
+        refreshed=refreshed,
+        skipped_no_file=skipped_no_file,
+        quality_level=str(quality_level) if quality_level else None,
+    )
+    persist_last_pedagogy(db, unit_id, snapshot)
+    payload["last_extract"] = _last_extract_payload(
+        db,
+        unit,
+        analysis_current=bool(payload.get("analysis_current")),
+        has_pedagogy=bool(payload.get("has_pedagogy")),
+    ) or snapshot
     return payload

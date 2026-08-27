@@ -65,6 +65,14 @@ function generateStatusLabel(status: string) {
   return null;
 }
 
+function pedagogyStatusLabel(status: string | undefined) {
+  if (status === "success") return { label: "Aktualisiert", className: "badge badge-ready" };
+  if (status === "partial") return { label: "Teilweise", className: "badge badge-draft" };
+  if (status === "failed") return { label: "Fehlgeschlagen", className: "badge badge-fail" };
+  if (status === "stale") return { label: "Veraltet", className: "badge badge-draft" };
+  return null;
+}
+
 function formatZurich(iso: string | null | undefined) {
   if (!iso) return null;
   const date = new Date(iso);
@@ -315,6 +323,8 @@ export default function UnitDetailPage() {
       : unit?.last_generate;
   const lastGenerateWhen = formatZurich(lastGenerate?.updated_at || lastGenerate?.started_at);
   const lastGenerateBadge = lastGenerate ? generateStatusLabel(lastGenerate.status) : null;
+  const pedagogyLastWhen = formatZurich(pedagogy?.last_extract?.updated_at);
+  const pedagogyLastBadge = pedagogyStatusLabel(pedagogy?.last_extract?.status);
 
   return (
     <main className="shell shell-wide unit-page">
@@ -490,6 +500,17 @@ export default function UnitDetailPage() {
                   ) : (
                     <span className="badge badge-neutral">Noch nicht gelesen</span>
                   )}
+                  {pedagogyLastWhen ? (
+                    <span className="muted unit-pedagogy-last">
+                      {pedagogyLastWhen}
+                      {pedagogyLastBadge ? (
+                        <>
+                          {" · "}
+                          <span className={pedagogyLastBadge.className}>{pedagogyLastBadge.label}</span>
+                        </>
+                      ) : null}
+                    </span>
+                  ) : null}
                 </span>
                 <span className="muted section-lead unit-pedagogy-summary-lead">
                   Lösungswege und Aufgabentypen aus dem Heft — Grundlage für Verstehen, Üben und Check.
@@ -548,6 +569,18 @@ export default function UnitDetailPage() {
                         ? `, ${pedagogy.quality.methods_with_when} mit Anwendungs-Hinweis`
                         : ""}
                       , {pedagogy.quality.worked_with_steps} Beispiele mit Schritten)
+                    </p>
+                  ) : null}
+                  {pedagogyLastWhen ? (
+                    <p className="muted unit-pedagogy-last-run">
+                      Zuletzt eingelesen: {pedagogyLastWhen}
+                      {pedagogyLastBadge ? (
+                        <>
+                          {" · "}
+                          <span className={pedagogyLastBadge.className}>{pedagogyLastBadge.label}</span>
+                        </>
+                      ) : null}
+                      {pedagogy.last_extract?.message ? ` — ${pedagogy.last_extract.message}` : ""}
                     </p>
                   ) : null}
                   <pre className="unit-pedagogy-digest">{pedagogy.digest}</pre>

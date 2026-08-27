@@ -121,6 +121,19 @@ def test_encode_decode_source_analysis_roundtrip():
     assert parsed["provider"] == "openai"
     assert parsed["pedagogy"]["methods"][0]["label"] == "im Kopf"
     assert parsed["version"] == PEDAGOGY_ANALYSIS_VERSION
+    assert parsed.get("extracted_at")
+
+
+def test_pedagogy_extract_snapshot_status():
+    from app.services.pedagogy_service import pedagogy_extract_snapshot
+
+    ok = pedagogy_extract_snapshot(refreshed=4, skipped_no_file=0)
+    assert ok["status"] == "success"
+    assert ok["updated_at"]
+    partial = pedagogy_extract_snapshot(refreshed=2, skipped_no_file=2)
+    assert partial["status"] == "partial"
+    failed = pedagogy_extract_snapshot(refreshed=0, skipped_no_file=4)
+    assert failed["status"] == "failed"
 
 
 def test_legacy_analysis_without_version_needs_refresh():
