@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.ai.catalog import resolve_task_ai
 from app.ai.errors import LlmError
 from app.ai.generate import _collect_source_notes, _save_generated_modules
+from app.core.quiz_numeric import repair_quiz_block
 from app.ai.prompts.interactive import (
     CARDS_SYSTEM,
     KNOWLEDGE_SYSTEM,
@@ -577,6 +578,11 @@ def generate_interactive_modules(
 
     log_pedagogy_coverage_warnings(modules, pedagogy_profile, unit_id=str(unit_id))
     enforce_label_coverage(modules, pedagogy_profile)
+
+    for module in modules:
+        quiz = module.get("quiz") if isinstance(module, dict) else None
+        if isinstance(module, dict) and isinstance(quiz, dict):
+            module["quiz"] = repair_quiz_block(quiz)
 
     try:
         validate_interactive_modules(
