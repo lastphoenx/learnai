@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.ai.source_pedagogy import build_pedagogy_digest, collect_pedagogy_from_unit_sources
 from app.core.crypto import decrypt_text_master
 from app.core.quiz_explanation import enrich_quiz_explanation, explanation_is_weak, method_explanation_incomplete
+from app.core.solution_repair import enrich_card_answer
 from app.models import LearningRecord, LearningUnit, User
 from app.services.crypto_json import decrypt_json
 from app.services.learn_service import learn_progress_for_unit
@@ -32,7 +33,6 @@ def _quiz_lines(quiz: dict, *, module_ref: str) -> list[str]:
         qtext = str(question.get("q") or "").strip()
         options = question.get("options") or []
         answer = question.get("answer")
-        explanation = str(question.get("explanation") or "").strip()
         qtype = str(question.get("question_type") or "").strip()
         method_id = str(question.get("method_id") or question.get("method_label") or "").strip()
         shown = enrich_quiz_explanation(question)
@@ -46,9 +46,9 @@ def _quiz_lines(quiz: dict, *, module_ref: str) -> list[str]:
             for oi, opt in enumerate(options):
                 mark = " ✓" if answer == oi else ""
                 lines.append(f"  - [{chr(65 + oi)}]{mark} {opt}")
-        if explanation and (
-            (qtype == "method" and method_explanation_incomplete(explanation, qtext, question))
-            or (qtype != "method" and explanation_is_weak(explanation, qtext))
+        if shown and (
+            (qtype == "method" and method_explanation_incomplete(shown, qtext, question))
+            or (qtype != "method" and explanation_is_weak(shown, qtext))
         ):
             lines.append("- Warnung: gespeicherte Erklärung ohne ausgerechnete Zwischenschritte (Rezept).")
         if shown:
@@ -68,7 +68,7 @@ def _card_lines(content: dict, *, module_ref: str) -> list[str]:
         kind = str(card.get("kind") or "mental")
         lines.append(f"#### Karte {module_ref}.K{ci:02d} ({kind})")
         lines.append(f"- Frage: {card.get('question', '')}")
-        lines.append(f"- Antwort: {card.get('answer', '')}")
+        lines.append(f"- Antwort: {enrich_card_answer(card)}")
         if card.get("tip"):
             lines.append(f"- Tipp: {card.get('tip')}")
         if card.get("method_label"):

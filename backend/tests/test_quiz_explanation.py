@@ -1,6 +1,7 @@
 from app.core.quiz_explanation import (
     build_worked_solution,
     complete_method_explanation,
+    distinct_variant_count,
     enrich_quiz_explanation,
     explanation_has_derivation,
     explanation_is_weak,
@@ -228,6 +229,14 @@ def test_parse_addition_with_plus_symbol():
     assert parsed[0] == "add"
 
 
+def test_parse_difference_zwischen():
+    parsed = parse_arithmetic_operands("Berechne die Differenz zwischen 600.9 und 389.7.")
+    assert parsed is not None
+    assert parsed[0] == "sub"
+    assert abs(parsed[1] - 600.9) < 1e-6
+    assert abs(parsed[2] - 389.7) < 1e-6
+
+
 def test_sub_has_two_variants():
     text = build_worked_solution("Was ist das Ergebnis der Subtraktion von 5,6 und 2,9?", 2.7)
     assert text is not None
@@ -242,6 +251,51 @@ def test_division_by_100_uses_two_zeros_not_one():
     assert text is not None
     assert "2 Nullen" in text
     assert "1 Null" not in text
+    assert "100er-Reihe" not in text
+
+
+def test_division_960_by_40_kuerzen_not_times_table():
+    text = build_worked_solution("Wie löse ich die Division 960 : 40?", 24.0)
+    assert text is not None
+    assert "40er-Reihe" not in text
+    assert "4er-Reihe" in text
+    assert "96" in text
+    assert "Kürzen" in text or "Zehnerpotenz" in text
+
+
+def test_division_160_by_40_cancels_to_16_over_4():
+    text = build_worked_solution("Was ist das Ergebnis von 160 : 40?", 4.0)
+    assert text is not None
+    assert "40er-Reihe" not in text
+    assert "16" in text and "4er-Reihe" in text
+
+
+def test_distinct_variant_count_ignores_duplicate_bodies():
+    text = (
+        "Variante 1 (Schriftliche Rechnung): Zuerst die Ganzzahlen, dann die Nachkommastellen: "
+        "300 - 125 = 175 und 89 - 23 = 66. Also ist das Ergebnis 175.66.\n\n"
+        "Variante 2 (Kopfrechnen): Zuerst die Ganzzahlen, dann die Nachkommastellen: "
+        "300 - 125 = 175 und 89 - 23 = 66. Also ist das Ergebnis 175.66."
+    )
+    assert distinct_variant_count(text) == 1
+
+
+def test_enrich_replaces_duplicate_variant_bodies():
+    q = {
+        "q": "Berechne die Differenz zwischen 300.89 und 125.23.",
+        "options": ["174.66", "176.66", "175.66", "177.66"],
+        "answer": 2,
+        "question_type": "calculation",
+        "explanation": (
+            "Variante 1 (Schriftliche Rechnung): Zuerst die Ganzzahlen, dann die Nachkommastellen: "
+            "300 - 125 = 175 und 89 - 23 = 66. Also ist das Ergebnis 175.66.\n\n"
+            "Variante 2 (Kopfrechnen): Zuerst die Ganzzahlen, dann die Nachkommastellen: "
+            "300 - 125 = 175 und 89 - 23 = 66. Also ist das Ergebnis 175.66."
+        ),
+    }
+    enriched = enrich_quiz_explanation(q)
+    assert distinct_variant_count(enriched) >= 2
+    assert "40er-Reihe" not in enriched
 
 
 def test_enrich_method_replaces_weak_product_only():
@@ -333,3 +387,102 @@ def test_enrich_merges_heft_with_runtime_variant():
     enriched = enrich_quiz_explanation(q)
     assert "Variante 1" in enriched
     assert "Variante 2" in enriched
+
+
+def test_card_keeps_heft_kuerzen_path():
+    from app.core.solution_repair import enrich_card_answer
+
+    original = (
+        "810 : 90 = 9. Zuerst teile ich 810 durch 9, was 90 ergibt. "
+        "Da der Divisor 90 ist, dividiere ich das Ergebnis noch einmal durch 10: 90 : 10 = 9."
+    )
+    shown = enrich_card_answer(
+        {
+            "kind": "merk",
+            "question": "Wie löse ich die Division 810 : 90?",
+            "answer": original,
+        }
+    )
+    assert "810 durch 9" in shown
+    assert "90 : 10 = 9" in shown or "90 ÷ 10" in shown
+    assert "90er-Reihe" not in shown
+
+
+def test_card_replaces_invalid_times_table():
+    from app.core.solution_repair import enrich_card_answer
+
+    shown = enrich_card_answer(
+        {
+            "kind": "merk",
+            "question": "Wie löse ich die Division 960 : 40?",
+            "answer": "Variante 1 (Reihen): 960 ÷ 40. Aus der 40er-Reihe: 960 ÷ 40 = 24.",
+        }
+    )
+    assert "40er-Reihe" not in shown
+    assert "4er-Reihe" in shown
+    assert "Kürzen" in shown or "96" in shown
+
+
+def test_input_card_keeps_short_answer():
+    from app.core.solution_repair import enrich_card_answer
+
+    shown = enrich_card_answer(
+        {
+            "kind": "input",
+            "question": "Was ist das Ergebnis von 810 : 90?",
+            "answer": "9",
+        }
+    )
+    assert shown == "9"
+
+
+def test_knowledge_drops_false_equation():
+    from app.core.solution_repair import enrich_knowledge_text
+
+    shown = enrich_knowledge_text("Merke: 4 + 6 = 11. Addieren heisst zusammenzählen.")
+    assert "4 + 6 = 11" not in shown
+    assert "zusammenzählen" in shown
+
+
+def test_knowledge_scrubs_invalid_reihe():
+    from app.core.solution_repair import enrich_knowledge_text
+
+    shown = enrich_knowledge_text("600 ÷ 100. Aus der 100er-Reihe: 600 ÷ 100 = 6.")
+    assert "100er-Reihe" not in shown
+
+
+def test_repair_generated_module_fixes_quiz_and_card():
+    from app.core.solution_repair import repair_generated_module
+
+    raw = {
+        "title": "Division",
+        "content": {
+            "cards": [
+                {
+                    "kind": "merk",
+                    "question": "Wie löse ich 160 : 40?",
+                    "answer": "Aus der 40er-Reihe: 160 ÷ 40 = 4.",
+                }
+            ],
+            "knowledge": [{"title": "Reihe", "text": "Nutze die 90er-Reihe."}],
+        },
+        "quiz": {
+            "questions": [
+                {
+                    "q": "Was ist das Ergebnis der Division 960 : 40?",
+                    "options": ["24", "23", "26", "25"],
+                    "answer": 0,
+                    "question_type": "calculation",
+                    "explanation": "Variante 1 (Reihen): 960 ÷ 40. Aus der 40er-Reihe: 960 ÷ 40 = 24.",
+                }
+            ]
+        },
+    }
+    out = repair_generated_module(raw)
+    card_answer = out["content"]["cards"][0]["answer"]
+    quiz_expl = out["quiz"]["questions"][0]["explanation"]
+    knowledge = out["content"]["knowledge"][0]["text"]
+    assert "40er-Reihe" not in card_answer
+    assert "40er-Reihe" not in quiz_expl
+    assert "90er-Reihe" not in knowledge
+    assert "4er-Reihe" in quiz_expl or "Kürzen" in quiz_expl

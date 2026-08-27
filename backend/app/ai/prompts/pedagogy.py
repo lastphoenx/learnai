@@ -24,7 +24,9 @@ TYPED_CARDS_PEDAGOGY_RULES = (
     "- method_id: optional, nur für UI-Gruppierung — nie erfinden, wenn keine passt.\n"
     "- mental_cards: kurze direkte Abfragen ohne Hilfsmittel.\n"
     "- answer bei Ergebnisfragen: Resultat zuerst (Gleichung), dann Weg; bei mehreren Wegen "
-    "Variante 1 (Aus dem Heft) / Variante 2 (Alternativer Weg) wie im Quiz.\n"
+    "Variante 1 (Aus dem Heft) / Variante 2 (Alternativer Weg) wie im Quiz — die Wege müssen "
+    "sich in den Schritten unterscheiden, nicht nur im Label. Einmaleins-Reihen nur 2–12; "
+    "bei 20/40/50/80/90 kürzen (Nullen, dann 1×1), nie «40er-Reihe».\n"
     "- input_cards: passend zum Aufgabentyp (numeric, short_text oder cloze); method_label optional.\n"
 )
 
@@ -32,6 +34,7 @@ KNOWLEDGE_PEDAGOGY_RULES = (
     "Wissens-Hub (Schritt «Verstehen»):\n"
     "- Mindestens ein Eintrag pro wichtiger Lösungsstrategie aus den Quellen.\n"
     "- Ein Eintrag mit Schritt-für-Schritt-Beispiel aus worked_examples (Zwischenschritte!).\n"
+    "- Rechenbeispiele mit korrekter Gleichung; Einmaleins-Reihen nur 2–12, sonst kürzen.\n"
     "- Ein Eintrag: «Wann welches Vorgehen?» — Entscheidungshilfe, nicht nur Regeln.\n"
     "- Ein Eintrag: typischer Fehler oder Merksatz aus dem Material.\n"
     "- Verständlich wie ein Mini-Tutorial — Vorbereitung für Üben und Check.\n"
@@ -42,6 +45,9 @@ QUIZ_PEDAGOGY_RULES = (
     "- Ca. 20–30 % Fragen mit question_type=method (Strategiewahl).\n"
     "- method-Fragen: options = Lösungswege aus dem Didaktik-Block (Heft-Wortlaut).\n"
     "- Rechenfragen: question_type=calculation; explanation mit 2–3 Varianten, jede mit Gleichung.\n"
+    "- Varianten müssen sich in den Rechenschritten unterscheiden, nicht nur im Label.\n"
+    "- Einmaleins-Reihen nur 2–12; bei Divisoren wie 20/40/50/80/90/100 kürzen "
+    "(Nullen streichen oder ÷10 dann 1×1) — nie «40er-Reihe» oder «90er-Reihe».\n"
     "- Wenn im Didaktik-Block worked_examples stehen: mindestens eine Variante daraus ableiten "
     "(gleiche Strategie, Zahlen der aktuellen Aufgabe).\n"
     "- Bezug zu Methoden-Labels aus dem Didaktik-Block, wenn vorhanden — keine feste Methodenliste.\n"
