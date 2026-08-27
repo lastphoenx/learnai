@@ -408,6 +408,51 @@ def test_card_keeps_heft_kuerzen_path():
     assert "90er-Reihe" not in shown
 
 
+def test_leading_result_line_is_not_weak():
+    question = "Wie löse ich die Division 810 : 90?"
+    with_lead = (
+        "810 : 90 = 9. Variante 1 (Aus dem Heft): Zuerst teile ich 810 durch 9, was 90 ergibt. "
+        "Da der Divisor 90 ist, dividiere ich das Ergebnis noch einmal durch 10: 90 : 10 = 9."
+    )
+    without_lead = (
+        "Variante 1 (Aus dem Heft): Zuerst teile ich 810 durch 9, was 90 ergibt. "
+        "Da der Divisor 90 ist, dividiere ich das Ergebnis noch einmal durch 10: 90 : 10 = 9."
+    )
+    assert explanation_has_derivation(without_lead, question)
+    assert not explanation_is_weak(without_lead, question)
+    assert explanation_has_derivation(with_lead, question)
+    assert not explanation_is_weak(with_lead, question)
+
+
+def test_card_keeps_heft_when_result_precedes_variante():
+    from app.core.solution_repair import enrich_card_answer
+
+    original = (
+        "810 : 90 = 9. Variante 1 (Aus dem Heft): Zuerst teile ich 810 durch 9, was 90 ergibt. "
+        "Da der Divisor 90 ist, dividiere ich das Ergebnis noch einmal durch 10: 90 : 10 = 9."
+    )
+    shown = enrich_card_answer(
+        {
+            "kind": "merk",
+            "question": "Wie löse ich die Division 810 : 90?",
+            "answer": original,
+        }
+    )
+    assert "810 durch 9" in shown
+    assert "90 : 10 = 9" in shown
+    assert "Kürzen" not in shown or "Aus dem Heft" in shown
+
+
+def test_knowledge_scrubs_reihe_phrase_not_just_label():
+    from app.core.solution_repair import enrich_knowledge_text
+
+    shown = enrich_knowledge_text(
+        "Bei solchen Aufgaben rechnet man oft aus der 90er-Reihe: 810:90=9."
+    )
+    assert "90er-Reihe" not in shown
+    assert "aus der" not in shown.lower()
+
+
 def test_card_replaces_invalid_times_table():
     from app.core.solution_repair import enrich_card_answer
 
