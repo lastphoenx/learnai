@@ -452,6 +452,7 @@ export type LearningUnit = {
   sources?: UnitSource[];
   modules?: UnitModule[];
   exams?: ExamResult[];
+  last_generate?: GenerateJobStatus | null;
 };
 
 export type ExamTransfer = {

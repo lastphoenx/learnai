@@ -57,6 +57,28 @@ function statusBadge(status: string) {
   return { label: status, className: "badge" };
 }
 
+function generateStatusLabel(status: string) {
+  if (status === "done") return { label: "Erfolg", className: "badge badge-ready" };
+  if (status === "partial") return { label: "Teilweise", className: "badge badge-draft" };
+  if (status === "failed") return { label: "Fehlgeschlagen", className: "badge badge-fail" };
+  if (status === "running" || status === "queued") return { label: "Läuft", className: "badge" };
+  return null;
+}
+
+function formatZurich(iso: string | null | undefined) {
+  if (!iso) return null;
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleString("de-CH", {
+    timeZone: "Europe/Zurich",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 function sourceKindLabel(kind: string) {
   const map: Record<string, string> = {
     image: "Foto",
@@ -218,7 +240,6 @@ export default function UnitDetailPage() {
       setGenerateJob(started.job);
       const next = await waitForGenerateJob(unitId, setGenerateJob);
       setUnit(next);
-      setGenerateJob(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "KI-Aufbereitung fehlgeschlagen");
     } finally {
@@ -227,7 +248,7 @@ export default function UnitDetailPage() {
   }
 
   useEffect(() => {
-    if (!unit || (unit.modules || []).length > 0 || busy) return;
+    if (!unitId) return;
     let cancelled = false;
     fetchGenerateStatus(unitId)
       .then((res) => {
@@ -245,23 +266,18 @@ export default function UnitDetailPage() {
               }
             })
             .finally(() => {
-              if (!cancelled) {
-                setBusy(false);
-                setGenerateJob(null);
-              }
+              if (!cancelled) setBusy(false);
             });
         }
-      })
-      .catch((err) => {
-        if (!cancelled && err instanceof Error && err.message !== "Kein laufender Generierungsjob") {
-          setError(err.message);
+        if (res.job.status === "done" || res.job.status === "partial" || res.job.status === "failed") {
+          setGenerateJob(res.job);
         }
-      });
+      })
+      .catch(() => undefined);
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [unit?.id, unit?.task_type, unit?.modules?.length]);
+  }, [unitId]);
 
   useEffect(() => {
     if (searchParams.get("autogen") !== "1" || !unit || busy || autogenStarted.current) return;
@@ -285,6 +301,12 @@ export default function UnitDetailPage() {
   const badge = unit ? statusBadge(unit.status) : null;
   const moduleCount = unit?.modules?.length ?? 0;
   const sourceCount = unit?.sources?.length ?? 0;
+  const lastGenerate =
+    generateJob && (generateJob.status === "done" || generateJob.status === "partial" || generateJob.status === "failed")
+      ? generateJob
+      : unit?.last_generate;
+  const lastGenerateWhen = formatZurich(lastGenerate?.updated_at || lastGenerate?.started_at);
+  const lastGenerateBadge = lastGenerate ? generateStatusLabel(lastGenerate.status) : null;
 
   return (
     <main className="shell shell-wide unit-page">
@@ -699,13 +721,25 @@ export default function UnitDetailPage() {
                     </span>
                   </div>
                 ) : (
-                  <span className="muted">
-                    {unit.task_type === "interactive" && sourceCount > 0
-                      ? `${sourceCount} Quelle(n) — Tab offen lassen`
-                      : sourceCount > 0
-                        ? `${sourceCount} Quelle(n)`
-                        : "Aus Titel & Auftrag"}
-                  </span>
+                  <>
+                    <span className="muted">
+                      {unit.task_type === "interactive" && sourceCount > 0
+                        ? `${sourceCount} Quelle(n) — Tab offen lassen`
+                        : sourceCount > 0
+                          ? `${sourceCount} Quelle(n)`
+                          : "Aus Titel & Auftrag"}
+                    </span>
+                    {lastGenerateWhen && lastGenerateBadge && (
+                      <span className="generate-last-run">
+                        Letztes Mal: {lastGenerateWhen}
+                        {" · "}
+                        <span className={lastGenerateBadge.className}>{lastGenerateBadge.label}</span>
+                        {lastGenerate?.message ? (
+                          <span className="muted generate-last-run-msg"> — {lastGenerate.message}</span>
+                        ) : null}
+                      </span>
+                    )}
+                  </>
                 )}
               </button>
               {user && !asChild && (

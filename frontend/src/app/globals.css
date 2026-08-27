@@ -1011,6 +1011,12 @@ button.quiz-nav-jump.active.review {
   color: var(--warn);
 }
 
+.badge-fail {
+  background: color-mix(in srgb, var(--danger, #c0392b) 12%, var(--card));
+  border-color: color-mix(in srgb, var(--danger, #c0392b) 35%, var(--border));
+  color: var(--danger, #c0392b);
+}
+
 .badge-subject {
   background: color-mix(in srgb, #5b6ee8 12%, var(--card));
   border-color: color-mix(in srgb, #5b6ee8 30%, var(--border));
@@ -1177,6 +1183,24 @@ button.btn.action-tile {
   display: grid;
   gap: 0.25rem;
   min-width: 0;
+}
+
+.generate-last-run {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  font-weight: 400;
+}
+
+.generate-last-run .badge {
+  font-size: 0.7rem;
+  padding: 0.1rem 0.45rem;
+  vertical-align: middle;
+}
+
+.generate-last-run-msg {
+  display: inline;
 }
 
 .unit-page-layout {
