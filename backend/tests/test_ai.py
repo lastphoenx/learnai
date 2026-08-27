@@ -13,6 +13,11 @@ def test_parse_json_object_fenced():
     assert data["modules"][0]["title"] == "B"
 
 
+def test_parse_json_object_trailing_commas():
+    data = parse_json_object('{"questions":[{"q":"1+1","options":["1","2","3","4"],}],}')
+    assert data["questions"][0]["q"] == "1+1"
+
+
 def test_parse_json_object_latex_escapes():
     raw = """{
   "modules": [

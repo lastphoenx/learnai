@@ -18,6 +18,11 @@ _log = logging.getLogger(__name__)
 _GENERIC_GENERATE_ERROR = "Generierung fehlgeschlagen. Bitte erneut versuchen."
 
 
+def should_salvage_partial(module_count: int, job_stage: str | None) -> bool:
+    """Nur als Teil-Entwurf werten, wenn dieser Lauf wirklich gespeichert hat."""
+    return module_count >= 4 and job_stage == "saving"
+
+
 @celery_app.task(name="learnai.generate_unit", bind=True, max_retries=0)
 def generate_unit_task(self, unit_id: str, user_id: str, provider: str | None = None) -> None:
     db = SessionLocal()
@@ -71,7 +76,8 @@ def generate_unit_task(self, unit_id: str, user_id: str, provider: str | None = 
         try:
             unit = _get_unit_or_404(db, user, uuid.UUID(unit_id))
             module_count = len(unit.modules or [])
-            if module_count >= 4:
+            job = get_generate_job(unit_id) or {}
+            if should_salvage_partial(module_count, job.get("stage")):
                 db.commit()
                 progress(
                     "partial",
