@@ -81,3 +81,12 @@ def test_queued_job_resets_started_at(monkeypatch):
     assert payload["started_at"] != "2026-08-26T19:40:45+00:00"
     assert "modules" not in payload
     assert "index" not in payload
+
+
+def test_should_salvage_only_after_this_run_saved():
+    from app.tasks.generate import should_salvage_partial
+
+    assert should_salvage_partial(6, "saving") is True
+    assert should_salvage_partial(6, "category") is False
+    assert should_salvage_partial(6, "planning") is False
+    assert should_salvage_partial(3, "saving") is False
