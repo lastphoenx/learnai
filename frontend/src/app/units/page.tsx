@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { sandboxUnitTitle } from "@/lib/sandboxUnitTitle";
+import { fetchMe, fetchUnits, importTrainerJson, type LearningUnit, type User } from "@/lib/api";
 import { warmupSpeechInput } from "@/lib/speechWarmup";
 import { FALLBACK_TASK_TYPES, languageLabel, taskTypeLabel } from "@/lib/taskTypes";
 
