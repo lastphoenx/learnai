@@ -33,6 +33,8 @@ services:
       redis:
         condition: service_started
     env_file: .env
+    environment:
+      TZ: ${TZ:-Europe/Zurich}
     ports:
       # PUBLISH_BIND: 127.0.0.1 wenn nginx auf demselben Host; LAN-IP oder 0.0.0.0 wenn nginx woanders (CT 108)
       - "${PUBLISH_BIND:-0.0.0.0}:${API_PORT:-8000}:8000"
@@ -56,6 +58,8 @@ services:
       redis:
         condition: service_started
     env_file: .env
+    environment:
+      TZ: ${TZ:-Europe/Zurich}
     volumes:
       - ./backend/app:/app/app:ro
       - ./uploads:/app/uploads
@@ -70,6 +74,8 @@ services:
     depends_on:
       - api
     env_file: .env
+    environment:
+      TZ: ${TZ:-Europe/Zurich}
     ports:
       - "${PUBLISH_BIND:-0.0.0.0}:3000:3000"
 
