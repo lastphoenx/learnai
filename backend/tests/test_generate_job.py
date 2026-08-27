@@ -90,3 +90,75 @@ def test_should_salvage_only_after_this_run_saved():
     assert should_salvage_partial(6, "category") is False
     assert should_salvage_partial(6, "planning") is False
     assert should_salvage_partial(3, "saving") is False
+
+
+def test_job_is_stale_queued_and_running():
+    from datetime import datetime, timedelta, timezone
+
+    from app.services.generate_job import job_is_stale
+
+    now = datetime(2026, 8, 27, 15, 0, tzinfo=timezone.utc)
+    fresh = {
+        "status": "running",
+        "updated_at": (now - timedelta(minutes=5)).isoformat(),
+    }
+    hung = {
+        "status": "running",
+        "updated_at": (now - timedelta(minutes=30)).isoformat(),
+    }
+    queued_hung = {
+        "status": "queued",
+        "updated_at": (now - timedelta(minutes=5)).isoformat(),
+    }
+    assert job_is_stale(fresh, now=now) is False
+    assert job_is_stale(hung, now=now) is True
+    assert job_is_stale(queued_hung, now=now) is True
+    assert job_is_stale({"status": "failed", "updated_at": hung["updated_at"]}, now=now) is False
+
+
+def test_progress_stops_after_cancel(monkeypatch):
+    from app.ai.errors import LlmError
+    from app.services import generate_job as gj
+
+    monkeypatch.setattr(
+        gj,
+        "get_generate_job",
+        lambda _uid: {"status": "failed", "error": "Abgebrochen", "job_id": "abc"},
+    )
+    report = gj.make_progress_callback("unit-1", "user-1", job_id="abc")
+    try:
+        report("category", index=2, total=6, category="Addieren")
+        assert False, "expected LlmError"
+    except LlmError as exc:
+        assert exc.code == "cancelled"
+
+
+def test_abort_generate_job_releases_slot(monkeypatch):
+    from app.services import generate_control as gc
+
+    current = {
+        "status": "running",
+        "user_id": "u1",
+        "tenant_id": "t1",
+        "job_id": "jid",
+        "celery_task_id": "tid",
+    }
+    monkeypatch.setattr(gc, "get_generate_job", lambda _uid: dict(current))
+
+    def fake_set(_uid, **fields):
+        current.update(fields)
+        current["unit_id"] = _uid
+        return dict(current)
+
+    released: dict = {}
+    monkeypatch.setattr(gc, "set_generate_job", fake_set)
+    monkeypatch.setattr(gc, "release_generate_slot_for_unit", lambda **kw: released.update(kw))
+    monkeypatch.setattr(gc, "_revoke_celery", lambda tid: released.update(revoked=tid))
+
+    payload = gc.abort_generate_job("unit-1", reason="Abgebrochen")
+    assert payload is not None
+    assert payload["status"] == "failed"
+    assert payload["error"] == "Abgebrochen"
+    assert released["unit_id"] == "unit-1"
+    assert released["user_id"] == "u1"
+    assert released["revoked"] == "tid"

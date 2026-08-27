@@ -74,3 +74,22 @@ def release_generate_slot(*, user_id: str, tenant_id: str, unit_id: str) -> None
         return
     client.srem(_user_active_key(user_id), unit_id)
     client.srem(_tenant_active_key(tenant_id), unit_id)
+
+
+def release_generate_slot_for_unit(
+    *,
+    unit_id: str,
+    user_id: str | None = None,
+    tenant_id: str | None = None,
+) -> None:
+    """Slot freigeben; ohne tenant_id alle Mandanten-Sets durchsuchen."""
+    client = _redis_client()
+    if not client:
+        return
+    if user_id:
+        client.srem(_user_active_key(user_id), unit_id)
+    if tenant_id:
+        client.srem(_tenant_active_key(tenant_id), unit_id)
+        return
+    for key in client.scan_iter("generate:active:tenant:*"):
+        client.srem(key, unit_id)
