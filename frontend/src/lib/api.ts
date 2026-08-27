@@ -900,13 +900,17 @@ export type GenerateUnitResult =
   | { mode: "sync"; unit: LearningUnit }
   | { mode: "async"; job: GenerateJobStatus };
 
-export async function generateUnit(unitId: string, provider?: string): Promise<GenerateUnitResult> {
+export async function generateUnit(
+  unitId: string,
+  provider?: string,
+  opts?: { force?: boolean },
+): Promise<GenerateUnitResult> {
   const res = await fetch(`${API_URL}/api/v1/units/${unitId}/generate`, {
     method: "POST",
     credentials: "include",
     cache: "no-store",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ provider: provider ?? null }),
+    body: JSON.stringify({ provider: provider ?? null, force: Boolean(opts?.force) }),
   });
   const body = await res.json().catch(() => ({}));
   if (res.status === 202) {
