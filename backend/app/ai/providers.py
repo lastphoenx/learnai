@@ -79,13 +79,16 @@ def complete(
     system: str | None = None,
     model: str | None = None,
     num_predict: int | None = None,
+    json_mode: bool = False,
 ) -> LlmResult:
     name = resolve_provider(provider)
     text = prompt.strip()
     if not text:
         raise LlmError("Leerer Prompt", "empty")
     if name == "ollama":
-        return _ollama_chat(text, system=system, model=model, num_predict=num_predict)
+        return _ollama_chat(
+            text, system=system, model=model, num_predict=num_predict, json_mode=json_mode
+        )
     if name == "openai":
         return _openai_chat(text, system=system, model=model, max_tokens=num_predict)
     return _anthropic_chat(text, system=system, model=model, max_tokens=num_predict)
@@ -118,8 +121,22 @@ def _repair_invalid_json_escapes(raw: str) -> str:
     )
 
 
+def _repair_trailing_commas(raw: str) -> str:
+    return re.sub(r",(\s*[}\]])", r"\1", raw)
+
+
 def _loads_json_object(raw: str) -> dict | None:
-    for candidate in (raw, _repair_invalid_json_escapes(raw)):
+    variants = [
+        raw,
+        _repair_invalid_json_escapes(raw),
+        _repair_trailing_commas(raw),
+        _repair_trailing_commas(_repair_invalid_json_escapes(raw)),
+    ]
+    seen: set[str] = set()
+    for candidate in variants:
+        if candidate in seen:
+            continue
+        seen.add(candidate)
         try:
             data = json.loads(candidate)
             if isinstance(data, dict):
@@ -167,6 +184,7 @@ def _ollama_chat(
     model: str | None = None,
     *,
     num_predict: int | None = None,
+    json_mode: bool = False,
 ) -> LlmResult:
     model = _ollama_chat_model(model)
     if not model:
@@ -179,13 +197,16 @@ def _ollama_chat(
         messages.append({"role": "system", "content": system})
     messages.append({"role": "user", "content": prompt})
     payload: dict = {"model": model, "messages": messages, "stream": False}
+    if json_mode:
+        payload["format"] = "json"
     if num_predict:
         payload["options"] = {"num_predict": num_predict, "temperature": 0.35}
     _log.info(
-        "ollama_chat start model=%s timeout_s=%d num_predict=%s",
+        "ollama_chat start model=%s timeout_s=%d num_predict=%s json_mode=%s",
         model,
         settings.ollama_chat_timeout_sec,
         num_predict or "default",
+        json_mode,
     )
     data = _ollama_post("/api/chat", payload, timeout=float(settings.ollama_chat_timeout_sec))
     text = (data.get("message") or {}).get("content") or ""

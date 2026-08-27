@@ -342,15 +342,18 @@ def _complete_with_retry(
     label: str,
 ) -> dict:
     last_exc: LlmError | None = None
-    for attempt in (1, 2):
+    for attempt in (1, 2, 3):
         try:
-            return complete(
+            result = complete(
                 prompt=prompt,
                 provider=provider,
                 system=system,
                 model=model,
                 num_predict=num_predict,
+                json_mode=True,
             )
+            parse_json_object(result["text"])
+            return result
         except LlmError as exc:
             last_exc = exc
             _log.warning(
