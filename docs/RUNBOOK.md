@@ -185,6 +185,19 @@ docker compose exec -T api python /opt/scripts/unlock_login.py --email-hash <sha
 docker compose exec -T api python /opt/scripts/unlock_login.py --email user@example.com
 ```
 
+### KI-Aufbereiten hängt (Redis-Job)
+
+In der Einheit gibt es **Abbrechen**. Hängende Jobs (kein Fortschritt ~17 min, oder queued >3 min) werden beim Status-Poll automatisch zurückgesetzt — **nicht** still neu gestartet.
+
+Wartungsskript:
+
+```bash
+cd /opt/learnai
+docker compose exec -T api python /opt/scripts/clear_generate_job.py --list
+docker compose exec -T api python /opt/scripts/clear_generate_job.py --stale
+docker compose exec -T api python /opt/scripts/clear_generate_job.py --unit-id <UUID>
+```
+
 ### Login-E-Mail nachziehen (Bestands-Accounts)
 
 Neue Accounts speichern die Login-E-Mail automatisch. Für ältere Accounts:

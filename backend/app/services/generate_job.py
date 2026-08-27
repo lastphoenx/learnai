@@ -4,14 +4,18 @@ from __future__ import annotations
 
 import json
 import logging
+import uuid
 from datetime import datetime, timezone
 from typing import Any
 
+from app.ai.errors import LlmError
 from app.config import settings
 
 _log = logging.getLogger(__name__)
 
 _JOB_TTL_SEC = 86400
+_QUEUED_STALE_SEC = 180
+_JOB_META_KEYS = ("job_id", "celery_task_id", "tenant_id")
 _redis = None
 _redis_unavailable = False
 
@@ -70,6 +74,18 @@ def _estimate_progress(stage: str, extra: dict[str, Any]) -> int:
     if stage == "partial":
         return 100
     return 0
+
+
+def _parse_iso(value: str | None) -> datetime | None:
+    if not value or not isinstance(value, str):
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
 
 
 def get_generate_job(unit_id: str) -> dict[str, Any] | None:
@@ -133,8 +149,6 @@ def last_generate_from_recon(recon: dict | None) -> dict[str, Any] | None:
 
 def set_generate_job(unit_id: str, *, user_id: str, **fields: Any) -> dict[str, Any]:
     existing = get_generate_job(unit_id) or {}
-    if fields.get("status") == "queued":
-        existing = {}
     stage = str(fields.get("stage") or existing.get("stage") or "queued")
     extra = {k: v for k, v in fields.items() if k not in {"status", "stage", "error", "user_id"}}
     message = str(fields.get("message") or STAGE_MESSAGES.get(stage, stage))
@@ -143,9 +157,12 @@ def set_generate_job(unit_id: str, *, user_id: str, **fields: Any) -> dict[str, 
         progress_pct = _estimate_progress(stage, extra)
 
     if fields.get("status") == "queued":
+        existing = {}
         started_at = _now_iso()
+        job_id = str(fields.get("job_id") or uuid.uuid4())
     else:
         started_at = existing.get("started_at") or _now_iso()
+        job_id = str(fields.get("job_id") or existing.get("job_id") or uuid.uuid4())
 
     payload: dict[str, Any] = {
         "unit_id": unit_id,
@@ -157,8 +174,11 @@ def set_generate_job(unit_id: str, *, user_id: str, **fields: Any) -> dict[str, 
         "error": fields.get("error"),
         "started_at": started_at,
         "updated_at": _now_iso(),
+        "job_id": job_id,
     }
-    for key in ("index", "total", "category", "modules", "cards", "questions"):
+    for key in ("index", "total", "category", "modules", "cards", "questions", *_JOB_META_KEYS):
+        if key == "job_id":
+            continue
         if key in fields:
             payload[key] = fields[key]
         elif key in existing:
@@ -180,8 +200,51 @@ def job_is_active(job: dict[str, Any] | None) -> bool:
     return bool(job and job.get("status") in {"queued", "running"})
 
 
-def make_progress_callback(unit_id: str, user_id: str):
+def job_is_stale(job: dict[str, Any] | None, *, now: datetime | None = None) -> bool:
+    if not job_is_active(job) or job is None:
+        return False
+    stamp = _parse_iso(str(job.get("updated_at") or "") or None) or _parse_iso(
+        str(job.get("started_at") or "") or None
+    )
+    if stamp is None:
+        return True
+    age = ((now or datetime.now(timezone.utc)) - stamp).total_seconds()
+    if job.get("status") == "queued":
+        return age > _QUEUED_STALE_SEC
+    return age > settings.generate_stale_after_sec
+
+
+def job_was_stopped(unit_id: str, job_id: str | None) -> bool:
+    current = get_generate_job(unit_id) or {}
+    current_id = current.get("job_id")
+    if job_id and current_id and current_id != job_id:
+        return True
+    return current.get("status") == "failed"
+
+
+def iter_generate_jobs() -> list[tuple[str, dict[str, Any]]]:
+    client = _redis_client()
+    if not client:
+        return []
+    found: list[tuple[str, dict[str, Any]]] = []
+    for key in client.scan_iter("unit_generate:*"):
+        unit_id = str(key).split(":", 1)[-1]
+        job = get_generate_job(unit_id)
+        if job:
+            found.append((unit_id, job))
+    return found
+
+
+def make_progress_callback(unit_id: str, user_id: str, job_id: str | None = None):
     def report(stage: str, **extra: Any) -> None:
+        current = get_generate_job(unit_id) or {}
+        current_id = current.get("job_id")
+        if job_id and current_id and current_id != job_id:
+            raise LlmError("Generierung abgebrochen", "cancelled")
+        terminal = stage in {"done", "partial", "failed"}
+        if not terminal and current.get("status") == "failed":
+            raise LlmError(str(current.get("error") or "Generierung abgebrochen"), "cancelled")
+
         status = "running"
         if stage == "done":
             status = "done"
@@ -212,6 +275,7 @@ def make_progress_callback(unit_id: str, user_id: str):
             status=status,
             stage=stage,
             message=message,
+            job_id=job_id or current_id,
             **extra,
         )
 

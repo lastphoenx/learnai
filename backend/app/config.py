@@ -63,6 +63,8 @@ class Settings(BaseSettings):
     generate_max_active_per_user: int = 2
     generate_max_active_per_tenant: int = 5
     generate_rate_limit_per_user_hour: int = 10
+    # Kein Redis-Update länger als das → Job gilt als hängend (Ollama-Call + Puffer)
+    generate_stale_after_sec: int = 1020
 
     @property
     def cors_origin_list(self) -> list[str]:

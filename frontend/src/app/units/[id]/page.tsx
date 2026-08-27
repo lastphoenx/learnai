@@ -24,6 +24,7 @@ import {
   generateUnit,
   fetchGenerateStatus,
   waitForGenerateJob,
+  cancelGenerate,
   fetchQuizWeaknesses,
   patchUnit,
   purgeSource,
@@ -112,6 +113,7 @@ export default function UnitDetailPage() {
   const [sourceUrl, setSourceUrl] = useState("");
   const [editOpen, setEditOpen] = useState(false);
   const [generateJob, setGenerateJob] = useState<GenerateJobStatus | null>(null);
+  const [cancelling, setCancelling] = useState(false);
   const [profiles, setProfiles] = useState<LearnerProfile[]>([]);
   const [quizWeaknesses, setQuizWeaknesses] = useState<QuizWeaknesses | null>(null);
   const [pedagogy, setPedagogy] = useState<UnitPedagogy | null>(null);
@@ -257,9 +259,25 @@ export default function UnitDetailPage() {
       const next = await waitForGenerateJob(unitId, setGenerateJob);
       setUnit(next);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "KI-Aufbereitung fehlgeschlagen");
+      const msg = err instanceof Error ? err.message : "KI-Aufbereitung fehlgeschlagen";
+      if (msg !== "Abgebrochen") setError(msg);
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function onCancelGenerate() {
+    if (cancelling) return;
+    setCancelling(true);
+    setError(null);
+    try {
+      const job = await cancelGenerate(unitId);
+      setGenerateJob(job);
+      setBusy(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Abbruch fehlgeschlagen");
+    } finally {
+      setCancelling(false);
     }
   }
 
@@ -278,7 +296,8 @@ export default function UnitDetailPage() {
             })
             .catch((err) => {
               if (!cancelled) {
-                setError(err instanceof Error ? err.message : "KI-Aufbereitung fehlgeschlagen");
+                const msg = err instanceof Error ? err.message : "KI-Aufbereitung fehlgeschlagen";
+                if (msg !== "Abgebrochen") setError(msg);
               }
             })
             .finally(() => {
@@ -751,6 +770,7 @@ export default function UnitDetailPage() {
                   <span className="muted">LearnAI + Bio-Ranger Format</span>
                 </a>
               )}
+              <div className="generate-tile-wrap">
               <button
                 type="button"
                 className={`action-tile${busy ? " action-tile-busy" : ""}`}
@@ -812,6 +832,17 @@ export default function UnitDetailPage() {
                   </>
                 )}
               </button>
+              {busy ? (
+                <button
+                  type="button"
+                  className="generate-cancel"
+                  onClick={onCancelGenerate}
+                  disabled={cancelling}
+                >
+                  {cancelling ? "Breche ab…" : "Abbrechen"}
+                </button>
+              ) : null}
+              </div>
               {user && !asChild && (
               <button
                 type="button"
