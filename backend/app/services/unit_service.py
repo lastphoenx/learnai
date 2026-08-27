@@ -136,7 +136,7 @@ def unit_is_sandbox_copy(unit: LearningUnit, record: LearningRecord | None) -> b
         title = decrypt_text_master(unit.title_encrypted) if unit.title_encrypted else ""
     except Exception:
         title = ""
-    return str(title).strip().lower().startswith("test:")
+    return str(title).strip().lower().startswith(("test:", "test-kopie:"))
 
 
 def _attach_template_fields(row: dict, record: LearningRecord | None) -> None:
@@ -148,7 +148,7 @@ def _attach_template_fields(row: dict, record: LearningRecord | None) -> None:
         sandbox_copy_of, is_sandbox_copy = _sandbox_fields_from_recon(recon)
     if not is_sandbox_copy:
         title = str(row.get("title") or "").strip()
-        if title.lower().startswith("test:"):
+        if title.lower().startswith(("test:", "test-kopie:")):
             is_sandbox_copy = True
     row["template_unit_id"] = template_unit_id
     row["template_root_id"] = template_root_id or row["id"]
@@ -596,6 +596,17 @@ def assign_unit_to_profiles(
     return created
 
 
+def _ensure_test_copy_title(title: str) -> str:
+    stripped = (title or "").strip()
+    lower = stripped.lower()
+    if lower.startswith("test-kopie:"):
+        return stripped
+    if lower.startswith("test:"):
+        rest = stripped.split(":", 1)[1].strip()
+        return f"Test-Kopie: {rest}" if rest else "Test-Kopie:"
+    return f"Test-Kopie: {stripped}" if stripped else "Test-Kopie:"
+
+
 def create_test_copy_from_unit(db: Session, user: User, unit_id: uuid.UUID) -> dict:
     """Sandbox-Kopie ohne Kind-Zuordnung — gleiche Quellen/Blöcke, eigener (leerer) Fortschritt."""
     if user.is_child:
@@ -603,9 +614,7 @@ def create_test_copy_from_unit(db: Session, user: User, unit_id: uuid.UUID) -> d
     unit = _get_unit_or_404(db, user, unit_id)
     src_record = db.query(LearningRecord).filter(LearningRecord.unit_id == unit.id).first()
 
-    title = decrypt_text_master(unit.title_encrypted)
-    if not title.lower().startswith("test:"):
-        title = f"Test: {title}"
+    title = _ensure_test_copy_title(decrypt_text_master(unit.title_encrypted))
     brief = decrypt_text_master(unit.brief_encrypted) if unit.brief_encrypted else None
     math_focus = None
     if src_record and src_record.reconstruction_encrypted:

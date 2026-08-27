@@ -955,6 +955,11 @@ button.quiz-nav-jump.active.review {
   background: linear-gradient(135deg, var(--card) 0%, color-mix(in srgb, var(--accent) 6%, var(--card)) 100%);
 }
 
+.unit-hero-sandbox {
+  background: linear-gradient(135deg, color-mix(in srgb, #0f766e 14%, var(--card)) 0%, color-mix(in srgb, #0f766e 8%, var(--card)) 100%);
+  border-color: color-mix(in srgb, #0f766e 38%, var(--border));
+}
+
 .unit-hero-top {
   display: flex;
   justify-content: space-between;
@@ -1027,6 +1032,12 @@ button.quiz-nav-jump.active.review {
   background: color-mix(in srgb, #9a6700 10%, var(--card));
   border-color: color-mix(in srgb, var(--warn) 35%, var(--border));
   color: var(--warn);
+}
+
+.badge-sandbox {
+  background: color-mix(in srgb, #0f766e 14%, var(--card));
+  border-color: color-mix(in srgb, #0f766e 38%, var(--border));
+  color: color-mix(in srgb, #0f766e 80%, var(--fg));
 }
 
 .badge-math {
@@ -1830,6 +1841,16 @@ button.btn.action-tile {
 .unit-list-card:hover {
   border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
   box-shadow: 0 4px 18px color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.unit-list-card-sandbox {
+  background: color-mix(in srgb, #0f766e 11%, var(--card));
+  border-color: color-mix(in srgb, #0f766e 36%, var(--border));
+}
+
+.unit-list-card-sandbox:hover {
+  border-color: color-mix(in srgb, #0f766e 55%, var(--border));
+  box-shadow: 0 4px 18px color-mix(in srgb, #0f766e 14%, transparent);
 }
 
 .unit-list-link {
