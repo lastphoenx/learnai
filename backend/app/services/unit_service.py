@@ -1031,6 +1031,7 @@ def update_unit(
     if not isinstance(recon, dict):
         recon = {}
     preserved_last_generate = recon.get("last_generate") if isinstance(recon.get("last_generate"), dict) else None
+    preserved_last_pedagogy = recon.get("last_pedagogy") if isinstance(recon.get("last_pedagogy"), dict) else None
 
     if title is not None:
         cleaned = title.strip()
@@ -1112,6 +1113,8 @@ def update_unit(
         )
         if preserved_last_generate:
             recon["last_generate"] = preserved_last_generate
+        if preserved_last_pedagogy:
+            recon["last_pedagogy"] = preserved_last_pedagogy
         record.reconstruction_encrypted = encrypt_json(recon)
 
     db.flush()

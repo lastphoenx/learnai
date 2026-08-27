@@ -196,6 +196,14 @@ def test_division_72_by_9_has_both_variants():
     assert "0,8" in text
 
 
+def test_division_897_by_10_does_not_round_away_decimal():
+    text = build_worked_solution("Was ist das Ergebnis von 89.7 : 10?", 8.97)
+    assert text is not None
+    assert "10⁻0" not in text
+    assert "90 ÷ 10 = 9" not in text
+    assert "8,97" in text
+
+
 def test_add_has_two_variants():
     text = build_worked_solution("Wie berechnest du die Summe von 3,2 und 4,8?", 8.0)
     assert text is not None

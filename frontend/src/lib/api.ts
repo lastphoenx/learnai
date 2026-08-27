@@ -283,6 +283,13 @@ export type UnitPedagogy = {
   analysis_current?: boolean;
   analysis_version?: number;
   image_count?: number;
+  last_extract?: {
+    status: "success" | "partial" | "failed" | "stale" | string;
+    updated_at: string;
+    message?: string;
+    refreshed_sources?: number;
+    skipped_no_file?: number;
+  };
   quality?: {
     level: "good" | "partial" | "low" | string;
     method_count: number;
