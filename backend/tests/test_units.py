@@ -78,6 +78,18 @@ def test_template_ids_from_recon():
     assert row["is_sandbox_copy"] is False
     assert row["sandbox_copy_of"] is None
 
+    copy_row = {"id": "unit-2", "title": "Test-Kopie: Mathematik"}
+    _attach_template_fields(copy_row, None)
+    assert copy_row["is_sandbox_copy"] is True
+
+
+def test_ensure_test_copy_title():
+    from app.services.unit_service import _ensure_test_copy_title
+
+    assert _ensure_test_copy_title("Mathematik Test") == "Test-Kopie: Mathematik Test"
+    assert _ensure_test_copy_title("Test: Mathematik Test") == "Test-Kopie: Mathematik Test"
+    assert _ensure_test_copy_title("Test-Kopie: Mathematik Test") == "Test-Kopie: Mathematik Test"
+
 
 def test_update_unit_profile_unassign(monkeypatch):
     import base64

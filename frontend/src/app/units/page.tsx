@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
-import { fetchMe, fetchUnits, importTrainerJson, type LearningUnit, type User } from "@/lib/api";
+import { sandboxUnitTitle } from "@/lib/sandboxUnitTitle";
 import { warmupSpeechInput } from "@/lib/speechWarmup";
 import { FALLBACK_TASK_TYPES, languageLabel, taskTypeLabel } from "@/lib/taskTypes";
 
@@ -220,7 +220,7 @@ export default function UnitsPage() {
               return (
                 <li
                   key={u.id}
-                  className="unit-list-item card unit-list-card"
+                  className={`unit-list-item card unit-list-card${u.is_sandbox_copy ? " unit-list-card-sandbox" : ""}`}
                   onClick={(e) => {
                     if ((e.target as HTMLElement).closest("a, button, input, label")) return;
                     router.push(`/units/${u.id}`);
@@ -237,13 +237,14 @@ export default function UnitsPage() {
                 >
                   <div className="unit-list-link">
                     <div className="unit-list-head">
-                      <span className="unit-list-title">{u.title}</span>
+                      <span className="unit-list-title">{sandboxUnitTitle(u)}</span>
                       <span className={badge.className}>{badge.label}</span>
                     </div>
                     <div className="badge-row" style={{ marginTop: "0.55rem" }}>
                       {u.reference_code && (
                         <span className="badge badge-neutral unit-ref-badge">Ref {u.reference_code}</span>
                       )}
+                      {u.is_sandbox_copy && <span className="badge badge-sandbox">Testkopie</span>}
                       {u.learner_name && <span className="badge badge-neutral">{u.learner_name}</span>}
                       <span className="badge badge-subject">{u.subject || "Ohne Fach"}</span>
                       <span className="badge badge-mode">{taskTypeLabel(u.task_type || "mixed")}</span>
