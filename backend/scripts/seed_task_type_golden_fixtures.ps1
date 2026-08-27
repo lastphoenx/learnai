@@ -108,10 +108,10 @@ $builders = @{
                 $cards += @{ question = "Lernkarte $($area + 1)-$($j + 1)?"; answer = "Antwort $($area + 1)-$($j + 1)." }
                 if ($j -eq 0) {
                     $questions += [pscustomobject]@{
-                        q = "Quiz $($area + 1)-$($j + 1): Was ist 6 mal 7?"
+                        q = "Quiz $($area + 1)-$($j + 1): Was ist 6 · 7?"
                         options = @("42", "36", "48", "40")
                         answer = 0
-                        explanation = "Variante 1: 6 mal 7 = 42. Variante 2: 6 mal 5 = 30, 6 mal 2 = 12, 30 + 12 = 42."
+                        explanation = "Variante 1: 6 · 7 = 42. Variante 2: 6 · 5 = 30, 6 · 2 = 12, 30 + 12 = 42."
                     }
                 } else {
                     $questions += @{ q = "Quiz $($area + 1)-$($j + 1)?"; options = @("A", "B", "C", "D"); answer = 0 }

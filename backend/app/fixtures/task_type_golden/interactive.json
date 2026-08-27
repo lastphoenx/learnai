@@ -53,7 +53,7 @@
                         "quiz":  {
                                      "questions":  [
                                                        {
-                                                           "q":  "Quiz 1-1: Was ist 6 mal 7?",
+                                                           "q":  "Quiz 1-1: Was ist 6 · 7?",
                                                            "options":  [
                                                                            "42",
                                                                            "36",
@@ -61,7 +61,7 @@
                                                                            "40"
                                                                        ],
                                                            "answer":  0,
-                                                           "explanation":  "Variante 1: 6 mal 7 = 42. Variante 2: 6 mal 5 = 30, 6 mal 2 = 12, 30 + 12 = 42."
+                                                           "explanation":  "Variante 1: 6 · 7 = 42. Variante 2: 6 · 5 = 30, 6 · 2 = 12, 30 + 12 = 42."
                                                        },
                                                        {
                                                            "q":  "Quiz 1-2?",
@@ -183,7 +183,7 @@
                         "quiz":  {
                                      "questions":  [
                                                        {
-                                                           "q":  "Quiz 2-1: Was ist 6 mal 7?",
+                                                           "q":  "Quiz 2-1: Was ist 6 · 7?",
                                                            "options":  [
                                                                            "42",
                                                                            "36",
@@ -191,7 +191,7 @@
                                                                            "40"
                                                                        ],
                                                            "answer":  0,
-                                                           "explanation":  "Variante 1: 6 mal 7 = 42. Variante 2: 6 mal 5 = 30, 6 mal 2 = 12, 30 + 12 = 42."
+                                                           "explanation":  "Variante 1: 6 · 7 = 42. Variante 2: 6 · 5 = 30, 6 · 2 = 12, 30 + 12 = 42."
                                                        },
                                                        {
                                                            "q":  "Quiz 2-2?",
@@ -313,7 +313,7 @@
                         "quiz":  {
                                      "questions":  [
                                                        {
-                                                           "q":  "Quiz 3-1: Was ist 6 mal 7?",
+                                                           "q":  "Quiz 3-1: Was ist 6 · 7?",
                                                            "options":  [
                                                                            "42",
                                                                            "36",
@@ -321,7 +321,7 @@
                                                                            "40"
                                                                        ],
                                                            "answer":  0,
-                                                           "explanation":  "Variante 1: 6 mal 7 = 42. Variante 2: 6 mal 5 = 30, 6 mal 2 = 12, 30 + 12 = 42."
+                                                           "explanation":  "Variante 1: 6 · 7 = 42. Variante 2: 6 · 5 = 30, 6 · 2 = 12, 30 + 12 = 42."
                                                        },
                                                        {
                                                            "q":  "Quiz 3-2?",
@@ -443,7 +443,7 @@
                         "quiz":  {
                                      "questions":  [
                                                        {
-                                                           "q":  "Quiz 4-1: Was ist 6 mal 7?",
+                                                           "q":  "Quiz 4-1: Was ist 6 · 7?",
                                                            "options":  [
                                                                            "42",
                                                                            "36",
@@ -451,7 +451,7 @@
                                                                            "40"
                                                                        ],
                                                            "answer":  0,
-                                                           "explanation":  "Variante 1: 6 mal 7 = 42. Variante 2: 6 mal 5 = 30, 6 mal 2 = 12, 30 + 12 = 42."
+                                                           "explanation":  "Variante 1: 6 · 7 = 42. Variante 2: 6 · 5 = 30, 6 · 2 = 12, 30 + 12 = 42."
                                                        },
                                                        {
                                                            "q":  "Quiz 4-2?",
