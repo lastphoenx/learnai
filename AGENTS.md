@@ -6,30 +6,27 @@ Quelle der Wahrheit: `doku/pve2/vm/135-learnai/betrieb.md`
 
 | Was | Branch | CT 135 |
 |-----|--------|--------|
-| **Produktion / Live-Bug** | `main` (oder kurzer `fix/…` **von** `main`) | `git pull origin main` — **nie** Feature-Branches pullen |
-| **Unfertiges Feature** (Eltern-KI, BYOK, …) | `feature/parent-ai-access` | erst mergen, wenn live |
+| **Produktion / Live-Bug** | **direkt `main`** | `git pull origin main` — **nie** Feature-Branches pullen |
+| **Unfertiges Feature** (Golden Set, …) | `feature/task-type-golden` | erst mergen, wenn live |
 
-### Live-Fix — Checkliste (jedes Mal, in dieser Reihenfolge)
+**Keine einmaligen `fix/…`-Branches** für kleine Live-Fixes. Commit + Push auf `main`. Einen `fix/…`-Branch nur, wenn der Nutzer ihn ausdrücklich will oder die Änderung unsicher/reviewbedürftig ist — **nach Merge auf `main` sofort löschen** (`git push origin --delete <branch>` und `git branch -d <branch>`).
+
+### Live-Fix — Checkliste (direkt auf main)
 
 ```powershell
 cd learnai
 git fetch origin
 git checkout -f main
 git pull origin main
-git checkout -b fix/kurzbeschreibung
 # … ändern …
 git add …
 git commit -m "fix: …"
-git push -u origin fix/kurzbeschreibung
-git checkout main
-git merge --ff-only fix/kurzbeschreibung
 git push origin main
-git checkout feature/parent-ai-access
-git merge origin/main -m "Merge branch 'main' into feature/parent-ai-access"
-git push origin feature/parent-ai-access
 ```
 
-**Nicht:** `git push origin <sha>:main` (Refspec-Hack), Merge ohne vorher `git pull`, Feature-Branch auf CT deployen, `main` vergessen nachzuziehen.
+Wenn gerade auf `feature/task-type-golden` weitergearbeitet wird: `main` danach dort einmergen (nicht umgekehrt auf CT deployen).
+
+**Nicht:** `git push origin <sha>:main` (Refspec-Hack), Merge ohne vorher `git pull`, Feature-Branch auf CT deployen, gemergte `fix/…`-Branches stehen lassen.
 
 ### Windows: Checkout blockiert durch `scripts/generate_keys.py`
 
@@ -47,7 +44,7 @@ Abdeckung wie SlitProjektHub: `.gitattributes` (`*.py text eol=lf`) + `.editorco
 cd /opt/learnai && git pull origin main && bash scripts/deploy.sh
 ```
 
-Lokales Repo nach Prod-Fix: `git checkout feature/parent-ai-access` (weiterarbeiten auf Feature-Branch).
+Lokales Repo nach Prod-Fix: auf `main` bleiben, ausser der Nutzer arbeitet am Feature-Branch.
 
 ## Pedagogy Golden Set (Pflicht)
 
