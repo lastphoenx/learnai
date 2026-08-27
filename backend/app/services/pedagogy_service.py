@@ -8,6 +8,8 @@ from sqlalchemy.orm import Session
 
 from app.ai.generate import _vision_extract_image_source
 from app.ai.source_pedagogy import (
+    PEDAGOGY_ANALYSIS_VERSION,
+    blob_analysis_is_current,
     build_pedagogy_digest,
     collect_pedagogy_from_unit_sources,
     has_pedagogy_content,
@@ -55,13 +57,30 @@ def get_unit_pedagogy(db: Session, user: User, unit_id: uuid.UUID) -> dict:
     unit = _get_unit_or_404(db, user, unit_id)
     profile = collect_pedagogy_from_unit_sources(unit.sources)
     by_source: list[dict] = []
+    image_count = 0
+    can_reread = 0
+    skipped_no_file = 0
+    analysis_blobs = 0
+    analysis_current_count = 0
     for source in unit.sources or []:
         pedagogy = pedagogy_from_analysis_blob(source.analysis_encrypted)
         meta = _dec_source(source)
+        current = source.kind != "image" or blob_analysis_is_current(source.analysis_encrypted)
+        if source.kind == "image":
+            image_count += 1
+            if source.storage_path and source.purged_at is None:
+                can_reread += 1
+            else:
+                skipped_no_file += 1
+            if source.analysis_encrypted:
+                analysis_blobs += 1
+                if current:
+                    analysis_current_count += 1
         by_source.append(
             {
                 **meta,
                 "has_pedagogy": has_pedagogy_content(pedagogy),
+                "analysis_current": current,
                 "method_count": len(pedagogy.get("methods") or []),
                 "exercise_count": len(pedagogy.get("exercises") or []),
             }
@@ -73,15 +92,25 @@ def get_unit_pedagogy(db: Session, user: User, unit_id: uuid.UUID) -> dict:
         "quality": _pedagogy_quality(profile),
         "sources": by_source,
         "source_count": len(unit.sources or []),
+        "can_reread": can_reread,
+        "skipped_no_file": skipped_no_file,
+        "analysis_current": bool(analysis_blobs) and analysis_current_count == analysis_blobs,
+        "analysis_version": PEDAGOGY_ANALYSIS_VERSION,
+        "image_count": image_count,
     }
 
 
 def extract_unit_pedagogy(db: Session, user: User, unit_id: uuid.UUID) -> dict:
+    """Vision für alle Bildquellen erneut ausführen (ignoriert den Didaktik-Cache)."""
     unit = _get_unit_or_404(db, user, unit_id)
     prefs = resolve_prefs_for_profile(db, unit.profile_id) or get_user_settings(user)
     refreshed = 0
+    skipped_no_file = 0
     for source in unit.sources or []:
-        if source.kind != "image" or not source.storage_path or source.purged_at is not None:
+        if source.kind != "image":
+            continue
+        if not source.storage_path or source.purged_at is not None:
+            skipped_no_file += 1
             continue
         from app.core.crypto import decrypt_text_master
 
@@ -98,4 +127,5 @@ def extract_unit_pedagogy(db: Session, user: User, unit_id: uuid.UUID) -> dict:
     db.flush()
     payload = get_unit_pedagogy(db, user, unit_id)
     payload["refreshed_sources"] = refreshed
+    payload["skipped_no_file"] = skipped_no_file
     return payload
