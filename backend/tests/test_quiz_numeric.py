@@ -90,3 +90,19 @@ def test_method_question_is_not_graded_by_embedded_product():
     assert is_quiz_selection_correct(q, 1)
     assert not is_quiz_selection_correct(q, 0)
     assert not is_quiz_selection_correct(q, 2)
+
+
+def test_resolve_computed_question_wins_over_wrong_ergibt():
+    q = {
+        "q": "Was ist 4,602 × 5?",
+        "options": ["23,01", "23010", "4,602", "9,204"],
+        "answer": 1,
+        "explanation": "4,602 × 5 ergibt 23010.",
+    }
+    assert try_compute_from_question(q["q"]) is not None
+    assert abs(try_compute_from_question(q["q"]) - 23.01) < 1e-6
+    assert parse_expected_from_explanation(q["explanation"]) == 23010.0
+    assert abs(resolve_quiz_expected_value(q) - 23.01) < 1e-6
+    assert resolve_quiz_correct_index(q) == 0
+    repaired = repair_quiz_question(q)
+    assert repaired["answer"] == 0
