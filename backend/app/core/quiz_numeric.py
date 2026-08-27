@@ -125,10 +125,11 @@ def try_compute_from_question(question: str) -> float | None:
 
 
 def resolve_quiz_expected_value(q: dict) -> float | None:
-    expected = parse_expected_from_explanation(str(q.get("explanation") or ""))
-    if expected is not None:
-        return expected
-    return try_compute_from_question(str(q.get("q") or ""))
+    computed = try_compute_from_question(str(q.get("q") or ""))
+    from_expl = parse_expected_from_explanation(str(q.get("explanation") or ""))
+    if computed is not None:
+        return computed
+    return from_expl
 
 
 def option_indices_matching_value(options: list, value: float) -> list[int]:
