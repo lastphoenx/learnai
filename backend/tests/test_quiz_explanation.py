@@ -201,6 +201,17 @@ def test_add_has_two_variants():
     assert text is not None
     assert "Variante 1" in text
     assert "Variante 2" in text
+    assert "Spaltenrechnung" in text
+    assert "Dezimalteile" in text
+    assert explanation_has_derivation(text, "Wie berechnest du die Summe von 3,2 und 4,8?")
+
+
+def test_add_small_decimals_use_kopf_not_degenerate_zerlegung():
+    text = build_worked_solution("Was ist 0,85 + 0,15?", 1.0)
+    assert text is not None
+    assert "Zerlegung" not in text
+    assert "0,85" in text and "0,15" in text
+    assert explanation_has_derivation(text, "Was ist 0,85 + 0,15?")
 
 
 def test_parse_addition_with_plus_symbol():
@@ -214,6 +225,30 @@ def test_sub_has_two_variants():
     assert text is not None
     assert "Variante 1" in text
     assert "Variante 2" in text
+    assert "Spaltenrechnung" in text
+    assert explanation_has_derivation(text, "Was ist das Ergebnis der Subtraktion von 5,6 und 2,9?")
+
+
+def test_division_by_100_uses_two_zeros_not_one():
+    text = build_worked_solution("Was ist 800 : 100?", 8.0)
+    assert text is not None
+    assert "2 Nullen" in text
+    assert "1 Null" not in text
+
+
+def test_enrich_method_replaces_weak_product_only():
+    q = {
+        "q": "Welche Methode eignet sich am besten für 2,5 · 4?",
+        "options": ["Kopfrechnen", "Schriftlich", "Schätzen", "Raten"],
+        "answer": 0,
+        "explanation": "2,5 × 4 = 10",
+        "question_type": "method",
+    }
+    assert explanation_is_weak(q["explanation"], q["q"])
+    enriched = enrich_quiz_explanation(q)
+    assert enriched != q["explanation"]
+    assert "Variante 1" in enriched
+    assert explanation_has_derivation(enriched, q["q"])
 
 
 def test_enrich_keeps_strong_multi_variant():

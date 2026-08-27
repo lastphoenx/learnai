@@ -176,6 +176,8 @@ def _add_alternative_steps(a: float, b: float, result: float) -> str | None:
         a_frac = round(a - a_whole, 10)
         b_whole = int(b) if b >= 0 else -int(-b)
         b_frac = round(b - b_whole, 10)
+        if a_whole == 0 and b_whole == 0:
+            return None
         if abs(a_frac) < 1e-9 and abs(b_frac) < 1e-9:
             return None
         sum_whole = a_whole + b_whole
@@ -197,6 +199,8 @@ def _sub_alternative_steps(a: float, b: float, result: float) -> str | None:
         a_frac = round(a - a_whole, 10)
         b_whole = int(b) if b >= 0 else -int(-b)
         b_frac = round(b - b_whole, 10)
+        if a_whole == 0 and b_whole == 0:
+            return None
         if abs(a_frac) < 1e-9 and abs(b_frac) < 1e-9:
             return None
         diff_whole = a_whole - b_whole
@@ -213,24 +217,223 @@ def _sub_alternative_steps(a: float, b: float, result: float) -> str | None:
     return None
 
 
-def _add_steps(a: float, b: float, result: float) -> str:
+def _scale_to_int_pair(a: float, b: float) -> tuple[int, int, int]:
+    scale = max(_decimal_places(a), _decimal_places(b))
+    factor = 10**scale
+    return int(round(a * factor)), int(round(b * factor)), scale
+
+
+def _add_column_carry_notes(scaled_a: int, scaled_b: int) -> str | None:
+    width = max(len(str(scaled_a)), len(str(scaled_b)))
+    a_digits = [int(ch) for ch in str(scaled_a).zfill(width)]
+    b_digits = [int(ch) for ch in str(scaled_b).zfill(width)]
+    carry = 0
+    notes: list[str] = []
+    for index, (da, db) in enumerate(zip(a_digits, b_digits, strict=True)):
+        place = width - index
+        total = da + db + carry
+        next_carry = total // 10
+        if next_carry and index < width - 1:
+            notes.append(
+                f"Stelle {place}: {da} + {db} = {total}, schreibe {total % 10}, Merke {next_carry}."
+            )
+        elif total >= 10:
+            notes.append(f"Stelle {place}: {da} + {db} = {total}, schreibe {total % 10}.")
+        carry = next_carry
+    return " ".join(notes) if notes else None
+
+
+def _sub_column_borrow_notes(scaled_a: int, scaled_b: int) -> str | None:
+    width = max(len(str(scaled_a)), len(str(scaled_b)))
+    a_digits = [int(ch) for ch in str(scaled_a).zfill(width)]
+    b_digits = [int(ch) for ch in str(scaled_b).zfill(width)]
+    notes: list[str] = []
+    for index in range(width):
+        da = a_digits[index]
+        db = b_digits[index]
+        if da >= db:
+            continue
+        place = width - index
+        notes.append(
+            f"Stelle {place}: {da} < {db}, entlehne 1 → {da + 10} − {db} = {da + 10 - db}."
+        )
+        borrow_from = index - 1
+        while borrow_from >= 0 and a_digits[borrow_from] == 0:
+            borrow_from -= 1
+        if borrow_from >= 0:
+            a_digits[borrow_from] -= 1
+        a_digits[index] = da + 10
+    return " ".join(notes) if notes else None
+
+
+def _add_column_steps(a: float, b: float, result: float) -> str:
+    scaled_a, scaled_b, scale = _scale_to_int_pair(a, b)
+    total = scaled_a + scaled_b
     a_s, b_s, r_s = _fmt_num(a), _fmt_num(b), _fmt_num(result)
-    primary = (
-        f"Variante 1 (untereinander): {a_s} + {b_s}. "
-        f"Addiere die Zahlen (Dezimalstellen untereinander): {a_s} + {b_s} = {r_s}."
-    )
-    alt = _add_alternative_steps(a, b, result)
-    return _join_variants(primary, alt)
+    bits = [f"Variante 1 (Spaltenrechnung): {a_s} + {b_s}."]
+    carry = _add_column_carry_notes(scaled_a, scaled_b)
+    if carry:
+        bits.append(carry)
+    if scale:
+        bits.append(
+            f"Ohne Komma: {_fmt_num(float(scaled_a))} + {_fmt_num(float(scaled_b))} = "
+            f"{_fmt_num(float(total))}."
+        )
+        stelle = "Stelle" if scale == 1 else "Stellen"
+        bits.append(f"Komma {scale} {stelle} nach links: {r_s}.")
+    else:
+        bits.append(
+            f"Rechne: {_fmt_num(float(scaled_a))} + {_fmt_num(float(scaled_b))} = {r_s}."
+        )
+    return " ".join(bits)
+
+
+def _sub_column_steps(a: float, b: float, result: float) -> str:
+    scaled_a, scaled_b, scale = _scale_to_int_pair(a, b)
+    diff = scaled_a - scaled_b
+    a_s, b_s, r_s = _fmt_num(a), _fmt_num(b), _fmt_num(result)
+    bits = [f"Variante 1 (Spaltenrechnung): {a_s} − {b_s}."]
+    borrow = _sub_column_borrow_notes(scaled_a, scaled_b)
+    if borrow:
+        bits.append(borrow)
+    if scale:
+        bits.append(
+            f"Ohne Komma: {_fmt_num(float(scaled_a))} − {_fmt_num(float(scaled_b))} = "
+            f"{_fmt_num(float(diff))}."
+        )
+        stelle = "Stelle" if scale == 1 else "Stellen"
+        bits.append(f"Komma {scale} {stelle} nach links: {r_s}.")
+    else:
+        bits.append(
+            f"Rechne: {_fmt_num(float(scaled_a))} − {_fmt_num(float(scaled_b))} = {r_s}."
+        )
+    return " ".join(bits)
+
+
+def _add_kopf_steps(a: float, b: float, result: float) -> str | None:
+    a_whole = int(a) if a >= 0 else -int(-a)
+    a_frac = round(a - a_whole, 10)
+    b_whole = int(b) if b >= 0 else -int(-b)
+    b_frac = round(b - b_whole, 10)
+    if a_whole == 0 and b_whole == 0:
+        scaled_a, scaled_b, scale = _scale_to_int_pair(a, b)
+        total = scaled_a + scaled_b
+        stelle = "Stelle" if scale == 1 else "Stellen"
+        return (
+            f"Variante 2 (Kopfrechnen): {_fmt_num(a)} + {_fmt_num(b)} — "
+            f"ohne Komma: {_fmt_num(float(scaled_a))} + {_fmt_num(float(scaled_b))} = "
+            f"{_fmt_num(float(total))}. Komma {scale} {stelle} nach links: {_fmt_num(result)}."
+        )
+    parts = [f"Variante 2 (Kopfrechnen): {_fmt_num(a)} + {_fmt_num(b)}."]
+    carry_whole = 0
+    if abs(a_frac) >= 1e-9 or abs(b_frac) >= 1e-9:
+        frac_sum = round(a_frac + b_frac, 10)
+        parts.append(
+            f"Zuerst Dezimalteile: {_fmt_num(a_frac)} + {_fmt_num(b_frac)} = {_fmt_num(frac_sum)}."
+        )
+        if frac_sum >= 1 - 1e-9:
+            carry_whole = 1
+            parts.append("1 zum Ganzen übertragen.")
+    whole_sum = a_whole + b_whole + carry_whole
+    if a_whole or b_whole or carry_whole:
+        bits = [f"{_fmt_num(float(a_whole))}", f"{_fmt_num(float(b_whole))}"]
+        if carry_whole:
+            bits.append("1")
+        parts.append(f"Ganze: {' + '.join(bits)} = {_fmt_num(float(whole_sum))}.")
+    parts.append(f"Ergebnis: {_fmt_num(result)}.")
+    return " ".join(parts)
+
+
+def _sub_kopf_steps(a: float, b: float, result: float) -> str | None:
+    a_whole = int(a) if a >= 0 else -int(-a)
+    a_frac = round(a - a_whole, 10)
+    b_whole = int(b) if b >= 0 else -int(-b)
+    b_frac = round(b - b_whole, 10)
+    if a_whole == 0 and b_whole == 0:
+        scaled_a, scaled_b, scale = _scale_to_int_pair(a, b)
+        diff = scaled_a - scaled_b
+        stelle = "Stelle" if scale == 1 else "Stellen"
+        return (
+            f"Variante 2 (Kopfrechnen): {_fmt_num(a)} − {_fmt_num(b)} — "
+            f"ohne Komma: {_fmt_num(float(scaled_a))} − {_fmt_num(float(scaled_b))} = "
+            f"{_fmt_num(float(diff))}. Komma {scale} {stelle} nach links: {_fmt_num(result)}."
+        )
+    parts = [f"Variante 2 (Kopfrechnen): {_fmt_num(a)} − {_fmt_num(b)}."]
+    borrow_whole = 0
+    if abs(a_frac) >= 1e-9 or abs(b_frac) >= 1e-9:
+        if a_frac < b_frac - 1e-9:
+            borrow_whole = 1
+            a_frac = round(a_frac + 1, 10)
+            parts.append("Vom Ganzen 1 entlehnen für die Dezimalteile.")
+        frac_diff = round(a_frac - b_frac, 10)
+        parts.append(
+            f"Dezimalteile: {_fmt_num(a_frac)} − {_fmt_num(b_frac)} = {_fmt_num(frac_diff)}."
+        )
+    whole_diff = a_whole - b_whole - borrow_whole
+    if a_whole or b_whole or borrow_whole:
+        parts.append(
+            f"Ganze: {_fmt_num(float(a_whole))} − {_fmt_num(float(b_whole))}"
+            f"{f' − 1' if borrow_whole else ''} = {_fmt_num(float(whole_diff))}."
+        )
+    parts.append(f"Ergebnis: {_fmt_num(result)}.")
+    return " ".join(parts)
+
+
+def _add_steps(a: float, b: float, result: float) -> str:
+    column = _add_column_steps(a, b, result)
+    kopf = _add_kopf_steps(a, b, result)
+    zerlegung = _add_alternative_steps(a, b, result)
+    variants = [column, kopf]
+    if zerlegung:
+        variants.append(zerlegung.replace("Variante 2", "Variante 3", 1))
+    return _number_mul_variants(variants) or column
 
 
 def _sub_steps(a: float, b: float, result: float) -> str:
-    a_s, b_s, r_s = _fmt_num(a), _fmt_num(b), _fmt_num(result)
-    primary = (
-        f"Variante 1 (untereinander): {a_s} − {b_s}. "
-        f"Subtrahiere (Dezimalstellen untereinander): {a_s} − {b_s} = {r_s}."
+    column = _sub_column_steps(a, b, result)
+    kopf = _sub_kopf_steps(a, b, result)
+    zerlegung = _sub_alternative_steps(a, b, result)
+    variants = [column, kopf]
+    if zerlegung:
+        variants.append(zerlegung.replace("Variante 2", "Variante 3", 1))
+    return _number_mul_variants(variants) or column
+
+
+def _divisor_trailing_zero_count(divisor: int) -> int | None:
+    if divisor <= 0:
+        return None
+    count = 0
+    value = divisor
+    while value % 10 == 0:
+        count += 1
+        value //= 10
+    if value != 1:
+        return None
+    return count
+
+
+def _div_kopf_nullen_steps(a: float, b: float, result: float) -> str | None:
+    """Kopfrechnen durch 10/100/…: korrekte Anzahl Nullen am Dividenden streichen."""
+    if abs(a - round(a)) >= 1e-6 or abs(b - round(b)) >= 1e-6:
+        return None
+    b_int = int(round(b))
+    zeros = _divisor_trailing_zero_count(b_int)
+    if zeros is None:
+        return None
+    a_int = int(round(a))
+    stripped = a_int
+    for _ in range(zeros):
+        if stripped % 10 != 0:
+            return None
+        stripped //= 10
+    if not _near(float(stripped), result):
+        return None
+    label = "Nullen" if zeros > 1 else "Null"
+    return (
+        f"Variante 3 (Kopfrechnen): {_fmt_num(float(a_int))} ÷ {b_int} — "
+        f"durch {b_int} teilen heißt {zeros} {label} am Ende weglassen: "
+        f"{_fmt_num(float(a_int))} → {_fmt_num(float(stripped))}."
     )
-    alt = _sub_alternative_steps(a, b, result)
-    return _join_variants(primary, alt)
 
 
 def _reihe_label(divisor: int) -> str:
@@ -387,8 +590,10 @@ def _div_steps(a: float, b: float, result: float) -> str:
 
     primary = _div_steps_reihen(a, b, result)
     alt = _div_steps_stellenwert(a, b, result)
-    if primary and alt:
-        return _join_variants(primary, alt)
+    kopf = _div_kopf_nullen_steps(a, b, result)
+    merged = _number_mul_variants([variant for variant in (primary, alt, kopf) if variant])
+    if merged:
+        return merged
     if primary:
         return primary
     if alt:
@@ -841,6 +1046,14 @@ def enrich_quiz_explanation(q: dict) -> str:
 
     if q_type == "method":
         filled = complete_method_explanation(original, question, q)
+        if explanation_is_weak(filled, question):
+            worked = build_worked_solution(question)
+            if worked:
+                filled = (
+                    _merge_explanations(filled, worked, question=question)
+                    if filled.strip()
+                    else worked
+                )
         return _clarify_step_separators(
             filled or "Wähle den Lösungsweg, der zur Aufgabe am besten passt."
         )
