@@ -47,7 +47,23 @@ def test_repair_quiz_question():
         "explanation": "ergibt 10.0",
     }
     repaired = repair_quiz_question(q)
-    assert repaired["answer"] == 3
+    assert abs(parse_quiz_numeric(repaired["options"][int(repaired["answer"])]) - 10.0) < 1e-6
+    values = [parse_quiz_numeric(o) for o in repaired["options"]]
+    distinct = [v for v in values if v is not None]
+    assert len(distinct) == len(set(round(v, 6) for v in distinct))
+
+
+def test_repair_numeric_option_duplicates():
+    q = {
+        "q": "Was ist 0.45 + 0.60?",
+        "options": ["1.05", "1,05", "1.15", "0.15"],
+        "answer": 0,
+        "explanation": "0.45 + 0.60 ergibt 1.05",
+    }
+    repaired = repair_quiz_question(q)
+    values = [parse_quiz_numeric(o) for o in repaired["options"]]
+    assert abs(values[int(repaired["answer"])] - 1.05) < 1e-6
+    assert len({round(v, 6) for v in values if v is not None}) == 4
 
 
 def test_is_quiz_selection_correct_accepts_numeric_equivalent():

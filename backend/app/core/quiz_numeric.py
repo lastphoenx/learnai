@@ -235,6 +235,74 @@ def repair_quiz_question(q: dict) -> dict:
     resolved = resolve_quiz_correct_index(q)
     if 0 <= resolved <= 3:
         out["answer"] = resolved
+    options = out.get("options")
+    if isinstance(options, list) and len(options) == 4:
+        out["options"] = _dedupe_numeric_options(options, int(out.get("answer", -1)))
+    return out
+
+
+def _format_numeric_like(value: float, like: str) -> str:
+    stripped = strip_option_label(like)
+    use_comma = "," in stripped
+    if abs(value - round(value)) < 1e-9 and abs(value) < 1e12:
+        body = str(int(round(value)))
+    else:
+        body = f"{value:.6g}"
+    if use_comma:
+        body = body.replace(".", ",")
+    prefix = _OPTION_LABEL.match(str(like) or "")
+    if prefix:
+        return f"{prefix.group(0)}{body}"
+    return body
+
+
+def _distractor_candidates(value: float) -> list[float]:
+    out: list[float] = []
+    for factor in (10.0, 0.1, 100.0, 0.01):
+        out.append(value * factor)
+    for delta in (1.0, -1.0, 0.1, -0.1, 2.0, -2.0, 0.5, -0.5):
+        out.append(value + delta)
+    if abs(value) > 1e-12:
+        out.append(-value)
+    else:
+        out.extend([1.0, 2.0, 10.0])
+    return out
+
+
+def _value_taken(used: list[float | None], candidate: float) -> bool:
+    return any(v is not None and abs(v - candidate) < 1e-6 for v in used)
+
+
+def _dedupe_numeric_options(options: list, answer_idx: int) -> list[str]:
+    out = [str(o) for o in options]
+    for i, text in enumerate(out):
+        if i == answer_idx:
+            continue
+        current = parse_quiz_numeric(text)
+        if current is None:
+            continue
+        others = [parse_quiz_numeric(out[j]) for j in range(len(out)) if j != i]
+        if not _value_taken(others, current):
+            continue
+        base = parse_quiz_numeric(out[answer_idx]) if 0 <= answer_idx < len(out) else current
+        if base is None:
+            base = current
+        used = [parse_quiz_numeric(t) for t in out]
+        replacement: float | None = None
+        for cand in _distractor_candidates(base):
+            if not _value_taken(used, cand):
+                replacement = cand
+                break
+        if replacement is None:
+            bump = base + 1.0
+            for _ in range(50):
+                if not _value_taken(used, bump):
+                    replacement = bump
+                    break
+                bump += 1.0
+        if replacement is None:
+            continue
+        out[i] = _format_numeric_like(replacement, text)
     return out
 
 
