@@ -476,7 +476,10 @@ def _number_mul_variants(parts: list[str | None]) -> str:
 
 
 def _find_scale_for_division(value: float, divisor: int, *, max_decimals: int = 4) -> tuple[int, int] | None:
-    for decimals in range(0, max_decimals + 1):
+    # decimals=0 nur bei echten Ganzzahlen — sonst rundet round(89.7) zu 90 und
+    # _place_unit(0) wird zu «10⁻0-tel».
+    start = 0 if abs(value - round(value)) < 1e-6 else 1
+    for decimals in range(start, max_decimals + 1):
         scaled = int(round(value * (10**decimals)))
         if scaled > 0 and scaled % divisor == 0:
             return scaled, decimals
