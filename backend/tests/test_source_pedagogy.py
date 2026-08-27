@@ -336,6 +336,14 @@ def test_parse_pedagogy_drops_competency_headings_and_bad_equations():
                 "when": "bei Multiplikationen mit Dezimalzahlen",
                 "example": "4.602 = 240.8",
             },
+            {
+                "label": "Multiplikationen und Divisionen mit Dezimalzahlen im Kopf, sowie in schriftlicher und halbschriftlicher Form lösen",
+                "when": "bei Multiplikationen und Divisionen mit Dezimalzahlen im Kopf, sowie in schriftlicher und halbschriftlicher Form lösen.",
+            },
+            {
+                "label": "Gleichung stimmt",
+                "when": "bei Additionen oder Subtraktionen mit Dezimalzahlen so einsetzen, dass die Gleichung stimmt.",
+            },
         ],
         "worked_examples": [
             {
@@ -378,6 +386,8 @@ def test_parse_pedagogy_drops_competency_headings_and_bad_equations():
     assert "Kopfrechnen" in labels
     assert "halbschriftlich" in labels
     assert all("Du kannst" not in label and "Du kennst" not in label for label in labels)
+    assert not any("Form lösen" in label for label in labels)
+    assert "Gleichung stimmt" not in labels
     half = next(m for m in pedagogy["methods"] if m["label"] == "halbschriftlich")
     assert "4.602" not in (half.get("example") or "")
 

@@ -55,7 +55,7 @@ def vision_pedagogy_prompt(*, language: str) -> str:
         "- teaching_notes: konkrete didaktische Hinweise aus dem Material\n"
         "Regeln:\n"
         "- methods: alle im Bild gezeigten Lösungswege/Strategien — benenne sie so, wie das Material sie nennt.\n"
-        "- Keine Kapitel- oder Lernziel-Überschriften (z. B. «Du kannst … lösen», «Du kennst …») als methods[] — nur benannte Lösungswege/Strategien (im Kopf, schriftlich, halbschriftlich).\n"
+        "- Keine Kapitel- oder Lernziel-Überschriften als methods[] — nicht «Du kannst …» / «Du kennst …», keine Sätze die auf «… lösen» / «… einsetzen» enden, keine Zeilen bei denen label und when denselben Text haben. Nur benannte Lösungswege (im Kopf, schriftlich, halbschriftlich).\n"
         "- methods[].example nur aus gedrucktem Lehrmittel-Text/Rechnung — handschriftliche Einträge auf demselben Blatt ignorieren.\n"
         "- worked_examples/exercises: nur gedruckte Aufgaben. Kind-Nebenrechnungen, Korrekturen, Kreise und durchgestrichene Zahlen ignorieren.\n"
         "- Malpunkt (· oder ×) nie als Dezimalpunkt lesen: «4 · 60,2» ist 4 mal 60,2, nicht 4,602.\n"

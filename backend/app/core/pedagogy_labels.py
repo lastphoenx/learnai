@@ -123,6 +123,46 @@ def is_competency_heading(text: str | None) -> bool:
     )
 
 
+def is_competency_phrasing(text: str | None) -> bool:
+    """Lernziele ohne «Du kannst» («… lösen», «so einsetzen, dass…»)."""
+    if is_competency_heading(text):
+        return True
+    normalized = normalize_label(text)
+    if not normalized:
+        return False
+    if re.search(r"\bzu losen\b", normalized):
+        return True
+    if re.search(r"\bso einsetzen\b", normalized):
+        return True
+    if len(normalized) >= 40 and re.search(r"(losen|einsetzen)$", normalized):
+        return True
+    return False
+
+
+def method_fields_are_redundant(label: str | None, when: str | None) -> bool:
+    """True, wenn label und when dieselbe Lernziel-Zeile sind (ggf. mit «bei …»)."""
+    a = normalize_label(label)
+    b = normalize_label(when)
+    if not a or not b:
+        return False
+    a_core = re.sub(r"^(bei|wenn|zum|zur)\s+", "", a).strip()
+    b_core = re.sub(r"^(bei|wenn|zum|zur)\s+", "", b).strip()
+    if not a_core or not b_core:
+        return False
+    if a_core == b_core:
+        return True
+    shorter, longer = (a_core, b_core) if len(a_core) <= len(b_core) else (b_core, a_core)
+    if len(shorter) >= 24 and shorter in longer:
+        return True
+    ta = {t for t in a_core.split() if t not in _STOPWORDS and len(t) >= 3}
+    tb = {t for t in b_core.split() if t not in _STOPWORDS and len(t) >= 3}
+    if len(ta) >= 6 and len(tb) >= 6:
+        overlap = len(ta & tb) / len(ta | tb)
+        if overlap >= 0.85:
+            return True
+    return False
+
+
 def label_tokens(label: str) -> list[str]:
     tokens = [t.lower() for t in _TOKEN_RE.findall(label or "")]
     return [t for t in tokens if len(t) >= 3 and t not in _STOPWORDS]
@@ -163,7 +203,13 @@ def resolve_method_entry(item: dict) -> dict[str, str]:
     example = sanitize_pedagogy_field(str(item.get("example") or "").strip())
     if is_competency_heading(example):
         example = ""
-    if is_competency_heading(label) or is_competency_heading(when):
+    if (
+        is_competency_phrasing(label)
+        or is_competency_heading(when)
+        or method_fields_are_redundant(label, when)
+    ):
+        return {}
+    if is_competency_phrasing(when) and len(normalize_label(when)) >= 40:
         return {}
     raw_id = str(item.get("id") or "").strip().lower()
     method_id = normalize_method_id(raw_id) if raw_id else None
