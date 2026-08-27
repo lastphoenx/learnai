@@ -184,9 +184,17 @@ def validate_task_type_fixture(
     }
 
 
+def _read_json_file(path: Path) -> dict:
+    raw = path.read_text(encoding="utf-8-sig")
+    payload = json.loads(raw)
+    if not isinstance(payload, dict):
+        raise json.JSONDecodeError("Fixture root must be an object", raw, 0)
+    return payload
+
+
 def _read_fixture_meta(path: Path) -> dict:
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload = _read_json_file(path)
     except (OSError, json.JSONDecodeError) as exc:
         return {
             "name": path.stem,

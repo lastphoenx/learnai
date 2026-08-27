@@ -22,7 +22,7 @@ _GOLDEN_FILES = sorted(_FIXTURE_DIR.glob("*.json"))
 
 @pytest.mark.parametrize("fixture_path", _GOLDEN_FILES, ids=lambda p: p.stem)
 def test_task_type_golden_fixture(fixture_path: Path):
-    payload = json.loads(fixture_path.read_text(encoding="utf-8"))
+    payload = json.loads(fixture_path.read_text(encoding="utf-8-sig"))
     meta = payload.get("_meta") if isinstance(payload.get("_meta"), dict) else {}
     task_type = str(meta.get("task_type") or "")
     min_cards = int(meta.get("min_cards") or 8)

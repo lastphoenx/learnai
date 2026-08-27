@@ -157,6 +157,8 @@ foreach ($task in $builders.Keys) {
         modules = & $builders[$task]
     }
     $path = Join-Path $OutDir "$task.json"
-    $payload | ConvertTo-Json -Depth 20 | Set-Content -Path $path -Encoding utf8
+    $json = $payload | ConvertTo-Json -Depth 20
+    $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+    [System.IO.File]::WriteAllText($path, $json + "`n", $utf8NoBom)
     Write-Host "wrote $task.json"
 }
