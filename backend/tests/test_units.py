@@ -419,12 +419,25 @@ def test_profile_for_unit_child_own_profile(monkeypatch):
     profile.user_id = child_id
 
     db = MagicMock()
-    db.get.return_value = profile
+
+    other_id = uuid.uuid4()
+    other_profile = MagicMock(spec=LearningProfile)
+    other_profile.id = other_id
+    other_profile.tenant_id = tenant_id
+    other_profile.user_id = uuid.uuid4()
+
+    def get_profile(model, pid):
+        if pid == profile_id:
+            return profile
+        if pid == other_id:
+            return other_profile
+        return None
+
+    db.get.side_effect = get_profile
 
     got = _profile_for_unit(db, child, profile_id)
     assert got is profile
 
-    other_id = uuid.uuid4()
     with pytest.raises(UnitError) as exc:
         _profile_for_unit(db, child, other_id)
     assert exc.value.code == "forbidden"
