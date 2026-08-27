@@ -13,6 +13,20 @@ def test_parse_json_object_fenced():
     assert data["modules"][0]["title"] == "B"
 
 
+def test_parse_json_object_ignores_ascii_fence_inside_json():
+    raw = """{
+  "questions": [{
+    "q": "0.45 + 0.60",
+    "options": ["1.05", "1.15", "0.15", "10.5"],
+    "answer": 0,
+    "explanation": "Schriftlich:\\n```\\n   0.45\\n+  0.60\\n------\\n   1.05\\n```"
+  }]
+}"""
+    data = parse_json_object(raw)
+    assert data["questions"][0]["q"] == "0.45 + 0.60"
+    assert "1.05" in data["questions"][0]["explanation"]
+
+
 def test_parse_json_object_trailing_commas():
     data = parse_json_object('{"questions":[{"q":"1+1","options":["1","2","3","4"],}],}')
     assert data["questions"][0]["q"] == "1+1"
