@@ -7,7 +7,8 @@ Quelle der Wahrheit: `doku/pve2/vm/135-learnai/betrieb.md`
 | Was | Branch | CT 135 |
 |-----|--------|--------|
 | **Produktion / Live-Bug** | `main` (oder kurzer `fix/…` **von** `main`) | `git pull origin main` — **nie** Feature-Branches pullen |
-| **Unfertiges Feature** (Eltern-KI, BYOK, …) | `feature/parent-ai-access` | erst mergen, wenn live |
+| **Unfertiges Feature** (aktuell: Golden Set) | `feature/task-type-golden` | erst mergen, wenn live |
+| **Konzept, noch nicht begonnen** (Eltern-KI/BYOK) | frischer `feature/parent-ai-access` **von** `main`, wenn es losgeht | — |
 
 ### Live-Fix — Checkliste (jedes Mal, in dieser Reihenfolge)
 
@@ -24,12 +25,12 @@ git push -u origin fix/kurzbeschreibung
 git checkout main
 git merge --ff-only fix/kurzbeschreibung
 git push origin main
-git checkout feature/parent-ai-access
-git merge origin/main -m "Merge branch 'main' into feature/parent-ai-access"
-git push origin feature/parent-ai-access
+git push origin --delete fix/kurzbeschreibung
 ```
 
-**Nicht:** `git push origin <sha>:main` (Refspec-Hack), Merge ohne vorher `git pull`, Feature-Branch auf CT deployen, `main` vergessen nachzuziehen.
+**Branch nach jedem Merge löschen** (`git push origin --delete <branch>` im selben Atemzug wie der Merge auf `main`). Ein Branch pro Thema — kein `fix/…` auf einem Feature-Branch weiterbauen.
+
+**Nicht:** `git push origin <sha>:main` (Refspec-Hack), Merge ohne vorher `git pull`, Feature-Branch auf CT deployen, `main` vergessen nachzuziehen, gemergte Branches liegen lassen.
 
 ### Windows: Checkout blockiert durch `scripts/generate_keys.py`
 
@@ -47,7 +48,7 @@ Abdeckung wie SlitProjektHub: `.gitattributes` (`*.py text eol=lf`) + `.editorco
 cd /opt/learnai && git pull origin main && bash scripts/deploy.sh
 ```
 
-Lokales Repo nach Prod-Fix: `git checkout feature/parent-ai-access` (weiterarbeiten auf Feature-Branch).
+Lokales Repo nach Prod-Fix: `git checkout feature/task-type-golden` (oder anderen aktiven Feature-Branch) und `git merge origin/main`.
 
 ## Pedagogy Golden Set (Pflicht)
 

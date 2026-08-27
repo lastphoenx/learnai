@@ -237,5 +237,5 @@ bash scripts/backup-db.sh   # falls konfiguriert
 ## Branch & Releases
 
 Produktion: **`main`** (Trainer v1 am 23.08.2026 gemergt: Sprungleiste, Kind-Ansicht, Fach-Schwerpunkte, Feld-Vorlagen, STT).  
-Nächstes Feature: `feature/parent-ai-access` (Eltern-KI-Zugang / BYOK).  
+Nächstes Feature: `feature/task-type-golden` (Aufgabentyp Golden Set). Eltern-KI/BYOK: Konzept in `docs/`, Branch bei Start neu von `main`.  
 Siehe `docs/UNIT_CREATION.md`.
