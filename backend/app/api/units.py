@@ -336,7 +336,10 @@ def units_generate_status(
         db.commit()
     raw = get_generate_job(uid)
     if raw:
-        job = GenerateJobStatus.model_validate(raw)
+        from app.core.ollama_coordination import enrich_active_job_with_ollama
+
+        enriched = enrich_active_job_with_ollama(raw)
+        job = GenerateJobStatus.model_validate(enriched or raw)
         unit_payload = get_unit(db, user, unit_id) if job.status in {"done", "partial"} else None
         return GenerateStatusResponse(job=job, unit=unit_payload)
     unit_payload = get_unit(db, user, unit_id)

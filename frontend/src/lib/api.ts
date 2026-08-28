@@ -961,6 +961,14 @@ export type GenerateJobStatus = {
   modules?: number | null;
   cards?: number | null;
   questions?: number | null;
+  ollama?: {
+    ok?: boolean;
+    loaded?: string[];
+    other_loaded?: string[];
+    switching?: boolean;
+    lock_holder?: string | null;
+    message?: string | null;
+  } | null;
 };
 
 export type GenerateStartResponse = {

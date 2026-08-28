@@ -54,14 +54,22 @@ def generate_unit_task(self, unit_id: str, user_id: str, provider: str | None = 
         set_generate_job(unit_id, user_id=user_id, status="running", stage="extracting_sources")
 
         from app.ai.generate import generate_modules
+        from app.core.ollama_coordination import ollama_lock_holder, ollama_wait_callback
 
-        generate_modules(
-            db,
-            user,
-            uuid.UUID(unit_id),
-            provider=provider,
-            progress=progress,
-        )
+        def _ollama_wait_message(message: str) -> None:
+            if job_was_stopped(unit_id, job_id):
+                return
+            progress("running", message=message)
+
+        with ollama_wait_callback(_ollama_wait_message):
+            with ollama_lock_holder(f"learnai:unit:{unit_id}"):
+                generate_modules(
+                    db,
+                    user,
+                    uuid.UUID(unit_id),
+                    provider=provider,
+                    progress=progress,
+                )
         if job_was_stopped(unit_id, job_id):
             db.rollback()
             _log.warning("generate_unit_task stopped_before_save unit_id=%s", unit_id)
