@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CastleDiagramSvg } from "@/components/learn/CastleDiagramSvg";
+import { GenericDiagramSvg } from "@/components/learn/GenericDiagramSvg";
 import type { TrainerLabelDiagram } from "@/lib/api";
 
 type Props = {
@@ -56,7 +56,7 @@ export function LabelDiagramExercise({ diagram, busy, result, onSubmit }: Props)
           : "Tippe zuerst einen Begriff, dann die Stelle auf dem Bild."}
       </p>
       <div className="label-diagram-stage">
-        <CastleDiagramSvg className="label-diagram-svg" />
+        <GenericDiagramSvg className="label-diagram-svg" />
         {hotspots.map((hs) => {
           const placed = assignments[hs.id];
           const left = `${Math.round(hs.x * 100)}%`;

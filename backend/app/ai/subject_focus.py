@@ -1,13 +1,14 @@
-"""Fach-Schwerpunkte für Lerneinheiten (Mathe, Sprachen, MGU, …)."""
+"""Fach-Schwerpunkte für Lerneinheiten (Mathe, Sprachen, NMG, …)."""
 
 from __future__ import annotations
 
 import re
 
+from app.core.focus_groups import normalize_focus_group, normalize_focus_key
+
 FocusOption = dict[str, str]
 FocusGroup = dict[str, object]
 
-# Rückwärtskompatibel: bestehende math_focus-Keys bleiben unverändert.
 _MATH_OPTIONS: list[FocusOption] = [
     {"key": "fractions", "label": "Bruchrechnen"},
     {"key": "decimals", "label": "Dezimalzahlen & Komma"},
@@ -37,17 +38,17 @@ _LANGUAGE_OPTIONS: list[FocusOption] = [
     {"key": "lang_writing", "label": "Schreiben / Ausdruck"},
 ]
 
-_MGU_OPTIONS: list[FocusOption] = [
-    {"key": "mgu_health", "label": "Gesundheit & Körper"},
-    {"key": "mgu_nutrition", "label": "Ernährung"},
-    {"key": "mgu_family", "label": "Familie & Beziehungen"},
-    {"key": "mgu_economy", "label": "Wirtschaft & Konsum"},
-    {"key": "mgu_civics", "label": "Politik & Demokratie"},
-    {"key": "mgu_history", "label": "Geschichte"},
-    {"key": "mgu_geography", "label": "Geografie (CH, Europa, Welt)"},
-    {"key": "mgu_environment", "label": "Umwelt & Nachhaltigkeit"},
-    {"key": "mgu_media", "label": "Medien & Information"},
-    {"key": "mgu_culture", "label": "Kultur & Religion"},
+_NMG_OPTIONS: list[FocusOption] = [
+    {"key": "nmg_nature", "label": "Natur & Umwelt"},
+    {"key": "nmg_health", "label": "Gesundheit & Körper"},
+    {"key": "nmg_nutrition", "label": "Ernährung"},
+    {"key": "nmg_family", "label": "Familie & Beziehungen"},
+    {"key": "nmg_economy", "label": "Wirtschaft & Konsum"},
+    {"key": "nmg_civics", "label": "Politik & Demokratie"},
+    {"key": "nmg_history", "label": "Geschichte"},
+    {"key": "nmg_geography", "label": "Geografie (CH, Europa, Welt)"},
+    {"key": "nmg_media", "label": "Medien & Information"},
+    {"key": "nmg_culture", "label": "Kultur & Religion"},
 ]
 
 _GERMAN_OPTIONS: list[FocusOption] = [
@@ -69,13 +70,12 @@ _NATURE_OPTIONS: list[FocusOption] = [
 SUBJECT_FOCUS_GROUPS: list[FocusGroup] = [
     {"id": "math", "label": "Mathematik", "options": _MATH_OPTIONS},
     {"id": "language", "label": "Sprachen", "options": _LANGUAGE_OPTIONS},
-    {"id": "mgu", "label": "Mensch, Gesellschaft & Umwelt", "options": _MGU_OPTIONS},
+    {"id": "nmg", "label": "NMG (Natur, Mensch, Gesellschaft)", "options": _NMG_OPTIONS},
     {"id": "german", "label": "Deutsch", "options": _GERMAN_OPTIONS},
     {"id": "nature", "label": "Natur & Technik", "options": _NATURE_OPTIONS},
 ]
 
 FOCUS_HINTS: dict[str, str] = {
-    # Mathe
     "fractions": "Schwerpunkt Bruchrechnen (darstellen, erweitern, kürzen, rechnen).",
     "decimals": "Schwerpunkt Dezimalzahlen und Kommaschreibweise.",
     "place_value": "Schwerpunkt Stellenwert und Zahlenräume.",
@@ -87,7 +87,6 @@ FOCUS_HINTS: dict[str, str] = {
     "percent_ratio": "Schwerpunkt Prozent, Verhältnis und Dreisatz.",
     "negative": "Schwerpunkt negative Zahlen.",
     "other": "",
-    # Sprachen
     "lang_vocab": "Schwerpunkt Wortschatz und Vokabeln.",
     "lang_verbs": "Schwerpunkt Verben: Konjugation, unregelmässige Formen.",
     "lang_nouns_adj": "Schwerpunkt Nomen, Artikel und Adjektive.",
@@ -100,25 +99,22 @@ FOCUS_HINTS: dict[str, str] = {
     "lang_grammar": "Schwerpunkt Grammatik.",
     "lang_reading": "Schwerpunkt Leseverständnis.",
     "lang_writing": "Schwerpunkt schriftlicher Ausdruck.",
-    # MGU
-    "mgu_health": "Schwerpunkt Gesundheit und Körper.",
-    "mgu_nutrition": "Schwerpunkt Ernährung.",
-    "mgu_family": "Schwerpunkt Familie und soziale Beziehungen.",
-    "mgu_economy": "Schwerpunkt Wirtschaft und Konsum.",
-    "mgu_civics": "Schwerpunkt Politik und Demokratie.",
-    "mgu_history": "Schwerpunkt Geschichte.",
-    "mgu_geography": "Schwerpunkt Geografie.",
-    "mgu_environment": "Schwerpunkt Umwelt und Nachhaltigkeit.",
-    "mgu_media": "Schwerpunkt Medien und Information.",
-    "mgu_culture": "Schwerpunkt Kultur und Religion.",
-    # Deutsch
+    "nmg_nature": "Schwerpunkt Natur und Umwelt.",
+    "nmg_health": "Schwerpunkt Gesundheit und Körper.",
+    "nmg_nutrition": "Schwerpunkt Ernährung.",
+    "nmg_family": "Schwerpunkt Familie und soziale Beziehungen.",
+    "nmg_economy": "Schwerpunkt Wirtschaft und Konsum.",
+    "nmg_civics": "Schwerpunkt Politik und Demokratie.",
+    "nmg_history": "Schwerpunkt Geschichte.",
+    "nmg_geography": "Schwerpunkt Geografie.",
+    "nmg_media": "Schwerpunkt Medien und Information.",
+    "nmg_culture": "Schwerpunkt Kultur und Religion.",
     "de_spelling": "Schwerpunkt Rechtschreibung.",
     "de_grammar": "Schwerpunkt Grammatik.",
     "de_reading": "Schwerpunkt Lesen und Textverständnis.",
     "de_writing": "Schwerpunkt Schreiben.",
     "de_vocab": "Schwerpunkt Wortschatz.",
     "de_lit": "Schwerpunkt Literatur.",
-    # Natur & Technik
     "nt_biology": "Schwerpunkt Biologie.",
     "nt_physics": "Schwerpunkt Physik.",
     "nt_chemistry": "Schwerpunkt Chemie.",
@@ -133,18 +129,24 @@ for _group in SUBJECT_FOCUS_GROUPS:
         _ALL_OPTIONS.append(_opt)
 
 _FOCUS_LABELS = {o["key"]: o["label"] for o in _ALL_OPTIONS if o["key"]}
+# Legacy mgu_* keys → gleiche Labels
+for _key, _label in list(_FOCUS_LABELS.items()):
+    if _key.startswith("nmg_"):
+        _FOCUS_LABELS["mgu_" + _key[4:]] = _label
 
 
 def focus_label(key: str | None) -> str | None:
     if not key:
         return None
-    return _FOCUS_LABELS.get(key, key)
+    normalized = normalize_focus_key(key)
+    return _FOCUS_LABELS.get(normalized, _FOCUS_LABELS.get(key, key))
 
 
 def focus_hint(key: str | None) -> str:
     if not key:
         return ""
-    return FOCUS_HINTS.get(key, "")
+    normalized = normalize_focus_key(key)
+    return FOCUS_HINTS.get(normalized, FOCUS_HINTS.get(str(key or ""), ""))
 
 
 def detect_focus_group(*, subject: str | None, task_type: str) -> str | None:
@@ -164,17 +166,22 @@ def detect_focus_group(*, subject: str | None, task_type: str) -> str | None:
         return "language"
     if re.search(r"deutsch(?!\s*als\s*fremd)", text) or text.strip() == "de":
         return "german"
-    if re.search(r"mensch|gesellschaft|umwelt|\bmgu\b|räume.*zeit|rzg", text):
-        return "mgu"
+    if re.search(
+        r"\bnmg\b|natur.*mensch.*gesellschaft|mensch.*natur.*gesellschaft|"
+        r"mensch|gesellschaft|umwelt|\bmgu\b|räume.*zeit|rzg",
+        text,
+    ):
+        return "nmg"
     if re.search(r"natur.*technik|\bn&t\b|biologie|physik|chemie", text):
         return "nature"
     return None
 
 
 def focus_options_for_group(group_id: str | None) -> list[FocusOption]:
-    if not group_id or group_id not in _GROUP_BY_ID:
+    canonical = normalize_focus_group(group_id)
+    if not canonical or canonical not in _GROUP_BY_ID:
         return []
-    return list(_GROUP_BY_ID[group_id]["options"])  # type: ignore[arg-type]
+    return list(_GROUP_BY_ID[canonical]["options"])  # type: ignore[arg-type]
 
 
 def focus_groups_public() -> list[dict]:

@@ -51,7 +51,7 @@ Lokales Repo nach Prod-Fix: auf `main` bleiben, ausser der Nutzer arbeitet am Fe
 Bei Arbeit an **Didaktik**, **source_pedagogy**, **Pedagogy-Prompts**, **neuen Fach-Schwerpunkten** oder **interaktivem Trainer**:
 
 1. Prüfe `backend/app/fixtures/pedagogy_golden/` — jede Fachgruppe braucht mindestens ein Fixture:
-   - `math`, `language`, `mgu`, `german`, `nature` (siehe `app/ai/subject_focus.py`)
+   - `math`, `language`, `nmg`, `german`, `nature` (siehe `app/ai/subject_focus.py`)
 2. Neues/angepasstes Thema → Fixture anlegen oder aktualisieren (`<thema>.json`).
 3. Jedes Fixture enthält `_meta`:
    ```json

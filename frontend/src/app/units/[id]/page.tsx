@@ -580,10 +580,14 @@ export default function UnitDetailPage() {
                   {pedagogy?.has_pedagogy && pedagogy.quality ? (
                     <>
                       {" "}
-                      ({pedagogy.quality.method_count} Strategien
-                      {pedagogy.quality.worked_with_steps != null
-                        ? `, ${pedagogy.quality.worked_with_steps} Beispiele`
-                        : ""}
+                      ({pedagogy.quality.key_term_count
+                        ? `${pedagogy.quality.key_term_count} Fachbegriffe`
+                        : `${pedagogy.quality.method_count} Strategien`}
+                      {pedagogy.quality.assignment_count
+                        ? `, ${pedagogy.quality.assignment_count} Aufträge`
+                        : pedagogy.quality.worked_with_steps != null
+                          ? `, ${pedagogy.quality.worked_with_steps} Beispiele`
+                          : ""}
                       )
                     </>
                   ) : null}
@@ -592,6 +596,33 @@ export default function UnitDetailPage() {
               <div className="unit-pedagogy-body">
               {pedagogy?.has_pedagogy ? (
                 <>
+                  {pedagogy.profile?.page_summary ? (
+                    <p className="unit-pedagogy-page-summary">{pedagogy.profile.page_summary}</p>
+                  ) : null}
+                  {pedagogy.profile?.key_terms && pedagogy.profile.key_terms.length > 0 ? (
+                    <div className="unit-pedagogy-key-terms">
+                      <span className="muted">Fachbegriffe:</span>
+                      <ul className="unit-pedagogy-term-list">
+                        {pedagogy.profile.key_terms.slice(0, 14).map((item, index) => (
+                          <li key={`${item.term}-${index}`}>
+                            <strong>{item.term}</strong>
+                            {item.definition ? <span className="muted"> — {item.definition}</span> : null}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                  {pedagogy.profile?.assignments && pedagogy.profile.assignments.length > 0 ? (
+                    <ul className="unit-pedagogy-assignments">
+                      {pedagogy.profile.assignments.slice(0, 8).map((item, index) => (
+                        <li key={`${item.ref || "a"}-${index}`}>
+                          {item.ref ? <strong>{item.ref}: </strong> : null}
+                          {item.instruction}
+                          {item.format ? <span className="muted"> [{item.format}]</span> : null}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
                   {pedagogy.profile?.methods && pedagogy.profile.methods.length > 0 && (
                     <ul className="unit-pedagogy-methods">
                       {pedagogy.profile.methods.map((method, index) => (
@@ -627,11 +658,19 @@ export default function UnitDetailPage() {
                           ? "teilweise erkannt"
                           : "wenig erkannt"}
                       {" "}
-                      ({pedagogy.quality.method_count} Strategien
-                      {pedagogy.quality.methods_with_when != null
+                      ({pedagogy.quality.key_term_count
+                        ? `${pedagogy.quality.key_term_count} Fachbegriffe`
+                        : `${pedagogy.quality.method_count} Strategien`}
+                      {pedagogy.quality.assignment_count
+                        ? `, ${pedagogy.quality.assignment_count} Aufträge`
+                        : ""}
+                      {pedagogy.quality.methods_with_when != null && pedagogy.quality.method_count > 0
                         ? `, ${pedagogy.quality.methods_with_when} mit Anwendungs-Hinweis`
                         : ""}
-                      , {pedagogy.quality.worked_with_steps} Beispiele mit Schritten)
+                      {pedagogy.quality.worked_with_steps > 0
+                        ? `, ${pedagogy.quality.worked_with_steps} Beispiele mit Schritten`
+                        : ""}
+                      )
                     </p>
                   ) : null}
                   {pedagogyLastWhen ? (

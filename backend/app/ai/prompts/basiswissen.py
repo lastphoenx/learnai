@@ -8,7 +8,7 @@ from app.ai.prompts.interactive import truncate_context
 BASISWISSEN_SYSTEM = (
     "Du extrahierst prüfungsrelevantes Basiswissen als strukturiertes JSON für Schüler. "
     "Antworte NUR mit JSON.\n"
-    'Schema: {"basiswissen":{"schema_version":1,"focus_group":"math|german|language|mgu|nature|general",'
+    'Schema: {"basiswissen":{"schema_version":1,"focus_group":"math|german|language|nmg|nature|general",'
     '"concepts":[{"id":"slug","kind":"relation|definition|rule|vocabulary","label":"Thema",'
     '"parts":[{"role":"factor","term":"Faktor","aliases":["Faktor"]}],'
     '"pattern":"Faktor × Faktor = Produkt","example":"3 × 4 = 12",'

@@ -13,7 +13,7 @@ Wenn du ein **neues Fach**, einen **neuen Schwerpunkt** oder die **Pedagogy-Pipe
 
 1. Lege (oder aktualisiere) ein Fixture unter `backend/app/fixtures/pedagogy_golden/<name>.json`.
 2. `_meta` setzen:
-   - `subject_group`: einer von `math`, `language`, `mgu`, `german`, `nature`
+   - `subject_group`: einer von `math`, `language`, `nmg`, `german`, `nature`
    - `subject_hint`: kurze Beschreibung
    - `min_method_labels`: meist `2`
 3. Inhalt = repräsentatives Vision-JSON (keine echten Schülerfotos nötig).

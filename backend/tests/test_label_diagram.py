@@ -1,18 +1,13 @@
 import json
 
 from app.core.basiswissen import enrich_module_with_basiswissen, parse_basiswissen_payload
-from app.core.label_diagram import (
-    build_label_diagram,
-    derive_drawing_practice_item,
-    derive_label_practice_items,
-    detect_diagram_template,
-    grade_label_diagram_answer,
-)
+from app.core.label_diagram import build_label_diagram_from_terms, grade_label_diagram_answer
+from app.core.practice_derive import derive_practice_items
 
 CASTLE_BASISWISSEN = {
     "basiswissen": {
         "schema_version": 1,
-        "focus_group": "mgu",
+        "focus_group": "nmg",
         "concepts": [
             {
                 "id": "castle_terms",
@@ -32,18 +27,39 @@ CASTLE_BASISWISSEN = {
     }
 }
 
+NMG_PEDAGOGY = {
+    "page_summary": "Burgen im Hochmittelalter: Aufbau und Bauteile.",
+    "key_terms": [
+        {"term": "Bergfried", "definition": "Höchster Turm der Burg"},
+        {"term": "Wehrgang", "definition": "Gang auf der Mauer"},
+        {"term": "Fallgatter", "definition": "Gittern am Tor"},
+        {"term": "Burggraben", "definition": "Wassergraben um die Burg"},
+        {"term": "Palas", "definition": "Wohngebäude der Burg"},
+    ],
+    "assignments": [
+        {"ref": "1", "instruction": "Zeichne eine Burg und beschrifte die Bauteile.", "format": "zeichnen"},
+        {"ref": "2", "instruction": "Ordne die Fachbegriffe dem Schema zu.", "format": "beschriften"},
+    ],
+    "exercise_formats": ["Zeichnen/Beschriften", "Fachbegriffe zuordnen"],
+    "visual_tasks": [
+        {
+            "kind": "zeichnen",
+            "instruction": "Zeichne eine Burg und beschrifte die wichtigsten Teile.",
+            "terms": ["Bergfried", "Wehrgang", "Palas"],
+        }
+    ],
+}
 
-def test_detect_castle_diagram_template():
-    bw = parse_basiswissen_payload(CASTLE_BASISWISSEN, focus_group="mgu")
-    assert detect_diagram_template(bw["concepts"], category_label="Burgen") == "castle"
 
-
-def test_build_label_diagram_from_castle_terms():
-    bw = parse_basiswissen_payload(CASTLE_BASISWISSEN, focus_group="mgu")
-    diagram = build_label_diagram(bw["concepts"], template="castle", title="Burg beschriften")
+def test_build_label_diagram_from_terms_generic():
+    diagram = build_label_diagram_from_terms(
+        ["Bergfried", "Wehrgang", "Fallgatter", "Burggraben"],
+        title="Fachbegriffe zuordnen",
+    )
     assert diagram is not None
-    assert len(diagram["hotspots"]) >= 3
-    assert "Bergfried" in diagram["terms"]
+    assert diagram["template"] == "generic"
+    assert len(diagram["hotspots"]) == 4
+    assert diagram["hotspots"][0]["x"] == round(diagram["hotspots"][0]["x"], 3)
 
 
 def test_grade_label_diagram_answer():
@@ -54,18 +70,22 @@ def test_grade_label_diagram_answer():
     assert not grade_label_diagram_answer(expected, user_bad)
 
 
-def test_derive_label_and_drawing_practice_items():
-    bw = parse_basiswissen_payload(CASTLE_BASISWISSEN, focus_group="mgu")
-    label_items = derive_label_practice_items(bw, category_label="Burgen")
-    drawing = derive_drawing_practice_item(bw, category_label="Burgen")
-    assert label_items
-    assert label_items[0]["answer_type"] == "label_diagram"
-    assert drawing is not None
-    assert drawing["answer_type"] == "drawing"
+def test_derive_practice_items_from_pedagogy_and_basiswissen():
+    bw = parse_basiswissen_payload(CASTLE_BASISWISSEN, focus_group="nmg")
+    items = derive_practice_items(
+        pedagogy=NMG_PEDAGOGY,
+        basiswissen=bw,
+        category_label="Burgen",
+        focus_group="nmg",
+    )
+    types = {item.get("answer_type") for item in items}
+    assert "label_diagram" in types
+    assert "drawing" in types
+    assert all(item.get("diagram", {}).get("template") != "castle" for item in items if item.get("diagram"))
 
 
-def test_enrich_module_adds_label_practice_for_castle():
-    bw = parse_basiswissen_payload(CASTLE_BASISWISSEN, focus_group="mgu")
+def test_enrich_module_adds_generic_practice():
+    bw = parse_basiswissen_payload(CASTLE_BASISWISSEN, focus_group="nmg")
     content = {"knowledge": [], "cards": [], "practice": []}
     quiz = {"questions": []}
     out_content, _ = enrich_module_with_basiswissen(
@@ -74,7 +94,12 @@ def test_enrich_module_adds_label_practice_for_castle():
         basiswissen=bw,
         question_count=6,
         category_label="Hochmittelalter: Burgen",
+        pedagogy=NMG_PEDAGOGY,
     )
     types = {item.get("answer_type") for item in out_content.get("practice") or []}
     assert "label_diagram" in types
     assert "drawing" in types
+    for item in out_content.get("practice") or []:
+        diagram = item.get("diagram")
+        if isinstance(diagram, dict):
+            assert diagram.get("template") == "generic"

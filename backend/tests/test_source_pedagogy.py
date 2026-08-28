@@ -411,3 +411,37 @@ def test_parse_pedagogy_drops_competency_headings_and_bad_equations():
     assert "verschiedenen Formen" in notes
     assert "Kreisen" not in notes
     assert "Strichen" not in notes
+
+
+def test_parse_pedagogy_v3_nmg_fields_and_digest():
+    payload = {
+        "summary": "Burgen im Hochmittelalter.",
+        "is_metadata_only": False,
+        "key_terms": [
+            {"term": "Bergfried", "definition": "Höchster Turm"},
+            {"term": "Wehrgang", "definition": "Gang auf der Mauer"},
+        ],
+        "assignments": [
+            {"ref": "1", "instruction": "Zeichne eine Burg.", "format": "zeichnen"},
+        ],
+        "exercise_formats": ["Zeichnen/Beschriften"],
+        "visual_tasks": [
+            {"kind": "zeichnen", "instruction": "Burg zeichnen und beschriften", "terms": ["Bergfried"]},
+        ],
+        "methods": [],
+        "worked_examples": [],
+        "exercises": [],
+        "exercise_patterns": ["Zeichnen"],
+        "teaching_notes": [],
+    }
+    summary, pedagogy = parse_pedagogy_extraction(json.dumps(payload))
+    assert summary
+    assert pedagogy["page_summary"]
+    assert len(pedagogy["key_terms"]) == 2
+    assert pedagogy["assignments"][0]["instruction"].startswith("Zeichne")
+    digest = build_pedagogy_digest(pedagogy)
+    assert "Fachbegriffe" in digest
+    assert "Bergfried" in digest
+    assert "Aufträge" in digest
+    assert has_pedagogy_content(pedagogy)
+

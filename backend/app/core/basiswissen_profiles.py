@@ -16,9 +16,10 @@ FOCUS_GROUP_PROMPTS: dict[str, str] = {
         "Fremdsprache: Vokabeln, Artikel, Zeitformen, typische Satzmuster. "
         "Rollen und Begriffe in der Zielsprache oder mit deutscher Übersetzung in hint."
     ),
-    "mgu": (
-        "MGU: Fachbegriffe mit Kurzdefinition und Bezug zum Thema (Gesellschaft, Geografie, Geschichte …). "
-        "kind: definition oder vocabulary."
+    "nmg": (
+        "NMG (Natur, Mensch, Gesellschaft): Fachbegriffe mit Kurzdefinition und Bezug zum Thema "
+        "(Geschichte, Geografie, Gesellschaft, Umwelt …). "
+        "kind: definition, vocabulary oder relation."
     ),
     "nature": (
         "Natur & Technik: Fachbegriffe, Prozesse, Einheiten. kind: definition oder relation."

@@ -55,7 +55,7 @@ API liefert `focus_groups`:
 |----|--------------------------|-------------------|
 | `math` | mathe, math, rechnen | decimals, fractions, geometry, … |
 | `language` | franz, engl, sprach, vocab-Aufgabentyp | lang_vocab, lang_verbs, lang_tenses_* , … |
-| `mgu` | mensch, gesellschaft, umwelt, mgu | mgu_health, mgu_history, mgu_geography, … |
+| `nmg` | nmg, mensch, gesellschaft, umwelt, mgu (legacy) | nmg_health, nmg_history, nmg_geography, … |
 | `german` | deutsch | de_spelling, de_grammar, de_reading, … |
 | `nature` | natur, biologie, physik | nt_biology, nt_physics, … |
 

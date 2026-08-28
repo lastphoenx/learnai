@@ -1,11 +1,20 @@
 {
   "_meta": {
-    "subject_group": "mgu",
+    "subject_group": "nmg",
     "subject_hint": "Geografie Schweiz",
     "min_method_labels": 2
   },
   "summary": "Die Schweiz: Kantone, Sprachregionen und Landesgeografie.",
+  "page_summary": "Die Schweiz: Kantone, Sprachregionen und Landesgeografie.",
   "is_metadata_only": false,
+  "key_terms": [
+    {"term": "Kanton", "definition": "Verwaltungseinheit der Schweiz"},
+    {"term": "Sprachregion", "definition": "Gebiet mit einer Landessprache"}
+  ],
+  "assignments": [
+    {"ref": "1a", "instruction": "Beschrifte die Kantone auf der Karte.", "format": "beschriften"}
+  ],
+  "exercise_formats": ["Karte beschriften", "Sprachregionen benennen"],
   "methods": [
     {
       "label": "Karte beschriften",
