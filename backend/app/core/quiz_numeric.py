@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import re
 
+from app.core.arithmetic_parse import try_compute_from_question as _try_compute_from_question
+
 _NUMERIC_OPTION = re.compile(r"-?\d+(?:[.,]\d+)?")
 _PURE_NUMERIC_OPTION = re.compile(r"^-?\d+(?:[.,]\d+)?(?:\s*/\s*-?\d+(?:[.,]\d+)?)?$")
 _OPTION_LABEL = re.compile(r"^[a-d]\)\s*", re.I)
@@ -87,41 +89,7 @@ def parse_expected_from_explanation(explanation: str) -> float | None:
 
 
 def try_compute_from_question(question: str) -> float | None:
-    raw = str(question or "")
-    if _METHOD_QUESTION.search(raw):
-        return None
-    text = raw.replace(",", ".")
-    match = _ADD_SYMBOL.search(text)
-    if match:
-        return float(match.group(1)) + float(match.group(2))
-    match = _SUB_SYMBOL.search(text)
-    if match:
-        return float(match.group(1)) - float(match.group(2))
-    match = _ADDITION.search(text)
-    if match:
-        return float(match.group(1)) + float(match.group(2))
-    match = _SUBTRACTION.search(text)
-    if match:
-        return float(match.group(1)) - float(match.group(2))
-    match = _MULT_DOT.search(text)
-    if match:
-        return float(match.group(1).replace(",", ".")) * float(match.group(2).replace(",", "."))
-    match = _MULTIPLICATION.search(text)
-    if match:
-        return float(match.group(1)) * float(match.group(2))
-    match = _DIVISION.search(text)
-    if match:
-        divisor = float(match.group(2).replace(",", "."))
-        if abs(divisor) < 1e-12:
-            return None
-        return float(match.group(1).replace(",", ".")) / divisor
-    match = _DIV_COLON.search(text)
-    if match:
-        divisor = float(match.group(2).replace(",", "."))
-        if abs(divisor) < 1e-12:
-            return None
-        return float(match.group(1).replace(",", ".")) / divisor
-    return None
+    return _try_compute_from_question(question)
 
 
 def resolve_quiz_expected_value(q: dict) -> float | None:

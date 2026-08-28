@@ -7,10 +7,12 @@ import math
 import re
 from difflib import SequenceMatcher
 
+from app.core.arithmetic_parse import numbers_in_text, parse_arithmetic_operands
 from app.core.quiz_numeric import try_compute_from_question
 
 TIMES_TABLE_MIN = 2
 TIMES_TABLE_MAX = 12
+_POW10_DIVISORS = frozenset({10, 100, 1000})
 
 _NUM = r"-?\d+(?:[.,]\d+)?"
 _OP_SYMBOL = r"[·×*]"
@@ -35,40 +37,6 @@ _STEP_COMMA = re.compile(
 _WRITTEN_HINT = re.compile(r"schriftlich", re.I)
 _MENTAL_HINT = re.compile(r"im kopf|kopfrechn", re.I)
 _NOTES_HINT = re.compile(r"notiz", re.I)
-_PARSE_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
-    (
-        "mul",
-        re.compile(
-            rf"(?:multiplikation\s+von|multipliziere|produkt\s+von)\s+({_NUM})\s*(?:{_OP_SYMBOL}|und|mit)\s*({_NUM})",
-            re.I,
-        ),
-    ),
-    ("mul", re.compile(rf"({_NUM})\s*{_OP_SYMBOL}\s*({_NUM})")),
-    ("add", re.compile(rf"({_NUM})\s*\+\s*({_NUM})")),
-    (
-        "add",
-        re.compile(rf"(?:addition|summe)\s+von\s+({_NUM})\s+und\s+({_NUM})", re.I),
-    ),
-    ("sub", re.compile(rf"({_NUM})\s*-\s*({_NUM})")),
-    (
-        "sub",
-        re.compile(
-            rf"(?:subtraktion|differenz)\s+(?:von|zwischen)\s+({_NUM})\s+und\s+({_NUM})",
-            re.I,
-        ),
-    ),
-    (
-        "div",
-        re.compile(
-            rf"(?:division|quotient|ergebnis)\s+von\s+({_NUM})\s*(?:[:÷/]|geteilt\s+durch|durch)\s*({_NUM})",
-            re.I,
-        ),
-    ),
-    ("div", re.compile(rf"({_NUM})\s*(?:[:÷/]|geteilt\s+durch)\s*({_NUM})")),
-    ("div", re.compile(rf"({_NUM})\s+durch\s+({_NUM})", re.I)),
-]
-
-
 def _to_float(raw: str) -> float:
     return float(str(raw).replace(",", "."))
 
@@ -78,19 +46,6 @@ def _fmt_num(value: float) -> str:
         return str(int(round(value)))
     text = f"{value:.6f}".rstrip("0").rstrip(".")
     return text.replace(".", ",")
-
-
-def parse_arithmetic_operands(question: str) -> tuple[str, float, float] | None:
-    text = str(question or "").replace(",", ".")
-    for op, pattern in _PARSE_PATTERNS:
-        match = pattern.search(text)
-        if not match:
-            continue
-        try:
-            return op, _to_float(match.group(1)), _to_float(match.group(2))
-        except ValueError:
-            continue
-    return None
 
 
 def _variant_chunks(text: str) -> list[str]:
@@ -108,9 +63,10 @@ def times_table_ok(n: int) -> bool:
 
 
 def explanation_uses_invalid_times_table(text: str) -> bool:
-    """True bei «40er-Reihe» u. ä. — Einmaleins gilt nur 2–12."""
+    """True bei «40er-Reihe» u. ä. — Einmaleins gilt nur 2–12, 10/100 sind Komma-Regeln."""
     for match in _REIHE_CLAIM.finditer(str(text or "")):
-        if not times_table_ok(int(match.group(1))):
+        n = int(match.group(1))
+        if n in _POW10_DIVISORS or not times_table_ok(n):
             return True
     return False
 
@@ -171,28 +127,38 @@ def _clarify_step_separators(text: str) -> str:
     return _STEP_COMMA.sub(r"\1. Dann ", str(text or ""))
 
 
-def _equation_restates_problem(equation: str, question: str) -> bool:
-    parsed = parse_arithmetic_operands(question)
-    if not parsed:
-        return False
+def _expected_from_operands(parsed: tuple[str, float, float]) -> float | None:
     op, a, b = parsed
     if op == "add":
-        expected = a + b
-    elif op == "sub":
-        expected = a - b
-    elif op == "mul":
-        expected = a * b
-    elif op == "div":
+        return a + b
+    if op == "sub":
+        return a - b
+    if op == "mul":
+        return a * b
+    if op == "div":
         if abs(b) < 1e-12:
-            return False
-        expected = a / b
-    else:
+            return None
+        return a / b
+    return None
+
+
+def _equation_restates_problem(equation: str, question: str) -> bool:
+    parsed = parse_arithmetic_operands(question)
+    expected = _expected_from_operands(parsed) if parsed else try_compute_from_question(question)
+    if expected is None:
         return False
     nums = [_to_float(raw) for raw in re.findall(_NUM, equation)]
     if len(nums) < 3:
         return False
     left = {round(nums[0], 6), round(nums[1], 6)}
-    operands = {round(a, 6), round(b, 6)}
+    if parsed:
+        _, a, b = parsed
+        operands = {round(a, 6), round(b, 6)}
+    else:
+        qnums = numbers_in_text(question)
+        if len(qnums) < 2:
+            return False
+        operands = {round(qnums[0], 6), round(qnums[1], 6)}
     return left == operands and abs(nums[2] - expected) < 1e-4
 
 
@@ -538,9 +504,25 @@ def _div_kopf_nullen_steps(a: float, b: float, result: float) -> str | None:
 
 
 def _reihe_label(divisor: int) -> str | None:
-    if not times_table_ok(divisor):
+    if divisor in _POW10_DIVISORS or not times_table_ok(divisor):
         return None
     return f"{divisor}er-Reihe"
+
+
+def _quotient_step_text(numerator: float, divisor: int, result: float) -> str:
+    num_s = _fmt_num(float(numerator))
+    res_s = _fmt_num(result)
+    if divisor in _POW10_DIVISORS:
+        zeros = {10: 1, 100: 2, 1000: 3}[divisor]
+        stelle = "Stelle" if zeros == 1 else "Stellen"
+        return (
+            f"{num_s} ÷ {divisor} = {res_s} "
+            f"(durch {divisor} teilen: Komma {zeros} {stelle} nach links)"
+        )
+    reihe = _reihe_label(divisor)
+    if reihe:
+        return f"Aus der {reihe}: {num_s} ÷ {divisor} = {res_s}"
+    return f"{num_s} ÷ {divisor} = {res_s}"
 
 
 def _split_trailing_tens(n: int) -> tuple[int, int]:
@@ -575,12 +557,12 @@ def _div_kuerzen_cancel_zeros(a: float, b: float, result: float) -> str | None:
     quotient = a_reduced // b_reduced
     if not _near(float(quotient), result):
         return None
-    reihe = _reihe_label(b_reduced)
+    step = _quotient_step_text(float(a_reduced), b_reduced, float(quotient))
     zeros_word = "Null" if cancel == 1 else "Nullen"
     return (
         f"Variante 1 (Kürzen): {_fmt_num(float(a_int))} ÷ {b_int} — "
         f"{cancel} {zeros_word} streichen: {_fmt_num(float(a_reduced))} ÷ {b_reduced}. "
-        f"Aus der {reihe}: {_fmt_num(float(a_reduced))} ÷ {b_reduced} = {_fmt_num(float(quotient))}."
+        f"{step}."
     )
 
 
@@ -596,20 +578,22 @@ def _div_kuerzen_factor_power10(a: float, b: float, result: float) -> str | None
         return None
     power = 10 ** zeros_b
     mid = a / power
+    if abs(mid - round(mid)) >= 1e-6:
+        return None
     final = mid / core_b
     if not _near(final, result):
         return None
-    reihe = _reihe_label(core_b)
     if zeros_b == 1:
         shift = "durch 10 teilen (Komma eine Stelle / eine Null)"
     else:
         shift = (
             f"durch {power} teilen (Komma {zeros_b} Stellen / {zeros_b} Nullen)"
         )
+    step = _quotient_step_text(mid, core_b, result)
     return (
         f"Variante 2 (Zehnerpotenz): {b_int} = {core_b} × {power}. "
         f"Zuerst {shift}: {_fmt_num(a)} → {_fmt_num(mid)}. "
-        f"Dann aus der {reihe}: {_fmt_num(mid)} ÷ {core_b} = {_fmt_num(result)}."
+        f"Dann {step}."
     )
 
 
@@ -628,10 +612,7 @@ def _div_kuerzen_gcd(a: float, b: float, result: float) -> str | None:
         return None
     if not _near(a2 / b2, result):
         return None
-    extra = f"{_fmt_num(float(a2))} ÷ {b2} = {_fmt_num(result)}"
-    reihe = _reihe_label(b2)
-    if reihe:
-        extra = f"Aus der {reihe}: {extra}"
+    extra = _quotient_step_text(float(a2), b2, result)
     return (
         f"Variante 1 (Kürzen): {_fmt_num(float(a_int))} ÷ {b_int} — "
         f"durch {g} kürzen: {_fmt_num(float(a2))} ÷ {b2}. {extra}."

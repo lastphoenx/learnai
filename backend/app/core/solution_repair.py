@@ -13,9 +13,9 @@ from app.core.quiz_explanation import (
     explanation_is_weak,
     explanation_uses_invalid_times_table,
     merge_worked_variants,
-    parse_arithmetic_operands,
     times_table_ok,
 )
+from app.core.arithmetic_parse import question_is_computable
 from app.core.quiz_numeric import parse_quiz_numeric
 
 _EQ = re.compile(
@@ -41,7 +41,8 @@ def _drop_false_equations(text: str) -> str:
 
 def _scrub_invalid_reihe(text: str) -> str:
     def repl(match: re.Match[str]) -> str:
-        if times_table_ok(int(match.group(1))):
+        n = int(match.group(1))
+        if times_table_ok(n) and n not in (10, 100, 1000):
             return match.group(0)
         return ""
 
@@ -85,7 +86,7 @@ def enrich_card_answer(card: dict) -> str:
     if not original:
         return original
 
-    computable = parse_arithmetic_operands(question) is not None
+    computable = question_is_computable(question)
     if not computable:
         return enrich_knowledge_text(original)
 

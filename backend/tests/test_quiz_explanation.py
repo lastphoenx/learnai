@@ -1,3 +1,5 @@
+import pytest
+
 from app.core.quiz_explanation import (
     build_worked_solution,
     complete_method_explanation,
@@ -548,3 +550,46 @@ def test_repair_generated_module_fixes_quiz_and_card():
     assert "40er-Reihe" not in quiz_expl
     assert "90er-Reihe" not in knowledge
     assert "4er-Reihe" in quiz_expl or "Kürzen" in quiz_expl
+
+
+@pytest.mark.parametrize(
+    "question,expected",
+    [
+        ("Wie dividiere ich die Dezimalzahl 72 durch den Divisor 80?", 0.9),
+        ("Wie löse ich die Division 960 : 40?", 24.0),
+        ("Was ist das Ergebnis von 810 : 90?", 9.0),
+    ],
+)
+def test_division_question_parsing_and_worked_solution(question, expected):
+    parsed = parse_arithmetic_operands(question)
+    assert parsed is not None
+    assert parsed[0] == "div"
+    text = build_worked_solution(question, expected)
+    assert text is not None
+    assert "40er-Reihe" not in text
+    assert "80er-Reihe" not in text
+    assert "90er-Reihe" not in text
+    assert "10er-Reihe" not in text
+
+
+def test_division_72_by_80_has_derivation_not_recipe():
+    question = "Wie dividiere ich die Dezimalzahl 72 durch den Divisor 80?"
+    assert explanation_is_weak("72 : 80 = 0,9", question)
+    text = build_worked_solution(question, 0.9)
+    assert text is not None
+    assert "Kürzen" in text or "Komma" in text
+    assert explanation_has_derivation(text, question)
+
+
+def test_enrich_replaces_weak_72_by_80_recipe():
+    question = "Wie dividiere ich die Dezimalzahl 72 durch den Divisor 80?"
+    q = {
+        "q": question,
+        "options": ["0,9", "0,09", "9", "0,72"],
+        "answer": 0,
+        "question_type": "calculation",
+        "explanation": "72 : 80 = 0,9",
+    }
+    enriched = enrich_quiz_explanation(q)
+    assert enriched != q["explanation"]
+    assert explanation_has_derivation(enriched, question)
