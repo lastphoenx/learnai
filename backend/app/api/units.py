@@ -364,6 +364,34 @@ def units_generate_cancel(
     return GenerateStatusResponse(job=job)
 
 
+@router.post("/{unit_id}/regenerate/basiswissen")
+def units_regenerate_basiswissen(
+    unit_id: UUID,
+    body: UnitGenerateRequest,
+    user: User = Depends(get_app_user),
+    db: Session = Depends(get_db),
+):
+    """Bestehende interaktive Module um Fachbegriffe/Lückentexte ergänzen (ohne Voll-Neugenerierung)."""
+    from app.ai.generate_interactive import backfill_basiswissen_for_unit
+
+    try:
+        result = backfill_basiswissen_for_unit(
+            db,
+            user,
+            unit_id,
+            provider=body.provider,
+            force=body.force,
+        )
+        db.commit()
+        return result
+    except UnitError as exc:
+        db.rollback()
+        raise _http(exc) from exc
+    except LlmError as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=exc.message) from exc
+
+
 @router.patch("/{unit_id}")
 def units_patch(
     unit_id: UUID,

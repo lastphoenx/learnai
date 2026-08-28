@@ -249,6 +249,38 @@ export type TrainerKnowledgeSection = {
   items: { title: string; text: string }[];
 };
 
+export type TrainerBasiswissenPart = {
+  role: string;
+  term: string;
+  aliases?: string[];
+};
+
+export type TrainerBasiswissenConcept = {
+  id: string;
+  kind: string;
+  label: string;
+  parts?: TrainerBasiswissenPart[];
+  pattern?: string;
+  example?: string;
+  hint?: string;
+};
+
+export type TrainerBasiswissenCloze = {
+  id: string;
+  concept_id?: string;
+  sentence: string;
+  answers: string[];
+  blank_roles?: string[];
+};
+
+export type TrainerBasiswissenSection = {
+  domain: string;
+  module_id: string;
+  focus_group?: string;
+  concepts: TrainerBasiswissenConcept[];
+  cloze_templates: TrainerBasiswissenCloze[];
+};
+
 export type TrainerContentAnalysis = {
   overview: string;
   quiz: {
@@ -337,12 +369,16 @@ export type TrainerPayload = {
   options: TrainerOptions;
   knowledge: TrainerKnowledgeItem[];
   knowledge_sections?: TrainerKnowledgeSection[];
+  basiswissen_sections?: TrainerBasiswissenSection[];
   content_analysis?: TrainerContentAnalysis;
   cards: {
     question: string;
     answer: string;
     tip?: string;
     kind?: "merk" | "mental" | "input" | string;
+    answer_type?: "numeric" | "short_text" | "cloze" | string;
+    card_role?: "term" | "cloze" | string;
+    source?: string;
     expected_method?: string;
     method_id?: string;
     domain?: string;
@@ -368,6 +404,7 @@ export type TrainerPayload = {
     merk_cards?: number;
     mental_cards?: number;
     input_cards?: number;
+    term_cards?: number;
   };
   learn_goals?: LearnGoals;
   child_goals?: LearnGoals;
@@ -935,6 +972,22 @@ export async function cancelGenerate(unitId: string): Promise<GenerateJobStatus>
     method: "POST",
   });
   return res.job;
+}
+
+export type BasiswissenBackfillResult = {
+  updated_modules: number;
+  skipped_modules: number;
+  focus_group: string;
+};
+
+export async function regenerateBasiswissen(
+  unitId: string,
+  opts?: { provider?: string; force?: boolean },
+): Promise<BasiswissenBackfillResult> {
+  return apiFetch<BasiswissenBackfillResult>(`/api/v1/units/${unitId}/regenerate/basiswissen`, {
+    method: "POST",
+    json: { provider: opts?.provider ?? null, force: Boolean(opts?.force) },
+  });
 }
 
 export async function waitForGenerateJob(
