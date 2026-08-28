@@ -20,7 +20,16 @@ import { JumpStrip } from "@/components/learn/JumpStrip";
 import { QuizWeaknessPanel } from "@/components/QuizWeaknessPanel";
 import { PracticeExercise } from "@/components/learn/PracticeExercise";
 import { answerWithVisibleResult } from "@/lib/cardResult";
-import { formatQuizOption, quizOptionClassName } from "@/lib/quizOption";
+import { formatQuizOption, quizOptionClassName, quizOptionStyle } from "@/lib/quizOption";
+import {
+  formatAttemptSuccessLabel,
+  formatRetryCooldown,
+  isQuizRetryable,
+  isQuizRetryPending,
+  nextRetryQuizIndex,
+  quizAnswerGradientStyle,
+  quizRetryCooldownRemainingMs,
+} from "@/lib/quizRetry";
 import { QuizExplanation } from "@/components/learn/QuizExplanation";
 import {
   cardJumpClassName,
@@ -132,6 +141,7 @@ export function InteractiveTrainer({
   const [quizIndex, setQuizIndex] = useState(0);
   const [quizChallenge, setQuizChallenge] = useState(false);
   const [quizWeakOnly, setQuizWeakOnly] = useState(false);
+  const [quizRetryMode, setQuizRetryMode] = useState(false);
   const [quizDeck, setQuizDeck] = useState<QuizItem[]>([]);
   const [cardFilter, setCardFilter] = useState<CardFilter>("due");
   const [practiceIndex, setPracticeIndex] = useState(0);
@@ -154,9 +164,16 @@ export function InteractiveTrainer({
     correct: boolean;
     correct_index: number;
     explanation?: string;
+    attempts?: number;
   } | null>(null);
   const [lastSubmittedKey, setLastSubmittedKey] = useState<string | null>(null);
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const [sttProvider, setSttProvider] = useState<SttProvider>("browser");
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNowMs(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const cards = trainer?.cards || [];
   const knowledge = trainer?.knowledge || [];
@@ -267,15 +284,41 @@ export function InteractiveTrainer({
     [allQuestions, weakKeys],
   );
 
+  const learnProgress = state.progress;
+
+  const retryQuestions = useMemo(
+    () => allQuestions.filter((q) => isQuizRetryable(learnProgress, q, nowMs)),
+    [allQuestions, learnProgress, nowMs],
+  );
+
+  const retryPendingQuestions = useMemo(
+    () => allQuestions.filter((q) => isQuizRetryPending(learnProgress, q, nowMs)),
+    [allQuestions, learnProgress, nowMs],
+  );
+
+  const nextRetryCooldownMs = useMemo(() => {
+    if (retryPendingQuestions.length === 0) return 0;
+    let min = Number.POSITIVE_INFINITY;
+    for (const q of retryPendingQuestions) {
+      const stored = getStoredQuizAnswer(learnProgress, q);
+      const remaining = quizRetryCooldownRemainingMs(stored, nowMs);
+      if (remaining > 0) min = Math.min(min, remaining);
+    }
+    return min === Number.POSITIVE_INFINITY ? 0 : min;
+  }, [retryPendingQuestions, learnProgress, nowMs]);
+
   const activeQuestions = quizDeck.length > 0 ? quizDeck : allQuestions;
   const currentCard = orderedCards[cardIndex];
   const currentQuestion = activeQuestions[quizIndex];
-  const learnProgress = state.progress;
   const currentStoredAnswer = currentQuestion
     ? getStoredQuizAnswer(learnProgress, currentQuestion)
     : null;
+  const isRetryActive = Boolean(
+    quizRetryMode && currentQuestion && isQuizRetryable(learnProgress, currentQuestion, nowMs),
+  );
   const isReviewMode = Boolean(
-    currentStoredAnswer &&
+    !isRetryActive &&
+      currentStoredAnswer &&
       answerResult &&
       currentQuestion &&
       quizQuestionKey(currentQuestion) !== lastSubmittedKey,
@@ -290,10 +333,10 @@ export function InteractiveTrainer({
     [allQuestions, learnProgress],
   );
   const canSkipOrDefer = useMemo(() => {
-    if (!currentQuestion || quizChallenge || quizWeakOnly) return false;
+    if (!currentQuestion || quizChallenge || quizWeakOnly || quizRetryMode) return false;
     if (isQuizAnswered(learnProgress, currentQuestion)) return false;
     return hasOtherOpenQuizQuestions(activeQuestions, learnProgress, quizIndex);
-  }, [currentQuestion, quizChallenge, quizWeakOnly, learnProgress, activeQuestions, quizIndex]);
+  }, [currentQuestion, quizChallenge, quizWeakOnly, quizRetryMode, learnProgress, activeQuestions, quizIndex]);
 
   const knowledgeSections = useMemo(() => {
     const fromApi = trainer?.knowledge_sections;
@@ -482,7 +525,8 @@ export function InteractiveTrainer({
       setQuizIndex(index);
       const q = activeQuestions[index];
       const stored = getStoredQuizAnswer(learnProgress, q);
-      if (stored) {
+      const retryable = quizRetryMode && isQuizRetryable(learnProgress, q, nowMs);
+      if (stored && !retryable) {
         setSelected(stored.selected);
         setAnswerResult(stored);
       } else {
@@ -490,23 +534,26 @@ export function InteractiveTrainer({
         setAnswerResult(null);
       }
     },
-    [activeQuestions, learnProgress],
+    [activeQuestions, learnProgress, quizRetryMode, nowMs],
   );
 
-  function openQuiz(options: { challenge?: boolean; weakOnly?: boolean } = {}) {
+  function openQuiz(options: { challenge?: boolean; weakOnly?: boolean; retry?: boolean } = {}) {
     const challenge = Boolean(options.challenge);
     const weakOnly = Boolean(options.weakOnly);
+    const retry = Boolean(options.retry);
     setQuizChallenge(challenge);
     setQuizWeakOnly(weakOnly);
-    let deck = weakOnly ? weakQuestions : allQuestions;
+    setQuizRetryMode(retry);
+    let deck = retry ? retryQuestions : weakOnly ? weakQuestions : allQuestions;
     if (challenge) deck = shuffle(deck);
     setQuizDeck(deck);
-    const startIndex = challenge || weakOnly ? 0 : firstOpenQuizIndex(deck, learnProgress);
+    const startIndex = challenge || weakOnly || retry ? 0 : firstOpenQuizIndex(deck, learnProgress);
     setTab("quiz");
     setQuizIndex(startIndex);
     const q = deck[startIndex];
     const stored = q ? getStoredQuizAnswer(learnProgress, q) : null;
-    if (stored) {
+    const retryable = retry && q ? isQuizRetryable(learnProgress, q, nowMs) : false;
+    if (stored && !retryable) {
       setSelected(stored.selected);
       setAnswerResult(stored);
     } else {
@@ -544,27 +591,38 @@ export function InteractiveTrainer({
   function finishQuiz() {
     setTab("home");
     setQuizDeck([]);
+    setQuizRetryMode(false);
     setAnswerResult(null);
     setSelected(null);
     setLastSubmittedKey(null);
   }
 
   function skipToNextOpen() {
-    const next = nextOpenQuizIndex(activeQuestions, learnProgress, quizIndex);
+    const next = quizRetryMode
+      ? nextRetryQuizIndex(activeQuestions, learnProgress, quizIndex, nowMs)
+      : nextOpenQuizIndex(activeQuestions, learnProgress, quizIndex);
     if (next != null) goToQuizQuestion(next);
   }
 
   function advanceAfterAnswer(progress = learnProgress) {
-    const next = nextOpenQuizIndex(activeQuestions, progress, quizIndex);
+    const next = quizRetryMode
+      ? nextRetryQuizIndex(activeQuestions, progress, quizIndex, nowMs)
+      : nextOpenQuizIndex(activeQuestions, progress, quizIndex);
     if (next == null) {
       finishQuiz();
       return;
     }
     const q = activeQuestions[next];
     const stored = q ? getStoredQuizAnswer(progress, q) : null;
+    const retryable = quizRetryMode && q ? isQuizRetryable(progress, q, nowMs) : false;
     setQuizIndex(next);
-    setSelected(stored?.selected ?? null);
-    setAnswerResult(stored);
+    if (stored && !retryable) {
+      setSelected(stored.selected);
+      setAnswerResult(stored);
+    } else {
+      setSelected(null);
+      setAnswerResult(null);
+    }
   }
 
   async function submitQuiz() {
@@ -590,6 +648,7 @@ export function InteractiveTrainer({
         correct: res.correct,
         correct_index: res.correct_index,
         explanation: res.explanation,
+        attempts: res.attempt_number,
       });
       if (currentQuestion) {
         setLastSubmittedKey(quizQuestionKey(currentQuestion));
@@ -656,6 +715,12 @@ export function InteractiveTrainer({
                 `${quizAnsweredCount} von ${quizTotal} Fragen beantwortet — mache weiter.`}
               {homeStep === "weaknesses" &&
                 `${weakQuestions.length} Frage${weakQuestions.length === 1 ? "" : "n"} noch unsicher — gezielt nacharbeiten.`}
+              {homeStep === "weaknesses" && retryPendingQuestions.length > 0 && retryQuestions.length === 0 && (
+                <>
+                  {" "}
+                  Nächster Wiederholungsversuch in ca. {formatRetryCooldown(nextRetryCooldownMs)}.
+                </>
+              )}
               {homeStep === "cards" &&
                 `${newCards} Lernkarte${newCards === 1 ? "" : "n"} noch nicht geübt.`}
               {homeStep === "review" &&
@@ -680,9 +745,20 @@ export function InteractiveTrainer({
                 </button>
               )}
               {homeStep === "weaknesses" && (
-                <button type="button" className="btn-primary" onClick={() => openQuiz({ weakOnly: true })}>
-                  Schwächen üben ({weakQuestions.length})
-                </button>
+                <>
+                  {retryQuestions.length > 0 && (
+                    <button type="button" className="btn-primary" onClick={() => openQuiz({ retry: true })}>
+                      Falsche wiederholen ({retryQuestions.length})
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className={retryQuestions.length > 0 ? "ghost" : "btn-primary"}
+                    onClick={() => openQuiz({ weakOnly: true })}
+                  >
+                    Schwächen ansehen ({weakQuestions.length})
+                  </button>
+                </>
               )}
               {homeStep === "cards" && (
                 <button
@@ -1314,7 +1390,7 @@ export function InteractiveTrainer({
                 `Frage ${quizIndex + 1} von ${activeQuestions.length}`,
                 isReviewMode ? "Ansicht" : null,
                 currentQuestion.domain || null,
-                quizChallenge ? "Challenge" : quizWeakOnly ? "nur Schwächen" : "Check",
+                quizChallenge ? "Challenge" : quizRetryMode ? "Wiederholung" : quizWeakOnly ? "nur Schwächen" : "Check",
               ]
                 .filter(Boolean)
                 .join(" · ")}
@@ -1328,6 +1404,9 @@ export function InteractiveTrainer({
             itemKey={(i) => quizQuestionKey(activeQuestions[i])}
             itemClassName={(i) => quizJumpClassName(i, quizIndex, learnProgress, activeQuestions[i])}
             itemTitle={(i) => quizJumpTitle(i, learnProgress, activeQuestions[i])}
+            itemStyle={(i) =>
+              quizAnswerGradientStyle(getStoredQuizAnswer(learnProgress, activeQuestions[i]))
+            }
             onSelect={goToQuizQuestion}
           />
           <p className="learn-quiz-question">{currentQuestion.q}</p>
@@ -1337,6 +1416,7 @@ export function InteractiveTrainer({
                 key={i}
                 type="button"
                 className={`${quizOptionClassName(i, selected, answerResult)}${isReviewMode ? " readonly" : ""}`}
+                style={quizOptionStyle(i, selected, answerResult, currentStoredAnswer)}
                 disabled={busy || Boolean(answerResult)}
                 onClick={() => !answerResult && setSelected(i)}
               >
@@ -1349,7 +1429,9 @@ export function InteractiveTrainer({
               {isReviewMode ? (
                 <p className="quiz-review-heading muted">Gespeicherte Antwort</p>
               ) : answerResult.correct ? (
-                <p className="quiz-verdict ok">Richtig!</p>
+                <p className="quiz-verdict ok">
+                  {formatAttemptSuccessLabel(answerResult.attempts ?? 1) ?? "Richtig!"}
+                </p>
               ) : (
                 <p className="quiz-verdict bad">Nicht ganz — schau nochmal hin.</p>
               )}
@@ -1403,7 +1485,9 @@ export function InteractiveTrainer({
                 className="btn-primary"
                 onClick={() => advanceAfterAnswer(state.progress)}
               >
-                {nextOpenQuizIndex(activeQuestions, state.progress, quizIndex) != null
+                {(quizRetryMode
+                  ? nextRetryQuizIndex(activeQuestions, state.progress, quizIndex, nowMs)
+                  : nextOpenQuizIndex(activeQuestions, state.progress, quizIndex)) != null
                   ? "Nächste Frage"
                   : "Fertig"}
               </button>

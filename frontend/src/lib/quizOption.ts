@@ -1,4 +1,8 @@
 /** Einheitliche Anzeige für Quiz-Optionen (ohne doppeltes a) A)). */
+import type { CSSProperties } from "react";
+
+import { quizAnswerGradientStyle } from "@/lib/quizRetry";
+import type { StoredQuizAnswer } from "@/lib/quizNav";
 export function formatQuizOption(option: string, index: number): string {
   const label = option.replace(/^[a-d]\)\s*/i, "").trim();
   const letter = String.fromCharCode(65 + index);
@@ -89,7 +93,7 @@ export function splitQuizExplanationVariants(text: string): QuizExplanationVaria
 export function quizOptionClassName(
   index: number,
   selected: number | null,
-  answerResult: { correct: boolean; correct_index: number } | null,
+  answerResult: { correct: boolean; correct_index: number; attempts?: number } | null,
 ): string {
   let cls = "learn-quiz-option";
   if (!answerResult) {
@@ -98,9 +102,31 @@ export function quizOptionClassName(
   }
   if (selected === index) cls += " picked";
   if (selected === index) {
-    cls += answerResult.correct ? " correct" : " wrong";
+    if (answerResult.correct) {
+      const attempts = answerResult.attempts ?? 1;
+      cls += attempts > 1 ? " correct-retry" : " correct";
+    } else {
+      cls += " wrong";
+    }
   } else if (!answerResult.correct && index === answerResult.correct_index) {
     cls += " correct";
   }
   return cls;
+}
+
+export function quizOptionStyle(
+  index: number,
+  selected: number | null,
+  answerResult: { correct: boolean; correct_index: number; attempts?: number } | null,
+  stored?: StoredQuizAnswer | null,
+): CSSProperties | undefined {
+  if (!answerResult || selected !== index || !answerResult.correct) return undefined;
+  return quizAnswerGradientStyle(
+    stored ?? {
+      selected: index,
+      correct: true,
+      correct_index: answerResult.correct_index,
+      attempts: answerResult.attempts ?? 1,
+    },
+  );
 }

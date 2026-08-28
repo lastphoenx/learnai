@@ -87,6 +87,8 @@ def _http(exc: UnitError) -> HTTPException:
         "invalid_index": status.HTTP_400_BAD_REQUEST,
         "invalid_phase": status.HTTP_400_BAD_REQUEST,
         "invalid_question": status.HTTP_400_BAD_REQUEST,
+        "already_answered": status.HTTP_400_BAD_REQUEST,
+        "retry_cooldown": status.HTTP_429_TOO_MANY_REQUESTS,
         "bad_url": status.HTTP_400_BAD_REQUEST,
         "invalid_exam_type": status.HTTP_400_BAD_REQUEST,
         "invalid_score": status.HTTP_400_BAD_REQUEST,

@@ -1,5 +1,12 @@
 import type { LearnProgress } from "@/lib/api";
 
+function quizAnswerMixDangerPercent(attempts: number, correct: boolean): number | null {
+  if (!correct) return null;
+  const count = attempts || 1;
+  if (count <= 1) return null;
+  return Math.round(((count - 1) / count) * 100);
+}
+
 export type QuizQuestionRef = {
   module_id: string;
   question_index: number;
@@ -10,6 +17,9 @@ export type StoredQuizAnswer = {
   correct: boolean;
   correct_index: number;
   explanation?: string;
+  attempts?: number;
+  first_attempt_correct?: boolean;
+  retry_available_at?: string | null;
 };
 
 export function quizQuestionKey(q: QuizQuestionRef): string {
@@ -108,7 +118,12 @@ export function quizJumpClassName(
   if (index === currentIndex) cls += " active";
   const stored = getStoredQuizAnswer(progress, q);
   if (stored) {
-    cls += stored.correct ? " correct" : " wrong";
+    if (stored.correct) {
+      const mix = quizAnswerMixDangerPercent(stored.attempts ?? 1, true);
+      cls += mix != null && mix > 0 ? " correct-retry" : " correct";
+    } else {
+      cls += " wrong";
+    }
   } else if (isQuizDeferred(progress, q)) {
     cls += " deferred";
   }
@@ -122,7 +137,14 @@ export function quizJumpTitle(
 ): string {
   const n = index + 1;
   const stored = getStoredQuizAnswer(progress, q);
-  if (stored) return `Frage ${n} (${stored.correct ? "richtig" : "falsch"})`;
+  if (stored) {
+    if (stored.correct) {
+      const attempts = stored.attempts ?? 1;
+      if (attempts > 1) return `Frage ${n} (richtig, ${attempts}. Versuch)`;
+      return `Frage ${n} (richtig)`;
+    }
+    return `Frage ${n} (falsch)`;
+  }
   if (isQuizDeferred(progress, q)) return `Frage ${n} (später)`;
   return `Frage ${n}`;
 }

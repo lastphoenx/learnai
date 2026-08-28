@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 
 const WINDOW_DESKTOP = 10;
 const WINDOW_PHONE = 6;
@@ -26,6 +26,7 @@ type Props = {
   itemKey?: (index: number) => string;
   itemClassName: (index: number) => string;
   itemTitle: (index: number) => string;
+  itemStyle?: (index: number) => CSSProperties | undefined;
   onSelect: (index: number) => void;
 };
 
@@ -38,6 +39,7 @@ export function JumpStrip({
   itemKey,
   itemClassName,
   itemTitle,
+  itemStyle,
   onSelect,
 }: Props) {
   const autoSize = useJumpWindowSize();
@@ -85,6 +87,7 @@ export function JumpStrip({
               key={itemKey ? itemKey(i) : i}
               type="button"
               className={itemClassName(i)}
+              style={itemStyle?.(i)}
               disabled={disabled}
               title={title}
               aria-label={title}

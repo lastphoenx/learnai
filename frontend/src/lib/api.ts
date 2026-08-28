@@ -140,6 +140,9 @@ export type LearnProgress = {
           correct: boolean;
           correct_index: number;
           explanation?: string;
+          attempts?: number;
+          first_attempt_correct?: boolean;
+          retry_available_at?: string | null;
         }
       >;
       deferred?: number[];
@@ -988,6 +991,8 @@ export const submitLearnAnswer = (
     correct: boolean;
     correct_index: number;
     explanation?: string;
+    attempt_number?: number;
+    retry_available_at?: string | null;
     progress: LearnProgress;
     summary: LearnSummary;
     module_quiz_done: boolean;
