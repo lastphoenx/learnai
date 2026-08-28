@@ -15,10 +15,13 @@ import {
   type LearnState,
   type SttProvider,
   type TrainerBasiswissenSection,
+  type TrainerPracticeItem,
 } from "@/lib/api";
 import { CardInputExercise } from "@/components/learn/CardInputExercise";
 import { ClozeExercise } from "@/components/learn/ClozeExercise";
+import { DrawingCanvas } from "@/components/learn/DrawingCanvas";
 import { KnowledgeConceptPanel } from "@/components/learn/KnowledgeConceptPanel";
+import { LabelDiagramExercise } from "@/components/learn/LabelDiagramExercise";
 import { JumpStrip } from "@/components/learn/JumpStrip";
 import { QuizWeaknessPanel } from "@/components/QuizWeaknessPanel";
 import { PracticeExercise } from "@/components/learn/PracticeExercise";
@@ -233,8 +236,7 @@ export function InteractiveTrainer({
   const practiceExercises = useMemo(
     () =>
       (state.modules || []).flatMap((mod) => {
-        const items = (mod.content as { practice?: { prompt: string; hint?: string; answer_type?: string }[] })
-          ?.practice;
+        const items = (mod.content as { practice?: TrainerPracticeItem[] })?.practice;
         return (items || []).map((exercise, exerciseIndex) => ({
           ...exercise,
           module_id: mod.id,
@@ -1182,6 +1184,63 @@ export function InteractiveTrainer({
                 itemTitle={(i) => `Aufgabe ${i + 1}`}
                 onSelect={goToPractice}
               />
+              <p className="learn-quiz-question">{currentPractice.prompt}</p>
+              {currentPractice.hint && !practiceResult && (
+                <p className="muted practice-hint">Tipp: {currentPractice.hint}</p>
+              )}
+              {currentPractice.answer_type === "label_diagram" && currentPractice.diagram ? (
+                <LabelDiagramExercise
+                  key={`${currentPractice.module_id}:${currentPractice.exercise_index}`}
+                  diagram={currentPractice.diagram}
+                  busy={busy}
+                  result={practiceResult}
+                  onSubmit={async (answer) => {
+                    setBusy(true);
+                    setError(null);
+                    try {
+                      const res = await submitPracticeAnswer(unitId, {
+                        module_id: currentPractice.module_id,
+                        exercise_index: currentPractice.exercise_index,
+                        answer,
+                      });
+                      onStateChange({ ...state, progress: res.progress, summary: res.summary });
+                      setPracticeResult({
+                        correct: res.correct,
+                        hint: res.hint,
+                        expected: res.expected,
+                      });
+                    } catch (err) {
+                      setError(err instanceof Error ? err.message : "Antwort fehlgeschlagen");
+                    } finally {
+                      setBusy(false);
+                    }
+                  }}
+                />
+              ) : currentPractice.answer_type === "drawing" && currentPractice.drawing ? (
+                <DrawingCanvas
+                  key={`${currentPractice.module_id}:${currentPractice.exercise_index}`}
+                  config={currentPractice.drawing}
+                  busy={busy}
+                  completed={Boolean(practiceResult?.correct)}
+                  onComplete={async () => {
+                    setBusy(true);
+                    setError(null);
+                    try {
+                      const res = await submitPracticeAnswer(unitId, {
+                        module_id: currentPractice.module_id,
+                        exercise_index: currentPractice.exercise_index,
+                        answer: "complete",
+                      });
+                      onStateChange({ ...state, progress: res.progress, summary: res.summary });
+                      setPracticeResult({ correct: res.correct, hint: res.hint, expected: res.expected });
+                    } catch (err) {
+                      setError(err instanceof Error ? err.message : "Antwort fehlgeschlagen");
+                    } finally {
+                      setBusy(false);
+                    }
+                  }}
+                />
+              ) : (
               <PracticeExercise
                 key={`${currentPractice.module_id}:${currentPractice.exercise_index}`}
                 exercise={currentPractice}
@@ -1218,6 +1277,7 @@ export function InteractiveTrainer({
                   }
                 }}
               />
+              )}
             </div>
           )}
 
