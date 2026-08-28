@@ -7,8 +7,9 @@ import uuid
 from typing import Any
 
 from app.core.answer_match import infer_answer_type
+from app.core.focus_groups import normalize_focus_group
 from app.core.basiswissen_profiles import FOCUS_GROUP_PROMPTS, ROLE_LABELS_DE
-from app.core.label_diagram import derive_drawing_practice_item, derive_label_practice_items
+from app.core.practice_derive import derive_practice_items
 
 SCHEMA_VERSION = 1
 _CLOZE_MARKERS = ("___", "…", "...")
@@ -107,6 +108,7 @@ def parse_basiswissen_payload(parsed: dict[str, Any], *, focus_group: str) -> di
     if not isinstance(raw, dict):
         raw = parsed
     group = str(raw.get("focus_group") or focus_group or "general").strip().lower()[:24]
+    group = normalize_focus_group(group)
     concepts: list[dict[str, Any]] = []
     for index, item in enumerate(raw.get("concepts") or []):
         concept = _parse_concept(item, index=index)
@@ -407,7 +409,8 @@ def strip_basiswissen_derivatives(
     practice = [
         item
         for item in (content.get("practice") or [])
-        if isinstance(item, dict) and str(item.get("source") or "").strip().lower() != "basiswissen"
+        if isinstance(item, dict)
+        and str(item.get("source") or "").strip().lower() not in {"basiswissen", "pedagogy"}
     ]
     content["cards"] = cards
     content["knowledge"] = knowledge
@@ -423,6 +426,7 @@ def enrich_module_with_basiswissen(
     basiswissen: dict[str, Any],
     question_count: int,
     category_label: str = "",
+    pedagogy: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     bw = basiswissen if isinstance(basiswissen, dict) else empty_basiswissen()
     content = dict(content)
@@ -445,10 +449,12 @@ def enrich_module_with_basiswissen(
     concept_qs = derive_concept_quiz_questions(bw, max_count=concept_max)
     quiz["questions"] = merge_concept_questions(questions, concept_qs)
     practice = list(content.get("practice") or [])
-    derived_practice = derive_label_practice_items(bw, category_label=category_label)
-    drawing_item = derive_drawing_practice_item(bw, category_label=category_label)
-    if drawing_item:
-        derived_practice.append(drawing_item)
+    derived_practice = derive_practice_items(
+        pedagogy=pedagogy if isinstance(pedagogy, dict) else {},
+        basiswissen=bw,
+        category_label=category_label,
+        focus_group=bw.get("focus_group"),
+    )
     if derived_practice:
         seen_prompts = {str(p.get("prompt") or "").strip().lower() for p in practice if isinstance(p, dict)}
         for item in derived_practice:

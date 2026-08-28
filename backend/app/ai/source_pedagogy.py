@@ -22,48 +22,15 @@ from app.core.pedagogy_labels import (
 _log = logging.getLogger(__name__)
 
 _PEDAGOGY_JSON_MARKER = "## PEDAGOGY_JSON"
-_MAX_DIGEST_CHARS = 2800
-# Erhöhen, wenn Vision-Prompt oder Parser-Filter sich ändern — alte analysis_encrypted
-# werden dann bei Generate und «Didaktik neu einlesen» erneut visiert.
-PEDAGOGY_ANALYSIS_VERSION = 2
+_MAX_DIGEST_CHARS = 8000
+# Erhöhen bei Schema-/Prompt-Änderungen — alte analysis_encrypted werden neu visiert.
+PEDAGOGY_ANALYSIS_VERSION = 3
 
 
-def vision_pedagogy_prompt(*, language: str) -> str:
-    lang = (language or "de").strip() or "de"
-    return (
-        "Das ist ein Foto aus einem Lernmittel (Schulbuch, Arbeitsblatt, Heft).\n"
-        "Antworte NUR mit gültigem JSON (kein Markdown, kein Fliesstext davor/danach).\n"
-        "Struktur (alle Werte aus dem Bild; leere Strings wenn nichts erkennbar):\n"
-        "{\n"
-        '  "summary": "",\n'
-        '  "is_metadata_only": false,\n'
-        '  "methods": [{"label":"","when":"","example":"","id":""}],\n'
-        '  "worked_examples": [{"problem":"","method_label":"","steps":[""]}],\n'
-        '  "exercises": [{"ref":"","text":"","suggested_method":""}],\n'
-        '  "exercise_patterns": [""],\n'
-        '  "teaching_notes": [""]\n'
-        "}\n"
-        "Feldbedeutung:\n"
-        "- summary: 2–6 Sätze zu Thema, Seiteninhalt und Lernzielen aus dem Material\n"
-        "- methods[].label (Pflicht wenn Methode sichtbar): Strategie-/Lösungsweg-Name exakt wie im Heft\n"
-        "- methods[].when (optional): ein Satz, wann diese Strategie passt — nur Inhalt aus dem Heft\n"
-        "- methods[].example (optional): kurzes Zahlen- oder Textbeispiel nur aus gedrucktem Lehrmittel-Inhalt — keine handschriftliche Nebenrechnung des Kindes\n"
-        "- methods[].id (optional): nur wenn im Material explizit genannt — nie erfinden\n"
-        "- worked_examples: vollständige Beispiel-Lösungswege mit Zwischenschritten und method_label aus dem Heft\n"
-        "- exercises: sichtbare Aufgaben mit Zahlen/Text; ref wie «Aufg. 5a» wenn vorhanden\n"
-        "- exercise_patterns: erkannte Aufgabentypen in den Worten des Materials (nicht erfinden)\n"
-        "- teaching_notes: konkrete didaktische Hinweise aus dem Material\n"
-        "Regeln:\n"
-        "- methods: alle im Bild gezeigten Lösungswege/Strategien — benenne sie so, wie das Material sie nennt.\n"
-        "- Keine Kapitel- oder Lernziel-Überschriften als methods[] — nicht «Du kannst …» / «Du kennst …», keine Sätze die auf «… lösen» / «… einsetzen» enden, keine Zeilen bei denen label und when denselben Text haben. Nur benannte Lösungswege (im Kopf, schriftlich, halbschriftlich).\n"
-        "- methods[].example nur aus gedrucktem Lehrmittel-Text/Rechnung — handschriftliche Einträge auf demselben Blatt ignorieren.\n"
-        "- worked_examples/exercises: nur gedruckte Aufgaben. Kind-Nebenrechnungen, Korrekturen, Kreise und durchgestrichene Zahlen ignorieren.\n"
-        "- Malpunkt (· oder ×) nie als Dezimalpunkt lesen: «4 · 60,2» ist 4 mal 60,2, nicht 4,602.\n"
-        "- KEINE Feld-Beschreibungen, Anweisungen oder Schema-Texte als Werte — nur echte Inhalte oder leere Strings.\n"
-        "- is_metadata_only=true nur bei Cover, ISBN, Verlagsinfo ohne Aufgaben.\n"
-        "- Bei Metadaten: methods/worked_examples/exercises leer lassen.\n"
-        f"- Sprache der Texte: {lang}.\n"
-    )
+def vision_pedagogy_prompt(*, language: str, focus_group: str | None = None) -> str:
+    from app.ai.prompts.pedagogy_vision import vision_pedagogy_prompt as _build
+
+    return _build(language=language, focus_group=focus_group)
 
 
 def encode_source_analysis(*, provider: str, model: str | None, pedagogy: dict[str, Any]) -> str:
@@ -322,11 +289,145 @@ def _usable_example_text(text: str) -> bool:
     return equation_is_arithmetically_ok(text) is not False
 
 
+def _usable_prose_text(text: str) -> bool:
+    if not text or is_competency_heading(text) or is_schema_placeholder(text):
+        return False
+    if _HANDWRITING_META.search(text):
+        return False
+    return True
+
+
+def _normalize_key_terms(raw: object) -> list[dict[str, str]]:
+    if not isinstance(raw, list):
+        return []
+    out: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        term = sanitize_pedagogy_field(str(item.get("term") or "").strip())
+        if not term:
+            continue
+        key = normalize_label(term)
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        entry: dict[str, str] = {"term": term[:80]}
+        definition = sanitize_pedagogy_field(str(item.get("definition") or "").strip())
+        role = sanitize_pedagogy_field(str(item.get("role") or "").strip())
+        if definition:
+            entry["definition"] = definition[:300]
+        if role:
+            entry["role"] = role[:60]
+        out.append(entry)
+    return out[:24]
+
+
+def _normalize_assignments(raw: object) -> list[dict[str, str]]:
+    if not isinstance(raw, list):
+        return []
+    out: list[dict[str, str]] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        instruction = sanitize_pedagogy_field(str(item.get("instruction") or "").strip())
+        if not instruction and item.get("text"):
+            instruction = sanitize_pedagogy_field(str(item.get("text") or "").strip())
+        if not instruction or not _usable_prose_text(instruction):
+            continue
+        ref = str(item.get("ref") or "").strip()
+        fmt = sanitize_pedagogy_field(str(item.get("format") or "").strip())
+        entry: dict[str, str] = {"instruction": instruction[:800]}
+        if ref:
+            entry["ref"] = ref[:40]
+        if fmt:
+            entry["format"] = fmt[:60]
+        out.append(entry)
+    return out[:12]
+
+
+def _normalize_comprehension(raw: object) -> list[dict[str, str]]:
+    if not isinstance(raw, list):
+        return []
+    out: list[dict[str, str]] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        question = sanitize_pedagogy_field(str(item.get("question") or "").strip())
+        answer = sanitize_pedagogy_field(str(item.get("answer") or "").strip())
+        if not question or not answer:
+            continue
+        out.append({"question": question[:300], "answer": answer[:300]})
+    return out[:8]
+
+
+def _normalize_visual_tasks(raw: object) -> list[dict[str, Any]]:
+    if not isinstance(raw, list):
+        return []
+    out: list[dict[str, Any]] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        kind = sanitize_pedagogy_field(str(item.get("kind") or "").strip())
+        instruction = sanitize_pedagogy_field(str(item.get("instruction") or "").strip())
+        if not kind and not instruction:
+            continue
+        entry: dict[str, Any] = {}
+        if kind:
+            entry["kind"] = kind[:40]
+        if instruction:
+            entry["instruction"] = instruction[:500]
+        terms = [
+            sanitize_pedagogy_field(str(t).strip())
+            for t in (item.get("terms") or [])
+            if str(t).strip()
+        ]
+        if terms:
+            entry["terms"] = terms[:12]
+        placements: list[dict[str, Any]] = []
+        for placement in item.get("placements") or []:
+            if not isinstance(placement, dict):
+                continue
+            term = sanitize_pedagogy_field(str(placement.get("term") or "").strip())
+            if not term:
+                continue
+            try:
+                x = float(placement.get("x", 0.5))
+                y = float(placement.get("y", 0.5))
+            except (TypeError, ValueError):
+                continue
+            placements.append({"term": term[:80], "x": x, "y": y})
+        if placements:
+            entry["placements"] = placements[:12]
+        out.append(entry)
+    return out[:8]
+
+
 def _normalize_pedagogy(parsed: dict[str, Any]) -> dict[str, Any]:
+    page_summary = sanitize_pedagogy_field(str(parsed.get("summary") or "").strip())
     methods = _normalize_methods(parsed.get("methods"))
     worked = _normalize_worked_examples(parsed.get("worked_examples"))
+    assignments = _normalize_assignments(parsed.get("assignments"))
     exercises = _normalize_exercises(parsed.get("exercises"))
+    if not assignments and exercises:
+        for ex in exercises:
+            if not isinstance(ex, dict):
+                continue
+            text = str(ex.get("text") or "").strip()
+            if text:
+                assignments.append(
+                    {
+                        "ref": str(ex.get("ref") or "")[:40],
+                        "instruction": text[:800],
+                        "format": "",
+                    }
+                )
     patterns = _normalize_string_list(parsed.get("exercise_patterns"))
+    formats = _normalize_string_list(parsed.get("exercise_formats"))
+    if formats:
+        for fmt in formats:
+            if fmt not in patterns:
+                patterns.append(fmt)
     teaching = [
         note
         for note in _normalize_string_list(parsed.get("teaching_notes"))
@@ -336,6 +437,12 @@ def _normalize_pedagogy(parsed: dict[str, Any]) -> dict[str, Any]:
 
     return {
         "is_metadata_only": is_meta,
+        "page_summary": page_summary[:1200],
+        "key_terms": _normalize_key_terms(parsed.get("key_terms")),
+        "assignments": assignments,
+        "exercise_formats": formats,
+        "comprehension": _normalize_comprehension(parsed.get("comprehension")),
+        "visual_tasks": _normalize_visual_tasks(parsed.get("visual_tasks")),
         "methods": methods,
         "worked_examples": worked,
         "exercises": exercises,
@@ -403,11 +510,15 @@ def _normalize_exercises(raw: object) -> list[dict[str, str]]:
         if not isinstance(item, dict):
             continue
         text = str(item.get("text") or "").strip()
-        if not text or not _usable_worked_problem(text):
+        if not text or not _usable_prose_text(text):
+            continue
+        if _lhs_missing_operator(text):
+            continue
+        if equation_is_arithmetically_ok(text) is False and _FULL_EQUATION.search(text):
             continue
         ref = str(item.get("ref") or "").strip()
         suggested = sanitize_pedagogy_field(str(item.get("suggested_method") or "").strip())
-        entry = {"text": text[:300]}
+        entry = {"text": text[:800]}
         if ref:
             entry["ref"] = ref[:40]
         if suggested:
@@ -428,7 +539,15 @@ def _normalize_string_list(raw: object) -> list[str]:
 
 
 def _fallback_summary(pedagogy: dict[str, Any]) -> str:
+    if pedagogy.get("page_summary"):
+        return str(pedagogy["page_summary"])
     parts: list[str] = []
+    for term in pedagogy.get("key_terms") or []:
+        if isinstance(term, dict) and term.get("term"):
+            parts.append(str(term["term"]))
+    for assignment in pedagogy.get("assignments") or []:
+        if isinstance(assignment, dict) and assignment.get("instruction"):
+            parts.append(str(assignment["instruction"]))
     for ex in pedagogy.get("exercises") or []:
         if isinstance(ex, dict) and ex.get("text"):
             parts.append(str(ex["text"]))
@@ -440,6 +559,12 @@ def _fallback_summary(pedagogy: dict[str, Any]) -> str:
 def merge_pedagogy_profiles(profiles: list[dict[str, Any]]) -> dict[str, Any]:
     merged: dict[str, Any] = {
         "is_metadata_only": True,
+        "page_summary": "",
+        "key_terms": [],
+        "assignments": [],
+        "exercise_formats": [],
+        "comprehension": [],
+        "visual_tasks": [],
         "methods": [],
         "worked_examples": [],
         "exercises": [],
@@ -448,9 +573,12 @@ def merge_pedagogy_profiles(profiles: list[dict[str, Any]]) -> dict[str, Any]:
     }
     seen_methods: set[str] = set()
     seen_patterns: set[str] = set()
+    seen_formats: set[str] = set()
     seen_notes: set[str] = set()
     seen_problems: set[str] = set()
     seen_exercises: set[str] = set()
+    seen_terms: set[str] = set()
+    seen_assignments: set[str] = set()
 
     for profile in profiles:
         if not profile:
@@ -459,6 +587,42 @@ def merge_pedagogy_profiles(profiles: list[dict[str, Any]]) -> dict[str, Any]:
         if profile.get("is_metadata_only") or not has_pedagogy_content(profile):
             continue
         merged["is_metadata_only"] = False
+
+        summary = str(profile.get("page_summary") or "").strip()
+        if summary and not merged.get("page_summary"):
+            merged["page_summary"] = summary
+
+        for term in profile.get("key_terms") or []:
+            if not isinstance(term, dict):
+                continue
+            key = normalize_label(term.get("term") or "")
+            if not key or key in seen_terms:
+                continue
+            seen_terms.add(key)
+            merged["key_terms"].append(term)
+
+        for assignment in profile.get("assignments") or []:
+            if not isinstance(assignment, dict):
+                continue
+            key = str(assignment.get("instruction") or "")
+            if not key or key in seen_assignments:
+                continue
+            seen_assignments.add(key)
+            merged["assignments"].append(assignment)
+
+        for fmt in profile.get("exercise_formats") or []:
+            text = str(fmt or "").strip()
+            if text and text not in seen_formats:
+                seen_formats.add(text)
+                merged["exercise_formats"].append(text)
+
+        for item in profile.get("comprehension") or []:
+            if isinstance(item, dict) and item.get("question"):
+                merged["comprehension"].append(item)
+
+        for task in profile.get("visual_tasks") or []:
+            if isinstance(task, dict) and (task.get("kind") or task.get("instruction")):
+                merged["visual_tasks"].append(task)
 
         for method in profile.get("methods") or []:
             if not isinstance(method, dict):
@@ -522,6 +686,33 @@ def build_pedagogy_digest(pedagogy: dict[str, Any] | None) -> str:
 
     lines: list[str] = ["Didaktik aus den hochgeladenen Quellen:"]
 
+    summary = str(profile.get("page_summary") or "").strip()
+    if summary:
+        lines.append(f"\nSeiteninhalt:\n{summary}")
+
+    key_terms = profile.get("key_terms") or []
+    if key_terms:
+        lines.append("\nFachbegriffe aus dem Material:")
+        for item in key_terms[:16]:
+            if not isinstance(item, dict):
+                continue
+            term = item.get("term") or ""
+            definition = item.get("definition") or ""
+            lines.append(f"- {term}: {definition}" if definition else f"- {term}")
+
+    assignments = profile.get("assignments") or []
+    if assignments:
+        lines.append("\nAufträge aus dem Heft:")
+        for item in assignments[:8]:
+            if not isinstance(item, dict):
+                continue
+            ref = item.get("ref")
+            instruction = item.get("instruction") or ""
+            fmt = item.get("format") or ""
+            prefix = f"{ref}: " if ref else ""
+            suffix = f" [{fmt}]" if fmt else ""
+            lines.append(f"- {prefix}{instruction}{suffix}")
+
     methods = profile.get("methods") or []
     if methods:
         lines.append("\nLösungswege / Strategien:")
@@ -577,7 +768,19 @@ def build_pedagogy_digest(pedagogy: dict[str, Any] | None) -> str:
 
 
 def has_pedagogy_content(profile: dict[str, Any]) -> bool:
-    for key in ("methods", "worked_examples", "exercises", "exercise_patterns", "teaching_notes"):
+    for key in (
+        "page_summary",
+        "key_terms",
+        "assignments",
+        "exercise_formats",
+        "comprehension",
+        "visual_tasks",
+        "methods",
+        "worked_examples",
+        "exercises",
+        "exercise_patterns",
+        "teaching_notes",
+    ):
         if profile.get(key):
             return True
     return False

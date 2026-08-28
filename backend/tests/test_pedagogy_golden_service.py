@@ -19,7 +19,7 @@ def test_list_pedagogy_golden_fixtures_has_bundled():
     assert "math_decimal" in names
     assert "deutsch_grammar" in names
     assert "language_vocab" in names
-    assert "mgu_geografie" in names
+    assert "nmg_geografie" in names
     assert all(row.get("ok") for row in fixtures)
 
 

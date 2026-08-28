@@ -652,6 +652,7 @@ def generate_interactive_modules(
             basiswissen=basiswissen,
             question_count=cat["questions"],
             category_label=cat["name"],
+            pedagogy=pedagogy_profile,
         )
 
         modules.append(
@@ -760,7 +761,8 @@ def backfill_basiswissen_for_unit(
     record = db.query(LearningRecord).filter(LearningRecord.unit_id == unit.id).first()
     recon = decrypt_json(record.reconstruction_encrypted) if record and record.reconstruction_encrypted else {}
     notes = _collect_source_notes(db, unit, prefs)
-    pedagogy_digest = build_pedagogy_digest(collect_pedagogy_from_unit_sources(unit.sources))
+    pedagogy_profile = collect_pedagogy_from_unit_sources(unit.sources)
+    pedagogy_digest = build_pedagogy_digest(pedagogy_profile)
     title = decrypt_text_master(unit.title_encrypted)
     brief = decrypt_text_master(unit.brief_encrypted) if unit.brief_encrypted else ""
     trainer_opts = get_trainer_options(recon if isinstance(recon, dict) else {})
@@ -822,6 +824,7 @@ def backfill_basiswissen_for_unit(
             basiswissen=basiswissen,
             question_count=max(question_count, 3),
             category_label=domain,
+            pedagogy=pedagogy_profile,
         )
         repaired = repair_generated_module({"content": content, "quiz": quiz_dict})
         content = repaired.get("content") if isinstance(repaired.get("content"), dict) else content

@@ -559,11 +559,20 @@ def _vision_extract_image_source(
         len(data),
     )
     t_vis = time.monotonic()
+    from app.ai.subject_focus import detect_focus_group
+
+    focus_group = detect_focus_group(
+        subject=unit.subject,
+        task_type=str(unit.task_type or ""),
+    )
     try:
         described = describe_image(
             image_bytes=data,
             mime=mime,
-            prompt=vision_pedagogy_prompt(language=unit.language or "de"),
+            prompt=vision_pedagogy_prompt(
+                language=unit.language or "de",
+                focus_group=focus_group,
+            ),
             provider=vision_name,
             model=vision_model,
         )

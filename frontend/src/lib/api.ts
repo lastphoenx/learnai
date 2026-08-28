@@ -360,8 +360,16 @@ export type UnitPedagogy = {
     methods_with_when?: number;
     worked_with_steps: number;
     pattern_count: number;
+    key_term_count?: number;
+    assignment_count?: number;
   };
   profile: {
+    page_summary?: string;
+    key_terms?: { term: string; definition?: string }[];
+    assignments?: { ref?: string; instruction: string; format?: string }[];
+    exercise_formats?: string[];
+    comprehension?: { question: string; answer_hint?: string }[];
+    visual_tasks?: { kind?: string; instruction?: string; terms?: string[] }[];
     methods?: { id?: string; label: string; when?: string; example?: string }[];
     worked_examples?: {
       problem: string;
