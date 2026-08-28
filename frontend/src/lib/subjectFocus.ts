@@ -43,19 +43,19 @@ export const FALLBACK_FOCUS_GROUPS: FocusGroup[] = [
     ],
   },
   {
-    id: "mgu",
-    label: "Mensch, Gesellschaft & Umwelt",
+    id: "nmg",
+    label: "NMG (Natur, Mensch, Gesellschaft)",
     options: [
-      { key: "mgu_health", label: "Gesundheit & Körper" },
-      { key: "mgu_nutrition", label: "Ernährung" },
-      { key: "mgu_family", label: "Familie & Beziehungen" },
-      { key: "mgu_economy", label: "Wirtschaft & Konsum" },
-      { key: "mgu_civics", label: "Politik & Demokratie" },
-      { key: "mgu_history", label: "Geschichte" },
-      { key: "mgu_geography", label: "Geografie (CH, Europa, Welt)" },
-      { key: "mgu_environment", label: "Umwelt & Nachhaltigkeit" },
-      { key: "mgu_media", label: "Medien & Information" },
-      { key: "mgu_culture", label: "Kultur & Religion" },
+      { key: "nmg_nature", label: "Natur & Umwelt" },
+      { key: "nmg_health", label: "Gesundheit & Körper" },
+      { key: "nmg_nutrition", label: "Ernährung" },
+      { key: "nmg_family", label: "Familie & Beziehungen" },
+      { key: "nmg_economy", label: "Wirtschaft & Konsum" },
+      { key: "nmg_civics", label: "Politik & Demokratie" },
+      { key: "nmg_history", label: "Geschichte" },
+      { key: "nmg_geography", label: "Geografie (CH, Europa, Welt)" },
+      { key: "nmg_media", label: "Medien & Information" },
+      { key: "nmg_culture", label: "Kultur & Religion" },
     ],
   },
   {
@@ -90,7 +90,7 @@ export function detectFocusGroup(subject: string, taskType: string): string | nu
   if (/mathe|math|rechnen|arith/.test(text)) return "math";
   if (/franz|engl|ital|fremdsprach|sprach|langue|english|french|vocab/.test(text)) return "language";
   if (/deutsch(?!\s*als\s*fremd)/.test(text) || text.trim() === "de") return "german";
-  if (/mensch|gesellschaft|umwelt|\bmgu\b|räume.*zeit|rzg/.test(text)) return "mgu";
+  if (/\bnmg\b|natur.*mensch.*gesellschaft|mensch|gesellschaft|umwelt|\bmgu\b|räume.*zeit|rzg/.test(text)) return "nmg";
   if (/natur.*technik|\bn&t\b|biologie|physik|chemie/.test(text)) return "nature";
   return null;
 }
@@ -105,7 +105,8 @@ export function focusOptionsForGroup(
   groups: FocusGroup[] = FALLBACK_FOCUS_GROUPS,
 ): FocusOption[] {
   if (!groupId) return [];
-  return groups.find((g) => g.id === groupId)?.options ?? [];
+  const canonical = groupId === "mgu" ? "nmg" : groupId;
+  return groups.find((g) => g.id === canonical)?.options ?? [];
 }
 
 export function focusLabel(
@@ -113,8 +114,9 @@ export function focusLabel(
   groups: FocusGroup[] = FALLBACK_FOCUS_GROUPS,
 ): string | null {
   if (!key) return null;
+  const normalized = key.startsWith("mgu_") ? `nmg_${key.slice(4)}` : key;
   for (const group of groups) {
-    const hit = group.options.find((o) => o.key === key);
+    const hit = group.options.find((o) => o.key === normalized || o.key === key);
     if (hit) return hit.label;
   }
   return key;
@@ -125,5 +127,6 @@ export function focusGroupLabel(
   groups: FocusGroup[] = FALLBACK_FOCUS_GROUPS,
 ): string | null {
   if (!groupId) return null;
-  return groups.find((g) => g.id === groupId)?.label ?? null;
+  const canonical = groupId === "mgu" ? "nmg" : groupId;
+  return groups.find((g) => g.id === canonical)?.label ?? null;
 }

@@ -52,8 +52,8 @@ const MATH_FOCUS_TITLES: Record<string, string> = {
 
 const LANGUAGE_BRIEF =
   "- Grammatik, Zeitformen oder Vokabeln wie im Schulstoff\n- Beispielsätze und typische Fehler aus dem Material";
-const MGU_BRIEF =
-  "- Themen aus MGU: Gesellschaft, Wirtschaft, Umwelt, Geschichte, Geografie\n- An das Schulheft und die Stufe orientieren";
+const NMG_BRIEF =
+  "- Themen aus NMG: Natur, Mensch, Gesellschaft — Geschichte, Geografie, Wirtschaft, Umwelt\n- An das Schulheft und die Stufe orientieren";
 const GERMAN_BRIEF =
   "- Rechtschreibung, Grammatik, Lesen oder Schreiben — je nach Schwerpunkt\n- Textsorten und Aufgaben wie im Heft";
 const NATURE_BRIEF =
@@ -61,7 +61,7 @@ const NATURE_BRIEF =
 
 function focusBriefLine(mathFocus: string): string {
   if (mathFocus.startsWith("lang_")) return LANGUAGE_BRIEF;
-  if (mathFocus.startsWith("mgu_")) return MGU_BRIEF;
+  if (mathFocus.startsWith("nmg_") || mathFocus.startsWith("mgu_")) return NMG_BRIEF;
   if (mathFocus.startsWith("de_")) return GERMAN_BRIEF;
   if (mathFocus.startsWith("nt_")) return NATURE_BRIEF;
   return MATH_FOCUS_BRIEF_LINES[mathFocus] || "- Konkrete Inhalte und Schwierigkeit beschreiben";

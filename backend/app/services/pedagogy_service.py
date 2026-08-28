@@ -24,7 +24,9 @@ from app.services.unit_service import _dec_source, _get_unit_or_404
 from app.services.user_service import get_user_settings
 
 
-def _pedagogy_quality(profile: dict) -> dict:
+def _pedagogy_quality(profile: dict, *, focus_group: str | None = None) -> dict:
+    from app.core.focus_groups import normalize_focus_group
+
     methods = profile.get("methods") or []
     worked = profile.get("worked_examples") or []
     worked_with_steps = sum(
@@ -40,9 +42,30 @@ def _pedagogy_quality(profile: dict) -> dict:
     patterns = profile.get("exercise_patterns") or []
     method_count = len(methods) if isinstance(methods, list) else 0
     pattern_count = len(patterns) if isinstance(patterns, list) else 0
+    key_terms = len(profile.get("key_terms") or [])
+    assignments = len(profile.get("assignments") or [])
+    group = normalize_focus_group(focus_group)
+
+    if group == "nmg":
+        if key_terms >= 4 and assignments >= 1:
+            level = "good"
+        elif key_terms >= 2 or assignments >= 1 or pattern_count >= 1:
+            level = "partial"
+        else:
+            level = "low"
+        return {
+            "level": level,
+            "method_count": method_count,
+            "methods_with_when": methods_with_when,
+            "worked_with_steps": worked_with_steps,
+            "pattern_count": pattern_count,
+            "key_term_count": key_terms,
+            "assignment_count": assignments,
+        }
+
     if method_count >= 2 and worked_with_steps >= 1 and methods_with_when >= 1:
         level = "good"
-    elif method_count >= 1 or pattern_count >= 1:
+    elif method_count >= 1 or pattern_count >= 1 or key_terms >= 2:
         level = "partial"
     else:
         level = "low"
@@ -52,6 +75,8 @@ def _pedagogy_quality(profile: dict) -> dict:
         "methods_with_when": methods_with_when,
         "worked_with_steps": worked_with_steps,
         "pattern_count": pattern_count,
+        "key_term_count": key_terms,
+        "assignment_count": assignments,
     }
 
 
@@ -172,13 +197,16 @@ def get_unit_pedagogy(db: Session, user: User, unit_id: uuid.UUID) -> dict:
                 "exercise_count": len(pedagogy.get("exercises") or []),
             }
         )
+    from app.ai.subject_focus import detect_focus_group
+
+    focus_group = detect_focus_group(subject=unit.subject, task_type=str(unit.task_type or ""))
     analysis_current = bool(analysis_blobs) and analysis_current_count == analysis_blobs
     has_pedagogy = has_pedagogy_content(profile)
     payload = {
         "has_pedagogy": has_pedagogy,
         "digest": build_pedagogy_digest(profile),
         "profile": profile,
-        "quality": _pedagogy_quality(profile),
+        "quality": _pedagogy_quality(profile, focus_group=focus_group),
         "sources": by_source,
         "source_count": len(unit.sources or []),
         "can_reread": can_reread,

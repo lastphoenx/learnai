@@ -126,7 +126,7 @@ def _read_fixture_meta(path: Path) -> dict:
     if not subject_group:
         row["ok"] = False
         row["error"] = (row.get("error") + " · " if row.get("error") else "") + (
-            "_meta.subject_group fehlt (math, language, mgu, german, nature)"
+            "_meta.subject_group fehlt (math, language, nmg, german, nature)"
         )
 
     return row
@@ -171,7 +171,7 @@ def pedagogy_golden_coverage(fixtures: list[dict] | None = None) -> dict:
 def build_pedagogy_golden_report(*, fixtures: list[dict], coverage: dict, passed: int, total: int) -> str:
     lines = [f"Golden Set: {passed}/{total} Fixtures bestanden"]
     if coverage.get("complete"):
-        lines.append("Fachgruppen: alle abgedeckt (math, language, mgu, german, nature)")
+        lines.append("Fachgruppen: alle abgedeckt (math, language, nmg, german, nature)")
     elif coverage.get("missing"):
         labels = ", ".join(row["label"] for row in coverage["missing"])
         lines.append(f"Fachgruppen ohne Fixture: {labels}")
