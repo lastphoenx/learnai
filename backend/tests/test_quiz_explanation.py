@@ -577,7 +577,10 @@ def test_division_72_by_80_has_derivation_not_recipe():
     assert explanation_is_weak("72 : 80 = 0,9", question)
     text = build_worked_solution(question, 0.9)
     assert text is not None
-    assert "Kürzen" in text or "Komma" in text
+    assert "Schritt 1" in text
+    assert "gemeinsamen Teiler" in text or "Endnullen" in text
+    assert "Komma" in text
+    assert "durch 8 kürzen:" not in text
     assert explanation_has_derivation(text, question)
 
 
