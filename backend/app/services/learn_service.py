@@ -208,7 +208,9 @@ def get_learn_state(db: Session, user: User, unit_id: uuid.UUID) -> dict:
         stats["learn"] = learn
         _save_stats(db, record, stats)
 
-    _backfill_answer_details(learn, modules)
+    if _backfill_answer_details(learn, modules):
+        stats["learn"] = learn
+        _save_stats(db, record, stats)
 
     unit_data = _dec_unit(unit, sources=False, modules=False)
     payload: dict = {
@@ -296,7 +298,9 @@ def _store_answer_details(
     }
 
 
-def _backfill_answer_details(learn: dict, modules: list[UnitModule]) -> None:
+def _backfill_answer_details(learn: dict, modules: list[UnitModule]) -> bool:
+    """Schreibt Erklärungen mit aktuellem Enricher neu. True wenn sich etwas geändert hat."""
+    changed = False
     for module in modules:
         mod_key = str(module.id)
         mod_prog = (learn.get("modules") or {}).get(mod_key)
@@ -315,6 +319,7 @@ def _backfill_answer_details(learn: dict, modules: list[UnitModule]) -> None:
             q = questions[i]
             if not isinstance(q, dict):
                 continue
+            previous = str((details.get(key) or {}).get("explanation") or "")
             correct_index = resolve_quiz_correct_index(q)
             is_correct = is_quiz_selection_correct(q, int(selected))
             _store_answer_details(
@@ -325,6 +330,26 @@ def _backfill_answer_details(learn: dict, modules: list[UnitModule]) -> None:
                 is_correct=is_correct,
                 correct_index=correct_index,
             )
+            shown = str((details.get(key) or {}).get("explanation") or "")
+            if shown != previous:
+                changed = True
+    return changed
+
+
+def refresh_stored_answer_details(
+    db: Session,
+    record: LearningRecord,
+    modules: list[UnitModule],
+) -> dict:
+    """Rechnet gespeicherte Quiz-Erklärungen mit dem aktuellen Enricher neu und persistiert sie."""
+    stats = _get_stats(record)
+    learn = stats.get("learn")
+    if not isinstance(learn, dict):
+        return {}
+    if _backfill_answer_details(learn, modules):
+        stats["learn"] = learn
+        _save_stats(db, record, stats)
+    return learn
 
 
 def submit_quiz_answer(
