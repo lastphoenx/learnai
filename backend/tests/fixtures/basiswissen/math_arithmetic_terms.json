@@ -1,0 +1,49 @@
+{
+  "basiswissen": {
+    "schema_version": 1,
+    "focus_group": "math",
+    "concepts": [
+      {
+        "id": "multiplication_terms",
+        "kind": "relation",
+        "label": "Multiplikation",
+        "parts": [
+          {"role": "factor", "term": "Faktor"},
+          {"role": "product", "term": "Produkt"}
+        ],
+        "pattern": "Faktor × Faktor = Produkt",
+        "example": "6 × 7 = 42",
+        "hint": "Beim Malnehmen heissen die beiden Zahlen Faktoren, das Ergebnis Produkt."
+      },
+      {
+        "id": "division_terms",
+        "kind": "relation",
+        "label": "Division",
+        "parts": [
+          {"role": "dividend", "term": "Dividend"},
+          {"role": "divisor", "term": "Divisor"},
+          {"role": "quotient", "term": "Quotient"}
+        ],
+        "pattern": "Dividend ÷ Divisor = Quotient",
+        "example": "72 ÷ 8 = 9",
+        "hint": "Beim Teilen heisst die Zahl, die geteilt wird, Dividend."
+      }
+    ],
+    "cloze_templates": [
+      {
+        "id": "mul_product",
+        "concept_id": "multiplication_terms",
+        "sentence": "Bei der Multiplikation heisst das Ergebnis ___.",
+        "answers": ["Produkt"],
+        "blank_roles": ["product"]
+      },
+      {
+        "id": "div_roles",
+        "concept_id": "division_terms",
+        "sentence": "___ ÷ Divisor = Quotient",
+        "answers": ["Dividend"],
+        "blank_roles": ["dividend"]
+      }
+    ]
+  }
+}

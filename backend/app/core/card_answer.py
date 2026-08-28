@@ -217,7 +217,10 @@ def grade_input_card(
     correct = result_correct and (worked_correct is not False)
     explanation = None
     if not result_correct:
-        explanation = build_worked_solution(question) or f"Lösung: {expected_answer}"
+        if kind in {"cloze", "short_text"}:
+            explanation = f"Richtige Antwort: {expected_answer.replace('|', ', ')}"
+        else:
+            explanation = build_worked_solution(question) or f"Lösung: {expected_answer}"
 
     return {
         "correct": correct,

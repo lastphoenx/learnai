@@ -1033,6 +1033,7 @@ def _interactive_trainer_payload(
     recon = decrypt_json(record.reconstruction_encrypted) if record.reconstruction_encrypted else {}
     knowledge: list[dict] = []
     knowledge_sections: list[dict] = []
+    basiswissen_sections: list[dict] = []
     cards: list[dict] = []
     total_questions = 0
     for module in modules:
@@ -1054,6 +1055,19 @@ def _interactive_trainer_payload(
                     "module_id": str(module.id),
                     "intro": str(content.get("intro") or "")[:500],
                     "items": section_items,
+                }
+            )
+        basiswissen = content.get("basiswissen")
+        if isinstance(basiswissen, dict) and (
+            basiswissen.get("concepts") or basiswissen.get("cloze_templates")
+        ):
+            basiswissen_sections.append(
+                {
+                    "domain": domain,
+                    "module_id": str(module.id),
+                    "focus_group": str(basiswissen.get("focus_group") or "general"),
+                    "concepts": basiswissen.get("concepts") or [],
+                    "cloze_templates": basiswissen.get("cloze_templates") or [],
                 }
             )
         for index, card in enumerate(content.get("cards") or []):
@@ -1092,6 +1106,7 @@ def _interactive_trainer_payload(
         "merk": sum(1 for c in cards if c.get("kind") == "merk"),
         "mental": sum(1 for c in cards if c.get("kind") in (None, "mental")),
         "input": sum(1 for c in cards if c.get("kind") == "input"),
+        "term": sum(1 for c in cards if c.get("card_role") in ("term", "cloze")),
     }
     stats_blob = _get_stats(record)
     learn_modules = (stats_blob.get("learn") or {}).get("modules") or {}
@@ -1118,6 +1133,7 @@ def _interactive_trainer_payload(
         "goals_progress": goals_progress,
         "knowledge": knowledge,
         "knowledge_sections": knowledge_sections,
+        "basiswissen_sections": basiswissen_sections,
         "cards": cards,
         "flashcard_progress": progress,
         "content_analysis": content_analysis,
@@ -1130,6 +1146,7 @@ def _interactive_trainer_payload(
             "merk_cards": card_kind_counts["merk"],
             "mental_cards": card_kind_counts["mental"],
             "input_cards": card_kind_counts["input"],
+            "term_cards": card_kind_counts["term"],
         },
     }
 

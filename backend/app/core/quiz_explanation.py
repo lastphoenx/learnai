@@ -1265,6 +1265,9 @@ def enrich_quiz_explanation(q: dict) -> str:
     original = collapse_duplicate_variants(str(q.get("explanation") or "").strip())
     q_type = str(q.get("question_type") or "").strip().lower()
 
+    if q_type == "concept":
+        return _clarify_step_separators(original or "Der Begriff passt zum beschriebenen Muster.")
+
     if q_type == "method":
         filled = complete_method_explanation(original, question, q)
         if explanation_is_weak(filled, question):

@@ -60,6 +60,19 @@ def text_answers_match(expected: str, user_answer: str) -> bool:
     return False
 
 
+def cloze_answers_match(expected: str, user_answer: str) -> bool:
+    """Mehrere Lücken: erwartete Antworten mit | getrennt, gleiche Reihenfolge."""
+    expected_parts = [p.strip() for p in str(expected or "").split("|") if p.strip()]
+    user_parts = [p.strip() for p in str(user_answer or "").split("|") if p.strip()]
+    if not expected_parts:
+        return text_answers_match(expected, user_answer)
+    if len(user_parts) != len(expected_parts):
+        if len(expected_parts) == 1:
+            return text_answers_match(expected_parts[0], user_answer)
+        return False
+    return all(text_answers_match(exp, usr) for exp, usr in zip(expected_parts, user_parts))
+
+
 def answers_match(expected: str, user_answer: str, *, answer_type: str | None = None) -> bool:
     kind = str(answer_type or "").strip().lower() or infer_answer_type(question="", answer=expected)
     if kind == "numeric":
@@ -67,4 +80,6 @@ def answers_match(expected: str, user_answer: str, *, answer_type: str | None = 
         usr_num = parse_quiz_numeric(user_answer)
         if exp_num is not None and usr_num is not None:
             return abs(exp_num - usr_num) < 1e-6
+    if kind == "cloze" and "|" in str(expected or ""):
+        return cloze_answers_match(expected, user_answer)
     return text_answers_match(expected, user_answer)

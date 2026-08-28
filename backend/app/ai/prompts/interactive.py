@@ -89,7 +89,7 @@ KNOWLEDGE_SYSTEM = (
     "Regeln:\n"
     "- Genau 4 bis 5 Einträge.\n"
     "- Abdeckung: Kernregel/Konzept, Schritt-für-Schritt-Vorgehen, konkretes Mini-Beispiel mit Rechenweg, "
-    "typischer Fehler oder Merksatz, optional Bezug zum Alltag.\n"
+    "typischer Fehler oder Merksatz, Fachbegriffe-Übersicht (wenn passend), optional Bezug zum Alltag.\n"
     "- Kurze Sätze, altersgerecht, verständlich — wie ein Mini-Tutorial, nicht wie eine Karteikarte.\n"
     "- Ergänze die Lernkarten didaktisch; wiederhole sie nicht wörtlich.\n"
     "- Keine Quiz-Spoiler, kein ISBN/Buchcover-Meta.\n"

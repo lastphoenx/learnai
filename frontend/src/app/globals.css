@@ -3175,3 +3175,66 @@ button.trainer-flashcard.flipped {
   font-size: 0.85rem;
   font-weight: 400;
 }
+
+.trainer-basiswissen-panel {
+  margin: 0.75rem 0 1rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--accent) 4%, var(--card));
+}
+
+.trainer-basiswissen-heading {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+}
+
+.trainer-concept-list {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.trainer-concept-card {
+  padding: 0.55rem 0.65rem;
+  border-radius: 0.55rem;
+  background: var(--bg-2);
+}
+
+.trainer-concept-pattern {
+  margin: 0.25rem 0 0;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.92rem;
+}
+
+.trainer-concept-example,
+.trainer-concept-hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.92rem;
+}
+
+.trainer-cloze-preview {
+  margin-top: 0.75rem;
+}
+
+.trainer-cloze-preview ul {
+  margin: 0.35rem 0 0;
+  padding-left: 1.2rem;
+}
+
+.cloze-question-line {
+  line-height: 2;
+}
+
+.cloze-inline-input {
+  display: inline-block;
+  min-width: 5.5rem;
+  max-width: 12rem;
+  margin: 0 0.2rem;
+  padding: 0.2rem 0.45rem;
+  border: 1px solid var(--border);
+  border-bottom: 2px solid var(--accent);
+  border-radius: 0.35rem;
+  background: var(--card);
+  font: inherit;
+  vertical-align: baseline;
+}
