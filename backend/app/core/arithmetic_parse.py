@@ -37,7 +37,7 @@ _PARSE_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
             re.I,
         ),
     ),
-    ("sub", re.compile(rf"({_NUM})\s*-\s*({_NUM})")),
+    ("sub", re.compile(rf"({_NUM})\s+-\s+({_NUM})")),
     (
         "sub",
         re.compile(
