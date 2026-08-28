@@ -111,6 +111,8 @@ def _strip_practice_answers(content: dict | None) -> dict | None:
                 "prompt": item.get("prompt", ""),
                 "hint": item.get("hint"),
                 "answer_type": item.get("answer_type") or "text",
+                "diagram": item.get("diagram"),
+                "drawing": item.get("drawing"),
             }
         )
     if practice:
@@ -605,9 +607,16 @@ def submit_practice_answer(
     item = items[exercise_index]
     answer_type = str(item.get("answer_type") or "text").strip().lower() or "text"
     expected = str(item.get("answer") or "").strip()
-    if not expected:
+    if not expected and answer_type != "drawing":
         raise UnitError("Übung ohne Lösung", "invalid_question")
-    is_correct = _practice_answers_match(answer_text, expected, answer_type)
+    if answer_type == "label_diagram":
+        from app.core.label_diagram import grade_label_diagram_answer
+
+        is_correct = grade_label_diagram_answer(expected, answer_text)
+    elif answer_type == "drawing":
+        is_correct = True
+    else:
+        is_correct = _practice_answers_match(answer_text, expected, answer_type)
 
     stats = _get_stats(record)
     learn = stats["learn"]
