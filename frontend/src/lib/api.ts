@@ -281,6 +281,35 @@ export type TrainerBasiswissenSection = {
   cloze_templates: TrainerBasiswissenCloze[];
 };
 
+export type TrainerLabelDiagramHotspot = {
+  id: string;
+  x: number;
+  y: number;
+  accept?: string[];
+};
+
+export type TrainerLabelDiagram = {
+  template: string;
+  title?: string;
+  instruction?: string;
+  hotspots: TrainerLabelDiagramHotspot[];
+  terms: string[];
+};
+
+export type TrainerDrawingConfig = {
+  background?: string;
+  terms?: string[];
+  title?: string;
+};
+
+export type TrainerPracticeItem = {
+  prompt: string;
+  hint?: string | null;
+  answer_type?: string;
+  diagram?: TrainerLabelDiagram;
+  drawing?: TrainerDrawingConfig;
+};
+
 export type TrainerContentAnalysis = {
   overview: string;
   quiz: {

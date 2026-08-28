@@ -651,6 +651,7 @@ def generate_interactive_modules(
             quiz=module_quiz,
             basiswissen=basiswissen,
             question_count=cat["questions"],
+            category_label=cat["name"],
         )
 
         modules.append(
@@ -820,6 +821,7 @@ def backfill_basiswissen_for_unit(
             quiz=quiz_dict,
             basiswissen=basiswissen,
             question_count=max(question_count, 3),
+            category_label=domain,
         )
         repaired = repair_generated_module({"content": content, "quiz": quiz_dict})
         content = repaired.get("content") if isinstance(repaired.get("content"), dict) else content

@@ -8,6 +8,7 @@ from typing import Any
 
 from app.core.answer_match import infer_answer_type
 from app.core.basiswissen_profiles import FOCUS_GROUP_PROMPTS, ROLE_LABELS_DE
+from app.core.label_diagram import derive_drawing_practice_item, derive_label_practice_items
 
 SCHEMA_VERSION = 1
 _CLOZE_MARKERS = ("___", "…", "...")
@@ -403,8 +404,14 @@ def strip_basiswissen_derivatives(
         for question in (quiz.get("questions") or [])
         if isinstance(question, dict) and str(question.get("question_type") or "") != "concept"
     ]
+    practice = [
+        item
+        for item in (content.get("practice") or [])
+        if isinstance(item, dict) and str(item.get("source") or "").strip().lower() != "basiswissen"
+    ]
     content["cards"] = cards
     content["knowledge"] = knowledge
+    content["practice"] = practice
     quiz["questions"] = questions
     return content, quiz
 
@@ -415,6 +422,7 @@ def enrich_module_with_basiswissen(
     quiz: dict[str, Any],
     basiswissen: dict[str, Any],
     question_count: int,
+    category_label: str = "",
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     bw = basiswissen if isinstance(basiswissen, dict) else empty_basiswissen()
     content = dict(content)
@@ -436,6 +444,19 @@ def enrich_module_with_basiswissen(
     concept_max = max(2, question_count // 3)
     concept_qs = derive_concept_quiz_questions(bw, max_count=concept_max)
     quiz["questions"] = merge_concept_questions(questions, concept_qs)
+    practice = list(content.get("practice") or [])
+    derived_practice = derive_label_practice_items(bw, category_label=category_label)
+    drawing_item = derive_drawing_practice_item(bw, category_label=category_label)
+    if drawing_item:
+        derived_practice.append(drawing_item)
+    if derived_practice:
+        seen_prompts = {str(p.get("prompt") or "").strip().lower() for p in practice if isinstance(p, dict)}
+        for item in derived_practice:
+            key = str(item.get("prompt") or "").strip().lower()
+            if key and key not in seen_prompts:
+                seen_prompts.add(key)
+                practice.append(item)
+        content["practice"] = practice
     return content, quiz
 
 

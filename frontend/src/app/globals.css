@@ -3238,3 +3238,96 @@ button.trainer-flashcard.flipped {
   font: inherit;
   vertical-align: baseline;
 }
+
+.label-diagram-exercise,
+.drawing-canvas-exercise {
+  gap: 0.75rem;
+}
+
+.label-diagram-stage {
+  position: relative;
+  width: 100%;
+  max-width: 42rem;
+  margin: 0 auto;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  overflow: hidden;
+  background: #e8f0fa;
+}
+
+.label-diagram-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.label-diagram-hotspot {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  min-width: 4.5rem;
+  max-width: 7rem;
+  padding: 0.2rem 0.45rem;
+  border: 2px dashed var(--accent);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--text);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.label-diagram-hotspot.ready {
+  border-style: solid;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
+}
+
+.label-diagram-hotspot.filled {
+  border-style: solid;
+  background: #dbeafe;
+}
+
+.label-diagram-terms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.label-diagram-term {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  background: var(--card);
+  font: inherit;
+  cursor: pointer;
+}
+
+.label-diagram-term.selected {
+  border-color: var(--accent);
+  background: #dbeafe;
+}
+
+.label-diagram-term.used {
+  opacity: 0.45;
+}
+
+.drawing-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.drawing-canvas-wrap {
+  width: 100%;
+  max-width: 45rem;
+  margin: 0 auto;
+}
+
+.drawing-canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: #fff;
+  cursor: crosshair;
+}
