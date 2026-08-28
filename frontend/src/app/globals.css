@@ -457,6 +457,20 @@ button:disabled {
   background: color-mix(in srgb, var(--accent) 18%, var(--card));
 }
 
+.learn-quiz-option.correct-retry,
+.learn-quiz-option.picked.correct-retry {
+  border-color: color-mix(in srgb, var(--danger) 50%, var(--accent));
+  background: color-mix(in srgb, var(--danger) 10%, var(--card));
+}
+
+.quiz-nav-jump.correct-retry,
+button.quiz-nav-jump.correct-retry,
+button.quiz-nav-jump.active.correct-retry {
+  border-color: color-mix(in srgb, var(--danger) 50%, var(--accent));
+  background: color-mix(in srgb, var(--danger) 14%, var(--card));
+  color: var(--text);
+}
+
 .learn-quiz-option.wrong {
   border-color: var(--danger);
   background: color-mix(in srgb, var(--danger) 12%, var(--card));

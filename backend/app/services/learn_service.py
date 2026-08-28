@@ -41,6 +41,8 @@ from app.core.pedagogy_labels import material_labels_from_methods
 from app.services.audit import log_event
 from app.services.exam_insights_service import exam_learning_entry_for_unit
 
+QUIZ_RETRY_COOLDOWN = timedelta(minutes=10)
+
 
 def _default_learn() -> dict:
     return {
@@ -280,6 +282,33 @@ def mark_text_read(db: Session, user: User, unit_id: uuid.UUID, module_id: uuid.
     return {"progress": learn, "summary": _progress_summary(stats, len(unit.modules))}
 
 
+def _utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _parse_retry_at(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _retry_available_at_iso(when: datetime | None = None) -> str:
+    base = when or _utc_now()
+    return (base + QUIZ_RETRY_COOLDOWN).isoformat()
+
+
+def _get_answer_detail(mod_prog: dict, question_index: int) -> dict | None:
+    details = mod_prog.get("answer_details") or {}
+    entry = details.get(str(question_index))
+    return entry if isinstance(entry, dict) else None
+
+
 def _store_answer_details(
     mod_prog: dict,
     *,
@@ -288,14 +317,24 @@ def _store_answer_details(
     selected: int,
     is_correct: bool,
     correct_index: int,
+    attempts: int = 1,
+    first_attempt_correct: bool | None = None,
+    retry_available_at: str | None = None,
 ) -> None:
     details = mod_prog.setdefault("answer_details", {})
-    details[str(question_index)] = {
+    if first_attempt_correct is None:
+        first_attempt_correct = bool(is_correct)
+    payload: dict[str, Any] = {
         "selected": int(selected),
         "correct": bool(is_correct),
         "correct_index": int(correct_index),
         "explanation": enrich_quiz_explanation(q),
+        "attempts": int(attempts),
+        "first_attempt_correct": bool(first_attempt_correct),
     }
+    if retry_available_at:
+        payload["retry_available_at"] = retry_available_at
+    details[str(question_index)] = payload
 
 
 def _backfill_answer_details(learn: dict, modules: list[UnitModule]) -> bool:
@@ -322,6 +361,14 @@ def _backfill_answer_details(learn: dict, modules: list[UnitModule]) -> bool:
             previous = str((details.get(key) or {}).get("explanation") or "")
             correct_index = resolve_quiz_correct_index(q)
             is_correct = is_quiz_selection_correct(q, int(selected))
+            existing = details.get(key) if isinstance(details.get(key), dict) else {}
+            attempts = int((existing or {}).get("attempts") or 1)
+            first_ok = (existing or {}).get("first_attempt_correct")
+            if first_ok is None:
+                first_ok = is_correct
+            retry_at = (existing or {}).get("retry_available_at")
+            if is_correct:
+                retry_at = None
             _store_answer_details(
                 mod_prog,
                 question_index=i,
@@ -329,6 +376,9 @@ def _backfill_answer_details(learn: dict, modules: list[UnitModule]) -> bool:
                 selected=int(selected),
                 is_correct=is_correct,
                 correct_index=correct_index,
+                attempts=attempts,
+                first_attempt_correct=bool(first_ok),
+                retry_available_at=retry_at,
             )
             shown = str((details.get(key) or {}).get("explanation") or "")
             if shown != previous:
@@ -378,6 +428,27 @@ def submit_quiz_answer(
         mod_key,
         {"text_read": True, "answers": [], "correct": 0, "total": 0, "done": False},
     )
+    existing = _get_answer_detail(mod_prog, question_index)
+    now = _utc_now()
+    if existing:
+        if existing.get("correct"):
+            raise UnitError("Frage bereits richtig beantwortet", "already_answered")
+        retry_at = _parse_retry_at(existing.get("retry_available_at"))
+        if retry_at and now < retry_at:
+            seconds = int((retry_at - now).total_seconds())
+            minutes = max(1, (seconds + 59) // 60)
+            raise UnitError(
+                f"Nächster Versuch in ca. {minutes} Min. möglich",
+                "retry_cooldown",
+            )
+        attempts = int(existing.get("attempts") or 1) + 1
+        first_attempt_correct = bool(existing.get("first_attempt_correct", False))
+    else:
+        attempts = 1
+        first_attempt_correct = is_correct
+
+    retry_available_at = None if is_correct else _retry_available_at_iso(now)
+
     answers: list[int | None] = mod_prog.setdefault("answers", [])
     while len(answers) <= question_index:
         answers.append(None)
@@ -393,6 +464,9 @@ def submit_quiz_answer(
         selected=selected,
         is_correct=is_correct,
         correct_index=correct_index,
+        attempts=attempts,
+        first_attempt_correct=first_attempt_correct,
+        retry_available_at=retry_available_at,
     )
     _recompute_quiz_stats(learn, unit.modules)
 
@@ -421,6 +495,8 @@ def submit_quiz_answer(
         "correct": is_correct,
         "correct_index": correct_index,
         "explanation": enrich_quiz_explanation(q),
+        "attempt_number": attempts,
+        "retry_available_at": retry_available_at,
         "progress": learn,
         "summary": _progress_summary(stats, len(unit.modules)),
         "module_quiz_done": all_answered,
