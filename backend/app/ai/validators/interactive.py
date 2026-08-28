@@ -77,6 +77,9 @@ def _validate_quiz_item(q: dict, q_index: int, area_index: int) -> None:
                     "bad_json",
                 )
     parse_quiz_answer(q, label=label)
+    q_type = str(q.get("question_type") or "calculation").strip().lower()
+    if q_type == "concept":
+        return
     expected = resolve_quiz_expected_value(q)
     if expected is not None:
         answer_idx = int(q.get("answer", -1))

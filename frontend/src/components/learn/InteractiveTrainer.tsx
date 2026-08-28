@@ -14,8 +14,11 @@ import {
   type GoalsProgressBlock,
   type LearnState,
   type SttProvider,
+  type TrainerBasiswissenSection,
 } from "@/lib/api";
 import { CardInputExercise } from "@/components/learn/CardInputExercise";
+import { ClozeExercise } from "@/components/learn/ClozeExercise";
+import { KnowledgeConceptPanel } from "@/components/learn/KnowledgeConceptPanel";
 import { JumpStrip } from "@/components/learn/JumpStrip";
 import { QuizWeaknessPanel } from "@/components/QuizWeaknessPanel";
 import { PracticeExercise } from "@/components/learn/PracticeExercise";
@@ -46,7 +49,13 @@ import {
   quizQuestionKey,
 } from "@/lib/quizNav";
 
-type CardFilter = "due" | "all" | "merk" | "mental" | "input" | "practice";
+type CardFilter = "due" | "all" | "merk" | "mental" | "input" | "terms" | "practice";
+
+function isTermCard(card: { card_role?: string; answer_type?: string; source?: string }): boolean {
+  if (card.card_role === "term" || card.card_role === "cloze") return true;
+  if (card.source === "basiswissen") return true;
+  return card.answer_type === "cloze" || card.answer_type === "short_text";
+}
 
 function cardKind(card: { kind?: string }): string {
   return card.kind || "mental";
@@ -211,6 +220,8 @@ export function InteractiveTrainer({
       );
     } else if (cardFilter === "merk" || cardFilter === "mental" || cardFilter === "input") {
       list = list.filter((card) => cardKind(card) === cardFilter);
+    } else if (cardFilter === "terms") {
+      list = list.filter((card) => isTermCard(card));
     }
     return list;
   }, [cards, cardFilter, progress]);
@@ -337,6 +348,14 @@ export function InteractiveTrainer({
     if (isQuizAnswered(learnProgress, currentQuestion)) return false;
     return hasOtherOpenQuizQuestions(activeQuestions, learnProgress, quizIndex);
   }, [currentQuestion, quizChallenge, quizWeakOnly, quizRetryMode, learnProgress, activeQuestions, quizIndex]);
+
+  const basiswissenByModule = useMemo(() => {
+    const map = new Map<string, TrainerBasiswissenSection>();
+    for (const section of trainer?.basiswissen_sections || []) {
+      map.set(section.module_id, section);
+    }
+    return map;
+  }, [trainer?.basiswissen_sections]);
 
   const knowledgeSections = useMemo(() => {
     const fromApi = trainer?.knowledge_sections;
@@ -1013,7 +1032,8 @@ export function InteractiveTrainer({
         <>
           <h2>Wissens-Hub</h2>
           <p className="muted trainer-knowledge-intro">
-            Schritt 1 — Verstehen: Regeln, Rechenwege und typische Fehler pro Thema. Danach startest du den Check.
+            Schritt 1 — Verstehen: Regeln, Fachbegriffe und typische Prüfungsformulierungen pro Thema.
+            Danach startest du den Check.
           </p>
           {knowledgeSections.length === 0 ? (
             <p className="muted">Noch kein Kernwissen vorhanden.</p>
@@ -1032,6 +1052,16 @@ export function InteractiveTrainer({
                     </span>
                   </summary>
                   {section.intro && <p className="trainer-knowledge-intro-block">{section.intro}</p>}
+                  <KnowledgeConceptPanel
+                    section={
+                      basiswissenByModule.get(section.module_id) || {
+                        domain: section.domain,
+                        module_id: section.module_id,
+                        concepts: [],
+                        cloze_templates: [],
+                      }
+                    }
+                  />
                   <ol className="trainer-knowledge-points">
                     {section.items.map((item, i) => (
                       <li key={`${section.module_id}-${i}`}>
@@ -1078,6 +1108,16 @@ export function InteractiveTrainer({
               onClick={() => setCardFilter("mental")}
             >
               Kurz ({stats.mental_cards ?? stats.card_count})
+            </button>
+            <button
+              type="button"
+              className={cardFilter === "terms" ? "trainer-tab active" : "trainer-tab"}
+              onClick={() => {
+                setCardFilter("terms");
+                setTab("cards");
+              }}
+            >
+              Fachbegriffe ({stats?.term_cards ?? 0})
             </button>
             <button
               type="button"
@@ -1253,6 +1293,62 @@ export function InteractiveTrainer({
 
               {cardKind(currentCard) === "input" ? (
                 <>
+                {currentCard.answer_type === "cloze" || currentCard.question.includes("___") ? (
+                  <ClozeExercise
+                    key={currentCard.card_key}
+                    question={currentCard.question}
+                    language={state.unit.language || "de"}
+                    sttProvider={sttProvider}
+                    profileId={state.unit.profile_id || undefined}
+                    busy={busy}
+                    result={cardInputResult}
+                    onSpeechError={setError}
+                    onSubmit={async (answer) => {
+                      setBusy(true);
+                      setError(null);
+                      try {
+                        const res = await submitCardInputAnswer(unitId, {
+                          module_id: currentCard.module_id,
+                          card_index: currentCard.card_index,
+                          answer,
+                        });
+                        onStateChange({
+                          ...state,
+                          progress: res.progress,
+                          summary: res.summary,
+                          trainer: state.trainer
+                            ? {
+                                ...state.trainer,
+                                flashcard_progress: res.flashcard_progress || {
+                                  ...state.trainer.flashcard_progress,
+                                  [res.card_key]: {
+                                    ...(state.trainer.flashcard_progress[res.card_key] || {
+                                      status: res.correct ? "known" : "review",
+                                      attempts: 1,
+                                    }),
+                                    status: res.correct ? "known" : "review",
+                                    due: !res.correct,
+                                  },
+                                },
+                              }
+                            : state.trainer,
+                        });
+                        setCardInputResult({
+                          correct: res.correct,
+                          result_correct: res.result_correct,
+                          worked_correct: res.worked_correct,
+                          worked_feedback: res.worked_feedback,
+                          explanation: res.explanation,
+                          expected: res.expected,
+                        });
+                      } catch (err) {
+                        setError(err instanceof Error ? err.message : "Antwort fehlgeschlagen");
+                      } finally {
+                        setBusy(false);
+                      }
+                    }}
+                  />
+                ) : (
                 <CardInputExercise
                   key={currentCard.card_key}
                   question={currentCard.question}
@@ -1309,6 +1405,7 @@ export function InteractiveTrainer({
                     }
                   }}
                 />
+                )}
                 <p className="trainer-shortcuts muted">← → = weiter · S = später</p>
                 </>
               ) : (

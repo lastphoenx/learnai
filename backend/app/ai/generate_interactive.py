@@ -13,6 +13,7 @@ from app.ai.catalog import resolve_task_ai
 from app.ai.errors import LlmError
 from app.ai.generate import _collect_source_notes, _save_generated_modules
 from app.core.quiz_numeric import repair_quiz_block
+from app.ai.prompts.basiswissen import BASISWISSEN_SYSTEM, build_basiswissen_prompt
 from app.ai.prompts.interactive import (
     CARDS_SYSTEM,
     KNOWLEDGE_SYSTEM,
@@ -35,6 +36,13 @@ from app.ai.validators.interactive import (
     validate_interactive_modules,
 )
 from app.core.crypto import decrypt_text_master
+from app.core.basiswissen import (
+    empty_basiswissen,
+    enrich_module_with_basiswissen,
+    parse_basiswissen_payload,
+    strip_basiswissen_derivatives,
+    validate_basiswissen,
+)
 from app.core.answer_match import infer_answer_type
 from app.core.method_taxonomy import classify_method, normalize_method_id
 from app.core.pedagogy_validation import enforce_label_coverage, log_pedagogy_coverage_warnings
@@ -81,8 +89,15 @@ def _parse_plan(text: str) -> list[dict]:
     return out
 
 
-def _split_card_kinds(total: int, *, math_focus: str | None = None) -> tuple[int, int, int]:
-    if math_focus:
+def _split_card_kinds(
+    total: int,
+    *,
+    math_focus: str | None = None,
+    focus_group: str | None = None,
+) -> tuple[int, int, int]:
+    if focus_group and focus_group != "math":
+        merk_ratio, mental_ratio = 0.35, 0.15
+    elif math_focus:
         merk_ratio, mental_ratio = 0.3, 0.3
     else:
         merk_ratio, mental_ratio = 0.45, 0.1
@@ -104,10 +119,15 @@ def _normalize_plan_counts(
     card_target: int,
     question_target: int,
     math_focus: str | None = None,
+    focus_group: str | None = None,
 ) -> list[dict]:
     card_parts = _distribute(card_target, len(categories))
     question_parts = _distribute(question_target, len(categories))
-    merk_total, mental_total, input_total = _split_card_kinds(card_target, math_focus=math_focus)
+    merk_total, mental_total, input_total = _split_card_kinds(
+        card_target,
+        math_focus=math_focus,
+        focus_group=focus_group,
+    )
     merk_parts = _distribute(merk_total, len(categories))
     mental_parts = _distribute(mental_total, len(categories))
     input_parts = _distribute(input_total, len(categories))
@@ -287,6 +307,53 @@ def _generate_knowledge(
         return [{"title": "Überblick", "text": focus[:900]}]
 
 
+def _generate_basiswissen(
+    *,
+    batch_context: str,
+    cat: dict,
+    knowledge: list[dict],
+    cards: list[dict],
+    provider: str,
+    model: str | None,
+    index: int,
+    focus_group: str,
+) -> dict:
+    card_summaries = [f"{c['question']} → {c['answer'][:80]}" for c in cards[:8]]
+    prompt = build_basiswissen_prompt(
+        context=batch_context,
+        category_name=cat["name"],
+        category_focus=cat.get("focus") or "",
+        focus_group=focus_group,
+        knowledge_items=knowledge,
+        card_summaries=card_summaries,
+    )
+    try:
+        result = _complete_with_retry(
+            prompt=prompt,
+            provider=provider,
+            system=BASISWISSEN_SYSTEM,
+            model=model,
+            num_predict=4096,
+            label=f"basiswissen_{index + 1}",
+        )
+        parsed = parse_json_object(result["text"])
+        basiswissen = parse_basiswissen_payload(parsed, focus_group=focus_group)
+        for warning in validate_basiswissen(basiswissen):
+            _log.warning(
+                "generate_interactive basiswissen_warning category=%s %s",
+                cat["name"],
+                warning,
+            )
+        return basiswissen
+    except LlmError as exc:
+        _log.warning(
+            "generate_interactive basiswissen_fallback category=%s code=%s",
+            cat["name"],
+            exc.code,
+        )
+        return empty_basiswissen(focus_group=focus_group)
+
+
 def _parse_questions(text: str, expected: int) -> list[dict]:
     parsed = parse_json_object(text)
     questions = parsed.get("questions")
@@ -307,7 +374,7 @@ def _parse_questions(text: str, expected: int) -> list[dict]:
                 "explanation": str(raw.get("explanation") or "")[:1200],
             }
             q_type = str(raw.get("question_type") or "").strip().lower()
-            if q_type in {"method", "calculation"}:
+            if q_type in {"method", "calculation", "concept"}:
                 item["question_type"] = q_type
             elif classify_method(str(raw.get("q") or "")) == "method_choice":
                 item["question_type"] = "method"
@@ -433,6 +500,13 @@ def generate_interactive_modules(
 
         math_focus_label = focus_label(str(math_focus))
 
+    from app.ai.subject_focus import detect_focus_group
+
+    focus_group = (
+        detect_focus_group(subject=unit.subject, task_type=str(unit.task_type or "interactive"))
+        or "general"
+    )
+
     context_prompt = build_interactive_plan_prompt(
         title=title,
         brief=brief,
@@ -465,6 +539,7 @@ def generate_interactive_modules(
         card_target=card_target,
         question_target=question_target,
         math_focus=math_focus,
+        focus_group=focus_group,
     )
     _log.info(
         "generate_interactive plan_done unit_id=%s categories=%d duration_ms=%d",
@@ -534,6 +609,17 @@ def generate_interactive_modules(
             index=index,
         )
 
+        basiswissen = _generate_basiswissen(
+            batch_context=batch_context,
+            cat=cat,
+            knowledge=knowledge,
+            cards=cards,
+            provider=name,
+            model=model,
+            index=index,
+            focus_group=focus_group,
+        )
+
         quiz_prompt = build_interactive_quiz_prompt(
             context=batch_context,
             category_name=cat["name"],
@@ -553,15 +639,25 @@ def generate_interactive_modules(
         questions = _parse_questions(quiz_result["text"], cat["questions"])
         all_quiz_questions.extend(q["q"] for q in questions)
 
+        module_content = {
+            "intro": cat["focus"] or "",
+            "knowledge": knowledge,
+            "cards": cards,
+            "basiswissen": basiswissen,
+        }
+        module_quiz = {"questions": questions}
+        module_content, module_quiz = enrich_module_with_basiswissen(
+            content=module_content,
+            quiz=module_quiz,
+            basiswissen=basiswissen,
+            question_count=cat["questions"],
+        )
+
         modules.append(
             {
                 "title": cat["name"],
-                "content": {
-                    "intro": cat["focus"] or "",
-                    "knowledge": knowledge,
-                    "cards": cards,
-                },
-                "quiz": {"questions": questions},
+                "content": module_content,
+                "quiz": module_quiz,
             }
         )
         _log.info(
@@ -631,3 +727,114 @@ def generate_interactive_modules(
     if progress:
         progress("done", cards=total_cards, questions=total_questions, modules=len(modules))
     return _dec_unit(unit)
+
+
+def backfill_basiswissen_for_unit(
+    db: Session,
+    user: User,
+    unit_id: uuid.UUID,
+    *,
+    provider: str | None = None,
+    force: bool = False,
+) -> dict:
+    """Ergänzt oder erneuert strukturiertes Basiswissen in bestehenden interaktiven Modulen."""
+    from app.ai.subject_focus import detect_focus_group
+    from app.core.solution_repair import repair_generated_module
+    from app.services.crypto_json import encrypt_json
+    from app.services.unit_service import UnitError
+
+    unit = _get_unit_or_404(db, user, unit_id)
+    if str(unit.task_type or "") != "interactive":
+        raise UnitError("Basiswissen nur für interaktive Lerneinheiten verfügbar.", "invalid_task")
+    if not unit.modules:
+        raise UnitError("Keine Module zum Ergänzen.", "no_modules")
+
+    prefs = resolve_prefs_for_profile(db, unit.profile_id) or get_user_settings(user)
+    name, model = resolve_provider(provider or prefs.get("ai_provider"))
+    focus_group = (
+        detect_focus_group(subject=unit.subject, task_type=str(unit.task_type or "interactive"))
+        or "general"
+    )
+
+    record = db.query(LearningRecord).filter(LearningRecord.unit_id == unit.id).first()
+    recon = decrypt_json(record.reconstruction_encrypted) if record and record.reconstruction_encrypted else {}
+    notes = _collect_source_notes(db, unit, prefs)
+    pedagogy_digest = build_pedagogy_digest(collect_pedagogy_from_unit_sources(unit.sources))
+    title = decrypt_text_master(unit.title_encrypted)
+    brief = decrypt_text_master(unit.brief_encrypted) if unit.brief_encrypted else ""
+    trainer_opts = get_trainer_options(recon if isinstance(recon, dict) else {})
+    context_prompt = build_interactive_plan_prompt(
+        title=title,
+        brief=brief,
+        subject=unit.subject,
+        math_focus=None,
+        language=unit.language,
+        target_age=unit.target_age,
+        difficulty=unit.difficulty,
+        style=str(trainer_opts.get("style") or "mixed"),
+        answer_length=str(trainer_opts.get("answer_length") or "short"),
+        notes=notes,
+        card_target=_MIN_CARDS,
+        question_target=_MIN_QUESTIONS,
+        pedagogy_digest=pedagogy_digest,
+    )
+    batch_context = truncate_context(context_prompt, pedagogy_digest=pedagogy_digest)
+
+    updated = 0
+    skipped = 0
+    for module in sorted(unit.modules, key=lambda m: m.order_index):
+        content = decrypt_json(module.content_encrypted) or {}
+        quiz = decrypt_json(module.quiz_encrypted) or {}
+        if not isinstance(content, dict):
+            skipped += 1
+            continue
+        existing = content.get("basiswissen")
+        if (
+            not force
+            and isinstance(existing, dict)
+            and (existing.get("concepts") or existing.get("cloze_templates"))
+        ):
+            skipped += 1
+            continue
+
+        quiz_dict = quiz if isinstance(quiz, dict) else {"questions": []}
+        content, quiz_dict = strip_basiswissen_derivatives(content, quiz_dict)
+        cards = [c for c in (content.get("cards") or []) if isinstance(c, dict)]
+        knowledge = [k for k in (content.get("knowledge") or []) if isinstance(k, dict)]
+        domain = decrypt_text_master(module.title_encrypted)
+        cat = {"name": domain, "focus": str(content.get("intro") or "")[:300]}
+        question_count = len(quiz_dict.get("questions") or [])
+
+        basiswissen = _generate_basiswissen(
+            batch_context=batch_context,
+            cat=cat,
+            knowledge=knowledge,
+            cards=cards,
+            provider=name,
+            model=model,
+            index=module.order_index,
+            focus_group=focus_group,
+        )
+        content, quiz_dict = enrich_module_with_basiswissen(
+            content=content,
+            quiz=quiz_dict,
+            basiswissen=basiswissen,
+            question_count=max(question_count, 3),
+        )
+        repaired = repair_generated_module({"content": content, "quiz": quiz_dict})
+        content = repaired.get("content") if isinstance(repaired.get("content"), dict) else content
+        quiz_dict = repair_quiz_block(repaired.get("quiz") if isinstance(repaired.get("quiz"), dict) else quiz_dict)
+        module.content_encrypted = encrypt_json(content)
+        module.quiz_encrypted = encrypt_json(quiz_dict)
+        updated += 1
+
+    if updated:
+        db.flush()
+    _log.info(
+        "backfill_basiswissen unit_id=%s updated=%d skipped=%d focus_group=%s",
+        unit_id,
+        updated,
+        skipped,
+        focus_group,
+    )
+    return {"updated_modules": updated, "skipped_modules": skipped, "focus_group": focus_group}

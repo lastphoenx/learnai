@@ -72,10 +72,23 @@ def enrich_knowledge_item(item: dict) -> dict:
     return out
 
 
+def _is_basiswissen_card(card: dict) -> bool:
+    if str(card.get("source") or "").strip().lower() == "basiswissen":
+        return True
+    role = str(card.get("card_role") or "").strip().lower()
+    if role in {"term", "cloze"}:
+        return True
+    if str(card.get("answer_type") or "").strip().lower() == "cloze":
+        return True
+    return False
+
+
 def enrich_card_answer(card: dict) -> str:
     """Merk/Mental: schwachen oder duplizierten Weg flicken. Input und Kurzresultat unverändert."""
     if not isinstance(card, dict):
         return ""
+    if _is_basiswissen_card(card):
+        return collapse_duplicate_variants(str(card.get("answer") or "").strip())
     question = str(card.get("question") or "")
     original = collapse_duplicate_variants(str(card.get("answer") or "").strip())
     kind = str(card.get("kind") or "").strip().lower()
@@ -132,7 +145,8 @@ def repair_generated_module(raw: dict) -> dict:
                 repaired_q.append(question)
                 continue
             item = dict(question)
-            item["explanation"] = enrich_quiz_explanation(item)
+            if str(item.get("question_type") or "").strip().lower() != "concept":
+                item["explanation"] = enrich_quiz_explanation(item)
             repaired_q.append(item)
         quiz["questions"] = repaired_q
 

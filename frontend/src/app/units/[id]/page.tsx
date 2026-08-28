@@ -28,6 +28,7 @@ import {
   fetchQuizWeaknesses,
   patchUnit,
   purgeSource,
+  regenerateBasiswissen,
   sourceFileUrl,
   speak,
   unitWorksheetPdfUrl,
@@ -111,6 +112,7 @@ export default function UnitDetailPage() {
   const [taskTypes, setTaskTypes] = useState<UnitTaskType[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [basiswissenBusy, setBasiswissenBusy] = useState(false);
   const [sourceUrl, setSourceUrl] = useState("");
   const [editOpen, setEditOpen] = useState(false);
   const [generateJob, setGenerateJob] = useState<GenerateJobStatus | null>(null);
@@ -273,6 +275,37 @@ export default function UnitDetailPage() {
       if (msg !== "Abgebrochen") setError(msg);
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function onRegenerateBasiswissen(force = false) {
+    const modules = unit?.modules || [];
+    if (!unit || unit.task_type !== "interactive" || modules.length < 1) return;
+    if (
+      force &&
+      !window.confirm(
+        "Vorhandenes Basiswissen wird ersetzt (Fachbegriffe, Lückentexte, abgeleitete Karten/Quiz). Fortfahren?",
+      )
+    ) {
+      return;
+    }
+    setBasiswissenBusy(true);
+    setError(null);
+    try {
+      const result = await regenerateBasiswissen(unitId, {
+        provider: unit.trainer_options?.llm_provider || undefined,
+        force,
+      });
+      await reload();
+      const msg =
+        result.updated_modules > 0
+          ? `Fachbegriffe ergänzt in ${result.updated_modules} Block/Blöcken (${result.focus_group}).`
+          : `Keine Änderung — ${result.skipped_modules} Block/Blöcke hatten schon Basiswissen.`;
+      window.alert(msg);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Basiswissen-Ergänzung fehlgeschlagen");
+    } finally {
+      setBasiswissenBusy(false);
     }
   }
 
@@ -862,6 +895,19 @@ export default function UnitDetailPage() {
                 </button>
               ) : null}
               </div>
+              {unit.task_type === "interactive" && moduleCount > 0 && (
+                <button
+                  type="button"
+                  className="action-tile"
+                  disabled={busy || basiswissenBusy}
+                  onClick={() => void onRegenerateBasiswissen(false)}
+                >
+                  <strong>{basiswissenBusy ? "Fachbegriffe werden ergänzt…" : "Fachbegriffe ergänzen"}</strong>
+                  <span className="muted">
+                    Strukturiertes Basiswissen, Lückentexte und Begriffs-Quiz — ohne Voll-Neuaufbereitung
+                  </span>
+                </button>
+              )}
               {user && !asChild && (
               <button
                 type="button"
