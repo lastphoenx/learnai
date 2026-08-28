@@ -19,6 +19,9 @@ services:
   redis:
     image: docker.io/library/redis:7-alpine
     restart: unless-stopped
+    ports:
+      # Ollama-Lock für SlitProjektHub (CT 136) — nur LAN, Firewall beachten
+      - "${PUBLISH_BIND:-192.168.131.45}:6379:6379"
 
   api:
     build:
@@ -48,7 +51,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    command: celery -A app.worker.celery_app worker --loglevel=info
+    command: celery -A app.worker.celery_app worker --loglevel=info --concurrency=1
     restart: unless-stopped
     extra_hosts:
       - "host.docker.internal:host-gateway"

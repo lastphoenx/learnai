@@ -233,6 +233,7 @@ class GenerateJobStatus(BaseModel):
     modules: int | None = None
     cards: int | None = None
     questions: int | None = None
+    ollama: dict | None = None
 
 
 class GenerateStartResponse(BaseModel):

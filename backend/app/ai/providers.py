@@ -271,6 +271,16 @@ def _ollama_vision(b64: str, prompt: str, model: str | None = None) -> LlmResult
 def _ollama_post(path: str, payload: dict, timeout: float | None = None) -> dict:
     if timeout is None:
         timeout = float(settings.ollama_chat_timeout_sec)
+    model = str(payload.get("model") or "").strip() or None
+    from app.core.ollama_coordination import ollama_inference_lock, resolve_lock_holder
+
+    with ollama_inference_lock(resolve_lock_holder(), model=model):
+        return _ollama_post_unlocked(path, payload, timeout=timeout)
+
+
+def _ollama_post_unlocked(path: str, payload: dict, timeout: float | None = None) -> dict:
+    if timeout is None:
+        timeout = float(settings.ollama_chat_timeout_sec)
     url = settings.ollama_url.rstrip("/") + path
     try:
         response = httpx.post(url, json=payload, timeout=timeout)

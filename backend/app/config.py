@@ -65,6 +65,14 @@ class Settings(BaseSettings):
     generate_rate_limit_per_user_hour: int = 10
     # Kein Redis-Update länger als das → Job gilt als hängend (Ollama-Call + Puffer)
     generate_stale_after_sec: int = 1020
+    # Clusterweiter Ollama-Mutex (LearnAI CT 135 + SlitProjektHub CT 136 via Redis)
+    ollama_lock_enabled: bool = True
+    ollama_lock_redis_url: str = ""
+    ollama_lock_app_name: str = "learnai"
+    ollama_lock_ttl_sec: int = 960
+    ollama_lock_wait_sec: int = 3600
+    ollama_lock_poll_sec: float = 2.0
+    ollama_lock_required: bool = True
 
     @property
     def cors_origin_list(self) -> list[str]:

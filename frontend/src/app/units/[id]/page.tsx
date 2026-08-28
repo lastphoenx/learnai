@@ -898,6 +898,10 @@ export default function UnitDetailPage() {
                       {generateJob?.message || "Bitte Tab offen lassen…"}
                       {typeof generateJob?.progress_pct === "number" ? ` (${generateJob.progress_pct}%)` : ""}
                     </span>
+                    {generateJob?.ollama?.message &&
+                    generateJob.ollama.message !== generateJob.message ? (
+                      <span className="muted generate-ollama-hint">{generateJob.ollama.message}</span>
+                    ) : null}
                   </div>
                 ) : (
                   <>
