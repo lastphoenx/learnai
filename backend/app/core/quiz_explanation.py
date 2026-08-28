@@ -516,13 +516,43 @@ def _quotient_step_text(numerator: float, divisor: int, result: float) -> str:
         zeros = {10: 1, 100: 2, 1000: 3}[divisor]
         stelle = "Stelle" if zeros == 1 else "Stellen"
         return (
-            f"{num_s} ÷ {divisor} = {res_s} "
-            f"(durch {divisor} teilen: Komma {zeros} {stelle} nach links)"
+            f"Jetzt rechnest du {num_s} ÷ {divisor}. "
+            f"Beim Teilen durch {divisor} verschiebst du das Komma um {zeros} {stelle} nach links — "
+            f"das ergibt {res_s}."
         )
     reihe = _reihe_label(divisor)
     if reihe:
-        return f"Aus der {reihe}: {num_s} ÷ {divisor} = {res_s}"
-    return f"{num_s} ÷ {divisor} = {res_s}"
+        return (
+            f"Aus der {reihe}: {num_s} ÷ {divisor} = {res_s}."
+        )
+    return f"Teile: {num_s} ÷ {divisor} = {res_s}."
+
+
+def _kuerzen_gcd_step_text(
+    a_int: int,
+    b_int: int,
+    g: int,
+    a2: int,
+    b2: int,
+    result: float,
+) -> str:
+    a_s, b_s = _fmt_num(float(a_int)), _fmt_num(float(b_int))
+    a2_s, b2_s = _fmt_num(float(a2)), _fmt_num(float(b2))
+    intro = (
+        f"Variante 1 (Kürzen): {a_s} ÷ {b_s}. "
+        f"Schritt 1 — Bruch kürzen: Zähler und Nenner haben den gemeinsamen Teiler {g}. "
+        f"Teile beide durch {g}: {a_s} ÷ {g} = {a2_s} und {b_s} ÷ {g} = {b2_s}. "
+        f"Die Aufgabe wird dadurch zu {a2_s} ÷ {b2_s}."
+    )
+    if b2 in _POW10_DIVISORS:
+        return f"{intro} Schritt 2 — {_quotient_step_text(float(a2), b2, result)}"
+    reihe = _reihe_label(b2)
+    if reihe:
+        return (
+            f"{intro} Schritt 2 — Einmaleins: {a2_s} ÷ {b2} kennst du aus der {reihe}. "
+            f"Das Ergebnis ist {_fmt_num(result)}."
+        )
+    return f"{intro} Schritt 2 — Teile: {a2_s} ÷ {b2} = {_fmt_num(result)}."
 
 
 def _split_trailing_tens(n: int) -> tuple[int, int]:
@@ -560,9 +590,10 @@ def _div_kuerzen_cancel_zeros(a: float, b: float, result: float) -> str | None:
     step = _quotient_step_text(float(a_reduced), b_reduced, float(quotient))
     zeros_word = "Null" if cancel == 1 else "Nullen"
     return (
-        f"Variante 1 (Kürzen): {_fmt_num(float(a_int))} ÷ {b_int} — "
-        f"{cancel} {zeros_word} streichen: {_fmt_num(float(a_reduced))} ÷ {b_reduced}. "
-        f"{step}."
+        f"Variante 1 (Kürzen): {_fmt_num(float(a_int))} ÷ {b_int}. "
+        f"Schritt 1 — Endnullen streichen: Bei beiden Zahlen kannst du {cancel} {zeros_word} "
+        f"am Ende weglassen. Dann steht {_fmt_num(float(a_reduced))} ÷ {b_reduced}. "
+        f"Schritt 2 — {step}"
     )
 
 
@@ -591,9 +622,10 @@ def _div_kuerzen_factor_power10(a: float, b: float, result: float) -> str | None
         )
     step = _quotient_step_text(mid, core_b, result)
     return (
-        f"Variante 2 (Zehnerpotenz): {b_int} = {core_b} × {power}. "
+        f"Variante 2 (Zehnerpotenz): {_fmt_num(a)} ÷ {b_int}. "
+        f"Schritt 1 — Divisor zerlegen: {b_int} = {core_b} × {power}. "
         f"Zuerst {shift}: {_fmt_num(a)} → {_fmt_num(mid)}. "
-        f"Dann {step}."
+        f"Schritt 2 — {step}"
     )
 
 
@@ -612,11 +644,7 @@ def _div_kuerzen_gcd(a: float, b: float, result: float) -> str | None:
         return None
     if not _near(a2 / b2, result):
         return None
-    extra = _quotient_step_text(float(a2), b2, result)
-    return (
-        f"Variante 1 (Kürzen): {_fmt_num(float(a_int))} ÷ {b_int} — "
-        f"durch {g} kürzen: {_fmt_num(float(a2))} ÷ {b2}. {extra}."
-    )
+    return _kuerzen_gcd_step_text(a_int, b_int, g, a2, b2, result)
 
 
 def _place_unit(decimals: int) -> str:
