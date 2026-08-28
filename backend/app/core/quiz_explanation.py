@@ -98,6 +98,11 @@ def _variant_chunks(text: str) -> list[str]:
     return [part.strip() for part in parts if part.strip()]
 
 
+def _text_has_variant_label(text: str) -> bool:
+    """True wenn irgendwo ein «Variante N»-Block steht, auch nach einer Ergebniszeile."""
+    return any(_VARIANT_HEAD.match(chunk) for chunk in _variant_chunks(text))
+
+
 def times_table_ok(n: int) -> bool:
     return TIMES_TABLE_MIN <= int(n) <= TIMES_TABLE_MAX
 
@@ -1138,7 +1143,7 @@ def _merge_explanations(primary: str, secondary: str, *, question: str) -> str:
     if p_variants == 1 and s_variants >= 2:
         alt = _extract_from_variant(secondary, 2)
         if alt:
-            if not _VARIANT_HEAD.match(primary):
+            if not _text_has_variant_label(primary):
                 return f"Variante 1 (Heft): {primary}\n\n{alt}"
             return f"{primary}\n\n{alt}"
 

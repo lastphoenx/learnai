@@ -440,7 +440,24 @@ def test_card_keeps_heft_when_result_precedes_variante():
     )
     assert "810 durch 9" in shown
     assert "90 : 10 = 9" in shown
-    assert "Kürzen" not in shown or "Aus dem Heft" in shown
+    assert shown.lower().count("variante 1") == 1
+    assert "Aus dem Heft" in shown
+
+
+def test_merge_does_not_double_variante_1_after_result_line():
+    from app.core.quiz_explanation import merge_worked_variants
+
+    primary = (
+        "810 : 90 = 9. Variante 1 (Aus dem Heft): Zuerst teile ich 810 durch 9, was 90 ergibt. "
+        "Da der Divisor 90 ist, dividiere ich das Ergebnis noch einmal durch 10: 90 : 10 = 9."
+    )
+    question = "Wie löse ich die Division 810 : 90?"
+    worked = build_worked_solution(question, 9.0)
+    assert worked
+    merged = merge_worked_variants(primary, worked, question=question)
+    assert merged.lower().count("variante 1") == 1
+    assert "Aus dem Heft" in merged
+    assert "810 durch 9" in merged
 
 
 def test_knowledge_scrubs_reihe_phrase_not_just_label():

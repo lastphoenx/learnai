@@ -12,7 +12,7 @@ from app.core.quiz_explanation import enrich_quiz_explanation, explanation_is_we
 from app.core.solution_repair import enrich_card_answer
 from app.models import LearningRecord, LearningUnit, User
 from app.services.crypto_json import decrypt_json
-from app.services.learn_service import learn_progress_for_unit
+from app.services.learn_service import learn_progress_for_unit, refresh_stored_answer_details
 from app.services.pedagogy_service import _pedagogy_quality
 from app.services.unit_reference_service import (
     UnitReferenceError,
@@ -141,10 +141,8 @@ def _progress_section(db: Session, unit: LearningUnit, record: LearningRecord) -
             f"- Status: {prog.get('status')} · {prog.get('percent', 0)}% · "
             f"Quiz {prog.get('quiz_correct', 0)}/{prog.get('quiz_total', 0)}"
         )
-    stats = decrypt_json(record.stats_encrypted) if record.stats_encrypted else {}
-    learn = stats.get("learn") if isinstance(stats, dict) else {}
-    if not isinstance(learn, dict):
-        return lines
+    modules = sorted(unit.modules or [], key=lambda m: m.order_index)
+    learn = refresh_stored_answer_details(db, record, modules)
     modules_stats = learn.get("modules") or {}
     if not modules_stats:
         lines.append("- Noch keine Modul-Antworten gespeichert.")
