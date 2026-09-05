@@ -33,7 +33,7 @@ def env_keys(monkeypatch):
     monkeypatch.setattr("app.core.crypto.encryption.settings", settings)
 
 
-def _user(email: str = "thomas@example.com", *, tenant_id: uuid.UUID | None = None) -> User:
+def _user(email: str = "max@example.com", *, tenant_id: uuid.UUID | None = None) -> User:
     return User(
         id=uuid.uuid4(),
         tenant_id=tenant_id or uuid.uuid4(),
@@ -47,10 +47,10 @@ def _user(email: str = "thomas@example.com", *, tenant_id: uuid.UUID | None = No
 
 def test_login_email_survives_display_name_update(env_keys):
     user = _user()
-    _write_login_email(user, "thomas@example.com")
-    _write_account_display_name(user, "user-a")
-    assert _login_email(user) == "thomas@example.com"
-    assert _account_display_name(user) == "user-a"
+    _write_login_email(user, "max@example.com")
+    _write_account_display_name(user, "Max")
+    assert _login_email(user) == "max@example.com"
+    assert _account_display_name(user) == "Max"
 
 
 def test_assign_login_email_requires_hash_match(env_keys):
