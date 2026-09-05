@@ -278,8 +278,10 @@ def test_vision_pedagogy_prompt_uses_empty_schema_values():
     assert "Kapitel-Überschriften" in prompt
     assert "Du kannst" in prompt
     assert "Du kennst" in prompt
-    assert "Malpunkt" in prompt
-    assert "4 · 60,2" in prompt
+
+    math_prompt = vision_pedagogy_prompt(language="de", focus_group="math")
+    assert "Malpunkt" in math_prompt
+    assert "Dezimalpunkt" in math_prompt
 
 
 def test_parse_pedagogy_strips_placeholder_method_label_from_worked_examples():
