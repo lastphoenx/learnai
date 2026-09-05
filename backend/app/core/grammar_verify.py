@@ -122,10 +122,7 @@ def repair_basiswissen_grammar(basiswissen: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(grammar, dict) or not parse_grammar_blanks(grammar.get("blanks")):
             templates.append(raw)
             continue
-        item = repair_german_cloze_template(raw)
-        ok, _reason = verify_german_cloze_template(item)
-        if ok:
-            templates.append(item)
+        templates.append(repair_german_cloze_template(raw))
     repaired["cloze_templates"] = templates
     return repaired
 

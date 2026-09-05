@@ -45,23 +45,26 @@ class CaseAnalysisResult:
 def _normalize_label(text: str) -> str:
     raw = unicodedata.normalize("NFKC", str(text or "")).strip().lower()
     raw = raw.replace("ä", "ae").replace("ö", "oe").replace("ü", "ue").replace("ß", "ss")
-    raw = re.sub(r"[^\w\s.]", " ", raw)
+    raw = re.sub(r"[^\w\s]", " ", raw)
     return re.sub(r"\s+", " ", raw).strip()
 
 
 def case_from_label(text: str) -> str | None:
     """Mappt «Akkusativ|Akk.» o. ä. auf nom|gen|dat|acc."""
-    first = str(text or "").split("|")[0].strip()
-    norm = _normalize_label(first)
-    if not norm:
+    parts = [p.strip() for p in str(text or "").split("|") if p.strip()]
+    if not parts:
         return None
-    direct = normalize_case(norm)
-    if direct:
-        return direct
-    for case, labels in _CASE_LABELS.items():
-        for label in labels:
-            if norm == label or norm.startswith(label + " ") or norm.endswith(" " + label):
-                return case
+    for part in parts:
+        norm = _normalize_label(part)
+        if not norm:
+            continue
+        direct = normalize_case(norm)
+        if direct:
+            return direct
+        for case, labels in _CASE_LABELS.items():
+            for label in labels:
+                if norm == label or norm.startswith(label + " ") or norm.endswith(" " + label):
+                    return case
     return None
 
 

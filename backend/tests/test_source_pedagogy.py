@@ -275,7 +275,7 @@ def test_vision_pedagogy_prompt_uses_empty_schema_values():
     assert "kurzes Beispiel mit Zahlen/Text aus dem Bild" not in prompt
     assert "Bezeichnung exakt wie im Heft" not in prompt.split("Feldbedeutung:")[0]
     assert "Handschrift" in prompt
-    assert "Lernziel-Überschriften" in prompt
+    assert "Kapitel-Überschriften" in prompt
     assert "Du kannst" in prompt
     assert "Du kennst" in prompt
     assert "Malpunkt" in prompt

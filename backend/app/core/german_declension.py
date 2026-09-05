@@ -218,12 +218,8 @@ def noun_declension_class(*, lemma: str, gender: Gender) -> str:
 
 
 def _needs_genitive_es(lemma: str) -> bool:
-    lower = _lemma_key(lemma)
-    if _GENITIVE_ES_ENDINGS.search(lower):
-        return True
-    # Einsilbig (grobe Heuristik): kein Binnen-Vokal nach Erstsilbe
-    vowels = sum(1 for ch in lower if ch in "aeiouyäöü")
-    return vowels <= 2 and " " not in lower
+    """+es nur nach s, ß, z, x, sch — sonst +s (Spiel → Spiels, nicht Spieles)."""
+    return bool(_GENITIVE_ES_ENDINGS.search(_lemma_key(lemma)))
 
 
 def _append_n_if_needed(stem: str) -> str:
@@ -233,10 +229,13 @@ def _append_n_if_needed(stem: str) -> str:
     return stem + "n"
 
 
-def _weak_noun_stem(lemma: str, *, case: Case, number: Number) -> str:
-    if number == "sg" and case == "nom":
+def _weak_masc_sg_form(lemma: str, *, case: Case) -> str:
+    """n-Deklination: Nom. unverändert, sonst -(e)n (Mensch → Menschen, Affe → Affen)."""
+    if case == "nom":
         return lemma
-    return _append_n_if_needed(lemma)
+    if _lemma_key(lemma).endswith("e"):
+        return lemma + "n"
+    return lemma + "en"
 
 
 def _genitive_noun_suffix(*, lemma: str, gender: Gender, declension_class: str) -> str:
@@ -264,28 +263,30 @@ def decline_noun(*, lemma: str, gender: Gender, number: Number, case: Case) -> s
     if number == "pl" and case == "dat":
         return _append_n_if_needed(lemma)
 
+    if declension_class in {"weak", "mixed"} and gender == "masc" and number == "sg":
+        if declension_class == "mixed" and case == "gen":
+            return lemma + _genitive_noun_suffix(
+                lemma=lemma, gender=gender, declension_class=declension_class
+            )
+        if declension_class == "weak":
+            return _weak_masc_sg_form(lemma, case=case)
+        if case == "nom":
+            return lemma
+        return _weak_masc_sg_form(lemma, case=case)
+
     if case == "nom":
-        return _weak_noun_stem(lemma, case=case, number=number) if declension_class in {"weak", "mixed"} else lemma
+        return lemma
 
     if case == "gen":
         if number == "pl":
             return lemma
         suffix = _genitive_noun_suffix(lemma=lemma, gender=gender, declension_class=declension_class)
-        if declension_class in {"weak", "mixed"} and gender == "masc":
-            stem = lemma
-            if declension_class == "mixed":
-                return stem + suffix
-            return _append_n_if_needed(stem)
         return lemma + suffix
 
     if case == "dat":
-        if declension_class in {"weak", "mixed"} and number == "sg":
-            return _append_n_if_needed(lemma)
         return lemma
 
     if case == "acc":
-        if declension_class in {"weak", "mixed"} and number == "sg":
-            return _append_n_if_needed(lemma)
         return lemma
 
     return lemma
@@ -474,8 +475,7 @@ def expected_blank_answers(blanks: list[dict[str, Any]]) -> list[str]:
         adj_stem = blank.get("adjective_stem")
         det_stem = str(blank.get("determiner_stem") or "")
 
-        if adj_stem and not blank.get("determiner_type"):
-            # Adjektiv-only-Lücke
+        if adj_stem and not lemma:
             adj = decline_adjective(
                 stem=str(adj_stem),
                 determiner_type=determiner_type if determiner_type != "none" else "mixed",
@@ -483,7 +483,7 @@ def expected_blank_answers(blanks: list[dict[str, Any]]) -> list[str]:
                 gender=gender,
                 number=number,
             )
-            if part == "ending" and adj_stem:
+            if part == "ending":
                 answers.append(adj[len(str(adj_stem)) :])
             else:
                 answers.append(adj)
@@ -508,7 +508,9 @@ def expected_blank_answers(blanks: list[dict[str, Any]]) -> list[str]:
         if lemma and not adj_stem and not blank.get("determiner_type"):
             noun = decline_noun(lemma=lemma, gender=gender, number=number, case=case)
             if part == "ending":
-                if case == "gen" and number == "sg" and gender != "fem":
+                if case == "gen" and number == "pl":
+                    answers.append("")
+                elif case == "gen" and number == "sg" and gender != "fem":
                     suffix = noun[len(lemma) :]
                     answers.append(suffix)
                 elif case == "dat" and number == "pl":

@@ -85,6 +85,6 @@ def vision_pedagogy_prompt(*, language: str, focus_group: str | None = None) -> 
         f"{_CORE_RULES}\n"
         f"{overlay}\n"
         "- exercises: Legacy-Feld — gleicher Inhalt wie assignments.instruction in text, wenn assignments leer.\n"
-        "- Keine Kapitel-Überschriften «Du kannst …» als methods.\n"
+        "- Keine Kapitel-Überschriften «Du kannst …» / «Du kennst …» als methods.\n"
         f"- Sprache: {lang}.\n"
     )
