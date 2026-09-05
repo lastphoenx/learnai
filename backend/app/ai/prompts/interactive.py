@@ -57,6 +57,8 @@ TYPED_CARDS_SYSTEM = (
     "(Zahl, Wort oder kurze Phrase — je nach Fach).\n"
     "- answer_type: numeric (Zahl), short_text (kurze Phrase), cloze (Lückentext mit ___ in question).\n"
     "- Bei short_text/cloze: mehrere gültige Schreibweisen mit | trennen (z. B. Akkusativ|Akk.).\n"
+    "- Bei Fall-Fragen (Deutsch): Satz und markiertes Satzglied in grammar.case_check "
+    '(sentence, span) angeben; answer = Fall-Label (Nominativ|Nom. usw.).\n'
     "- Genau die geforderten Anzahlen pro Typ.\n"
     "- Keine Duplikate zwischen den Typen und zu bereits verwendeten Fragen.\n"
     "- Kein ISBN/Buchcover-Meta.\n"
@@ -213,17 +215,25 @@ def build_interactive_typed_cards_prompt(
     mental_count: int,
     input_count: int,
     existing_questions: list[str],
+    focus_group: str | None = None,
 ) -> str:
     avoid = ""
     if existing_questions:
         sample = existing_questions[:12]
         avoid = "\nBereits verwendete Fragen (nicht wiederholen):\n" + "\n".join(f"- {q}" for q in sample)
+    german_hint = ""
+    if focus_group == "german":
+        german_hint = (
+            "\nDeutsch-Grammatik: Für Fall-Abfragen input_cards mit grammar.case_check "
+            '{"sentence":"…","span":"…"} und answer als Fall-Label. '
+            "Deklinations-Lücken als cloze mit grammar.blanks (Server prüft Endungen).\n"
+        )
     return (
         f"{context}\n\n"
         f"Kategorie: {category_name}\n"
         f"Lernziel: {category_focus}\n"
         f"Erzeuge genau {merk_count} merk_cards, {mental_count} mental_cards und {input_count} input_cards als JSON.\n"
-        f"{avoid}"
+        f"{german_hint}{avoid}"
     )
 
 

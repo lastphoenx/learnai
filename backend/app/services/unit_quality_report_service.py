@@ -8,6 +8,11 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.ai.source_pedagogy import build_pedagogy_digest, collect_pedagogy_from_unit_sources
 from app.core.crypto import decrypt_text_master
+from app.core.grammar_verify import (
+    collect_grammar_warnings_for_module,
+    format_grammar_report_section,
+    summarize_grammar_warnings,
+)
 from app.core.quiz_explanation import enrich_quiz_explanation, explanation_is_weak, method_explanation_incomplete
 from app.core.solution_repair import enrich_card_answer
 from app.models import LearningRecord, LearningUnit, User
@@ -101,6 +106,37 @@ def _module_section(unit: LearningUnit, *, family: str, instance: str) -> list[s
             lines.append(f"- Wissenspunkte: {len(content.get('knowledge') or [])}")
         lines.extend(_card_lines(content if isinstance(content, dict) else {}, module_ref=module_ref))
         lines.extend(_quiz_lines(quiz if isinstance(quiz, dict) else {}, module_ref=module_ref))
+    return lines
+
+
+def _grammar_warnings_for_unit(unit: LearningUnit) -> list[dict[str, str]]:
+    from app.ai.subject_focus import detect_focus_group
+
+    focus_group = (
+        detect_focus_group(subject=unit.subject, task_type=str(unit.task_type or "interactive"))
+        or "general"
+    )
+    warnings: list[dict[str, str]] = []
+    for mod in sorted(unit.modules or [], key=lambda m: m.order_index):
+        order = mod.order_index + 1
+        prefix = f"M{order:02d}"
+        content = decrypt_json(mod.content_encrypted) or {}
+        quiz = decrypt_json(mod.quiz_encrypted) or {}
+        for item in collect_grammar_warnings_for_module(
+            content=content if isinstance(content, dict) else {},
+            quiz=quiz if isinstance(quiz, dict) else {},
+            focus_group=focus_group,
+        ):
+            tagged = dict(item)
+            tagged["ref"] = f"{prefix}/{item.get('ref', '?')}"
+            warnings.append(tagged)
+    return warnings
+
+
+def _grammar_section(unit: LearningUnit) -> list[str]:
+    warnings = _grammar_warnings_for_unit(unit)
+    lines = ["## Grammatik-QA", ""]
+    lines.extend(format_grammar_report_section(warnings))
     return lines
 
 
@@ -210,6 +246,8 @@ def build_unit_quality_report(db: Session, user: User, ref: str) -> dict:
         "",
     ]
 
+    grammar_unit: LearningUnit | None = None
+
     if scope == "family":
         lines.append("## Instanzen in dieser Familie")
         lines.append("")
@@ -239,11 +277,14 @@ def build_unit_quality_report(db: Session, user: User, ref: str) -> dict:
         if root_loaded:
             lines.extend(_pedagogy_section(root_loaded))
             lines.append("")
+            lines.extend(_grammar_section(root_loaded))
+            lines.append("")
             lines.append("## Module, Karten & Quiz (Lösungsvarianten)")
             lines.append("")
             fam = refs.get("reference_family") or family
             inst = refs.get("reference_instance") or "0001"
             lines.extend(_module_section(root_loaded, family=fam, instance=inst))
+        grammar_unit = root_loaded or root_unit
     else:
         unit, record = matches[0]
         unit = (
@@ -261,6 +302,8 @@ def build_unit_quality_report(db: Session, user: User, ref: str) -> dict:
         lines.append("")
         lines.extend(_pedagogy_section(unit))
         lines.append("")
+        lines.extend(_grammar_section(unit))
+        lines.append("")
         lines.append("## Module, Karten & Quiz (Lösungsvarianten)")
         lines.append("")
         fam = refs.get("reference_family") or family
@@ -269,8 +312,10 @@ def build_unit_quality_report(db: Session, user: User, ref: str) -> dict:
         lines.append("## Lernfortschritt dieser Instanz")
         lines.append("")
         lines.extend(_progress_section(db, unit, record))
+        grammar_unit = unit
 
     report = "\n".join(lines).strip() + "\n"
+    grammar_warnings = _grammar_warnings_for_unit(grammar_unit) if grammar_unit else []
     return {
         "ref": ref,
         "scope": scope,
@@ -278,6 +323,8 @@ def build_unit_quality_report(db: Session, user: User, ref: str) -> dict:
         "instance": instance,
         "unit_count": len(matches),
         "report": report,
+        "grammar": summarize_grammar_warnings(grammar_warnings),
+        "grammar_warnings": grammar_warnings,
         "ok": True,
     }
 

@@ -9,6 +9,7 @@ from typing import Any
 from app.core.answer_match import infer_answer_type
 from app.core.focus_groups import normalize_focus_group
 from app.core.basiswissen_profiles import FOCUS_GROUP_PROMPTS, ROLE_LABELS_DE
+from app.core.grammar_verify import repair_basiswissen_grammar, verify_basiswissen_grammar
 from app.core.practice_derive import derive_practice_items
 
 SCHEMA_VERSION = 1
@@ -94,13 +95,18 @@ def _parse_cloze(raw: object, *, index: int) -> dict[str, Any] | None:
         blank_roles = [str(r).strip().lower()[:40] for r in blank_roles_raw if str(r).strip()]
     template_id = str(raw.get("id") or "").strip() or _slug(f"cloze_{index}")
     concept_id = str(raw.get("concept_id") or "").strip()[:64]
-    return {
+    grammar_raw = raw.get("grammar")
+    grammar = grammar_raw if isinstance(grammar_raw, dict) else None
+    out: dict[str, Any] = {
         "id": template_id[:64],
         "concept_id": concept_id,
         "sentence": sentence[:400],
         "answers": answers[:8],
         "blank_roles": blank_roles[:8],
     }
+    if grammar:
+        out["grammar"] = grammar
+    return out
 
 
 def parse_basiswissen_payload(parsed: dict[str, Any], *, focus_group: str) -> dict[str, Any]:
@@ -144,7 +150,13 @@ def validate_basiswissen(basiswissen: dict[str, Any]) -> list[str]:
         answer_count = len(template.get("answers") or [])
         if blank_count > 0 and answer_count != blank_count and answer_count != 1:
             warnings.append(f"Cloze {template.get('id')}: Anzahl Lücken und Antworten weicht ab")
+    warnings.extend(verify_basiswissen_grammar(basiswissen))
     return warnings
+
+
+def finalize_basiswissen(basiswissen: dict[str, Any]) -> dict[str, Any]:
+    """Fachspezifische Reparatur vor dem Speichern (Deutsch: Deklination aus Engine)."""
+    return repair_basiswissen_grammar(basiswissen)
 
 
 def knowledge_overview_from_basiswissen(basiswissen: dict[str, Any]) -> dict[str, str] | None:

@@ -7,6 +7,7 @@ from app.core.basiswissen import (
     derive_concept_quiz_questions,
     derive_mental_term_cards,
     enrich_module_with_basiswissen,
+    finalize_basiswissen,
     merge_concept_questions,
     parse_basiswissen_payload,
     strip_basiswissen_derivatives,
@@ -160,3 +161,15 @@ def test_golden_fixture_math_arithmetic_terms():
     assert len(bw["concepts"]) >= 2
     assert derive_cloze_cards(bw)
     assert derive_concept_quiz_questions(bw, max_count=3)
+
+
+def test_german_cases_fixture_engine_repair():
+    fixture_path = Path(__file__).parent / "fixtures" / "basiswissen" / "german_cases.json"
+    payload = json.loads(fixture_path.read_text(encoding="utf-8"))
+    bw = parse_basiswissen_payload(payload, focus_group="german")
+    repaired = finalize_basiswissen(bw)
+    template = repaired["cloze_templates"][0]
+    assert template["answers"] == ["es", "en", "s"]
+    cards = derive_cloze_cards(repaired)
+    assert cards
+    assert cards[0]["answer"] == "es|en|s"

@@ -54,7 +54,8 @@ _PROFILE_OVERLAYS: dict[str, str] = {
     ),
     "german": (
         "Deutsch-Zusatz:\n"
-        "- key_terms: Wortarten, Satzglieder, Rechtschreibregeln.\n"
+        "- key_terms: Wortarten, Satzglieder, Kasus, Deklination, Rechtschreibregeln.\n"
+        "- methods: Ersatzprobe, W-Fragen (Wer/Wessen/Wem/Wen), Genitiv nach Präposition.\n"
         "- comprehension: Grammatik- oder Textverständnisfragen.\n"
     ),
     "language": (

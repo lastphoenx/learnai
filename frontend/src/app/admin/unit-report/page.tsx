@@ -94,6 +94,21 @@ export default function AdminUnitReportPage() {
               {copied ? "Kopiert" : "Report kopieren"}
             </button>
           </div>
+          {result.grammar && result.grammar.total > 0 && (
+            <p className="muted section-lead">
+              Grammatik-QA:{" "}
+              {result.grammar.warn > 0 ? (
+                <span className="err">
+                  {result.grammar.warn} Warnung{result.grammar.warn === 1 ? "" : "en"}
+                </span>
+              ) : (
+                <span>keine Warnungen</span>
+              )}
+              {" · "}
+              {result.grammar.total} geprüft · spaCy{" "}
+              {result.grammar.spacy_available ? "verfügbar" : "nicht verfügbar"}
+            </p>
+          )}
           <pre className="admin-golden-report">{result.report}</pre>
         </section>
       )}

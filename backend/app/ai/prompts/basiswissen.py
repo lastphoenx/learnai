@@ -14,10 +14,13 @@ BASISWISSEN_SYSTEM = (
     '"pattern":"Faktor × Faktor = Produkt","example":"3 × 4 = 12",'
     '"hint":"Kurze didaktische Erklärung in 1-2 Sätzen"}],'
     '"cloze_templates":[{"id":"slug","concept_id":"slug","sentence":"Bei der Multiplikation heißt das Ergebnis ___.",'
-    '"answers":["Produkt"],"blank_roles":["product"]}]}}\n'
+    '"answers":["Produkt"],"blank_roles":["product"],'
+    '"grammar":{"blanks":[{"part":"ending","case":"gen","gender":"neut","number":"sg","determiner_type":"ein-word","determiner_stem":"ein"}]}}]}}\n'
     "Regeln:\n"
     "- 3 bis 8 concepts, thematisch passend zur Kategorie (nicht generisches Schulwissen von anderen Fächern).\n"
     "- 4 bis 10 cloze_templates mit mindestens einem ___ pro Satz; answers-Länge = Anzahl Lücken (oder eine Antwort für alle gleichen Lücken).\n"
+    "- Bei focus_group=german und Deklinations-Lücken: grammar.blanks pro Lücke (case, gender, number, determiner_type, lemma/adjective_stem); "
+    "part=ending wenn nur Endungen fehlen. Antworten dürfen Platzhalter sein — Server berechnet korrekte Form.\n"
     "- pattern zeigt die Relation verständlich (Wörter, nicht nur Symbole).\n"
     "- hint erklärt warum/wann der Begriff wichtig ist — nicht nur die Aufgabe wiederholen.\n"
     "- Keine Quiz-Spoiler aus dem Check; Fachbegriffe und Merksätze sind erlaubt.\n"

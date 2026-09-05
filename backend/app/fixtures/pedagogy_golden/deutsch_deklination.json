@@ -1,0 +1,34 @@
+{
+  "_meta": {
+    "subject_group": "german",
+    "subject_hint": "Die vier Fälle — Deklination und Ersatzprobe",
+    "min_method_labels": 2
+  },
+  "summary": "Die vier Fälle: Nominativ, Genitiv, Dativ, Akkusativ. Deklinationsübungen mit Ersatzprobe und Genitiv nach Präposition.",
+  "is_metadata_only": false,
+  "methods": [
+    {
+      "label": "Ersatzprobe",
+      "when": "Wenn der Fall aus der Form allein nicht klar ist",
+      "example": "Die Erde umkreist die Sonne → Der Planet umkreist den Mittelpunkt"
+    },
+    {
+      "label": "W-Fragen",
+      "when": "Fall eines Satzglieds bestimmen",
+      "example": "Wer? Nominativ — Wessen? Genitiv — Wem? Dativ — Wen? Akkusativ"
+    }
+  ],
+  "worked_examples": [
+    {
+      "problem": "infolge ein___ verloren___ Spiel___",
+      "method_label": "Genitiv nach Präposition",
+      "steps": ["infolge verlangt Genitiv", "eines verlorenen Spiels"]
+    }
+  ],
+  "exercises": [
+    {"ref": "6", "text": "Ergänze die Sätze im Genitiv nach infolge/während.", "suggested_method": "Genitiv nach Präposition"},
+    {"ref": "8", "text": "Bestimme in den Texten die Fälle der markierten Satzglieder.", "suggested_method": "W-Fragen"}
+  ],
+  "exercise_patterns": ["Deklinations-Lückentext", "Fälle bestimmen", "Ersatzprobe"],
+  "teaching_notes": ["Genitiv nach Präpositionen wie infolge, während, oberhalb"]
+}

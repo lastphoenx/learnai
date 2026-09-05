@@ -772,6 +772,21 @@ export type UnitQualityReport = {
   unit_count: number;
   report: string;
   ok: boolean;
+  grammar?: {
+    total: number;
+    ok: number;
+    warn: number;
+    info: number;
+    declension_checks: number;
+    case_checks: number;
+    spacy_available: boolean;
+  };
+  grammar_warnings?: Array<{
+    kind: string;
+    level: string;
+    ref: string;
+    message: string;
+  }>;
 };
 
 export const fetchUnitQualityReport = (ref: string) =>

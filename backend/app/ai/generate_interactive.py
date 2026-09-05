@@ -39,10 +39,12 @@ from app.core.crypto import decrypt_text_master
 from app.core.basiswissen import (
     empty_basiswissen,
     enrich_module_with_basiswissen,
+    finalize_basiswissen,
     parse_basiswissen_payload,
     strip_basiswissen_derivatives,
     validate_basiswissen,
 )
+from app.core.grammar_verify import finalize_german_cards
 from app.core.answer_match import infer_answer_type
 from app.core.method_taxonomy import classify_method, normalize_method_id
 from app.core.pedagogy_validation import enforce_label_coverage, log_pedagogy_coverage_warnings
@@ -194,6 +196,9 @@ def _parse_card_list(raw_cards: object, *, kind: str, expected: int) -> list[dic
             "answer": a[:2000],
             "tip": str(raw.get("tip") or "")[:240],
         }
+        grammar_raw = raw.get("grammar")
+        if isinstance(grammar_raw, dict):
+            item["grammar"] = grammar_raw
         if kind == "merk":
             method_label = str(raw.get("method_label") or "").strip()
             if method_label:
@@ -338,6 +343,7 @@ def _generate_basiswissen(
         )
         parsed = parse_json_object(result["text"])
         basiswissen = parse_basiswissen_payload(parsed, focus_group=focus_group)
+        basiswissen = finalize_basiswissen(basiswissen)
         for warning in validate_basiswissen(basiswissen):
             _log.warning(
                 "generate_interactive basiswissen_warning category=%s %s",
@@ -576,6 +582,7 @@ def generate_interactive_modules(
             mental_count=cat["mental_cards"],
             input_count=cat["input_cards"],
             existing_questions=all_card_questions,
+            focus_group=focus_group,
         )
         cards_result = _complete_with_retry(
             prompt=cards_prompt,
@@ -598,6 +605,15 @@ def generate_interactive_modules(
             )
             for card in cards:
                 card["kind"] = "mental"
+        before_case_filter = len(cards)
+        cards = finalize_german_cards(cards, focus_group=focus_group)
+        if len(cards) < before_case_filter:
+            _log.warning(
+                "generate_interactive case_cards_dropped unit_id=%s category=%s dropped=%d",
+                unit_id,
+                cat["name"],
+                before_case_filter - len(cards),
+            )
         all_card_questions.extend(c["question"] for c in cards)
 
         knowledge = _generate_knowledge(

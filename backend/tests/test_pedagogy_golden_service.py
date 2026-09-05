@@ -18,6 +18,7 @@ def test_list_pedagogy_golden_fixtures_has_bundled():
     names = {row["name"] for row in fixtures}
     assert "math_decimal" in names
     assert "deutsch_grammar" in names
+    assert "deutsch_deklination" in names
     assert "language_vocab" in names
     assert "nmg_geografie" in names
     assert all(row.get("ok") for row in fixtures)

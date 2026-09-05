@@ -1,0 +1,55 @@
+{
+  "basiswissen": {
+    "schema_version": 1,
+    "focus_group": "german",
+    "concepts": [
+      {
+        "id": "genitiv_preposition",
+        "kind": "rule",
+        "label": "Genitiv nach Präposition",
+        "parts": [
+          {"role": "genitiv", "term": "Genitiv"},
+          {"role": "preposition", "term": "infolge"}
+        ],
+        "pattern": "infolge + Genitiv",
+        "example": "infolge eines verlorenen Spiels",
+        "hint": "Präpositionen wie infolge, während, oberhalb verlangen den Genitiv."
+      }
+    ],
+    "cloze_templates": [
+      {
+        "id": "spiel_gen",
+        "concept_id": "genitiv_preposition",
+        "sentence": "infolge ein___ verloren___ Spiel___",
+        "answers": ["x", "x", "x"],
+        "grammar": {
+          "blanks": [
+            {
+              "part": "ending",
+              "case": "gen",
+              "gender": "neut",
+              "number": "sg",
+              "determiner_type": "ein-word",
+              "determiner_stem": "ein"
+            },
+            {
+              "part": "ending",
+              "case": "gen",
+              "gender": "neut",
+              "number": "sg",
+              "adjective_stem": "verloren",
+              "determiner_type": "ein-word"
+            },
+            {
+              "part": "ending",
+              "case": "gen",
+              "gender": "neut",
+              "number": "sg",
+              "lemma": "Spiel"
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
