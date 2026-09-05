@@ -164,7 +164,7 @@ export default function SettingsPage() {
         </p>
         <InlineEditName
           value={user?.display_name || ""}
-          placeholder="z.B. Thomas"
+          placeholder="z.B. Max"
           onSave={async (name) => {
             const me = await updateMySettings({ display_name: name });
             setUser(me);
