@@ -14,7 +14,7 @@ _cache: dict = {"ts": 0.0, "data": {}}
 
 OPENAI_TTS_IDS = frozenset({"tts-1", "tts-1-hd", "gpt-4o-mini-tts"})
 OPENAI_CHAT_RE = re.compile(r"^(gpt-|o[134]-|chatgpt-)", re.I)
-OPENAI_VISION_RE = re.compile(r"^gpt-4", re.I)
+OPENAI_VISION_RE = re.compile(r"^(gpt-4|gpt-5|o\d-)", re.I)
 OPENAI_NON_CHAT_HINTS = ("-tts", "whisper", "embedding", "dall-e", "moderation", "realtime", "transcribe", "audio")
 ANTHROPIC_CHAT_RE = re.compile(r"^claude-", re.I)
 

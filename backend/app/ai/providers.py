@@ -318,6 +318,27 @@ def _ollama_post_unlocked(path: str, payload: dict, timeout: float | None = None
     return response.json()
 
 
+def _is_reasoning_family(model: str) -> bool:
+    """GPT-5/o-Serie: temperature nur Default, max_completion_tokens statt max_tokens."""
+    return bool(re.match(r"^(o\d|gpt-5)", (model or "").strip().lower()))
+
+
+def _openai_chat_body(
+    model: str,
+    messages: list,
+    *,
+    temperature: float,
+    max_tokens: int | None = None,
+) -> dict:
+    body: dict = {"model": model, "messages": messages}
+    if not _is_reasoning_family(model):
+        body["temperature"] = temperature
+    if max_tokens:
+        key = "max_completion_tokens" if _is_reasoning_family(model) else "max_tokens"
+        body[key] = max_tokens
+    return body
+
+
 def _openai_chat(
     prompt: str,
     system: str | None = None,
@@ -332,13 +353,7 @@ def _openai_chat(
     if system:
         messages.append({"role": "system", "content": system})
     messages.append({"role": "user", "content": prompt})
-    body: dict = {
-        "model": model,
-        "messages": messages,
-        "temperature": 0.3,
-    }
-    if max_tokens:
-        body["max_tokens"] = max_tokens
+    body = _openai_chat_body(model, messages, temperature=0.3, max_tokens=max_tokens)
     data = _openai_post(body)
     text = (((data.get("choices") or [{}])[0].get("message") or {}).get("content")) or ""
     if not text.strip():
@@ -350,22 +365,17 @@ def _openai_vision(b64: str, mime: str, prompt: str, model: str | None = None) -
     if not settings.openai_api_key:
         raise LlmError("OPENAI_API_KEY fehlt", "missing_key")
     model = (model or settings.openai_model).strip()
-    data = _openai_post(
+    messages = [
         {
-            "model": model,
-            "messages": [
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": prompt},
-                        {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64}"}},
-                    ],
-                }
+            "role": "user",
+            "content": [
+                {"type": "text", "text": prompt},
+                {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64}"}},
             ],
-            "temperature": 0.2,
-        },
-        timeout=180.0,
-    )
+        }
+    ]
+    body = _openai_chat_body(model, messages, temperature=0.2)
+    data = _openai_post(body, timeout=180.0)
     text = (((data.get("choices") or [{}])[0].get("message") or {}).get("content")) or ""
     if not text.strip():
         raise LlmError("OpenAI-Vision lieferte keinen Text", "empty_response")
@@ -383,7 +393,15 @@ def _openai_post(payload: dict, timeout: float = 90.0) -> dict:
     except httpx.HTTPError as exc:
         raise LlmError("OpenAI nicht erreichbar", "openai_down") from exc
     if response.status_code >= 400:
-        raise LlmError(f"OpenAI Fehler ({response.status_code})", "provider")
+        detail = ""
+        try:
+            detail = str((response.json().get("error") or {}).get("message") or "")
+        except Exception:
+            detail = (response.text or "")[:400]
+        msg = f"OpenAI Fehler ({response.status_code})"
+        if detail:
+            msg += f": {detail}"
+        raise LlmError(msg, "provider")
     return response.json()
 
 
