@@ -103,12 +103,18 @@ def effective_ai_config(
     ollama = ollama_status()
     installed = ollama.get("models") or []
     tasks: dict[str, dict] = {}
+    unit_override = (context.unit_provider_override if context else None) or None
     for task_key in sorted(TASK_KEYS):
+        task_override = unit_override if task_key == "mixed" else None
         if fallback_prefs is not None:
             from app.ai.catalog import resolve_task_ai_for_unit
 
             provider, model = resolve_task_ai_for_unit(
-                prefs, fallback_prefs, task_key, installed_ollama=installed
+                prefs,
+                fallback_prefs,
+                task_key,
+                installed_ollama=installed,
+                override=task_override,
             )
             source_key, source_label = task_setting_source(
                 target_prefs=prefs,
@@ -117,14 +123,21 @@ def effective_ai_config(
                 ctx=context,
             )
         else:
-            provider, model = resolve_task_ai(prefs, task_key, installed_ollama=installed)
+            provider, model = resolve_task_ai(
+                prefs,
+                task_key,
+                installed_ollama=installed,
+                override=task_override,
+            )
             source_key, source_label = task_setting_source(
                 target_prefs=prefs,
                 fallback_prefs=None,
                 task_key=task_key,
                 ctx=EffectiveAiContext(
-                    has_unit_profile=False,
+                    has_unit_profile=context.has_unit_profile if context else False,
+                    child_label=context.child_label if context else None,
                     adult_label=(context.adult_label if context else None),
+                    unit_provider_override=unit_override,
                 ),
             )
         eff_model = _effective_model(provider, model, task_key, installed)

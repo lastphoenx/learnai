@@ -33,3 +33,24 @@ def test_effective_uses_inheritance_when_fallback_prefs_given():
     assert out["tasks"]["mixed"]["provider"] == "openai"
     assert out["tasks"]["exam"]["provider"] == "ollama"
     assert out["tasks"]["mixed"]["source"] == "adult"
+
+
+def test_effective_applies_unit_provider_override_to_mixed_only():
+    from app.ai.effective import EffectiveAiContext
+
+    child = {"by_task": {"mixed": {"provider": "ollama", "model": "qwen2.5:32b"}}}
+    parent = {"by_task": {}}
+    out = effective_ai_config(
+        child,
+        fallback_prefs=parent,
+        context=EffectiveAiContext(
+            has_unit_profile=True,
+            child_label="Lena",
+            unit_provider_override="openai",
+        ),
+    )
+    mixed = out["tasks"]["mixed"]
+    assert mixed["provider"] == "openai"
+    assert mixed["source"] == "unit"
+    assert "openai" in mixed["source_label"].lower()
+    assert out["tasks"]["vision"]["source"] != "unit"
