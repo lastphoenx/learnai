@@ -111,7 +111,24 @@ def text_has_noun_noun_without_genitive_marker(text: str) -> bool:
 
     Nutzt Original-Grossschreibung (nicht normalize_label): deutsche Nomen sind
     gross, Verben/Adjektive klein — «Das Fell Affen» trifft, «Das Fell gefällt» nicht.
+    Prüft pro Satz-/Pfeil-Segment, damit Satzanfang («Der …») nicht als zweites Nomen
+    nach «das» aus dem vorherigen Satz zählt.
     """
+    for segment in _segments_for_noun_noun_check(text):
+        if _segment_has_noun_noun_without_genitive_marker(segment):
+            return True
+    return False
+
+
+_SEGMENT_SPLITS = re.compile(r"[.!?]+|(?:→|->)")
+
+
+def _segments_for_noun_noun_check(text: str) -> list[str]:
+    parts = _SEGMENT_SPLITS.split(str(text or ""))
+    return [part.strip() for part in parts if part.strip()]
+
+
+def _segment_has_noun_noun_without_genitive_marker(text: str) -> bool:
     tokens = _CASE_TOKEN_RE.findall(str(text or ""))
     for i, tok in enumerate(tokens):
         if tok.lower() not in _DETERMINERS:
@@ -240,15 +257,17 @@ def repair_german_concept_genitive_preposition(concept: dict[str, Any]) -> dict[
     if "genitiv" not in norm or "praeposition" not in norm:
         return concept
     fixed = dict(concept)
-    fixed["hint"] = sanitize_genitive_preposition_field(str(concept.get("hint") or ""))
-    fixed["pattern"] = sanitize_genitive_preposition_field(str(concept.get("pattern") or ""))
+    original_hint = str(concept.get("hint") or "")
+    original_pattern = str(concept.get("pattern") or "")
+    fixed["hint"] = sanitize_genitive_preposition_field(original_hint)
+    fixed["pattern"] = sanitize_genitive_preposition_field(original_pattern)
     blob = " ".join(
         filter(
             None,
             [
                 str(concept.get("example") or ""),
-                str(fixed.get("hint") or ""),
-                str(fixed.get("pattern") or ""),
+                original_hint,
+                original_pattern,
             ],
         )
     )

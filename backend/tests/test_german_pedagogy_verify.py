@@ -110,6 +110,13 @@ def test_broken_zoo_example_is_dropped():
             "steps": ["Das Fell gefällt mir. → Das Fell des Tigers gefällt mir."],
         }
     )
+    assert worked_example_is_coherent(
+        {
+            "problem": "Der Hund jagt das Kaninchen.",
+            "method_label": "Ersatzprobe",
+            "steps": ["Der Hund jagt das Kaninchen. → Der Hund jagt es."],
+        }
+    )
     pedagogy = {
         "key_terms": [],
         "methods": [],

@@ -34,6 +34,7 @@ _WORD_IN_SENTENCE = re.compile(
 )
 _BLANK_AFTER = re.compile(r"___\s+([A-Za-zÄÖÜäöüß][\wÄÖÜäöüß\-]*)")
 _BLANK_BEFORE = re.compile(r"([A-Za-zÄÖÜäöüß][\wÄÖÜäöüß\-]*)\s+___")
+_BLANK_AT_END = re.compile(r"___\s*[.!?]?\s*$")
 _CASE_QUESTION = re.compile(r"\b(welchen|welcher|welches|welchem)\s+fall\b|\bkasus\b|\bfall\b.*[«\"']", re.I)
 
 _FUNCTION_WORDS = frozenset(
@@ -185,6 +186,8 @@ def _span_covers_whole_sentence(sentence: str, span: str) -> bool:
 
 def _span_from_blank_sentence(sentence: str) -> str | None:
     """Bei Lückensatz: angrenzendes Inhaltswort als Zielspan, sonst None."""
+    if _BLANK_AT_END.search(sentence.strip()):
+        return None
     after = _BLANK_AFTER.search(sentence)
     if after:
         word = after.group(1)
