@@ -94,9 +94,11 @@ function sourceKindLabel(kind: string) {
   const map: Record<string, string> = {
     image: "Foto",
     pdf: "PDF",
+    document: "PDF",
     audio: "Audio",
     url: "Link",
     text: "Text",
+    html: "HTML-Übung",
   };
   return map[kind] || kind;
 }
@@ -391,6 +393,9 @@ export default function UnitDetailPage() {
   const badge = unit ? statusBadge(unit.status) : null;
   const moduleCount = unit?.modules?.length ?? 0;
   const sourceCount = unit?.sources?.length ?? 0;
+  const htmlPacks = (unit?.sources || []).filter(
+    (s) => s.has_file && (s.kind === "html" || (s.content_type || "").includes("html")),
+  );
   const lastGenerate =
     generateJob && (generateJob.status === "done" || generateJob.status === "partial" || generateJob.status === "failed")
       ? generateJob
@@ -473,11 +478,20 @@ export default function UnitDetailPage() {
               <h2>Quellen</h2>
               <span className="badge badge-neutral">{sourceCount}</span>
             </div>
-            <p className="muted section-lead">Fotos, PDF, Audio oder Links — Grundlage für die KI-Aufbereitung.</p>
+            <p className="muted section-lead">
+              Fotos, PDF, Audio, Links — oder fertige HTML-Übungen als Zusatztrainer für Kinder.
+            </p>
             <label className="file-drop">
               <span className="btn">Dateien wählen</span>
-              <input type="file" multiple accept="image/*,.pdf,audio/*" onChange={onFiles} disabled={busy} hidden />
-              <span className="muted">Bilder, PDF oder Audio</span>
+              <input
+                type="file"
+                multiple
+                accept="image/*,.pdf,audio/*,.html,.htm,text/html"
+                onChange={onFiles}
+                disabled={busy}
+                hidden
+              />
+              <span className="muted">Bilder, PDF, Audio oder HTML-Übung</span>
             </label>
             <form onSubmit={onAddUrl} className="inline-form">
               <input
@@ -497,6 +511,7 @@ export default function UnitDetailPage() {
               <ul className="source-list">
                 {(unit.sources || []).map((s: UnitSource) => {
                   const isImage = s.kind === "image" || (s.content_type || "").startsWith("image/");
+                  const isHtml = s.kind === "html" || (s.content_type || "").includes("html");
                   return (
                   <li key={s.id} className="source-item">
                     {s.has_file && isImage ? (
@@ -535,10 +550,19 @@ export default function UnitDetailPage() {
                       </button>
                       <span className="muted source-flags">
                         {!s.has_file && "Datei entfernt · "}
-                        {s.has_extracted_text ? "Text extrahiert" : "Kein Text"}
+                        {isHtml
+                          ? "Zusatztrainer (kein KI-Kontext)"
+                          : s.has_extracted_text
+                            ? "Text extrahiert"
+                            : "Kein Text"}
                       </span>
                     </div>
                     <div className="source-actions">
+                      {isHtml && s.has_file ? (
+                        <Link className="btn-sm" href={`/units/${unit.id}/pack/${s.id}`}>
+                          Übung öffnen
+                        </Link>
+                      ) : null}
                       {s.has_file && (
                         <button
                           type="button"
@@ -773,6 +797,28 @@ export default function UnitDetailPage() {
 
           <aside className="card unit-section unit-page-aside">
             <h2>Aktionen</h2>
+
+            {htmlPacks.length > 0 && (
+              <section className="unit-aside-learn" aria-labelledby="aside-html-heading">
+                <h3 id="aside-html-heading" className="aside-subhead">
+                  HTML-Übungen
+                  <span className="badge badge-neutral">{htmlPacks.length}</span>
+                </h3>
+                <p className="muted section-lead" style={{ marginTop: 0 }}>
+                  Fertige Zusatztrainer — ohne KI-Aufbereitung.
+                </p>
+                <ul className="module-compact-list">
+                  {htmlPacks.map((s) => (
+                    <li key={s.id}>
+                      <Link href={`/units/${unit.id}/pack/${s.id}`} className="module-compact-link">
+                        <strong>{s.original_name || "HTML-Übung"}</strong>
+                        <span className="muted">Übung starten</span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
 
             {moduleCount > 0 && (
               <section className="unit-aside-learn" aria-labelledby="aside-learn-heading">

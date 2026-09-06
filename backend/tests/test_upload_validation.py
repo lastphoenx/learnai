@@ -22,7 +22,26 @@ def test_detect_png():
 
 def test_reject_unknown():
     with pytest.raises(UploadValidationError):
-        validate_upload_bytes(b"<html>evil</html>", filename="x.pdf", declared_content_type="application/pdf")
+        validate_upload_bytes(b"not a real file !!!", filename="x.bin", declared_content_type="application/octet-stream")
+
+
+def test_detect_html():
+    data = b"<!DOCTYPE html><html><body><h1>Hallo</h1></body></html>"
+    out = detect_upload(data, "trainer.html")
+    assert out is not None
+    assert out.kind == "html"
+    assert "html" in out.content_type
+    validated = validate_upload_bytes(data, filename="trainer.html", declared_content_type="text/html")
+    assert validated.kind == "html"
+
+
+def test_reject_html_as_pdf():
+    with pytest.raises(UploadValidationError):
+        validate_upload_bytes(
+            b"<!DOCTYPE html><html></html>",
+            filename="x.pdf",
+            declared_content_type="application/pdf",
+        )
 
 
 def test_reject_audio_when_disallowed():

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { HtmlPackFrame, isHtmlSource } from "@/components/HtmlPackFrame";
 import { sourceFileUrl, type UnitSource } from "@/lib/api";
 
 type Props = {
@@ -12,7 +13,8 @@ type Props = {
 export function SourcePreviewModal({ unitId, source, onClose }: Props) {
   const [url, setUrl] = useState<string | null>(null);
   const isImage = source.kind === "image" || (source.content_type || "").startsWith("image/");
-  const isPdf = source.kind === "pdf" || (source.content_type || "").includes("pdf");
+  const isPdf = source.kind === "pdf" || source.kind === "document" || (source.content_type || "").includes("pdf");
+  const isHtml = isHtmlSource(source);
   const name = source.original_name || "Quelle";
 
   useEffect(() => {
@@ -26,7 +28,7 @@ export function SourcePreviewModal({ unitId, source, onClose }: Props) {
   useEffect(() => {
     if (!source.has_file) return;
     const fileUrl = sourceFileUrl(unitId, source.id);
-    if (isImage || isPdf) {
+    if (isImage || isPdf || isHtml) {
       setUrl(fileUrl);
       return;
     }
@@ -45,7 +47,7 @@ export function SourcePreviewModal({ unitId, source, onClose }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [unitId, source.id, source.has_file, isImage, isPdf]);
+  }, [unitId, source.id, source.has_file, isImage, isPdf, isHtml]);
 
   useEffect(() => {
     return () => {
@@ -73,6 +75,8 @@ export function SourcePreviewModal({ unitId, source, onClose }: Props) {
         ) : isImage && url ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img className="source-preview-image" src={url} alt={name} />
+        ) : isHtml && source.has_file ? (
+          <HtmlPackFrame unitId={unitId} source={source} className="source-preview-frame html-pack-frame" />
         ) : isPdf && url ? (
           <iframe className="source-preview-frame" src={url} title={name} />
         ) : url ? (
@@ -87,9 +91,15 @@ export function SourcePreviewModal({ unitId, source, onClose }: Props) {
         )}
         {source.has_file && (
           <div className="source-preview-foot">
-            <a className="btn-sm" href={sourceFileUrl(unitId, source.id)} target="_blank" rel="noreferrer">
-              In neuem Tab öffnen
-            </a>
+            {isHtml ? (
+              <a className="btn-sm" href={`/units/${unitId}/pack/${source.id}`}>
+                Vollbild öffnen
+              </a>
+            ) : (
+              <a className="btn-sm" href={sourceFileUrl(unitId, source.id)} target="_blank" rel="noreferrer">
+                In neuem Tab öffnen
+              </a>
+            )}
           </div>
         )}
       </div>

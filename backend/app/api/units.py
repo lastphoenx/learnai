@@ -502,7 +502,21 @@ def units_source_file(
             if source.original_name_encrypted
             else "quelle"
         )
-        return FileResponse(path, media_type=source.content_type or "application/octet-stream", filename=name)
+        media = source.content_type or "application/octet-stream"
+        if source.kind == "html" or "html" in media:
+            media = "text/html; charset=utf-8"
+            name = name if name.lower().endswith((".html", ".htm")) else f"{name}.html"
+        response = FileResponse(path, media_type=media, filename=name)
+        if source.kind == "html" or "html" in (source.content_type or ""):
+            # Middleware setzt Header nur, wenn sie noch fehlen — hier explizit freigeben für iframe.
+            response.headers["X-Frame-Options"] = "SAMEORIGIN"
+            response.headers["Content-Security-Policy"] = (
+                "frame-ancestors 'self'; default-src 'none'; "
+                "script-src 'unsafe-inline' 'unsafe-eval'; "
+                "style-src 'unsafe-inline'; img-src data: blob: 'self'; "
+                "font-src data: 'self'; connect-src 'none'; base-uri 'none'; form-action 'self'"
+            )
+        return response
     except UnitError as exc:
         raise _http(exc) from exc
 

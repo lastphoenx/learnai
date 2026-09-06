@@ -1382,6 +1382,8 @@ def _kind_from_content(filename: str, content_type: str | None) -> str:
         return "image"
     if ctype == "application/pdf" or name.endswith(".pdf"):
         return "document"
+    if "html" in ctype or name.endswith((".html", ".htm")):
+        return "html"
     if ctype.startswith("audio/") or name.endswith((".mp3", ".wav", ".m4a", ".ogg", ".webm")):
         return "audio"
     return "document"

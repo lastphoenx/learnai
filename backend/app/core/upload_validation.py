@@ -13,12 +13,20 @@ class UploadValidationError(Exception):
 
 @dataclass(frozen=True)
 class DetectedUpload:
-    kind: str  # image | document | audio
+    kind: str  # image | document | audio | html
     content_type: str
 
 
 def _starts_with(data: bytes, prefix: bytes) -> bool:
     return len(data) >= len(prefix) and data[: len(prefix)] == prefix
+
+
+def _is_html(data: bytes, filename: str = "") -> bool:
+    name = (filename or "").lower()
+    if name.endswith((".html", ".htm")):
+        return True
+    head = data[:512].lstrip().lower()
+    return head.startswith((b"<!doctype", b"<html", b"<head", b"<body", b"<meta", b"<title"))
 
 
 def _is_pdf(data: bytes) -> bool:
@@ -92,6 +100,9 @@ def detect_upload(data: bytes, filename: str = "") -> DetectedUpload | None:
     if _is_m4a(data) or name.endswith(".m4a"):
         if _is_m4a(data):
             return DetectedUpload(kind="audio", content_type="audio/mp4")
+    # HTML nach Magic-Bytes der Binärformate prüfen — sonst würden PDF/Bilder falsch durchgehen
+    if _is_html(data, name):
+        return DetectedUpload(kind="html", content_type="text/html; charset=utf-8")
     return None
 
 
@@ -105,7 +116,7 @@ def validate_upload_bytes(
     detected = detect_upload(data, filename)
     if not detected:
         raise UploadValidationError(
-            "Dateityp nicht erkannt oder nicht erlaubt (nur PDF, Bilder"
+            "Dateityp nicht erkannt oder nicht erlaubt (nur PDF, Bilder, HTML"
             + (", Audio" if allow_audio else "")
             + ")",
             "invalid_file_type",
@@ -119,6 +130,7 @@ def validate_upload_bytes(
             (detected.kind == "image" and declared.startswith("image/"))
             or (detected.kind == "document" and declared == "application/pdf")
             or (detected.kind == "audio" and declared.startswith("audio/"))
+            or (detected.kind == "html" and declared in {"text/html", "application/xhtml+xml"})
         )
         if not family_ok:
             raise UploadValidationError(

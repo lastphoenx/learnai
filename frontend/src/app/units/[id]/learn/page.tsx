@@ -12,6 +12,7 @@ import {
   completeLearn,
   fetchLearnState,
   fetchMe,
+  fetchUnit,
   markLearnTextRead,
   resetLearnProgress,
   saveLearnPosition,
@@ -21,6 +22,8 @@ import {
   type LearnModule,
   type LearnProgress,
   type LearnState,
+  type LearningUnit,
+  type UnitSource,
   type User,
 } from "@/lib/api";
 import { languageLabel, taskTypeLabel } from "@/lib/taskTypes";
@@ -46,6 +49,7 @@ export default function UnitLearnPage() {
   const unitId = params.id as string;
   const [user, setUser] = useState<User | null>(null);
   const [state, setState] = useState<LearnState | null>(null);
+  const [unitMeta, setUnitMeta] = useState<LearningUnit | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [answerResult, setAnswerResult] = useState<AnswerResult | null>(null);
@@ -69,8 +73,34 @@ export default function UnitLearnPage() {
     fetchMe()
       .then(setUser)
       .catch(() => setError("Nicht angemeldet"));
+    fetchUnit(unitId)
+      .then(setUnitMeta)
+      .catch(() => undefined);
     load();
-  }, [load]);
+  }, [load, unitId]);
+
+  const htmlPacks: UnitSource[] = (unitMeta?.sources || []).filter(
+    (s) => s.has_file && (s.kind === "html" || (s.content_type || "").includes("html")),
+  );
+
+  function HtmlPackLinks() {
+    if (htmlPacks.length === 0) return null;
+    return (
+      <section className="card unit-section" style={{ marginBottom: "1rem" }}>
+        <h2 style={{ marginTop: 0 }}>HTML-Übungen</h2>
+        <ul className="module-compact-list">
+          {htmlPacks.map((s) => (
+            <li key={s.id}>
+              <Link href={`/units/${unitId}/pack/${s.id}`} className="module-compact-link">
+                <strong>{s.original_name || "HTML-Übung"}</strong>
+                <span className="muted">Zusatztrainer öffnen</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </section>
+    );
+  }
 
   useEffect(() => {
     if (!state || moduleJumpDone.current) return;
@@ -442,6 +472,7 @@ export default function UnitLearnPage() {
       <main className="shell">
         <AppHeader user={user} />
         <p className="err">{error}</p>
+        <HtmlPackLinks />
         <Link href={`/units/${unitId}`}>Zurück zur Einheit</Link>
       </main>
     );
@@ -452,6 +483,7 @@ export default function UnitLearnPage() {
       <main className="shell shell-wide unit-page learn-page">
         <AppHeader user={user} />
         <p className="muted">Laden…</p>
+        <HtmlPackLinks />
       </main>
     );
   }
@@ -468,6 +500,7 @@ export default function UnitLearnPage() {
           <span>Lerntrainer</span>
         </nav>
         {error && <p className="err">{error}</p>}
+        <HtmlPackLinks />
         {state.exam_entry && <LearnExamEntryBrief unitId={unitId} entry={state.exam_entry} />}
       {autoTrainerNotice && (
         <p className="auto-trainer-notice">

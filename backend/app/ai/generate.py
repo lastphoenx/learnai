@@ -706,6 +706,9 @@ def _collect_source_notes(db: Session, unit: LearningUnit, prefs: dict) -> str:
             except LlmError as exc:
                 parts.append(f"### {label}\n(Link — {exc.message})")
             continue
+        if source.kind == "html":
+            # Selbstständige HTML-Übung — nicht als KI-Kontext verwenden.
+            continue
         if source.kind == "image" and source.storage_path and source.purged_at is None:
             result = _vision_extract_image_source(
                 db=db, unit=unit, source=source, label=label, prefs=prefs
