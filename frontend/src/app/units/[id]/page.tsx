@@ -311,6 +311,18 @@ export default function UnitDetailPage() {
 
   async function onCancelGenerate() {
     if (cancelling) return;
+    const progressHint =
+      typeof generateJob?.progress_pct === "number" ? ` (${generateJob.progress_pct} %)` : "";
+    const stageHint = generateJob?.message
+      ? `\n\nAktuell: ${generateJob.message}${progressHint}`
+      : "";
+    if (
+      !window.confirm(
+        `KI-Aufbereitung wirklich abbrechen? Der bisherige Fortschritt geht verloren.${stageHint}`,
+      )
+    ) {
+      return;
+    }
     setCancelling(true);
     setError(null);
     try {
