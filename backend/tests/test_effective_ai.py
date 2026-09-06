@@ -32,3 +32,4 @@ def test_effective_uses_inheritance_when_fallback_prefs_given():
     out = effective_ai_config(child, fallback_prefs=parent)
     assert out["tasks"]["mixed"]["provider"] == "openai"
     assert out["tasks"]["exam"]["provider"] == "ollama"
+    assert out["tasks"]["mixed"]["source"] == "adult"

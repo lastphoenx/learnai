@@ -25,3 +25,21 @@ export function providerLabel(provider: string): string {
   if (provider === "anthropic") return "Anthropic";
   return provider;
 }
+
+export type AiSettingSource = "child" | "adult" | "catalog" | "env" | "unit";
+
+export function aiSourceLabel(source: AiSettingSource | string | undefined): string {
+  if (source === "child") return "Kind";
+  if (source === "adult") return "Vererbt";
+  if (source === "unit") return "Einheit";
+  if (source === "env") return "Server";
+  return "Katalog";
+}
+
+export function aiSourceBadgeClass(source: AiSettingSource | string | undefined): string {
+  if (source === "child") return "unit-ai-source--child";
+  if (source === "adult") return "unit-ai-source--adult";
+  if (source === "unit") return "unit-ai-source--unit";
+  if (source === "env") return "unit-ai-source--env";
+  return "unit-ai-source--catalog";
+}

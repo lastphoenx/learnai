@@ -813,6 +813,24 @@ def generate_interactive_modules(
     )
     if progress:
         progress("done", cards=total_cards, questions=total_questions, modules=len(modules))
+    from app.services.ai_run_snapshot import build_ai_run_snapshot, persist_last_ai_run, resolve_generation_ai_tasks
+
+    persist_last_ai_run(
+        db,
+        unit_id,
+        build_ai_run_snapshot(
+            tasks=resolve_generation_ai_tasks(
+                target_prefs,
+                fallback_prefs,
+                "interactive",
+                provider_override=effective_provider or provider,
+                source_count=len(unit.sources or []),
+                mixed_result=plan_result,
+            ),
+            stats={"modules": len(modules), "cards": total_cards, "questions": total_questions},
+            triggered_by=str(user.id),
+        ),
+    )
     return _dec_unit(unit)
 
 

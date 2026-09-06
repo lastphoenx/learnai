@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.ai.catalog import resolve_task_ai
-from app.ai.effective import effective_ai_config
+from app.ai.effective import EffectiveAiContext, effective_ai_config
 from app.ai.errors import LlmError
 from app.ai.extract import STT_PROVIDERS, effective_stt_provider, transcribe_audio, warmup_stt
 from app.ai.providers import complete, provider_status
@@ -66,11 +66,25 @@ def ai_effective(
             context["unit_title"] = unit_data.get("title")
             context["task_type"] = unit.task_type
             context["profile_id"] = str(unit.profile_id) if unit.profile_id else None
+            context["learner_name"] = unit_data.get("learner_name")
             target_prefs, fallback_prefs = resolve_unit_ai_prefs(db, user, unit.profile_id)
             if not target_prefs:
                 target_prefs = get_user_settings(user)
                 fallback_prefs = None
-            out = effective_ai_config(target_prefs, fallback_prefs=fallback_prefs)
+            trainer_opts = unit_data.get("trainer_options") if isinstance(unit_data.get("trainer_options"), dict) else {}
+            unit_override = str(trainer_opts.get("llm_provider") or "").strip() or None
+            adult_label = None
+            if user.profile and user.profile.display_name:
+                adult_label = user.profile.display_name
+            elif user.email:
+                adult_label = user.email.split("@")[0]
+            eff_ctx = EffectiveAiContext(
+                has_unit_profile=bool(unit.profile_id),
+                child_label=unit_data.get("learner_name") or unit.profile.display_name if unit.profile else None,
+                adult_label=adult_label,
+                unit_provider_override=unit_override,
+            )
+            out = effective_ai_config(target_prefs, fallback_prefs=fallback_prefs, context=eff_ctx)
             out["context"] = context
             return out
         except UnitError as exc:

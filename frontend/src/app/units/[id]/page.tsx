@@ -521,6 +521,8 @@ export default function UnitDetailPage() {
                 unitId={unitId}
                 taskType={unit.task_type}
                 sourceCount={unit.source_count ?? 0}
+                lastAiRun={unit.last_ai_run}
+                formatWhen={formatZurich}
               />
             )}
           </section>

@@ -331,10 +331,14 @@ def get_unit(db: Session, user: User, unit_id: uuid.UUID) -> dict:
         if focus:
             data["math_focus"] = focus
         from app.services.generate_job import last_generate_from_recon
+        from app.services.ai_run_snapshot import last_ai_run_from_recon
 
         last_generate = last_generate_from_recon(recon)
         if last_generate:
             data["last_generate"] = last_generate
+        last_ai_run = last_ai_run_from_recon(recon)
+        if last_ai_run:
+            data["last_ai_run"] = last_ai_run
     prog = learn_progress_for_unit(db, unit.id)
     if prog:
         data["learn_progress"] = prog

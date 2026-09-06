@@ -540,6 +540,24 @@ def generate_modules(
         int((time.monotonic() - t0) * 1000),
     )
     report("done", message="Lernblöcke wurden erstellt.", modules=len(saved))
+    from app.services.ai_run_snapshot import build_ai_run_snapshot, persist_last_ai_run, resolve_generation_ai_tasks
+
+    persist_last_ai_run(
+        db,
+        unit_id,
+        build_ai_run_snapshot(
+            tasks=resolve_generation_ai_tasks(
+                target_prefs,
+                fallback_prefs,
+                task,
+                provider_override=provider,
+                source_count=len(unit.sources or []),
+                mixed_result=result,
+            ),
+            stats={"modules": len(saved)},
+            triggered_by=str(user.id),
+        ),
+    )
     return _dec_unit(unit)
 
 

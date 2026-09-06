@@ -340,6 +340,13 @@ export default function NewUnitPage() {
             label="Für welche Kinder?"
           />
         )}
+        {!asChild && profileIds.length > 1 ? (
+          <p className="unit-ai-multi-hint muted">
+            Es werden <strong>{profileIds.length} separate Lerneinheiten</strong> angelegt — je Kind eine
+            Kopie mit den <strong>KI-Einstellungen dieses Kindes</strong> (Qualitäts-Tasks vererben sonst von
+            deinem Profil).
+          </p>
+        ) : null}
         <label>
           Schwierigkeit (1–5)
           <input

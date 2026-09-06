@@ -543,6 +543,7 @@ export type LearningUnit = {
   modules?: UnitModule[];
   exams?: ExamResult[];
   last_generate?: GenerateJobStatus | null;
+  last_ai_run?: LastAiRun | null;
   learner_release?: {
     targets_child: boolean;
     released: boolean;
@@ -1328,18 +1329,35 @@ export type EffectiveAiTask = {
   provider: string;
   profile_model: string | null;
   effective_model: string;
+  source?: "child" | "adult" | "catalog" | "env" | "unit";
+  source_label?: string;
   recommended?: string[];
+};
+
+export type LastAiRun = {
+  finished_at?: string;
+  status?: string;
+  tasks?: Record<string, { provider: string; model: string }>;
+  stats?: { modules?: number; cards?: number; questions?: number };
+  triggered_by?: string | null;
 };
 
 export type EffectiveAiResponse = {
   tasks: Record<string, EffectiveAiTask>;
   task_catalog: TaskCatalogItem[];
   unit_generate?: Record<string, EffectiveAiTask>;
+  inheritance?: {
+    has_unit_profile?: boolean;
+    child_label?: string | null;
+    adult_label?: string | null;
+    unit_provider_override?: string | null;
+  } | null;
   context?: {
     unit_id?: string | null;
     profile_id?: string | null;
     unit_title?: string;
     task_type?: string;
+    learner_name?: string | null;
   };
 };
 
