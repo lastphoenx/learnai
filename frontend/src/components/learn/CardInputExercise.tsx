@@ -17,6 +17,8 @@ type Props = {
   result: {
     correct: boolean;
     result_correct?: boolean;
+    partial_correct?: boolean;
+    partial_reason?: string | null;
     worked_correct?: boolean | null;
     worked_feedback?: string | null;
     explanation?: string | null;
@@ -123,6 +125,8 @@ export function CardInputExercise({
         <div className="quiz-answer-block">
           {result.correct ? (
             <p className="quiz-verdict ok">Richtig!</p>
+          ) : result.partial_correct ? (
+            <p className="quiz-verdict partial">Fast richtig gedacht!</p>
           ) : (
             <p className="quiz-verdict bad">
               {result.result_correct ? "Ergebnis passt — Lösungsweg noch ergänzen." : "Noch nicht ganz."}

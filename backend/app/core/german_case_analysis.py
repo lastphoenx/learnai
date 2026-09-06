@@ -150,16 +150,89 @@ def _morph_case(token: Any) -> str | None:
     return mapped
 
 
+def _char_span_from_text(doc: Any, span_text: str) -> Any | None:
+    needle = str(span_text or "").strip()
+    if not needle:
+        return None
+    hay = doc.text
+    idx = hay.lower().find(needle.lower())
+    if idx < 0:
+        return None
+    return doc.char_span(idx, idx + len(needle), alignment_mode="expand")
+
+
+def _token_in_char_span(token: Any, char_span: Any) -> bool:
+    return char_span.start <= token.i < char_span.end
+
+
+def _case_of_subtree(token: Any) -> str | None:
+    case = _morph_case(token)
+    if case:
+        return case
+    for child in token.subtree:
+        if child is token:
+            continue
+        case = _morph_case(child)
+        if case:
+            return case
+    return None
+
+
+def _subtree_text_in_span(doc: Any, token: Any, char_span: Any) -> str:
+    tokens = [t for t in token.subtree if _token_in_char_span(t, char_span)]
+    if not tokens:
+        return str(token.text or "").strip()
+    tokens.sort(key=lambda t: t.i)
+    start = tokens[0].i
+    end = tokens[-1].i + 1
+    return doc[start:end].text.strip()
+
+
+def case_with_nested_attributes(doc: Any, span_text: str) -> dict[str, Any]:
+    """Liefert äusseren Fall der Spanne plus eingebettete abweichende Fälle."""
+    char_span = _char_span_from_text(doc, span_text)
+    if char_span is None:
+        return {"case": None, "nested": [], "detail": "char_span fehlgeschlagen"}
+
+    outer_case = _case_of_subtree(char_span.root)
+    detail = f"Kopf «{char_span.root.text}»" if outer_case else "kein Case-Morph Merkmal"
+    if not outer_case:
+        for token in char_span:
+            outer_case = _morph_case(token)
+            if outer_case:
+                detail = f"Token «{token.text}»"
+                break
+
+    nested: list[tuple[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    root = char_span.root
+    for child in root.children:
+        if not _token_in_char_span(child, char_span):
+            continue
+        inner_case = _case_of_subtree(child)
+        if not inner_case or not outer_case or inner_case == outer_case:
+            continue
+        phrase = _subtree_text_in_span(doc, child, char_span)
+        if not phrase:
+            continue
+        key = (phrase.lower(), inner_case)
+        if key in seen:
+            continue
+        seen.add(key)
+        nested.append((phrase, inner_case))
+
+    return {"case": outer_case, "nested": nested, "detail": detail}
+
+
 def _case_from_span(doc: Any, span_text: str) -> tuple[str | None, str]:
     needle = str(span_text or "").strip()
     if not needle:
         return None, "leerer Span"
-    hay = doc.text
-    idx = hay.lower().find(needle.lower())
-    if idx < 0:
-        return None, "Span im Satz nicht gefunden"
-    char_span = doc.char_span(idx, idx + len(needle), alignment_mode="expand")
+    char_span = _char_span_from_text(doc, span_text)
     if char_span is None:
+        idx = doc.text.lower().find(needle.lower())
+        if idx < 0:
+            return None, "Span im Satz nicht gefunden"
         return None, "char_span fehlgeschlagen"
     for token in char_span:
         case = _morph_case(token)
@@ -323,6 +396,53 @@ def get_case_check_spec(card: dict[str, Any]) -> dict[str, str] | None:
             return case_check
     inferred = infer_case_check_from_question(str(card.get("question") or ""))
     return inferred
+
+
+def analyze_span_case_nested(*, sentence: str, span: str) -> dict[str, Any]:
+    """Wie analyze_span_case, inkl. eingebetteter abweichender Fälle in der Spanne."""
+    sent = str(sentence or "").strip()
+    span_text = str(span or "").strip()
+    if not sent or not span_text:
+        return {"case": None, "nested": [], "detail": "Satz oder Span fehlt", "confidence": "unavailable"}
+    if _span_covers_whole_sentence(sent, span_text):
+        return {
+            "case": None,
+            "nested": [],
+            "detail": "Span entspricht dem ganzen Satz — nicht prüfbar",
+            "confidence": "unavailable",
+        }
+    nlp = _load_nlp()
+    if nlp is None:
+        return {"case": None, "nested": [], "detail": "spaCy/Modell nicht verfügbar", "confidence": "unavailable"}
+    doc = nlp(sent)
+    result = case_with_nested_attributes(doc, span_text)
+    confidence = "high" if result.get("case") else "low"
+    result["confidence"] = confidence
+    return result
+
+
+def verify_case_answer_with_nesting(
+    *,
+    expected_answer: str,
+    given_answer: str,
+    sentence: str,
+    span: str,
+) -> str:
+    """Ergebnis: correct | wrong | teilrichtig_falsche_ebene | unavailable."""
+    expected_case = case_from_label(expected_answer)
+    given_case = case_from_label(given_answer)
+    if not expected_case or not given_case:
+        return "unavailable"
+    if expected_case == given_case:
+        return "correct"
+    analysis = analyze_span_case_nested(sentence=sentence, span=span)
+    if analysis.get("confidence") != "high":
+        return "wrong"
+    nested = analysis.get("nested") or []
+    for _text, nested_case in nested:
+        if nested_case == given_case:
+            return "teilrichtig_falsche_ebene"
+    return "wrong"
 
 
 def verify_case_label(

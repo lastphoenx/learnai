@@ -614,6 +614,10 @@ button.quiz-nav-jump.active.correct-retry {
   color: var(--danger);
 }
 
+.quiz-verdict.partial {
+  color: var(--warning, #b8860b);
+}
+
 .quiz-finish-actions {
   display: flex;
   width: 100%;

@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 
 from app.core.answer_match import answers_match, infer_answer_type
+from app.core.grammar_verify import verify_short_text_case_answer
+from app.core.german_case_analysis import get_case_check_spec
 from app.core.method_taxonomy import METHOD_HINTS, method_label, normalize_method_id
 from app.core.quiz_explanation import build_worked_solution, parse_arithmetic_operands
 from app.core.quiz_numeric import parse_quiz_numeric
@@ -198,9 +200,31 @@ def grade_input_card(
     expected_method: str | None = None,
     expected_method_label: str | None = None,
     answer_type: str | None = None,
+    card: dict | None = None,
 ) -> dict:
     kind = infer_answer_type(question=question, answer=expected_answer, raw_type=answer_type)
-    result_correct = answers_match(expected_answer, user_answer, answer_type=kind)
+    partial_correct = False
+    partial_feedback: str | None = None
+    case_spec = get_case_check_spec(card) if isinstance(card, dict) else None
+    if case_spec and kind in {"short_text", "text", "cloze"}:
+        grammar = card.get("grammar") if isinstance(card, dict) else None
+        nested = None
+        if isinstance(grammar, dict) and isinstance(grammar.get("case_check"), dict):
+            raw_nested = grammar["case_check"].get("nested")
+            if isinstance(raw_nested, list):
+                nested = [item for item in raw_nested if isinstance(item, dict)]
+        case_result = verify_short_text_case_answer(
+            expected=expected_answer,
+            user_answer=user_answer,
+            sentence=case_spec.get("sentence"),
+            span=case_spec.get("span"),
+            nested=nested,
+        )
+        result_correct = case_result["outcome"] == "correct"
+        partial_correct = bool(case_result.get("partial"))
+        partial_feedback = case_result.get("feedback")
+    else:
+        result_correct = answers_match(expected_answer, user_answer, answer_type=kind)
     worked_correct: bool | None = None
     worked_feedback: str | None = None
 
@@ -216,7 +240,9 @@ def grade_input_card(
 
     correct = result_correct and (worked_correct is not False)
     explanation = None
-    if not result_correct:
+    if partial_correct and partial_feedback:
+        explanation = partial_feedback
+    elif not result_correct:
         if kind in {"cloze", "short_text"}:
             explanation = f"Richtige Antwort: {expected_answer.replace('|', ', ')}"
         else:
@@ -225,10 +251,12 @@ def grade_input_card(
     return {
         "correct": correct,
         "result_correct": result_correct,
+        "partial_correct": partial_correct,
+        "partial_reason": "teilrichtig_falsche_ebene" if partial_correct else None,
         "worked_correct": worked_correct,
         "worked_feedback": worked_feedback,
         "explanation": explanation,
-        "expected": expected_answer if not result_correct else None,
+        "expected": expected_answer if not result_correct and not partial_correct else None,
         "expected_method": normalize_method_id(expected_method),
         "expected_method_label": str(expected_method_label or "").strip() or None,
         "answer_type": kind,

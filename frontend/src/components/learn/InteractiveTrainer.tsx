@@ -160,6 +160,8 @@ export function InteractiveTrainer({
   const [cardInputResult, setCardInputResult] = useState<{
     correct: boolean;
     result_correct?: boolean;
+    partial_correct?: boolean;
+    partial_reason?: string | null;
     worked_correct?: boolean | null;
     worked_feedback?: string | null;
     explanation?: string | null;
@@ -1396,6 +1398,8 @@ export function InteractiveTrainer({
                         setCardInputResult({
                           correct: res.correct,
                           result_correct: res.result_correct,
+                          partial_correct: res.partial_correct,
+                          partial_reason: res.partial_reason,
                           worked_correct: res.worked_correct,
                           worked_feedback: res.worked_feedback,
                           explanation: res.explanation,
@@ -1453,6 +1457,8 @@ export function InteractiveTrainer({
                       setCardInputResult({
                         correct: res.correct,
                         result_correct: res.result_correct,
+                        partial_correct: res.partial_correct,
+                        partial_reason: res.partial_reason,
                         worked_correct: res.worked_correct,
                         worked_feedback: res.worked_feedback,
                         explanation: res.explanation,

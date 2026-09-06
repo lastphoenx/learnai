@@ -465,6 +465,7 @@ def _generate_category_cards(
     focus_group: str,
     name: str,
     model: str | None,
+    difficulty: int = 3,
 ) -> list[dict]:
     expected_total = cat["merk_cards"] + cat["mental_cards"] + cat["input_cards"]
     cards: list[dict] = []
@@ -503,7 +504,11 @@ def _generate_category_cards(
             for card in cards:
                 card["kind"] = "mental"
         before_case_filter = len(cards)
-        cards, dropped_reasons = finalize_german_cards_with_drops(cards, focus_group=focus_group)
+        cards, dropped_reasons = finalize_german_cards_with_drops(
+            cards,
+            focus_group=focus_group,
+            difficulty=difficulty,
+        )
         for reason in dropped_reasons[:8]:
             _log.warning(
                 "generate_interactive case_card_dropped unit_id=%s category=%s %s",
@@ -676,6 +681,7 @@ def generate_interactive_modules(
             focus_group=focus_group,
             name=name,
             model=model,
+            difficulty=int(unit.difficulty or 3),
         )
         all_card_questions.extend(c["question"] for c in cards)
 

@@ -5,6 +5,7 @@ from app.core.grammar_verify import (
     format_grammar_report_section,
     summarize_grammar_warnings,
     verify_card_case_label,
+    verify_card_case_label_with_nesting,
 )
 
 
@@ -92,3 +93,50 @@ def test_verify_card_case_label_without_spacy_is_info():
     level, message = verify_card_case_label(card)
     assert level in {"ok", "warn", "info", None}
     assert message is None or "die Sonne" in message
+
+
+def test_verify_card_case_label_with_nesting():
+    import pytest
+
+    if not pytest.importorskip("spacy"):
+        return
+    from app.core.german_case_analysis import spacy_available
+
+    if not spacy_available():
+        pytest.skip("de_core_news_sm nicht installiert")
+    outcome = verify_card_case_label_with_nesting(
+        expected="Nominativ",
+        given="Genitiv",
+        sentence="Rot ist die Farbe des Blutes.",
+        span="die Farbe des Blutes",
+    )
+    assert outcome == "teilrichtig_falsche_ebene"
+
+
+def test_finalize_drops_nested_case_cards_at_low_difficulty():
+    import pytest
+
+    if not pytest.importorskip("spacy"):
+        return
+    from app.core.german_case_analysis import spacy_available
+
+    if not spacy_available():
+        pytest.skip("de_core_news_sm nicht installiert")
+    card = {
+        "kind": "input",
+        "question": "Welchen Fall hat «die Farbe des Blutes»?",
+        "answer": "Nominativ",
+        "grammar": {
+            "case_check": {
+                "sentence": "Rot ist die Farbe des Blutes.",
+                "span": "die Farbe des Blutes",
+            }
+        },
+    }
+    kept_low, dropped_low = finalize_german_cards_with_drops([card], focus_group="german", difficulty=1)
+    assert len(kept_low) == 0
+    assert len(dropped_low) == 1
+    kept_high, _ = finalize_german_cards_with_drops([card], focus_group="german", difficulty=4)
+    assert len(kept_high) == 1
+    nested = kept_high[0].get("grammar", {}).get("case_check", {}).get("nested")
+    assert isinstance(nested, list) and len(nested) >= 1

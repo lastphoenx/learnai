@@ -3,8 +3,10 @@ import pytest
 from app.core.german_case_analysis import (
     analyze_span_case,
     case_from_label,
+    case_with_nested_attributes,
     infer_case_check_from_question,
     parse_case_check,
+    verify_case_answer_with_nesting,
     verify_case_label,
 )
 
@@ -115,3 +117,35 @@ def test_verify_case_label_match():
     )
     assert match is True
     assert result.case == "nom"
+
+
+def test_nested_genitive_inside_nominativ_phrase_is_detected():
+    if not pytest.importorskip("spacy"):
+        return
+    from app.core.german_case_analysis import _load_nlp, spacy_available
+
+    if not spacy_available():
+        pytest.skip("de_core_news_sm nicht installiert")
+    nlp = _load_nlp()
+    result = case_with_nested_attributes(
+        doc=nlp("Rot ist die Farbe des Blutes."),
+        span_text="die Farbe des Blutes",
+    )
+    assert result["case"] == "nom"
+    assert ("des Blutes", "gen") in result["nested"]
+
+
+def test_answer_matching_embedded_case_is_not_flatly_wrong():
+    if not pytest.importorskip("spacy"):
+        return
+    from app.core.german_case_analysis import spacy_available
+
+    if not spacy_available():
+        pytest.skip("de_core_news_sm nicht installiert")
+    outcome = verify_case_answer_with_nesting(
+        expected_answer="Nominativ",
+        given_answer="Genitiv",
+        sentence="Rot ist die Farbe des Blutes.",
+        span="die Farbe des Blutes",
+    )
+    assert outcome == "teilrichtig_falsche_ebene"

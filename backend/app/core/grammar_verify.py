@@ -8,10 +8,12 @@ from typing import Any
 from app.core.answer_match import text_answers_match
 from app.core.focus_groups import normalize_focus_group
 from app.core.german_case_analysis import (
+    analyze_span_case_nested,
     case_from_label,
     case_label_de,
     get_case_check_spec,
     spacy_available,
+    verify_case_answer_with_nesting,
     verify_case_label,
 )
 from app.core.german_declension import (
@@ -64,6 +66,53 @@ def repair_german_cloze_template(template: dict[str, Any]) -> dict[str, Any]:
     repaired = dict(template)
     repaired["answers"] = expected_blank_answers(blanks)
     return repaired
+
+
+def verify_card_case_label_with_nesting(
+    *,
+    expected: str,
+    given: str,
+    sentence: str,
+    span: str,
+) -> str:
+    """Prüft Fall-Antwort inkl. «Teilrichtig, falsche Ebene»."""
+    return verify_case_answer_with_nesting(
+        expected_answer=expected,
+        given_answer=given,
+        sentence=sentence,
+        span=span,
+    )
+
+
+def _nested_case_metadata(card: dict[str, Any]) -> list[dict[str, str]] | None:
+    spec = get_case_check_spec(card)
+    if not spec:
+        return None
+    analysis = analyze_span_case_nested(sentence=spec["sentence"], span=spec["span"])
+    if analysis.get("confidence") != "high":
+        return None
+    nested = analysis.get("nested") or []
+    if not nested:
+        return None
+    return [{"text": text, "case": case} for text, case in nested]
+
+
+def enrich_german_case_card(card: dict[str, Any]) -> dict[str, Any]:
+    """Hängt erkannte eingebettete Fälle an grammar.case_check."""
+    nested_meta = _nested_case_metadata(card)
+    if not nested_meta:
+        return card
+    enriched = dict(card)
+    grammar = dict(enriched.get("grammar") or {})
+    case_check = dict(grammar.get("case_check") or {})
+    spec = get_case_check_spec(card)
+    if spec:
+        case_check.setdefault("sentence", spec["sentence"])
+        case_check.setdefault("span", spec["span"])
+    case_check["nested"] = nested_meta
+    grammar["case_check"] = case_check
+    enriched["grammar"] = grammar
+    return enriched
 
 
 def verify_card_case_label(card: dict[str, Any]) -> tuple[str | None, str | None]:
@@ -157,6 +206,7 @@ def finalize_german_cards_with_drops(
     cards: list[dict[str, Any]],
     *,
     focus_group: str,
+    difficulty: int = 3,
 ) -> tuple[list[dict[str, Any]], list[str]]:
     """Verwirft Fall-Karten mit hochkonfidenter spaCy-Abweichung; liefert Drop-Gründe."""
     group = normalize_focus_group(focus_group)
@@ -164,8 +214,16 @@ def finalize_german_cards_with_drops(
         return cards, []
     kept: list[dict[str, Any]] = []
     dropped: list[str] = []
+    max_difficulty_for_nested = 2
     for card in cards:
         if not isinstance(card, dict):
+            continue
+        nested_meta = _nested_case_metadata(card)
+        if nested_meta and difficulty <= max_difficulty_for_nested:
+            spec = get_case_check_spec(card) or {}
+            span = spec.get("span", "?")
+            question = str(card.get("question") or "")[:80]
+            dropped.append(f"{question!r}: «{span}» enthält verschachtelte Fälle (Stufe {difficulty})")
             continue
         level, msg = verify_card_case_label(card)
         if level == "warn":
@@ -178,7 +236,8 @@ def finalize_german_cards_with_drops(
                 question = str(card.get("question") or "")[:80]
                 dropped.append(f"{question!r}: {msg}")
                 continue
-        kept.append(card)
+        out = enrich_german_case_card(card) if nested_meta else card
+        kept.append(out)
     return kept, dropped
 
 
@@ -286,6 +345,45 @@ def format_grammar_report_section(warnings: list[dict[str, str]]) -> list[str]:
     return lines
 
 
-def verify_short_text_case_answer(*, expected: str, user_answer: str) -> bool:
-    """Fall-Labels (Nominativ|Nom.) — bestehende Synonym-Logik."""
-    return text_answers_match(expected, user_answer)
+def verify_short_text_case_answer(
+    *,
+    expected: str,
+    user_answer: str,
+    sentence: str | None = None,
+    span: str | None = None,
+    nested: list[dict[str, str]] | None = None,
+) -> dict[str, Any]:
+    """Fall-Labels — inkl. «Teilrichtig, falsche Ebene» bei verschachtelten Fällen."""
+    if text_answers_match(expected, user_answer):
+        return {"outcome": "correct", "partial": False, "feedback": None}
+    if sentence and span:
+        outcome = verify_case_answer_with_nesting(
+            expected_answer=expected,
+            given_answer=user_answer,
+            sentence=sentence,
+            span=span,
+        )
+        if outcome == "teilrichtig_falsche_ebene":
+            given_case = case_from_label(user_answer)
+            expected_case = case_from_label(expected)
+            nested_hit = None
+            for item in nested or []:
+                if case_from_label(str(item.get("case") or "")) == given_case:
+                    nested_hit = item
+                    break
+            if nested_hit is None:
+                analysis = analyze_span_case_nested(sentence=sentence, span=span)
+                for text, nested_case in analysis.get("nested") or []:
+                    if nested_case == given_case:
+                        nested_hit = {"text": text, "case": nested_case}
+                        break
+            nested_text = str((nested_hit or {}).get("text") or "ein Teil").strip()
+            feedback = (
+                f"Fast richtig gedacht! «{nested_text}» ist tatsächlich "
+                f"{case_label_de(given_case)} — gesucht war aber der Fall der "
+                f"ganzen Wortgruppe «{span}»: {case_label_de(expected_case)}."
+            )
+            return {"outcome": "teilrichtig_falsche_ebene", "partial": True, "feedback": feedback}
+        if outcome == "correct":
+            return {"outcome": "correct", "partial": False, "feedback": None}
+    return {"outcome": "wrong", "partial": False, "feedback": None}

@@ -1158,6 +1158,8 @@ export const submitCardInputAnswer = (
   apiFetch<{
     correct: boolean;
     result_correct: boolean;
+    partial_correct?: boolean;
+    partial_reason?: string | null;
     worked_correct?: boolean | null;
     worked_feedback?: string | null;
     explanation?: string | null;
