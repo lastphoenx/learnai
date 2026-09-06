@@ -134,36 +134,7 @@ MIXED_MASCULINES: frozenset[str] = frozenset(
     }
 )
 
-GENITIVE_PREPOSITIONS: frozenset[str] = frozenset(
-    {
-        "infolge",
-        "während",
-        "wahrend",
-        "wegen",
-        "trotz",
-        "aufgrund",
-        "anlässlich",
-        "anlasslich",
-        "angesichts",
-        "innerhalb",
-        "ausserhalb",
-        "aussserhalb",
-        "oberhalb",
-        "unterhalb",
-        "beiderseits",
-        "diesseits",
-        "jenseits",
-        "mittels",
-        "zwecks",
-        "seitlich",
-        "abseits",
-        "östlich",
-        "ostlich",
-        "westlich",
-        "nördlich",
-        "nordlich",
-    }
-)
+from app.core.german_prepositions import GENITIVE_PREPOSITIONS
 
 _DER_WORD_BASES: frozenset[str] = frozenset(
     {"d", "der", "die", "das", "dies", "jen", "jeder", "jed", "welch", "manch", "solch", "all"}

@@ -67,6 +67,8 @@ _SCHEMA_PLACEHOLDERS = frozenset(
         "aufgabentext",
         "schritt 1",
         "schritt 2",
+        "legacy feld",
+        "legacy-feld",
     }
 )
 

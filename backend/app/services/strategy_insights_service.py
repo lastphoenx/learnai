@@ -125,7 +125,10 @@ def strategy_trends_for_profile(
         if not unit or not unit.modules:
             continue
         stats = decrypt_json(rec.stats_encrypted) or {}
-        pedagogy = collect_pedagogy_from_unit_sources(unit.sources)
+        from app.ai.subject_focus import detect_focus_group
+
+        focus_group = detect_focus_group(subject=unit.subject, task_type=str(unit.task_type or ""))
+        pedagogy = collect_pedagogy_from_unit_sources(unit.sources, focus_group=focus_group)
         material_labels = material_labels_from_methods(pedagogy.get("methods") or [])
         _record_strategy_stats(stats, unit=unit, material_labels=material_labels, strategy_meta=strategy_meta)
 

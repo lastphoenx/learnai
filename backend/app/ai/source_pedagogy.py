@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from app.ai.providers import parse_json_object
+from app.core.german_pedagogy_verify import finalize_german_pedagogy_digest
 from app.core.method_taxonomy import normalize_method_id
 from app.core.pedagogy_labels import (
     guess_method_id,
@@ -24,7 +25,7 @@ _log = logging.getLogger(__name__)
 _PEDAGOGY_JSON_MARKER = "## PEDAGOGY_JSON"
 _MAX_DIGEST_CHARS = 8000
 # Erhöhen bei Schema-/Prompt-Änderungen — alte analysis_encrypted werden neu visiert.
-PEDAGOGY_ANALYSIS_VERSION = 3
+PEDAGOGY_ANALYSIS_VERSION = 4
 
 
 def vision_pedagogy_prompt(*, language: str, focus_group: str | None = None) -> str:
@@ -127,7 +128,11 @@ def blob_extracted_at(blob: bytes | None) -> str | None:
     return raw or None
 
 
-def parse_pedagogy_extraction(text: str) -> tuple[str, dict[str, Any]]:
+def parse_pedagogy_extraction(
+    text: str,
+    *,
+    focus_group: str | None = None,
+) -> tuple[str, dict[str, Any]]:
     """Vision-Antwort → (Lesetext für notes, strukturiertes Pedagogy-Objekt)."""
     raw = str(text or "").strip()
     if not raw:
@@ -147,7 +152,7 @@ def parse_pedagogy_extraction(text: str) -> tuple[str, dict[str, Any]]:
         return raw, {}
 
     summary = sanitize_pedagogy_field(str(parsed.get("summary") or "").strip())
-    pedagogy = _normalize_pedagogy(parsed)
+    pedagogy = _finalize_pedagogy(_normalize_pedagogy(parsed), focus_group=focus_group)
     if not summary:
         summary = _fallback_summary(pedagogy)
 
@@ -403,8 +408,22 @@ def _normalize_visual_tasks(raw: object) -> list[dict[str, Any]]:
     return out[:8]
 
 
-def _normalize_pedagogy(parsed: dict[str, Any]) -> dict[str, Any]:
-    page_summary = sanitize_pedagogy_field(str(parsed.get("summary") or "").strip())
+def _finalize_pedagogy(
+    pedagogy: dict[str, Any],
+    *,
+    focus_group: str | None = None,
+) -> dict[str, Any]:
+    return finalize_german_pedagogy_digest(pedagogy, focus_group=focus_group)
+
+
+def _normalize_pedagogy(
+    parsed: dict[str, Any],
+    *,
+    focus_group: str | None = None,
+) -> dict[str, Any]:
+    page_summary = sanitize_pedagogy_field(
+        str(parsed.get("summary") or parsed.get("page_summary") or "").strip()
+    )
     methods = _normalize_methods(parsed.get("methods"))
     worked = _normalize_worked_examples(parsed.get("worked_examples"))
     assignments = _normalize_assignments(parsed.get("assignments"))
@@ -435,7 +454,7 @@ def _normalize_pedagogy(parsed: dict[str, Any]) -> dict[str, Any]:
     ]
     is_meta = bool(parsed.get("is_metadata_only"))
 
-    return {
+    result = {
         "is_metadata_only": is_meta,
         "page_summary": page_summary[:1200],
         "key_terms": _normalize_key_terms(parsed.get("key_terms")),
@@ -449,6 +468,7 @@ def _normalize_pedagogy(parsed: dict[str, Any]) -> dict[str, Any]:
         "exercise_patterns": patterns,
         "teaching_notes": teaching,
     }
+    return _finalize_pedagogy(result, focus_group=focus_group)
 
 
 def _normalize_methods(raw: object) -> list[dict[str, str]]:
@@ -556,7 +576,11 @@ def _fallback_summary(pedagogy: dict[str, Any]) -> str:
     return "\n".join(parts[:8]).strip()
 
 
-def merge_pedagogy_profiles(profiles: list[dict[str, Any]]) -> dict[str, Any]:
+def merge_pedagogy_profiles(
+    profiles: list[dict[str, Any]],
+    *,
+    focus_group: str | None = None,
+) -> dict[str, Any]:
     merged: dict[str, Any] = {
         "is_metadata_only": True,
         "page_summary": "",
@@ -583,7 +607,7 @@ def merge_pedagogy_profiles(profiles: list[dict[str, Any]]) -> dict[str, Any]:
     for profile in profiles:
         if not profile:
             continue
-        profile = _normalize_pedagogy(profile)
+        profile = _normalize_pedagogy(profile, focus_group=focus_group)
         if profile.get("is_metadata_only") or not has_pedagogy_content(profile):
             continue
         merged["is_metadata_only"] = False
@@ -663,16 +687,20 @@ def merge_pedagogy_profiles(profiles: list[dict[str, Any]]) -> dict[str, Any]:
                 seen_notes.add(text)
                 merged["teaching_notes"].append(text)
 
-    return merged
+    return _finalize_pedagogy(merged, focus_group=focus_group)
 
 
-def collect_pedagogy_from_unit_sources(sources) -> dict[str, Any]:
+def collect_pedagogy_from_unit_sources(
+    sources,
+    *,
+    focus_group: str | None = None,
+) -> dict[str, Any]:
     profiles: list[dict[str, Any]] = []
     for source in sources or []:
         profile = pedagogy_from_analysis_blob(getattr(source, "analysis_encrypted", None))
         if profile:
             profiles.append(profile)
-    return merge_pedagogy_profiles(profiles)
+    return merge_pedagogy_profiles(profiles, focus_group=focus_group)
 
 
 def build_pedagogy_digest(pedagogy: dict[str, Any] | None) -> str:

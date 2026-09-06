@@ -1235,7 +1235,10 @@ def collect_quiz_weaknesses(
     weaknesses: list[dict[str, Any]] = []
     recon = _parent_recon(record)
     math_focus = (recon.get("math_focus") or "").strip() if isinstance(recon.get("math_focus"), str) else ""
-    pedagogy = collect_pedagogy_from_unit_sources(unit.sources)
+    from app.ai.subject_focus import detect_focus_group
+
+    focus_group = detect_focus_group(subject=unit.subject, task_type=str(unit.task_type or ""))
+    pedagogy = collect_pedagogy_from_unit_sources(unit.sources, focus_group=focus_group)
     material_labels = material_labels_from_methods(pedagogy.get("methods") or [])
 
     for module in modules:

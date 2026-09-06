@@ -435,7 +435,13 @@ def generate_modules(
     t0 = time.monotonic()
     notes = _collect_source_notes(db, unit, prefs)
     db.commit()
-    pedagogy_profile = collect_pedagogy_from_unit_sources(unit.sources)
+    from app.ai.subject_focus import detect_focus_group
+
+    focus_group = (
+        detect_focus_group(subject=unit.subject, task_type=str(unit.task_type or ""))
+        or "general"
+    )
+    pedagogy_profile = collect_pedagogy_from_unit_sources(unit.sources, focus_group=focus_group)
     pedagogy_digest = build_pedagogy_digest(pedagogy_profile)
     _log.info(
         "generate_llm sources_done unit_id=%s duration_ms=%d notes_chars=%d pedagogy_methods=%d",
@@ -587,7 +593,10 @@ def _vision_extract_image_source(
             exc.message,
         )
         return f"(Bild — {exc.message})"
-    summary, pedagogy = parse_pedagogy_extraction(described.get("text") or "")
+    summary, pedagogy = parse_pedagogy_extraction(
+        described.get("text") or "",
+        focus_group=focus_group,
+    )
     _log.info(
         "generate_llm vision_ok label=%s model=%s chars=%d pedagogy_methods=%d duration_ms=%d",
         label,

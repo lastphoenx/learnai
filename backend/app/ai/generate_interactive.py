@@ -489,7 +489,13 @@ def generate_interactive_modules(
         progress("extracting_sources")
     notes = _collect_source_notes(db, unit, prefs)
     db.commit()
-    pedagogy_profile = collect_pedagogy_from_unit_sources(unit.sources)
+    from app.ai.subject_focus import detect_focus_group
+
+    focus_group = (
+        detect_focus_group(subject=unit.subject, task_type=str(unit.task_type or "interactive"))
+        or "general"
+    )
+    pedagogy_profile = collect_pedagogy_from_unit_sources(unit.sources, focus_group=focus_group)
     pedagogy_digest = build_pedagogy_digest(pedagogy_profile)
     _log.info(
         "generate_interactive sources_persisted unit_id=%s notes_chars=%d pedagogy_methods=%d duration_ms=%d",
@@ -505,13 +511,6 @@ def generate_interactive_modules(
         from app.ai.subject_focus import focus_label
 
         math_focus_label = focus_label(str(math_focus))
-
-    from app.ai.subject_focus import detect_focus_group
-
-    focus_group = (
-        detect_focus_group(subject=unit.subject, task_type=str(unit.task_type or "interactive"))
-        or "general"
-    )
 
     context_prompt = build_interactive_plan_prompt(
         title=title,
@@ -777,7 +776,7 @@ def backfill_basiswissen_for_unit(
     record = db.query(LearningRecord).filter(LearningRecord.unit_id == unit.id).first()
     recon = decrypt_json(record.reconstruction_encrypted) if record and record.reconstruction_encrypted else {}
     notes = _collect_source_notes(db, unit, prefs)
-    pedagogy_profile = collect_pedagogy_from_unit_sources(unit.sources)
+    pedagogy_profile = collect_pedagogy_from_unit_sources(unit.sources, focus_group=focus_group)
     pedagogy_digest = build_pedagogy_digest(pedagogy_profile)
     title = decrypt_text_master(unit.title_encrypted)
     brief = decrypt_text_master(unit.brief_encrypted) if unit.brief_encrypted else ""

@@ -141,7 +141,18 @@ def _grammar_section(unit: LearningUnit) -> list[str]:
 
 
 def _pedagogy_section(unit: LearningUnit) -> list[str]:
-    profile = collect_pedagogy_from_unit_sources(unit.sources)
+    from app.ai.subject_focus import detect_focus_group
+    from app.core.german_pedagogy_verify import (
+        format_german_pedagogy_report_section,
+        verify_german_pedagogy_digest,
+    )
+
+    focus_group = (
+        detect_focus_group(subject=unit.subject, task_type=str(unit.task_type or "interactive"))
+        or "general"
+    )
+    profile = collect_pedagogy_from_unit_sources(unit.sources, focus_group=focus_group)
+    digest_warnings = verify_german_pedagogy_digest(profile, focus_group=focus_group)
     if not profile.get("methods") and not profile.get("exercise_patterns"):
         return ["_Keine strukturierte Didaktik in den Quellen._", ""]
     quality = _pedagogy_quality(profile)
@@ -166,6 +177,9 @@ def _pedagogy_section(unit: LearningUnit) -> list[str]:
     digest = build_pedagogy_digest(profile)
     if digest:
         lines.extend(["", "**Digest:**", "```", digest[:2000], "```"])
+    if digest_warnings:
+        lines.extend(["", "## Didaktik-QA (Deutsch)", ""])
+        lines.extend(format_german_pedagogy_report_section(digest_warnings))
     return lines
 
 

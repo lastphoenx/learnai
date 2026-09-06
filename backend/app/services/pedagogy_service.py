@@ -167,7 +167,10 @@ def _last_extract_payload(
 
 def get_unit_pedagogy(db: Session, user: User, unit_id: uuid.UUID) -> dict:
     unit = _get_unit_or_404(db, user, unit_id)
-    profile = collect_pedagogy_from_unit_sources(unit.sources)
+    from app.ai.subject_focus import detect_focus_group
+
+    focus_group = detect_focus_group(subject=unit.subject, task_type=str(unit.task_type or ""))
+    profile = collect_pedagogy_from_unit_sources(unit.sources, focus_group=focus_group)
     by_source: list[dict] = []
     image_count = 0
     can_reread = 0
@@ -197,8 +200,6 @@ def get_unit_pedagogy(db: Session, user: User, unit_id: uuid.UUID) -> dict:
                 "exercise_count": len(pedagogy.get("exercises") or []),
             }
         )
-    from app.ai.subject_focus import detect_focus_group
-
     focus_group = detect_focus_group(subject=unit.subject, task_type=str(unit.task_type or ""))
     analysis_current = bool(analysis_blobs) and analysis_current_count == analysis_blobs
     has_pedagogy = has_pedagogy_content(profile)
