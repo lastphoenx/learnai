@@ -19,6 +19,8 @@ from app.ai.source_pedagogy import (
     encode_source_analysis,
     parse_pedagogy_extraction,
     vision_pedagogy_prompt,
+    vision_pedagogy_retry_prompt,
+    VisionExtractResult,
 )
 from app.ai.prompts.pedagogy import pedagogy_context_block
 from app.core.pedagogy_validation import log_pedagogy_coverage_warnings
@@ -543,8 +545,8 @@ def _vision_extract_image_source(
     source,
     label: str,
     prefs: dict,
-) -> str | None:
-    """Bild per Vision extrahieren; summary zurückgeben oder None bei Fehler."""
+) -> VisionExtractResult | None:
+    """Bild per Vision extrahieren; Ergebnis mit structured-Flag oder None bei fehlender Datei."""
     from app.ai.errors import LlmError
 
     path = Path(settings.upload_dir) / source.storage_path
@@ -554,7 +556,7 @@ def _vision_extract_image_source(
         return None
     data = path.read_bytes()
     if len(data) > 8 * 1024 * 1024:
-        return "(Bild zu groß für Vision, übersprungen)"
+        return VisionExtractResult(summary="(Bild zu groß für Vision, übersprungen)", ok=False)
     mime = source.content_type or "image/jpeg"
     vision_name, vision_model = resolve_task_ai(prefs, "vision")
     _log.info(
@@ -571,16 +573,20 @@ def _vision_extract_image_source(
         subject=unit.subject,
         task_type=str(unit.task_type or ""),
     )
-    try:
-        described = describe_image(
+    language = unit.language or "de"
+
+    def _describe(prompt: str) -> dict:
+        return describe_image(
             image_bytes=data,
             mime=mime,
-            prompt=vision_pedagogy_prompt(
-                language=unit.language or "de",
-                focus_group=focus_group,
-            ),
+            prompt=prompt,
             provider=vision_name,
             model=vision_model,
+        )
+
+    try:
+        described = _describe(
+            vision_pedagogy_prompt(language=language, focus_group=focus_group)
         )
     except LlmError as exc:
         _log.warning(
@@ -592,17 +598,46 @@ def _vision_extract_image_source(
             int((time.monotonic() - t_vis) * 1000),
             exc.message,
         )
-        return f"(Bild — {exc.message})"
-    summary, pedagogy = parse_pedagogy_extraction(
+        return VisionExtractResult(summary=f"(Bild — {exc.message})", ok=False)
+
+    summary, pedagogy, structured = parse_pedagogy_extraction(
         described.get("text") or "",
         focus_group=focus_group,
     )
+    if not structured:
+        _log.warning(
+            "generate_llm vision_json_retry label=%s chars=%d",
+            label,
+            len(str(described.get("text") or "")),
+        )
+        try:
+            retry_described = _describe(
+                vision_pedagogy_retry_prompt(language=language, focus_group=focus_group)
+            )
+            retry_summary, retry_pedagogy, retry_structured = parse_pedagogy_extraction(
+                retry_described.get("text") or "",
+                focus_group=focus_group,
+            )
+            if retry_structured or (
+                not structured and len(retry_summary) > len(summary)
+            ):
+                described = retry_described
+                summary, pedagogy, structured = retry_summary, retry_pedagogy, retry_structured
+        except LlmError as exc:
+            _log.warning(
+                "generate_llm vision_retry_fail label=%s code=%s msg=%s",
+                label,
+                exc.code,
+                exc.message,
+            )
+
     _log.info(
-        "generate_llm vision_ok label=%s model=%s chars=%d pedagogy_methods=%d duration_ms=%d",
+        "generate_llm vision_ok label=%s model=%s chars=%d pedagogy_methods=%d structured=%s duration_ms=%d",
         label,
         described.get("model"),
         len(summary),
         len(pedagogy.get("methods") or []),
+        structured,
         int((time.monotonic() - t_vis) * 1000),
     )
     source.extracted_text_encrypted = encrypt_text_master(summary)
@@ -611,11 +646,12 @@ def _vision_extract_image_source(
             provider=str(described.get("provider") or vision_name),
             model=described.get("model"),
             pedagogy=pedagogy,
+            structured=structured,
         )
     )
     maybe_auto_purge_after_extract(db, unit, source)
     db.flush()
-    return summary
+    return VisionExtractResult(summary=summary, structured=structured, ok=True)
 
 
 def _collect_source_notes(db: Session, unit: LearningUnit, prefs: dict) -> str:
@@ -640,8 +676,8 @@ def _collect_source_notes(db: Session, unit: LearningUnit, prefs: dict) -> str:
                 refreshed = _vision_extract_image_source(
                     db=db, unit=unit, source=source, label=label, prefs=prefs
                 )
-                if refreshed and not refreshed.startswith("("):
-                    text = refreshed
+                if refreshed and refreshed.ok and not refreshed.summary.startswith("("):
+                    text = refreshed.summary
                     _log.info(
                         "generate_llm source_pedagogy_refresh label=%s chars=%d reason=stale_or_empty",
                         label,
@@ -671,11 +707,11 @@ def _collect_source_notes(db: Session, unit: LearningUnit, prefs: dict) -> str:
                 parts.append(f"### {label}\n(Link — {exc.message})")
             continue
         if source.kind == "image" and source.storage_path and source.purged_at is None:
-            summary = _vision_extract_image_source(
+            result = _vision_extract_image_source(
                 db=db, unit=unit, source=source, label=label, prefs=prefs
             )
-            if summary:
-                parts.append(_format_source_section(label, summary))
+            if result and result.ok:
+                parts.append(_format_source_section(label, result.summary))
         elif source.kind == "document" and source.storage_path and source.purged_at is None:
             path = Path(settings.upload_dir) / source.storage_path
             if not path.is_file():

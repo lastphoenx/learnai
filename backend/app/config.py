@@ -58,6 +58,7 @@ class Settings(BaseSettings):
     ollama_vision_model: str = ""
     ollama_chat_timeout_sec: int = 900
     ollama_vision_timeout_sec: int = 900
+    ollama_vision_num_predict: int = 8192
     openai_model: str = "gpt-4o-mini"
     anthropic_model: str = "claude-sonnet-4-0"
     generate_max_active_per_user: int = 2

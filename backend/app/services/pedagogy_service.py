@@ -11,6 +11,7 @@ from app.ai.generate import _vision_extract_image_source
 from app.ai.source_pedagogy import (
     PEDAGOGY_ANALYSIS_VERSION,
     blob_analysis_is_current,
+    blob_analysis_is_structured,
     blob_extracted_at,
     build_pedagogy_digest,
     collect_pedagogy_from_unit_sources,
@@ -84,11 +85,27 @@ def pedagogy_extract_snapshot(
     *,
     refreshed: int,
     skipped_no_file: int,
+    structured_count: int = 0,
+    raw_only_count: int = 0,
     quality_level: str | None = None,
 ) -> dict:
     if refreshed <= 0:
         status = "failed"
         message = "Keine Quelle konnte neu analysiert werden."
+    elif raw_only_count > 0 and structured_count > 0:
+        status = "partial"
+        message = f"{structured_count} strukturiert, {raw_only_count} nur Rohtext"
+        if skipped_no_file > 0:
+            message += f", {skipped_no_file} ohne Bilddatei"
+        message += "."
+    elif raw_only_count > 0:
+        status = "partial"
+        message = (
+            f"{refreshed} Quelle(n) neu analysiert, "
+            f"{raw_only_count} nur Rohtext (kein parsebares JSON)."
+        )
+        if skipped_no_file > 0:
+            message += f" {skipped_no_file} ohne Bilddatei."
     elif skipped_no_file > 0:
         status = "partial"
         message = f"{refreshed} Quelle(n) neu analysiert, {skipped_no_file} ohne Bilddatei."
@@ -101,6 +118,8 @@ def pedagogy_extract_snapshot(
         "updated_at": datetime.now(timezone.utc).isoformat(),
         "refreshed_sources": refreshed,
         "skipped_no_file": skipped_no_file,
+        "structured_sources": structured_count,
+        "raw_only_sources": raw_only_count,
     }
     if quality_level:
         snapshot["quality_level"] = quality_level
@@ -162,6 +181,10 @@ def _last_extract_payload(
             out["refreshed_sources"] = snapshot["refreshed_sources"]
         if snapshot.get("skipped_no_file") is not None:
             out["skipped_no_file"] = snapshot["skipped_no_file"]
+        if snapshot.get("structured_sources") is not None:
+            out["structured_sources"] = snapshot["structured_sources"]
+        if snapshot.get("raw_only_sources") is not None:
+            out["raw_only_sources"] = snapshot["raw_only_sources"]
     return out
 
 
@@ -195,6 +218,7 @@ def get_unit_pedagogy(db: Session, user: User, unit_id: uuid.UUID) -> dict:
             {
                 **meta,
                 "has_pedagogy": has_pedagogy_content(pedagogy),
+                "structured": blob_analysis_is_structured(source.analysis_encrypted),
                 "analysis_current": current,
                 "method_count": len(pedagogy.get("methods") or []),
                 "exercise_count": len(pedagogy.get("exercises") or []),
@@ -229,6 +253,8 @@ def extract_unit_pedagogy(db: Session, user: User, unit_id: uuid.UUID) -> dict:
     unit = _get_unit_or_404(db, user, unit_id)
     prefs = resolve_prefs_for_profile(db, unit.profile_id) or get_user_settings(user)
     refreshed = 0
+    structured_count = 0
+    raw_only_count = 0
     skipped_no_file = 0
     for source in unit.sources or []:
         if source.kind != "image":
@@ -246,16 +272,24 @@ def extract_unit_pedagogy(db: Session, user: User, unit_id: uuid.UUID) -> dict:
         result = _vision_extract_image_source(
             db=db, unit=unit, source=source, label=name, prefs=prefs
         )
-        if result and not str(result).startswith("("):
+        if result and result.ok and not result.summary.startswith("("):
             refreshed += 1
+            if result.structured:
+                structured_count += 1
+            else:
+                raw_only_count += 1
     db.flush()
     payload = get_unit_pedagogy(db, user, unit_id)
     payload["refreshed_sources"] = refreshed
+    payload["structured_sources"] = structured_count
+    payload["raw_only_sources"] = raw_only_count
     payload["skipped_no_file"] = skipped_no_file
     quality_level = (payload.get("quality") or {}).get("level")
     snapshot = pedagogy_extract_snapshot(
         refreshed=refreshed,
         skipped_no_file=skipped_no_file,
+        structured_count=structured_count,
+        raw_only_count=raw_only_count,
         quality_level=str(quality_level) if quality_level else None,
     )
     persist_last_pedagogy(db, unit_id, snapshot)

@@ -37,7 +37,8 @@ def test_parse_pedagogy_extraction_json():
         "exercise_patterns": ["vorgehen_waehlen"],
         "teaching_notes": ["Dezimalpunkte untereinander ausrichten"],
     }
-    summary, pedagogy = parse_pedagogy_extraction(json.dumps(payload))
+    summary, pedagogy, structured = parse_pedagogy_extraction(json.dumps(payload))
+    assert structured is True
     assert "Dezimalzahlen" in summary
     assert pedagogy["methods"][0]["label"] == "im Kopf"
     assert pedagogy["methods"][0].get("id") == "mental"
@@ -127,13 +128,61 @@ def test_encode_decode_source_analysis_roundtrip():
 def test_pedagogy_extract_snapshot_status():
     from app.services.pedagogy_service import pedagogy_extract_snapshot
 
-    ok = pedagogy_extract_snapshot(refreshed=4, skipped_no_file=0)
+    ok = pedagogy_extract_snapshot(refreshed=4, skipped_no_file=0, structured_count=4)
     assert ok["status"] == "success"
     assert ok["updated_at"]
     partial = pedagogy_extract_snapshot(refreshed=2, skipped_no_file=2)
     assert partial["status"] == "partial"
     failed = pedagogy_extract_snapshot(refreshed=0, skipped_no_file=4)
     assert failed["status"] == "failed"
+
+
+def test_pedagogy_extract_snapshot_mixed_structured_raw():
+    from app.services.pedagogy_service import pedagogy_extract_snapshot
+
+    snap = pedagogy_extract_snapshot(
+        refreshed=8,
+        skipped_no_file=0,
+        structured_count=7,
+        raw_only_count=1,
+    )
+    assert snap["status"] == "partial"
+    assert "7 strukturiert, 1 nur Rohtext" in snap["message"]
+    assert snap["structured_sources"] == 7
+    assert snap["raw_only_sources"] == 1
+
+
+def test_parse_pedagogy_extraction_unparseable_is_raw_only():
+    raw = "Seiteninhalt ohne JSON " + ("x" * 200)
+    summary, pedagogy, structured = parse_pedagogy_extraction(raw)
+    assert structured is False
+    assert pedagogy == {}
+    assert summary == raw
+
+
+def test_encode_and_analysis_is_structured_flag():
+    from app.ai.source_pedagogy import analysis_is_structured
+
+    blob = encode_source_analysis(
+        provider="ollama",
+        model="qwen2.5vl:7b",
+        pedagogy={"methods": [{"label": "im Kopf", "when": "", "example": ""}]},
+        structured=True,
+    )
+    parsed = decode_source_analysis(blob)
+    assert parsed is not None
+    assert parsed.get("structured") is True
+    assert analysis_is_structured(parsed) is True
+
+    raw_blob = encode_source_analysis(
+        provider="ollama",
+        model="qwen2.5vl:7b",
+        pedagogy={},
+        structured=False,
+    )
+    raw_parsed = decode_source_analysis(raw_blob)
+    assert raw_parsed is not None
+    assert analysis_is_structured(raw_parsed) is False
 
 
 def test_legacy_analysis_without_version_needs_refresh():
@@ -198,7 +247,8 @@ def test_parse_pedagogy_strips_schema_placeholder_echoes():
         ],
         "teaching_notes": ["didaktische Hinweise aus dem Material", "Komma untereinander ausrichten"],
     }
-    _, pedagogy = parse_pedagogy_extraction(json.dumps(payload))
+    _, pedagogy, structured = parse_pedagogy_extraction(json.dumps(payload))
+    assert structured is True
     assert pedagogy["methods"][0]["label"] == "Ich notiere meine Rechenschritte."
     assert pedagogy["methods"][0].get("when") == ""
     assert pedagogy["methods"][0].get("example") == ""
@@ -229,7 +279,8 @@ def test_parse_pedagogy_strips_new_schema_placeholder_echoes():
         "exercise_patterns": ["kurzer Name des Aufgabentyps aus dem Heft", "Dezimalzahlen addieren"],
         "teaching_notes": ["konkreter didaktischer Hinweis aus dem Material"],
     }
-    summary, pedagogy = parse_pedagogy_extraction(json.dumps(payload))
+    summary, pedagogy, structured = parse_pedagogy_extraction(json.dumps(payload))
+    assert structured is True
     assert summary == ""
     assert pedagogy["methods"][0].get("when") == ""
     assert pedagogy["methods"][0].get("example") == ""
@@ -258,7 +309,8 @@ def test_parse_pedagogy_empty_summary_when_all_fields_are_placeholders():
         "teaching_notes": ["konkreter didaktischer Hinweis aus dem Material"],
     }
     raw = json.dumps(payload)
-    summary, pedagogy = parse_pedagogy_extraction(raw)
+    summary, pedagogy, structured = parse_pedagogy_extraction(raw)
+    assert structured is False
     assert summary == ""
     assert pedagogy["methods"] == []
     assert pedagogy["exercise_patterns"] == []
@@ -297,7 +349,8 @@ def test_parse_pedagogy_strips_placeholder_method_label_from_worked_examples():
             }
         ],
     }
-    _, pedagogy = parse_pedagogy_extraction(json.dumps(payload))
+    _, pedagogy, structured = parse_pedagogy_extraction(json.dumps(payload))
+    assert structured is True
     example = pedagogy["worked_examples"][0]
     assert "method_label" not in example
     digest = build_pedagogy_digest(
@@ -382,7 +435,8 @@ def test_parse_pedagogy_drops_competency_headings_and_bad_equations():
             "Die Aufgaben werden mit Kreisen und Strichen korrigiert.",
         ],
     }
-    _, pedagogy = parse_pedagogy_extraction(json.dumps(payload))
+    _, pedagogy, structured = parse_pedagogy_extraction(json.dumps(payload))
+    assert structured is True
 
     labels = [m["label"] for m in pedagogy["methods"]]
     assert "Kopfrechnen" in labels
@@ -436,7 +490,8 @@ def test_parse_pedagogy_v3_nmg_fields_and_digest():
         "exercise_patterns": ["Zeichnen"],
         "teaching_notes": [],
     }
-    summary, pedagogy = parse_pedagogy_extraction(json.dumps(payload))
+    summary, pedagogy, structured = parse_pedagogy_extraction(json.dumps(payload))
+    assert structured is True
     assert summary
     assert pedagogy["page_summary"]
     assert len(pedagogy["key_terms"]) == 2

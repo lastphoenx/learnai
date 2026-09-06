@@ -34,7 +34,7 @@ def validate_pedagogy_fixture(
     min_method_labels: int = 2,
     fixture_name: str = "fixture",
 ) -> dict:
-    summary, pedagogy = parse_pedagogy_extraction(json.dumps(payload))
+    summary, pedagogy, _structured = parse_pedagogy_extraction(json.dumps(payload))
     methods = pedagogy.get("methods") or []
     labels = material_labels_from_methods(methods)
     if len(labels) < min_method_labels:

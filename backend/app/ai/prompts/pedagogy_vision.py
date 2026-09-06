@@ -36,6 +36,14 @@ _CORE_RULES = (
     "- key_terms aus Einleitungstext, Legenden, Beschriftungen im Material.\n"
     "- KEINE Schema-Platzhalter als Werte.\n"
     "- is_metadata_only=true nur bei Cover/ISBN ohne Aufgaben.\n"
+    "Kompaktheit (verbindlich):\n"
+    "- Antwort nur als ein JSON-Objekt — kein Markdown, kein Text davor oder danach.\n"
+    "- summary: höchstens 6 Sätze.\n"
+    "- key_terms: höchstens 12 Einträge.\n"
+    "- assignments: höchstens 8 sichtbare Aufträge.\n"
+    "- methods: höchstens 6 Lösungswege.\n"
+    "- worked_examples: höchstens 6 Beispiele.\n"
+    "- teaching_notes: höchstens 6 kurze Stichpunkte.\n"
 )
 
 _PROFILE_OVERLAYS: dict[str, str] = {

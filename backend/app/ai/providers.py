@@ -252,8 +252,18 @@ def _ollama_vision(b64: str, prompt: str, model: str | None = None) -> LlmResult
         "model": model,
         "messages": [{"role": "user", "content": prompt, "images": [b64]}],
         "stream": False,
+        "format": "json",
+        "options": {
+            "num_predict": settings.ollama_vision_num_predict,
+            "temperature": 0.2,
+        },
     }
-    _log.info("ollama_vision start model=%s timeout_s=%d", model, settings.ollama_vision_timeout_sec)
+    _log.info(
+        "ollama_vision start model=%s timeout_s=%d num_predict=%d",
+        model,
+        settings.ollama_vision_timeout_sec,
+        settings.ollama_vision_num_predict,
+    )
     data = _ollama_post("/api/chat", payload, timeout=float(settings.ollama_vision_timeout_sec))
     text = (data.get("message") or {}).get("content") or ""
     _log.info(
@@ -265,6 +275,14 @@ def _ollama_vision(b64: str, prompt: str, model: str | None = None) -> LlmResult
     )
     if not text.strip():
         raise LlmError("Ollama-Vision lieferte keinen Text", "empty_response")
+    done_reason = str(data.get("done_reason") or "?")
+    if done_reason == "length":
+        _log.warning(
+            "ollama_vision truncated model=%s eval_count=%s chars=%d",
+            model,
+            data.get("eval_count"),
+            len(text),
+        )
     return LlmResult(provider="ollama", model=model, text=text.strip())
 
 

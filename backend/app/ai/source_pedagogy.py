@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
@@ -27,6 +28,21 @@ _MAX_DIGEST_CHARS = 8000
 # Erhöhen bei Schema-/Prompt-Änderungen — alte analysis_encrypted werden neu visiert.
 PEDAGOGY_ANALYSIS_VERSION = 4
 
+_VISION_JSON_RETRY_SUFFIX = (
+    "\n\nWICHTIG: Antworte NUR mit einem gültigen JSON-Objekt — kein Markdown, kein Text "
+    "davor oder danach. Kompakt: höchstens 12 key_terms, 8 assignments, 6 methods, "
+    "6 worked_examples."
+)
+
+
+@dataclass(frozen=True)
+class VisionExtractResult:
+    """Ergebnis einer Bild-Quellen-Extraktion (Vision + Parser)."""
+
+    summary: str
+    structured: bool = False
+    ok: bool = False
+
 
 def vision_pedagogy_prompt(*, language: str, focus_group: str | None = None) -> str:
     from app.ai.prompts.pedagogy_vision import vision_pedagogy_prompt as _build
@@ -34,15 +50,35 @@ def vision_pedagogy_prompt(*, language: str, focus_group: str | None = None) -> 
     return _build(language=language, focus_group=focus_group)
 
 
-def encode_source_analysis(*, provider: str, model: str | None, pedagogy: dict[str, Any]) -> str:
+def vision_pedagogy_retry_prompt(*, language: str, focus_group: str | None = None) -> str:
+    return vision_pedagogy_prompt(language=language, focus_group=focus_group) + _VISION_JSON_RETRY_SUFFIX
+
+
+def encode_source_analysis(
+    *,
+    provider: str,
+    model: str | None,
+    pedagogy: dict[str, Any],
+    structured: bool = True,
+) -> str:
     payload = {
         "provider": provider,
         "model": model or "",
         "version": PEDAGOGY_ANALYSIS_VERSION,
         "extracted_at": datetime.now(timezone.utc).isoformat(),
+        "structured": bool(structured),
         "pedagogy": pedagogy,
     }
     return json.dumps(payload, ensure_ascii=False)
+
+
+def analysis_is_structured(parsed: dict[str, Any] | None) -> bool:
+    if not isinstance(parsed, dict):
+        return False
+    if parsed.get("structured") is False:
+        return False
+    pedagogy = parsed.get("pedagogy")
+    return isinstance(pedagogy, dict) and has_pedagogy_content(pedagogy)
 
 
 def decode_source_analysis(raw: str | None) -> dict[str, Any] | None:
@@ -128,35 +164,49 @@ def blob_extracted_at(blob: bytes | None) -> str | None:
     return raw or None
 
 
+def blob_analysis_is_structured(blob: bytes | None) -> bool:
+    if not blob:
+        return False
+    from app.core.crypto import decrypt_text_master
+
+    parsed = decode_source_analysis(decrypt_text_master(blob))
+    return analysis_is_structured(parsed)
+
+
 def parse_pedagogy_extraction(
     text: str,
     *,
     focus_group: str | None = None,
-) -> tuple[str, dict[str, Any]]:
-    """Vision-Antwort → (Lesetext für notes, strukturiertes Pedagogy-Objekt)."""
+) -> tuple[str, dict[str, Any], bool]:
+    """Vision-Antwort → (Lesetext, Pedagogy-Objekt, strukturiert parsebar)."""
     raw = str(text or "").strip()
     if not raw:
-        return "", {}
+        return "", {}, False
 
     json_blob = _extract_json_blob(raw)
     if not json_blob:
-        return raw, {}
+        _log.warning("source_pedagogy no_json chars=%d", len(raw))
+        return raw, {}, False
 
     try:
         parsed = parse_json_object(json_blob)
     except Exception:
         _log.warning("source_pedagogy parse_fail chars=%d", len(raw))
-        return raw, {}
+        return raw, {}, False
 
     if not isinstance(parsed, dict):
-        return raw, {}
+        _log.warning("source_pedagogy parse_not_object chars=%d", len(raw))
+        return raw, {}, False
 
     summary = sanitize_pedagogy_field(str(parsed.get("summary") or "").strip())
     pedagogy = _finalize_pedagogy(_normalize_pedagogy(parsed), focus_group=focus_group)
     if not summary:
         summary = _fallback_summary(pedagogy)
 
-    return summary, pedagogy
+    structured = has_pedagogy_content(pedagogy)
+    if not structured:
+        _log.warning("source_pedagogy empty_pedagogy chars=%d", len(raw))
+    return summary, pedagogy, structured
 
 
 def _extract_json_blob(text: str) -> str | None:
