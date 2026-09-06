@@ -64,6 +64,8 @@ _PROFILE_OVERLAYS: dict[str, str] = {
         "Deutsch-Zusatz:\n"
         "- key_terms: Wortarten, Satzglieder, Kasus, Deklination, Rechtschreibregeln.\n"
         "- methods: Ersatzprobe, W-Fragen (Wer/Wessen/Wem/Wen), Genitiv nach Präposition.\n"
+        "- Ersatzprobe-Beispiele: für Nominativ/Akkusativ maskuline Nomen (er/ihn); "
+        "Neutrum (es/es) und Feminin (sie/sie) beweisen den Fall nicht.\n"
         "- comprehension: Grammatik- oder Textverständnisfragen.\n"
     ),
     "language": (
