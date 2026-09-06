@@ -1,6 +1,7 @@
 from app.core.grammar_verify import (
     collect_grammar_warnings_for_module,
     finalize_german_cards,
+    finalize_german_cards_with_drops,
     format_grammar_report_section,
     summarize_grammar_warnings,
     verify_card_case_label,
@@ -11,6 +12,20 @@ def test_finalize_german_cards_keeps_non_case_cards():
     cards = [{"kind": "mental", "question": "Was ist Genus?", "answer": "Maskulin|Feminin|Neutrum"}]
     kept = finalize_german_cards(cards, focus_group="german")
     assert len(kept) == 1
+
+
+def test_finalize_german_cards_with_drops_returns_reason_list():
+    cards = [
+        {
+            "kind": "input",
+            "question": "Welcher Fall?",
+            "answer": "Akkusativ",
+            "grammar": {"case_check": {"sentence": "Ich sehe den Hund.", "span": "den Hund"}},
+        }
+    ]
+    kept, dropped = finalize_german_cards_with_drops(cards, focus_group="german")
+    assert isinstance(kept, list)
+    assert isinstance(dropped, list)
 
 
 def test_collect_grammar_warnings_declension_ok():

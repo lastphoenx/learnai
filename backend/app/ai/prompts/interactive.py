@@ -225,8 +225,9 @@ def build_interactive_typed_cards_prompt(
     if focus_group == "german":
         german_hint = (
             "\nDeutsch-Grammatik: Für Fall-Abfragen input_cards mit grammar.case_check "
-            '{"sentence":"…","span":"…"} und answer als Fall-Label. '
-            "Deklinations-Lücken als cloze mit grammar.blanks (Server prüft Endungen).\n"
+            '{"sentence":"…","span":"…"} und answer als Fall-Label (Nominativ|Nom.|Akkusativ|Akk.|Dativ|Dat.|Genitiv|Gen.). '
+            "span muss exakt im Satz vorkommen und denselben Fall haben wie answer — sonst verwirft der Server die Karte.\n"
+            "Deklinations-Lückentexte nur im Basiswissen (cloze_templates), nicht in input_cards.\n"
         )
     return (
         f"{context}\n\n"

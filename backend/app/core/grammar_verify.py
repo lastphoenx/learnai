@@ -144,16 +144,30 @@ def repair_basiswissen_grammar(basiswissen: dict[str, Any]) -> dict[str, Any]:
     return repaired
 
 
-def finalize_german_cards(cards: list[dict[str, Any]], *, focus_group: str) -> list[dict[str, Any]]:
-    """Verwirft Fall-Karten mit hochkonfidenter spaCy-Abweichung."""
+def finalize_german_cards(
+    cards: list[dict[str, Any]],
+    *,
+    focus_group: str,
+) -> list[dict[str, Any]]:
+    kept, _drops = finalize_german_cards_with_drops(cards, focus_group=focus_group)
+    return kept
+
+
+def finalize_german_cards_with_drops(
+    cards: list[dict[str, Any]],
+    *,
+    focus_group: str,
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """Verwirft Fall-Karten mit hochkonfidenter spaCy-Abweichung; liefert Drop-Gründe."""
     group = normalize_focus_group(focus_group)
     if group != "german":
-        return cards
+        return cards, []
     kept: list[dict[str, Any]] = []
+    dropped: list[str] = []
     for card in cards:
         if not isinstance(card, dict):
             continue
-        level, _msg = verify_card_case_label(card)
+        level, msg = verify_card_case_label(card)
         if level == "warn":
             match, result = verify_case_label(
                 expected_answer=str(card.get("answer") or ""),
@@ -161,9 +175,11 @@ def finalize_german_cards(cards: list[dict[str, Any]], *, focus_group: str) -> l
                 span=(get_case_check_spec(card) or {}).get("span", ""),
             )
             if match is False and result.confidence == "high":
+                question = str(card.get("question") or "")[:80]
+                dropped.append(f"{question!r}: {msg}")
                 continue
         kept.append(card)
-    return kept
+    return kept, dropped
 
 
 def collect_grammar_warnings_for_module(

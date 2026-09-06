@@ -44,7 +44,7 @@ from app.core.basiswissen import (
     strip_basiswissen_derivatives,
     validate_basiswissen,
 )
-from app.core.grammar_verify import finalize_german_cards
+from app.core.grammar_verify import finalize_german_cards_with_drops
 from app.core.answer_match import infer_answer_type
 from app.core.method_taxonomy import classify_method, normalize_method_id
 from app.core.pedagogy_validation import enforce_label_coverage, log_pedagogy_coverage_warnings
@@ -343,7 +343,16 @@ def _generate_basiswissen(
         )
         parsed = parse_json_object(result["text"])
         basiswissen = parse_basiswissen_payload(parsed, focus_group=focus_group)
+        before_cloze = len(basiswissen.get("cloze_templates") or [])
         basiswissen = finalize_basiswissen(basiswissen)
+        after_cloze = len(basiswissen.get("cloze_templates") or [])
+        if after_cloze < before_cloze:
+            _log.warning(
+                "generate_interactive basiswissen_cloze_dropped category=%s dropped=%d kept=%d",
+                cat["name"],
+                before_cloze - after_cloze,
+                after_cloze,
+            )
         for warning in validate_basiswissen(basiswissen):
             _log.warning(
                 "generate_interactive basiswissen_warning category=%s %s",
@@ -439,6 +448,89 @@ def _complete_with_retry(
             )
     assert last_exc is not None
     raise last_exc
+
+
+_GERMAN_CASE_CARDS_RETRY = (
+    "\n\nWICHTIG: Fall-Karten nur wenn span im Satz exakt vorkommt und derselbe Fall wie answer ist. "
+    "Lieber weniger Fall-Karten als falsche."
+)
+
+
+def _generate_category_cards(
+    *,
+    batch_context: str,
+    cat: dict,
+    unit_id: str,
+    category_index: int,
+    all_card_questions: list[str],
+    focus_group: str,
+    name: str,
+    model: str | None,
+) -> list[dict]:
+    expected_total = cat["merk_cards"] + cat["mental_cards"] + cat["input_cards"]
+    cards: list[dict] = []
+    for attempt in (1, 2):
+        cards_prompt = build_interactive_typed_cards_prompt(
+            context=batch_context,
+            category_name=cat["name"],
+            category_focus=cat["focus"],
+            merk_count=cat["merk_cards"],
+            mental_count=cat["mental_cards"],
+            input_count=cat["input_cards"],
+            existing_questions=all_card_questions,
+            focus_group=focus_group,
+        )
+        if attempt == 2 and focus_group == "german":
+            cards_prompt += _GERMAN_CASE_CARDS_RETRY
+        cards_result = _complete_with_retry(
+            prompt=cards_prompt,
+            provider=name,
+            system=TYPED_CARDS_SYSTEM,
+            model=model,
+            num_predict=_BATCH_NUM_PREDICT,
+            label=f"cards_{category_index + 1}" + ("_retry" if attempt == 2 else ""),
+        )
+        cards = _parse_typed_cards(
+            cards_result["text"],
+            merk_expected=cat["merk_cards"],
+            mental_expected=cat["mental_cards"],
+            input_expected=cat["input_cards"],
+        )
+        if not cards:
+            cards = _parse_cards(
+                cards_result["text"],
+                cat["merk_cards"] + cat["mental_cards"] + cat["input_cards"],
+            )
+            for card in cards:
+                card["kind"] = "mental"
+        before_case_filter = len(cards)
+        cards, dropped_reasons = finalize_german_cards_with_drops(cards, focus_group=focus_group)
+        for reason in dropped_reasons[:8]:
+            _log.warning(
+                "generate_interactive case_card_dropped unit_id=%s category=%s %s",
+                unit_id,
+                cat["name"],
+                reason,
+            )
+        if len(dropped_reasons):
+            _log.warning(
+                "generate_interactive case_cards_dropped unit_id=%s category=%s dropped=%d kept=%d",
+                unit_id,
+                cat["name"],
+                before_case_filter - len(cards),
+                len(cards),
+            )
+        min_accept = max(2, int(expected_total * 0.5))
+        if attempt == 2 or focus_group != "german" or len(cards) >= min_accept:
+            break
+        _log.warning(
+            "generate_interactive cards_retry unit_id=%s category=%s kept=%d min=%d",
+            unit_id,
+            cat["name"],
+            len(cards),
+            min_accept,
+        )
+    return cards
 
 
 def generate_interactive_modules(
@@ -573,46 +665,16 @@ def generate_interactive_modules(
             cat["cards"],
             cat["questions"],
         )
-        cards_prompt = build_interactive_typed_cards_prompt(
-            context=batch_context,
-            category_name=cat["name"],
-            category_focus=cat["focus"],
-            merk_count=cat["merk_cards"],
-            mental_count=cat["mental_cards"],
-            input_count=cat["input_cards"],
-            existing_questions=all_card_questions,
+        cards = _generate_category_cards(
+            batch_context=batch_context,
+            cat=cat,
+            unit_id=unit_id,
+            category_index=index,
+            all_card_questions=all_card_questions,
             focus_group=focus_group,
-        )
-        cards_result = _complete_with_retry(
-            prompt=cards_prompt,
-            provider=name,
-            system=TYPED_CARDS_SYSTEM,
+            name=name,
             model=model,
-            num_predict=_BATCH_NUM_PREDICT,
-            label=f"cards_{index + 1}",
         )
-        cards = _parse_typed_cards(
-            cards_result["text"],
-            merk_expected=cat["merk_cards"],
-            mental_expected=cat["mental_cards"],
-            input_expected=cat["input_cards"],
-        )
-        if not cards:
-            cards = _parse_cards(
-                cards_result["text"],
-                cat["merk_cards"] + cat["mental_cards"] + cat["input_cards"],
-            )
-            for card in cards:
-                card["kind"] = "mental"
-        before_case_filter = len(cards)
-        cards = finalize_german_cards(cards, focus_group=focus_group)
-        if len(cards) < before_case_filter:
-            _log.warning(
-                "generate_interactive case_cards_dropped unit_id=%s category=%s dropped=%d",
-                unit_id,
-                cat["name"],
-                before_case_filter - len(cards),
-            )
         all_card_questions.extend(c["question"] for c in cards)
 
         knowledge = _generate_knowledge(

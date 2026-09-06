@@ -3,6 +3,7 @@ from pathlib import Path
 
 from app.core.answer_match import cloze_answers_match
 from app.core.basiswissen import (
+    cloze_blank_count,
     derive_cloze_cards,
     derive_concept_quiz_questions,
     derive_mental_term_cards,
@@ -10,6 +11,8 @@ from app.core.basiswissen import (
     finalize_basiswissen,
     merge_concept_questions,
     parse_basiswissen_payload,
+    repair_cloze_answer_count,
+    sanitize_basiswissen_cloze_templates,
     strip_basiswissen_derivatives,
 )
 
@@ -173,3 +176,45 @@ def test_german_cases_fixture_engine_repair():
     cards = derive_cloze_cards(repaired)
     assert cards
     assert cards[0]["answer"] == "es|en|s"
+
+
+def test_repair_cloze_answer_count_replicates_single_answer():
+    template = {
+        "id": "genitiv-1",
+        "sentence": "Während ___ schönen Tage___",
+        "answers": ["der"],
+        "grammar": {
+            "blanks": [
+                {"part": "ending", "case": "gen", "gender": "masc", "number": "pl", "determiner_type": "der-word", "determiner_stem": "d"},
+                {"part": "ending", "case": "gen", "gender": "masc", "number": "pl", "lemma": "Tag"},
+            ]
+        },
+    }
+    assert cloze_blank_count(template) == 2
+    fixed = repair_cloze_answer_count(template)
+    assert fixed["answers"] == ["der", "der"]
+
+
+def test_sanitize_drops_count_mismatch_without_grammar():
+    basiswissen = {
+        "focus_group": "german",
+        "concepts": [{"id": "gen", "label": "Genitiv", "parts": [{"role": "case", "term": "Genitiv"}]}],
+        "cloze_templates": [
+            {
+                "id": "genitiv-2",
+                "concept_id": "gen",
+                "sentence": "___ und ___ und ___",
+                "answers": ["a", "b"],
+            },
+            {
+                "id": "ok",
+                "concept_id": "gen",
+                "sentence": "Der ___ Fall.",
+                "answers": ["erste"],
+            },
+        ],
+    }
+    sanitized = sanitize_basiswissen_cloze_templates(basiswissen)
+    ids = [t["id"] for t in sanitized["cloze_templates"]]
+    assert "genitiv-2" not in ids
+    assert "ok" in ids

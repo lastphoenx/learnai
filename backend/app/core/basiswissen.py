@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import re
 import uuid
 from typing import Any
@@ -11,6 +12,8 @@ from app.core.focus_groups import normalize_focus_group
 from app.core.basiswissen_profiles import FOCUS_GROUP_PROMPTS, ROLE_LABELS_DE
 from app.core.grammar_verify import repair_basiswissen_grammar, verify_basiswissen_grammar
 from app.core.practice_derive import derive_practice_items
+
+_log = logging.getLogger(__name__)
 
 SCHEMA_VERSION = 1
 _CLOZE_MARKERS = ("___", "…", "...")
@@ -75,6 +78,62 @@ def _parse_concept(raw: object, *, index: int) -> dict[str, Any] | None:
     }
 
 
+def cloze_blank_count(template: dict[str, Any]) -> int:
+    """Anzahl Lücken — grammar.blanks hat Vorrang vor ___-Zählung im Satz."""
+    from app.core.german_declension import parse_grammar_blanks
+
+    grammar = template.get("grammar")
+    if isinstance(grammar, dict):
+        blanks = parse_grammar_blanks(grammar.get("blanks"))
+        if blanks:
+            return len(blanks)
+    sentence = str(template.get("sentence") or "")
+    return sum(sentence.count(marker) for marker in _CLOZE_MARKERS)
+
+
+def repair_cloze_answer_count(template: dict[str, Any]) -> dict[str, Any]:
+    """Gleicht answers-Länge an Lücken an (eine Antwort für alle gleichen Lücken)."""
+    fixed = dict(template)
+    blank_count = cloze_blank_count(fixed)
+    if blank_count <= 0:
+        return fixed
+    answers = list(fixed.get("answers") or [])
+    if len(answers) == blank_count:
+        return fixed
+    if len(answers) == 1 and blank_count > 1:
+        fixed["answers"] = answers * blank_count
+    return fixed
+
+
+def sanitize_basiswissen_cloze_templates(basiswissen: dict[str, Any]) -> dict[str, Any]:
+    """Verwirft Cloze-Templates mit nicht reparierbarem Lücken/Antworten-Mismatch."""
+    repaired = dict(basiswissen)
+    kept: list[dict[str, Any]] = []
+    for raw in basiswissen.get("cloze_templates") or []:
+        if not isinstance(raw, dict):
+            continue
+        template = repair_cloze_answer_count(raw)
+        blank_count = cloze_blank_count(template)
+        answer_count = len(template.get("answers") or [])
+        if blank_count <= 0:
+            _log.warning(
+                "sanitize_basiswissen drop cloze id=%s reason=no_blanks",
+                template.get("id") or "?",
+            )
+            continue
+        if answer_count != blank_count:
+            _log.warning(
+                "sanitize_basiswissen drop cloze id=%s reason=count_mismatch blanks=%d answers=%d",
+                template.get("id") or "?",
+                blank_count,
+                answer_count,
+            )
+            continue
+        kept.append(template)
+    repaired["cloze_templates"] = kept
+    return repaired
+
+
 def _parse_cloze(raw: object, *, index: int) -> dict[str, Any] | None:
     if not isinstance(raw, dict):
         return None
@@ -84,10 +143,17 @@ def _parse_cloze(raw: object, *, index: int) -> dict[str, Any] | None:
     answers_raw = raw.get("answers")
     answers: list[str] = []
     if isinstance(answers_raw, list):
-        answers = [str(a).strip() for a in answers_raw if str(a).strip()]
-    elif isinstance(answers_raw, str) and answers_raw.strip():
-        answers = [a.strip() for a in answers_raw.split("|") if a.strip()]
-    if not answers:
+        answers = [str(a).strip() for a in answers_raw]
+    elif isinstance(answers_raw, str):
+        answers = [part.strip() for part in answers_raw.split("|")]
+    grammar_raw = raw.get("grammar")
+    grammar = grammar_raw if isinstance(grammar_raw, dict) else None
+    from app.core.german_declension import parse_grammar_blanks
+
+    has_grammar_blanks = bool(
+        isinstance(grammar, dict) and parse_grammar_blanks(grammar.get("blanks"))
+    )
+    if not answers and not has_grammar_blanks:
         return None
     blank_roles_raw = raw.get("blank_roles")
     blank_roles: list[str] = []
@@ -95,8 +161,6 @@ def _parse_cloze(raw: object, *, index: int) -> dict[str, Any] | None:
         blank_roles = [str(r).strip().lower()[:40] for r in blank_roles_raw if str(r).strip()]
     template_id = str(raw.get("id") or "").strip() or _slug(f"cloze_{index}")
     concept_id = str(raw.get("concept_id") or "").strip()[:64]
-    grammar_raw = raw.get("grammar")
-    grammar = grammar_raw if isinstance(grammar_raw, dict) else None
     out: dict[str, Any] = {
         "id": template_id[:64],
         "concept_id": concept_id,
@@ -146,7 +210,7 @@ def validate_basiswissen(basiswissen: dict[str, Any]) -> list[str]:
         cid = str(template.get("concept_id") or "")
         if cid and cid not in concept_ids:
             warnings.append(f"Cloze {template.get('id')} verweist auf unbekanntes concept {cid}")
-        blank_count = sum(template.get("sentence", "").count(m) for m in _CLOZE_MARKERS)
+        blank_count = cloze_blank_count(template)
         answer_count = len(template.get("answers") or [])
         if blank_count > 0 and answer_count != blank_count and answer_count != 1:
             warnings.append(f"Cloze {template.get('id')}: Anzahl Lücken und Antworten weicht ab")
@@ -156,7 +220,7 @@ def validate_basiswissen(basiswissen: dict[str, Any]) -> list[str]:
 
 def finalize_basiswissen(basiswissen: dict[str, Any]) -> dict[str, Any]:
     """Fachspezifische Reparatur vor dem Speichern (Deutsch: Deklination aus Engine)."""
-    return repair_basiswissen_grammar(basiswissen)
+    return sanitize_basiswissen_cloze_templates(repair_basiswissen_grammar(basiswissen))
 
 
 def knowledge_overview_from_basiswissen(basiswissen: dict[str, Any]) -> dict[str, str] | None:
@@ -220,7 +284,7 @@ def derive_cloze_cards(basiswissen: dict[str, Any]) -> list[dict[str, Any]]:
         answers = template.get("answers") or []
         if not sentence or not answers:
             continue
-        answer_str = "|".join(str(a).strip() for a in answers if str(a).strip())
+        answer_str = "|".join(str(a).strip() for a in answers)
         concept = concepts_by_id.get(str(template.get("concept_id") or ""), {})
         label = str(concept.get("label") or "Fachbegriffe")
         cards.append(

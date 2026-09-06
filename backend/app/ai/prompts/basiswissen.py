@@ -18,7 +18,10 @@ BASISWISSEN_SYSTEM = (
     '"grammar":{"blanks":[{"part":"ending","case":"gen","gender":"neut","number":"sg","determiner_type":"ein-word","determiner_stem":"ein"}]}}]}}\n'
     "Regeln:\n"
     "- 3 bis 8 concepts, thematisch passend zur Kategorie (nicht generisches Schulwissen von anderen Fächern).\n"
-    "- 4 bis 10 cloze_templates mit mindestens einem ___ pro Satz; answers-Länge = Anzahl Lücken (oder eine Antwort für alle gleichen Lücken).\n"
+    "- 4 bis 10 cloze_templates mit mindestens einem ___ pro Satz; answers-Länge = Anzahl Lücken "
+    "(oder genau eine Antwort für alle gleichen Lücken).\n"
+    "- Bei grammar.blanks: len(blanks) muss der Anzahl ___ im Satz entsprechen; answers werden vom Server "
+    "aus blanks berechnet — Platzhalter reichen.\n"
     "- Bei focus_group=german und Deklinations-Lücken: grammar.blanks pro Lücke (case, gender, number, determiner_type, lemma/adjective_stem); "
     "part=ending wenn nur Endungen fehlen. Antworten dürfen Platzhalter sein — Server berechnet korrekte Form.\n"
     "- pattern zeigt die Relation verständlich (Wörter, nicht nur Symbole).\n"
