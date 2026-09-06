@@ -218,7 +218,7 @@ def repair_key_terms(key_terms: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return repaired
 
 
-def _sanitize_genitive_preposition_field(text: str) -> str:
+def sanitize_genitive_preposition_field(text: str) -> str:
     cleaned = str(text or "").strip()
     if not cleaned:
         return cleaned
@@ -226,6 +226,35 @@ def _sanitize_genitive_preposition_field(text: str) -> str:
     if wrong:
         return genitive_preposition_reference_text()
     return cleaned
+
+
+def _sanitize_genitive_preposition_field(text: str) -> str:
+    """Alias für bestehenden privaten Aufrufpfad."""
+    return sanitize_genitive_preposition_field(text)
+
+
+def repair_german_concept_genitive_preposition(concept: dict[str, Any]) -> dict[str, Any]:
+    """Repariert Basiswissen-Concepts mit falschem Genitiv-nach-Präposition-Label."""
+    label = str(concept.get("label") or "")
+    norm = normalize_label(label)
+    if "genitiv" not in norm or "praeposition" not in norm:
+        return concept
+    fixed = dict(concept)
+    fixed["hint"] = sanitize_genitive_preposition_field(str(concept.get("hint") or ""))
+    fixed["pattern"] = sanitize_genitive_preposition_field(str(concept.get("pattern") or ""))
+    blob = " ".join(
+        filter(
+            None,
+            [
+                str(concept.get("example") or ""),
+                str(fixed.get("hint") or ""),
+                str(fixed.get("pattern") or ""),
+            ],
+        )
+    )
+    if blob and not sentence_has_genitive_preposition(blob):
+        fixed["label"] = "Genitivattribut"
+    return fixed
 
 
 def repair_methods(methods: list[dict[str, Any]]) -> list[dict[str, Any]]:

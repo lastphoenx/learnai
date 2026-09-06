@@ -30,6 +30,41 @@ def test_infer_case_check_from_question_two_quotes():
     assert "Sonne" in spec["span"]
 
 
+def test_infer_case_check_finds_word_quoted_before_sentence():
+    spec = infer_case_check_from_question(
+        "Welchen Kasus hat das Wort 'Buch' im Satz: 'Das ist mein Buch.'?"
+    )
+    assert spec is not None
+    assert spec["span"] == "Buch"
+    assert "Buch" in spec["sentence"]
+
+
+def test_infer_case_check_blank_sentence_uses_adjacent_word():
+    spec = infer_case_check_from_question(
+        "Bestimme den Fall des markierten Satzglieds in dem folgenden "
+        "Satz: 'Ich sehe ___ Löwen im Zoo.'"
+    )
+    assert spec is not None
+    assert spec["span"] == "Löwen"
+    assert "___" in spec["sentence"]
+
+
+def test_infer_case_check_blank_at_end_is_not_whole_sentence_span():
+    spec = infer_case_check_from_question(
+        "Bestimme den Fall des markierten Satzglieds in dem folgenden Satz: 'Das Buch gehört ___.'"
+    )
+    assert spec is None
+
+
+def test_whole_sentence_span_is_unavailable_not_high_confidence():
+    result = analyze_span_case(
+        sentence="Ich sehe ___ Löwen im Zoo.",
+        span="Ich sehe ___ Löwen im Zoo.",
+    )
+    assert result.confidence != "high"
+    assert result.confidence == "unavailable"
+
+
 @pytest.mark.parametrize(
     "sentence,span,expected",
     [

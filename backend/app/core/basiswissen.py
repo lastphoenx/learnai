@@ -10,6 +10,7 @@ from typing import Any
 from app.core.answer_match import infer_answer_type
 from app.core.focus_groups import normalize_focus_group
 from app.core.basiswissen_profiles import FOCUS_GROUP_PROMPTS, ROLE_LABELS_DE
+from app.core.german_pedagogy_verify import repair_german_concept_genitive_preposition
 from app.core.grammar_verify import repair_basiswissen_grammar, verify_basiswissen_grammar
 from app.core.practice_derive import derive_practice_items
 
@@ -218,9 +219,26 @@ def validate_basiswissen(basiswissen: dict[str, Any]) -> list[str]:
     return warnings
 
 
+def repair_basiswissen_concepts(basiswissen: dict[str, Any]) -> dict[str, Any]:
+    """Deutsch: Genitiv-Präpositions-Fehler in Concepts wie im Pedagogy-Digest korrigieren."""
+    group = normalize_focus_group(str(basiswissen.get("focus_group") or ""))
+    if group != "german":
+        return basiswissen
+    repaired = dict(basiswissen)
+    concepts: list[dict[str, Any]] = []
+    for raw in basiswissen.get("concepts") or []:
+        if not isinstance(raw, dict):
+            continue
+        concepts.append(repair_german_concept_genitive_preposition(raw))
+    repaired["concepts"] = concepts
+    return repaired
+
+
 def finalize_basiswissen(basiswissen: dict[str, Any]) -> dict[str, Any]:
-    """Fachspezifische Reparatur vor dem Speichern (Deutsch: Deklination aus Engine)."""
-    return sanitize_basiswissen_cloze_templates(repair_basiswissen_grammar(basiswissen))
+    """Fachspezifische Reparatur vor dem Speichern (Deutsch: Deklination + Concept-QA)."""
+    return sanitize_basiswissen_cloze_templates(
+        repair_basiswissen_concepts(repair_basiswissen_grammar(basiswissen))
+    )
 
 
 def knowledge_overview_from_basiswissen(basiswissen: dict[str, Any]) -> dict[str, str] | None:

@@ -27,7 +27,43 @@ _SENTENCE_PREFIX = re.compile(
     r"(?:Im Satz|Satz|Im Text|Text)\s*[:\-]?\s*[«\"']([^»\"']+[.!?])[»\"']",
     re.I,
 )
+_WORD_IN_SENTENCE = re.compile(
+    r"(?:Wort|Satzglied|Ausdruck)\s+[«\"']([^»\"']{1,80})[»\"'].{0,40}?"
+    r"(?:im\s+Satz|Satz)\s*[:\-]?\s*[«\"']([^»\"']+)[»\"']",
+    re.I,
+)
+_BLANK_AFTER = re.compile(r"___\s+([A-Za-zÄÖÜäöüß][\wÄÖÜäöüß\-]*)")
+_BLANK_BEFORE = re.compile(r"([A-Za-zÄÖÜäöüß][\wÄÖÜäöüß\-]*)\s+___")
 _CASE_QUESTION = re.compile(r"\b(welchen|welcher|welches|welchem)\s+fall\b|\bkasus\b|\bfall\b.*[«\"']", re.I)
+
+_FUNCTION_WORDS = frozenset(
+    {
+        "der",
+        "die",
+        "das",
+        "ein",
+        "eine",
+        "einem",
+        "einen",
+        "einer",
+        "eines",
+        "dem",
+        "den",
+        "des",
+        "ich",
+        "du",
+        "er",
+        "sie",
+        "es",
+        "wir",
+        "ihr",
+        "mein",
+        "dein",
+        "sein",
+        "unser",
+        "euer",
+    }
+)
 
 _nlp: Any | None = None
 _nlp_unavailable: bool = False
@@ -134,6 +170,34 @@ def _case_from_span(doc: Any, span_text: str) -> tuple[str | None, str]:
     return None, "kein Case-Morph Merkmal"
 
 
+def _span_covers_whole_sentence(sentence: str, span: str) -> bool:
+    """True wenn Span praktisch der ganze Satz ist — dann ist Fallprüfung sinnlos."""
+    sent_tokens = [t for t in re.findall(r"\w+", sentence, flags=re.UNICODE) if t]
+    span_tokens = [t for t in re.findall(r"\w+", span, flags=re.UNICODE) if t]
+    if not span_tokens:
+        return True
+    if len(span_tokens) >= max(3, int(len(sent_tokens) * 0.6 + 0.5)):
+        return True
+    sent_norm = _normalize_label(sentence)
+    span_norm = _normalize_label(span)
+    return bool(sent_norm and span_norm and (span_norm == sent_norm or sent_norm.startswith(span_norm)))
+
+
+def _span_from_blank_sentence(sentence: str) -> str | None:
+    """Bei Lückensatz: angrenzendes Inhaltswort als Zielspan, sonst None."""
+    after = _BLANK_AFTER.search(sentence)
+    if after:
+        word = after.group(1)
+        if word.lower() not in _FUNCTION_WORDS:
+            return word
+    before = _BLANK_BEFORE.search(sentence)
+    if before:
+        word = before.group(1)
+        if word.lower() not in _FUNCTION_WORDS:
+            return word
+    return None
+
+
 def analyze_span_case(*, sentence: str, span: str) -> CaseAnalysisResult:
     """Erkennt den Kasus eines markierten Satzglieds via spaCy."""
     sent = str(sentence or "").strip()
@@ -145,6 +209,14 @@ def analyze_span_case(*, sentence: str, span: str) -> CaseAnalysisResult:
             span=span_text,
             sentence=sent,
             detail="Satz oder Span fehlt",
+        )
+    if _span_covers_whole_sentence(sent, span_text):
+        return CaseAnalysisResult(
+            case=None,
+            confidence="unavailable",
+            span=span_text,
+            sentence=sent,
+            detail="Span entspricht dem ganzen Satz — nicht prüfbar",
         )
     nlp = _load_nlp()
     if nlp is None:
@@ -180,6 +252,8 @@ def parse_case_check(raw: object) -> dict[str, str] | None:
     sentence = str(raw.get("sentence") or raw.get("context") or "").strip()
     span = str(raw.get("span") or raw.get("phrase") or "").strip()
     if sentence and span:
+        if _span_covers_whole_sentence(sentence, span):
+            return None
         out: dict[str, str] = {"sentence": sentence[:500], "span": span[:120]}
         expected = normalize_case(str(raw.get("expected_case") or raw.get("case") or ""))
         if expected:
@@ -189,10 +263,18 @@ def parse_case_check(raw: object) -> dict[str, str] | None:
 
 
 def infer_case_check_from_question(question: str) -> dict[str, str] | None:
-    """Heuristik für «Welchen Fall hat «die Sonne»?» ohne explizite Metadata."""
+    """Heuristik für Fall-Fragen — nur wenn ein kurzer Zielspan erkennbar ist."""
     q = str(question or "").strip()
     if not q or not _CASE_QUESTION.search(q):
         return None
+
+    word_in_sent = _WORD_IN_SENTENCE.search(q)
+    if word_in_sent:
+        span = word_in_sent.group(1).strip()
+        sentence = word_in_sent.group(2).strip()
+        if span and sentence and not _span_covers_whole_sentence(sentence, span):
+            return {"sentence": sentence[:500], "span": span[:120]}
+
     sentence_match = _SENTENCE_PREFIX.search(q)
     quotes = _QUOTED_SPAN.findall(q)
     if not quotes:
@@ -200,15 +282,33 @@ def infer_case_check_from_question(question: str) -> dict[str, str] | None:
     if sentence_match:
         sentence = sentence_match.group(1).strip()
         span = quotes[-1].strip()
-        if span and span != sentence:
+        if span and span != sentence and not _span_covers_whole_sentence(sentence, span):
             return {"sentence": sentence[:500], "span": span[:120]}
     if len(quotes) >= 2:
         first, second = quotes[0].strip(), quotes[1].strip()
+        # Zielwort vor dem Satz: «Buch» … «Das ist mein Buch.»
+        if (
+            len(first.split()) <= 3
+            and not first.endswith((".", "!", "?"))
+            and (second.endswith((".", "!", "?")) or len(second.split()) >= 3)
+            and not _span_covers_whole_sentence(second, first)
+        ):
+            return {"sentence": second[:500], "span": first[:120]}
         if first.endswith((".", "!", "?")) and second in first:
             return {"sentence": first[:500], "span": second[:120]}
-        if first.endswith((".", "!", "?")):
+        if first.endswith((".", "!", "?")) and not _span_covers_whole_sentence(first, second):
             return {"sentence": first[:500], "span": second[:120]}
+
     span = quotes[-1].strip()
+    # Einzelnes Satz-Zitat mit Lücke → angrenzendes Wort, sonst nicht prüfbar
+    if "___" in span:
+        target = _span_from_blank_sentence(span)
+        if target:
+            return {"sentence": span[:500], "span": target[:120]}
+        return None
+    # Kein Fallback mehr: ganzen Satz als Span zurückgeben (führte zu False-Positives)
+    if _span_covers_whole_sentence(q, span) or len(span.split()) >= 4:
+        return None
     return {"sentence": q[:500], "span": span[:120]}
 
 

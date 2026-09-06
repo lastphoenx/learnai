@@ -218,3 +218,27 @@ def test_sanitize_drops_count_mismatch_without_grammar():
     ids = [t["id"] for t in sanitized["cloze_templates"]]
     assert "genitiv-2" not in ids
     assert "ok" in ids
+
+
+def test_basiswissen_concept_genitive_preposition_mislabel_is_fixed():
+    from app.core.german_pedagogy_verify import repair_german_concept_genitive_preposition
+
+    concept = {
+        "label": "Genitiv nach Präposition",
+        "pattern": "Präposition + Genitiv = Beziehung ausdrücken",
+        "example": "Das ist das Fell des Tigers. (Genitiv nach Präposition: des Tigers)",
+        "hint": "Der Genitiv wird oft nach bestimmten Präpositionen wie 'bei', 'an', 'auf', 'von' verwendet.",
+        "parts": [{"role": "case", "term": "Genitiv"}],
+    }
+    fixed = repair_german_concept_genitive_preposition(concept)
+    assert fixed["label"] == "Genitivattribut"
+    assert "bei" not in fixed["hint"].lower()
+
+    bw = finalize_basiswissen(
+        {
+            "focus_group": "german",
+            "concepts": [concept],
+            "cloze_templates": [],
+        }
+    )
+    assert bw["concepts"][0]["label"] == "Genitivattribut"
