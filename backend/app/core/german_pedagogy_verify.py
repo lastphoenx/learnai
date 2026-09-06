@@ -16,6 +16,7 @@ from app.core.german_prepositions import (
     sentence_has_genitive_preposition,
     text_lists_wrong_genitive_prepositions,
 )
+from app.core.german_pronouns import ersatzprobe_example_is_useful
 
 CASE_REFERENCE: dict[str, dict[str, str]] = {
     "nom": {"frage": "Wer oder was?", "funktion": "Subjekt"},
@@ -144,6 +145,21 @@ def _fragments_share_anchor(left: str, right: str) -> bool:
     return bool(left_tokens & right_tokens)
 
 
+def _looks_like_ersatzprobe(example: dict[str, Any]) -> bool:
+    label = normalize_label(str(example.get("method_label") or example.get("label") or ""))
+    if "ersatzprobe" in label:
+        return True
+    blob = normalize_label(
+        " ".join(
+            [
+                str(example.get("problem") or ""),
+                *(str(s) for s in (example.get("steps") or []) if isinstance(example.get("steps"), list)),
+            ]
+        )
+    )
+    return "ersatzprobe" in blob
+
+
 def worked_example_is_coherent(example: dict[str, Any]) -> bool:
     problem = str(example.get("problem") or "")
     steps = example.get("steps") or []
@@ -162,6 +178,8 @@ def worked_example_is_coherent(example: dict[str, Any]) -> bool:
         if not _fragments_share_anchor(parts[0], parts[-1]):
             return False
     if text_has_noun_noun_without_genitive_marker(text):
+        return False
+    if _looks_like_ersatzprobe(example) and not ersatzprobe_example_is_useful(example, text=text):
         return False
     return True
 
@@ -221,13 +239,16 @@ def repair_methods(methods: list[dict[str, Any]]) -> list[dict[str, Any]]:
         example = _sanitize_genitive_preposition_field(str(entry.get("example") or ""))
         entry["when"] = when
         entry["example"] = example
+        if "ersatzprobe" in normalize_label(label) and example:
+            if not ersatzprobe_example_is_useful(entry, text=example):
+                entry["example"] = ""
         if _method_label_is_genitive_preposition(label):
             blob = " ".join(
                 filter(
                     None,
                     [
                         str(entry.get("problem") or ""),
-                        example,
+                        entry.get("example") or "",
                         when,
                     ],
                 )

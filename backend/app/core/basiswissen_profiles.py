@@ -13,7 +13,9 @@ FOCUS_GROUP_PROMPTS: dict[str, str] = {
         "Rollen z. B. subject, predicate, object, attribute, nominativ, genitiv, dativ, akkusativ, preposition. "
         "Bei Deklinations-Lückentexten: cloze_templates.grammar.blanks mit case, gender, number, "
         "determiner_type (der-word|ein-word), determiner_stem, adjective_stem, lemma, part (ending|word). "
-        "Antworten werden serverseitig aus Regeln berechnet — Metadata muss stimmen."
+        "Antworten werden serverseitig aus Regeln berechnet — Metadata muss stimmen. "
+        "Ersatzprobe: nur mit maskulinen Nomen, wenn Nominativ vs. Akkusativ gezeigt werden soll "
+        "(er/ihn); Neutrum (es/es) und Feminin (sie/sie) beweisen den Fall nicht."
     ),
     "language": (
         "Fremdsprache: Vokabeln, Artikel, Zeitformen, typische Satzmuster. "
