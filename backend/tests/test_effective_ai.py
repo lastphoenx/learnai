@@ -35,6 +35,16 @@ def test_effective_uses_inheritance_when_fallback_prefs_given():
     assert out["tasks"]["mixed"]["source"] == "adult"
 
 
+def test_effective_config_applies_unit_provider_override():
+    """Ticket-Repro: leeres by_task, Override openai — Label und Provider müssen übereinstimmen."""
+    from app.ai.effective import EffectiveAiContext
+
+    ctx = EffectiveAiContext(has_unit_profile=True, unit_provider_override="openai")
+    out = effective_ai_config({"by_task": {}}, fallback_prefs={"by_task": {}}, context=ctx)
+    assert out["tasks"]["mixed"]["provider"] == "openai"
+    assert out["tasks"]["mixed"]["source"] == "unit"
+
+
 def test_effective_applies_unit_provider_override_to_mixed_only():
     from app.ai.effective import EffectiveAiContext
 
