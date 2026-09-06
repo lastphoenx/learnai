@@ -61,3 +61,13 @@ def test_resolve_generation_ai_tasks_includes_vision_with_sources():
     tasks = resolve_generation_ai_tasks({}, None, "interactive", source_count=3)
     assert "mixed" in tasks
     assert "vision" in tasks
+
+
+def test_format_ai_tasks_suffix():
+    from app.services.ai_run_snapshot import format_ai_tasks_suffix
+
+    assert format_ai_tasks_suffix(None) == ""
+    assert "openai" in format_ai_tasks_suffix(
+        {"mixed": {"provider": "openai", "model": "gpt-4o"}, "vision": {"provider": "openai", "model": "gpt-4o-mini"}}
+    )
+    assert format_ai_tasks_suffix({}) == ""

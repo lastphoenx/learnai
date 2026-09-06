@@ -567,6 +567,16 @@ def generate_interactive_modules(
     )
     name = resolve_provider(name)
 
+    from app.services.ai_run_snapshot import resolve_generation_ai_tasks
+
+    ai_tasks = resolve_generation_ai_tasks(
+        target_prefs,
+        fallback_prefs,
+        "interactive",
+        provider_override=effective_provider,
+        source_count=len(unit.sources or []),
+    )
+
     title = decrypt_text_master(unit.title_encrypted)
     brief = decrypt_text_master(unit.brief_encrypted) if unit.brief_encrypted else ""
 
@@ -585,7 +595,7 @@ def generate_interactive_modules(
     )
     t0 = time.monotonic()
     if progress:
-        progress("extracting_sources")
+        progress("extracting_sources", ai_tasks=ai_tasks)
     notes = _collect_source_notes(db, unit, target_prefs, fallback_prefs)
     db.commit()
     from app.ai.subject_focus import detect_focus_group

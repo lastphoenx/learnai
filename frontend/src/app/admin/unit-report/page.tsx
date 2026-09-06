@@ -109,11 +109,28 @@ export default function AdminUnitReportPage() {
               {result.grammar.spacy_available ? "verfügbar" : "nicht verfügbar"}
             </p>
           )}
+          {result.ai && (
+            <p className="muted section-lead">
+              KI:{" "}
+              {Object.keys(result.ai.current || {}).length > 0
+                ? Object.entries(result.ai.current || {})
+                    .map(([key, row]) => `${key} ${row.provider || "?"} ${row.model || ""}`.trim())
+                    .join(" · ")
+                : "—"}
+              {result.ai.last_run?.finished_at ? (
+                <>
+                  {" · "}Zuletzt: {new Date(result.ai.last_run.finished_at).toLocaleString("de-DE")}
+                </>
+              ) : null}
+            </p>
+          )}
           <pre className="admin-golden-report">{result.report}</pre>
         </section>
       )}
 
       <p className="muted">
+        <Link href="/admin/ai-overview">KI-Übersicht</Link>
+        {" · "}
         <Link href="/admin/golden-set">Golden Set</Link>
         {" · "}
         <Link href="/admin/users">Benutzer</Link>

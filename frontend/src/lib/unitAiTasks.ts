@@ -43,3 +43,22 @@ export function aiSourceBadgeClass(source: AiSettingSource | string | undefined)
   if (source === "env") return "unit-ai-source--env";
   return "unit-ai-source--catalog";
 }
+
+export function formatAiTasksCompact(
+  tasks: Record<string, { provider?: string; model?: string }> | null | undefined,
+): string | null {
+  if (!tasks) return null;
+  const parts: string[] = [];
+  for (const key of ["mixed", "vision"]) {
+    const row = tasks[key];
+    if (!row?.provider) continue;
+    parts.push(`${providerLabel(row.provider)} ${row.model || "(auto)"}`);
+  }
+  if (!parts.length) {
+    for (const row of Object.values(tasks)) {
+      if (!row?.provider) continue;
+      parts.push(`${providerLabel(row.provider)} ${row.model || "(auto)"}`);
+    }
+  }
+  return parts.length ? parts.join(" · ") : null;
+}

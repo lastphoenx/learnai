@@ -238,6 +238,7 @@ class GenerateJobStatus(BaseModel):
     cards: int | None = None
     questions: int | None = None
     ollama: dict | None = None
+    ai_tasks: dict | None = None
 
 
 class GenerateStartResponse(BaseModel):

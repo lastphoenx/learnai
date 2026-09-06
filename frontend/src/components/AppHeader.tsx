@@ -32,6 +32,7 @@ export function AppHeader({ user, title }: AppHeaderProps) {
           <Link href="/settings">Einstellungen</Link>
           {user?.is_admin && !asChild && <Link href="/admin/users">Benutzer</Link>}
           {user?.is_admin && !asChild && <Link href="/admin/golden-set">Golden Set</Link>}
+          {user?.is_admin && !asChild && <Link href="/admin/ai-overview">KI-Übersicht</Link>}
           {user?.is_admin && !asChild && <Link href="/admin/unit-report">Qualitätsreport</Link>}
         </nav>
         <div className="header-actions">

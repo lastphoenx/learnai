@@ -10,6 +10,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 
 from app.api.admin_pedagogy import router as admin_pedagogy_router
+from app.api.admin_ai_overview import router as admin_ai_overview_router
 from app.api.admin_unit_report import router as admin_unit_report_router
 from app.api.dashboard import router as dashboard_router
 from app.api.health import router as health_router
@@ -64,6 +65,7 @@ app.include_router(health_router, prefix="/api/v1")
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(users_router, prefix="/api/v1")
 app.include_router(admin_pedagogy_router, prefix="/api/v1")
+app.include_router(admin_ai_overview_router, prefix="/api/v1")
 app.include_router(admin_unit_report_router, prefix="/api/v1")
 app.include_router(profiles_router, prefix="/api/v1")
 app.include_router(units_router, prefix="/api/v1")

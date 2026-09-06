@@ -16,6 +16,10 @@ from app.core.grammar_verify import (
 from app.core.quiz_explanation import enrich_quiz_explanation, explanation_is_weak, method_explanation_incomplete
 from app.core.solution_repair import enrich_card_answer
 from app.models import LearningRecord, LearningUnit, User
+from app.services.ai_run_snapshot import (
+    format_ai_tasks_report_section,
+    summarize_unit_ai_context,
+)
 from app.services.crypto_json import decrypt_json
 from app.services.learn_service import learn_progress_for_unit, refresh_stored_answer_details
 from app.services.pedagogy_service import _pedagogy_quality
@@ -220,6 +224,40 @@ def _progress_section(db: Session, unit: LearningUnit, record: LearningRecord) -
     return lines
 
 
+def _ai_section(db: Session, user: User, unit: LearningUnit, record: LearningRecord) -> tuple[list[str], dict]:
+    ctx = summarize_unit_ai_context(db, user, unit, record)
+    lines = ["## KI-Konfiguration", ""]
+    current = ctx.get("current") if isinstance(ctx, dict) else {}
+    if isinstance(current, dict) and current:
+        lines.append("### Aktuell (effektiv für Generierung)")
+        lines.append("")
+        for key in sorted(current.keys()):
+            row = current.get(key)
+            if not isinstance(row, dict):
+                continue
+            source_label = str(row.get("source_label") or row.get("source") or "—")
+            provider = str(row.get("provider") or "—")
+            model = str(row.get("model") or "(auto)")
+            lines.append(f"- **{key}:** {provider} · {model} ({source_label})")
+        lines.append("")
+    else:
+        lines.append("_Keine aufgelöste Generierungs-KI._")
+        lines.append("")
+
+    last_run = ctx.get("last_run") if isinstance(ctx, dict) else None
+    last_tasks = last_run.get("tasks") if isinstance(last_run, dict) else None
+    lines.extend(format_ai_tasks_report_section(last_tasks, heading="Zuletzt generiert"))
+    if isinstance(last_run, dict) and last_run.get("finished_at"):
+        lines.append(f"- Zeitpunkt: {last_run.get('finished_at')}")
+        stats = last_run.get("stats")
+        if isinstance(stats, dict) and stats:
+            stat_bits = ", ".join(f"{k}={v}" for k, v in sorted(stats.items()))
+            lines.append(f"- Statistik: {stat_bits}")
+        lines.append("")
+
+    return lines, {"current": current or {}, "last_run": last_run}
+
+
 def _unit_header(unit: LearningUnit, record: LearningRecord, refs: dict) -> list[str]:
     title = decrypt_text_master(unit.title_encrypted)
     learner = unit.profile.display_name if unit.profile else "—"
@@ -261,6 +299,7 @@ def build_unit_quality_report(db: Session, user: User, ref: str) -> dict:
     ]
 
     grammar_unit: LearningUnit | None = None
+    ai_payload: dict | None = None
 
     if scope == "family":
         lines.append("## Instanzen in dieser Familie")
@@ -280,8 +319,6 @@ def build_unit_quality_report(db: Session, user: User, ref: str) -> dict:
         refs = ensure_unit_reference_codes(db, root_unit, root_record, persist=False)
         lines.extend(_unit_header(root_unit, root_record, refs))
         lines.append("")
-        lines.append("## Didaktik aus Quellen")
-        lines.append("")
         root_loaded = (
             db.query(LearningUnit)
             .options(joinedload(LearningUnit.modules), joinedload(LearningUnit.sources), joinedload(LearningUnit.profile))
@@ -289,6 +326,10 @@ def build_unit_quality_report(db: Session, user: User, ref: str) -> dict:
             .first()
         )
         if root_loaded:
+            ai_lines, ai_payload = _ai_section(db, user, root_loaded, root_record)
+            lines.extend(ai_lines)
+            lines.append("## Didaktik aus Quellen")
+            lines.append("")
             lines.extend(_pedagogy_section(root_loaded))
             lines.append("")
             lines.extend(_grammar_section(root_loaded))
@@ -312,6 +353,8 @@ def build_unit_quality_report(db: Session, user: User, ref: str) -> dict:
         lines.append("")
         lines.extend(_unit_header(unit, record, refs))
         lines.append("")
+        ai_lines, ai_payload = _ai_section(db, user, unit, record)
+        lines.extend(ai_lines)
         lines.append("## Didaktik aus Quellen")
         lines.append("")
         lines.extend(_pedagogy_section(unit))
@@ -339,6 +382,7 @@ def build_unit_quality_report(db: Session, user: User, ref: str) -> dict:
         "report": report,
         "grammar": summarize_grammar_warnings(grammar_warnings),
         "grammar_warnings": grammar_warnings,
+        "ai": ai_payload,
         "ok": True,
     }
 

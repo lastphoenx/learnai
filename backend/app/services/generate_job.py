@@ -10,6 +10,7 @@ from typing import Any
 
 from app.ai.errors import LlmError
 from app.config import settings
+from app.services.ai_run_snapshot import format_ai_tasks_suffix
 
 _log = logging.getLogger(__name__)
 
@@ -176,7 +177,7 @@ def set_generate_job(unit_id: str, *, user_id: str, **fields: Any) -> dict[str, 
         "updated_at": _now_iso(),
         "job_id": job_id,
     }
-    for key in ("index", "total", "category", "modules", "cards", "questions", *_JOB_META_KEYS):
+    for key in ("index", "total", "category", "modules", "cards", "questions", "ai_tasks", *_JOB_META_KEYS):
         if key == "job_id":
             continue
         if key in fields:
@@ -253,6 +254,9 @@ def make_progress_callback(unit_id: str, user_id: str, job_id: str | None = None
         elif stage == "failed":
             status = "failed"
 
+        ai_tasks = extra.get("ai_tasks") or current.get("ai_tasks")
+        ai_suffix = format_ai_tasks_suffix(ai_tasks if isinstance(ai_tasks, dict) else None)
+
         custom_message = extra.pop("message", None)
         if custom_message:
             message = str(custom_message)
@@ -268,6 +272,12 @@ def make_progress_callback(unit_id: str, user_id: str, job_id: str | None = None
                 message = STAGE_MESSAGES.get(stage, stage)
         else:
             message = STAGE_MESSAGES.get(stage, stage)
+
+        if ai_suffix and stage in {"extracting_sources", "planning", "category", "saving"}:
+            message = f"{message}{ai_suffix}"
+
+        if ai_tasks and "ai_tasks" not in extra:
+            extra = {**extra, "ai_tasks": ai_tasks}
 
         set_generate_job(
             unit_id,

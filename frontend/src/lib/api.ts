@@ -782,6 +782,17 @@ export type UnitQualityReport = {
   unit_count: number;
   report: string;
   ok: boolean;
+  ai?: {
+    current?: Record<
+      string,
+      { provider?: string; model?: string; source?: string; source_label?: string }
+    >;
+    last_run?: {
+      finished_at?: string;
+      tasks?: Record<string, { provider?: string; model?: string }>;
+      stats?: Record<string, number>;
+    } | null;
+  };
   grammar?: {
     total: number;
     ok: number;
@@ -801,6 +812,34 @@ export type UnitQualityReport = {
 
 export const fetchUnitQualityReport = (ref: string) =>
   apiFetch<UnitQualityReport>(`/api/v1/admin/unit-report?ref=${encodeURIComponent(ref)}`);
+
+export type AdminAiOverviewUnit = {
+  unit_id: string;
+  reference_code: string | null;
+  title: string;
+  learner: string;
+  task_type: string;
+  status: string;
+  source_count: number;
+  module_count: number;
+  current_ai: Record<
+    string,
+    { provider?: string; model?: string; source?: string; source_label?: string }
+  >;
+  last_ai_run?: {
+    finished_at?: string;
+    tasks?: Record<string, { provider?: string; model?: string }>;
+    stats?: Record<string, number>;
+  } | null;
+  last_ai_summary?: string | null;
+};
+
+export type AdminAiOverview = {
+  count: number;
+  units: AdminAiOverviewUnit[];
+};
+
+export const fetchAdminAiOverview = () => apiFetch<AdminAiOverview>("/api/v1/admin/ai-overview");
 
 export const updateMySettings = (body: { display_name?: string }) =>
   apiFetch<User>("/api/v1/auth/me", { method: "PATCH", json: body });
@@ -992,6 +1031,7 @@ export type GenerateJobStatus = {
   modules?: number | null;
   cards?: number | null;
   questions?: number | null;
+  ai_tasks?: Record<string, { provider?: string; model?: string }> | null;
   ollama?: {
     ok?: boolean;
     loaded?: string[];

@@ -12,6 +12,7 @@ import { SourcePreviewModal } from "@/components/SourcePreviewModal";
 import { LearnerReleaseToggle, learnerReleaseBadge } from "@/components/LearnerReleaseToggle";
 import { LearnProgressSummary } from "@/components/LearnProgressSummary";
 import { UnitEffectiveAiPanel } from "@/components/UnitEffectiveAiPanel";
+import { formatAiTasksCompact } from "@/lib/unitAiTasks";
 import { useChildPreview } from "@/lib/childPreview";
 import {
   addSourceUrl,
@@ -1021,6 +1022,11 @@ export default function UnitDetailPage() {
                       {generateJob?.message || "Bitte Tab offen lassen…"}
                       {typeof generateJob?.progress_pct === "number" ? ` (${generateJob.progress_pct}%)` : ""}
                     </span>
+                    {generateJob?.ai_tasks && formatAiTasksCompact(generateJob.ai_tasks) ? (
+                      <span className="muted generate-ai-tasks-hint">
+                        KI: {formatAiTasksCompact(generateJob.ai_tasks)}
+                      </span>
+                    ) : null}
                     {generateJob?.ollama?.message &&
                     generateJob.ollama.message !== generateJob.message ? (
                       <span className="muted generate-ollama-hint">{generateJob.ollama.message}</span>

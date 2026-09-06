@@ -419,8 +419,17 @@ def generate_modules(
         if progress:
             progress(stage, **extra)
 
-    report("extracting_sources")
     target_prefs, fallback_prefs = resolve_unit_ai_prefs(db, user, unit.profile_id)
+    from app.services.ai_run_snapshot import resolve_generation_ai_tasks
+
+    ai_tasks = resolve_generation_ai_tasks(
+        target_prefs,
+        fallback_prefs,
+        task,
+        provider_override=provider,
+        source_count=len(unit.sources or []),
+    )
+    report("extracting_sources", ai_tasks=ai_tasks)
     prefs = target_prefs
     ai_task = AI_TASK_FOR_UNIT.get(task, "mixed")
     name, model = resolve_task_ai_for_unit(
