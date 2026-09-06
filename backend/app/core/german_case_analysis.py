@@ -150,6 +150,9 @@ def _morph_case(token: Any) -> str | None:
     return mapped
 
 
+_ATTR_DEPS = frozenset({"nk", "ag", "og", "mnr", "bv", "nmod", "amod"})
+
+
 def _char_span_from_text(doc: Any, span_text: str) -> Any | None:
     needle = str(span_text or "").strip()
     if not needle:
@@ -163,6 +166,41 @@ def _char_span_from_text(doc: Any, span_text: str) -> Any | None:
 
 def _token_in_char_span(token: Any, char_span: Any) -> bool:
     return char_span.start <= token.i < char_span.end
+
+
+def _descends_from(token: Any, ancestor: Any) -> bool:
+    if token.i == ancestor.i:
+        return True
+    current = token
+    for _ in range(24):
+        head = current.head
+        if head.i == current.i:
+            break
+        if head.i == ancestor.i:
+            return True
+        current = head
+    return False
+
+
+def _phrase_head_in_span(char_span: Any) -> Any:
+    """Syntaktischer Kopf der Spanne — bevorzugt Nomen mit Head ausserhalb der Spanne."""
+    external = [
+        t
+        for t in char_span
+        if t.head.i < char_span.start or t.head.i >= char_span.end
+    ]
+    if not external:
+        return char_span.root
+    content = [t for t in external if t.pos_ in ("NOUN", "PROPN", "PRON")]
+    if content:
+        return max(content, key=lambda t: t.i)
+    for anchor in sorted(external, key=lambda t: t.i):
+        for child in anchor.children:
+            if not _token_in_char_span(child, char_span):
+                continue
+            if child.pos_ in ("NOUN", "PROPN", "PRON"):
+                return child
+    return max(external, key=lambda t: t.i)
 
 
 def _case_of_subtree(token: Any) -> str | None:
@@ -188,14 +226,58 @@ def _subtree_text_in_span(doc: Any, token: Any, char_span: Any) -> str:
     return doc[start:end].text.strip()
 
 
+def _nested_cases_in_span(doc: Any, char_span: Any, head: Any, outer_case: str) -> list[tuple[str, str]]:
+    nested: list[tuple[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+
+    def _add(token: Any) -> None:
+        inner_case = _case_of_subtree(token)
+        if not inner_case or inner_case == outer_case:
+            return
+        phrase = _subtree_text_in_span(doc, token, char_span)
+        if not phrase:
+            return
+        key = (phrase.lower(), inner_case)
+        if key in seen:
+            return
+        seen.add(key)
+        nested.append((phrase, inner_case))
+
+    for child in head.children:
+        if _token_in_char_span(child, char_span):
+            _add(child)
+
+    for token in char_span:
+        if token.i == head.i:
+            continue
+        if token.dep_ == "det" and token.head.i == head.i:
+            continue
+        inner_case = _case_of_subtree(token)
+        if not inner_case or inner_case == outer_case:
+            continue
+        if token.dep_.lower() in _ATTR_DEPS or _descends_from(token, head):
+            _add(token)
+
+    nested.sort(key=lambda item: (-len(item[0]), item[0].lower()))
+    deduped: list[tuple[str, str]] = []
+    seen_cases: set[str] = set()
+    for phrase, case in nested:
+        if case in seen_cases:
+            continue
+        seen_cases.add(case)
+        deduped.append((phrase, case))
+    return deduped
+
+
 def case_with_nested_attributes(doc: Any, span_text: str) -> dict[str, Any]:
     """Liefert äusseren Fall der Spanne plus eingebettete abweichende Fälle."""
     char_span = _char_span_from_text(doc, span_text)
     if char_span is None:
         return {"case": None, "nested": [], "detail": "char_span fehlgeschlagen"}
 
-    outer_case = _case_of_subtree(char_span.root)
-    detail = f"Kopf «{char_span.root.text}»" if outer_case else "kein Case-Morph Merkmal"
+    head = _phrase_head_in_span(char_span)
+    outer_case = _case_of_subtree(head)
+    detail = f"Kopf «{head.text}»" if outer_case else "kein Case-Morph Merkmal"
     if not outer_case:
         for token in char_span:
             outer_case = _morph_case(token)
@@ -203,23 +285,7 @@ def case_with_nested_attributes(doc: Any, span_text: str) -> dict[str, Any]:
                 detail = f"Token «{token.text}»"
                 break
 
-    nested: list[tuple[str, str]] = []
-    seen: set[tuple[str, str]] = set()
-    root = char_span.root
-    for child in root.children:
-        if not _token_in_char_span(child, char_span):
-            continue
-        inner_case = _case_of_subtree(child)
-        if not inner_case or not outer_case or inner_case == outer_case:
-            continue
-        phrase = _subtree_text_in_span(doc, child, char_span)
-        if not phrase:
-            continue
-        key = (phrase.lower(), inner_case)
-        if key in seen:
-            continue
-        seen.add(key)
-        nested.append((phrase, inner_case))
+    nested = _nested_cases_in_span(doc, char_span, head, outer_case) if outer_case else []
 
     return {"case": outer_case, "nested": nested, "detail": detail}
 
@@ -250,11 +316,14 @@ def _span_covers_whole_sentence(sentence: str, span: str) -> bool:
     span_tokens = [t for t in re.findall(r"\w+", span, flags=re.UNICODE) if t]
     if not span_tokens:
         return True
-    if len(span_tokens) >= max(3, int(len(sent_tokens) * 0.6 + 0.5)):
-        return True
     sent_norm = _normalize_label(sentence)
     span_norm = _normalize_label(span)
-    return bool(sent_norm and span_norm and span_norm == sent_norm)
+    if sent_norm and span_norm and span_norm == sent_norm:
+        return True
+    # Lange Spans (>85 % der Satz-Tokens) nur blockieren, wenn kein klares Teilsatzglied bleibt
+    if len(span_tokens) >= max(4, int(len(sent_tokens) * 0.85 + 0.5)):
+        return True
+    return False
 
 
 def _span_from_blank_sentence(sentence: str) -> str | None:
