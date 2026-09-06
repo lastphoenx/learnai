@@ -7,7 +7,10 @@ from __future__ import annotations
 
 import re
 import unicodedata
+import logging
 from typing import Any
+
+_log = logging.getLogger(__name__)
 
 Case = str  # nom | gen | dat | acc
 Gender = str  # masc | fem | neut
@@ -34,12 +37,17 @@ _GENDER_ALIASES: dict[str, Gender] = {
     "masc": "masc",
     "mask": "masc",
     "maskulin": "masc",
+    "maskulinum": "masc",
+    "maennlich": "masc",
     "m": "masc",
     "fem": "fem",
     "feminin": "fem",
+    "femininum": "fem",
+    "weiblich": "fem",
     "f": "fem",
     "neut": "neut",
     "neutrum": "neut",
+    "saechlich": "neut",
     "n": "neut",
 }
 
@@ -146,26 +154,29 @@ _EIN_WORD_BASES: frozenset[str] = frozenset(
 _GENITIVE_ES_ENDINGS = re.compile(r"(s|ß|ss|z|x|sch)$", re.I)
 
 
+def _alias_key(value: str | None) -> str:
+    key = unicodedata.normalize("NFKC", str(value or "")).strip().lower()
+    key = key.replace("ä", "ae").replace("ö", "oe").replace("ü", "ue").replace("ß", "ss")
+    return key.rstrip(".")
+
+
 def normalize_case(value: str | None) -> Case | None:
-    key = str(value or "").strip().lower()
-    return _CASE_ALIASES.get(key)
+    return _CASE_ALIASES.get(_alias_key(value))
 
 
 def normalize_gender(value: str | None) -> Gender | None:
-    key = str(value or "").strip().lower()
-    return _GENDER_ALIASES.get(key)
+    return _GENDER_ALIASES.get(_alias_key(value))
 
 
 def normalize_number(value: str | None) -> Number | None:
-    key = str(value or "").strip().lower()
-    return _NUMBER_ALIASES.get(key)
+    return _NUMBER_ALIASES.get(_alias_key(value))
 
 
 def normalize_determiner_type(value: str | None) -> DeterminerType | None:
-    key = str(value or "").strip().lower().replace("_", "-")
-    if key in {"der-word", "derword", "definite", "bestimmt"}:
+    key = _alias_key(value).replace("_", "-")
+    if key in {"der-word", "derword", "definite", "bestimmt", "der-artikel"}:
         return "der-word"
-    if key in {"ein-word", "einword", "indefinite", "unbestimmt", "possessive"}:
+    if key in {"ein-word", "einword", "indefinite", "unbestimmt", "possessive", "ein-artikel"}:
         return "ein-word"
     if key in {"none", "strong", "stark", "ohne-artikel"}:
         return "none"
@@ -374,6 +385,16 @@ def decline(
     norm_number = normalize_number(number)
     norm_det = normalize_determiner_type(determiner_type)
     if not norm_case or not norm_gender or not norm_number or not norm_det:
+        missing: list[str] = []
+        if not norm_case:
+            missing.append(f"case={case!r}")
+        if not norm_gender:
+            missing.append(f"gender={gender!r}")
+        if not norm_number:
+            missing.append(f"number={number!r}")
+        if not norm_det:
+            missing.append(f"determiner_type={determiner_type!r}")
+        _log.warning("decline_normalization_failed %s", ", ".join(missing))
         return {"determiner": "", "adjective": "", "noun": ""}
 
     noun = decline_noun(lemma=lemma, gender=norm_gender, number=norm_number, case=norm_case)
@@ -512,9 +533,52 @@ def expected_blank_answers(blanks: list[dict[str, Any]]) -> list[str]:
                 answers.append(phrase["adjective"])
             else:
                 answers.append(phrase["noun"])
+        elif part == "ending":
+            if blank.get("determiner_type"):
+                det = phrase["determiner"]
+                stem = det_stem or ("d" if determiner_type == "der-word" else det_stem)
+                if stem and det.startswith(stem):
+                    answers.append(det[len(stem) :])
+                elif determiner_type == "der-word" and not det_stem and det.startswith("d"):
+                    answers.append(det[1:])
+                else:
+                    answers.append(det)
+            elif adj_stem:
+                adj = phrase["adjective"]
+                adj_base = str(adj_stem)
+                answers.append(adj[len(adj_base) :] if adj.startswith(adj_base) else adj)
+            elif lemma:
+                noun = phrase["noun"]
+                if case == "gen" and number == "pl":
+                    answers.append("")
+                elif case == "gen" and number == "sg" and gender != "fem":
+                    answers.append(noun[len(lemma) :] if noun.startswith(lemma) else noun)
+                elif case == "dat" and number == "pl":
+                    suffix = noun[len(lemma) :] if noun.startswith(lemma) else noun
+                    answers.append(suffix or "n")
+                else:
+                    answers.append(noun)
+            else:
+                _log.warning("expected_blank_answers ending without target blank=%r", blank)
+                answers.append("")
         else:
+            _log.warning("expected_blank_answers unknown part=%r blank=%r", part, blank)
             answers.append("")
     return answers
+
+
+def cloze_answers_repairable(blanks: list[dict[str, Any]], answers: list[str]) -> tuple[bool, str | None]:
+    """True wenn Antworten zur Blank-Struktur passen und prüfbar sind."""
+    if len(answers) != len(blanks):
+        return False, f"Antwortanzahl {len(answers)} != Lücken {len(blanks)}"
+    expected = expected_blank_answers(blanks)
+    if len(expected) != len(blanks):
+        return False, "Engine lieferte zu wenige Antworten"
+    if verify_cloze_answer(blanks=blanks, given_answer=answers):
+        return True, None
+    if not any(str(a).strip() for a in answers) and any(str(e).strip() for e in expected):
+        return False, "alle Antworten leer, Engine erwartet Formen"
+    return False, f"Erwartet {'|'.join(expected)}, erhalten {'|'.join(str(a) for a in answers)}"
 
 
 def _split_given_answers(given_answer: str | list[str]) -> list[str]:

@@ -4,6 +4,7 @@ from app.core.german_declension import (
     decline,
     decline_noun,
     expected_blank_answers,
+    normalize_gender,
     parse_grammar_blanks,
     verify_cloze_answer,
 )
@@ -211,3 +212,43 @@ def test_material_oberhalb_des_flusses():
         ]
     )
     assert verify_cloze_answer(blanks=blanks, given_answer="es|es")
+
+
+def test_normalize_gender_accepts_prompt_synonyms():
+    assert normalize_gender("männlich") == "masc"
+    assert normalize_gender("Maskulinum") == "masc"
+    assert normalize_gender("weiblich") == "fem"
+
+
+def test_expected_blank_answers_combined_genitiv_endings():
+    blanks = parse_grammar_blanks(
+        [
+            {
+                "part": "ending",
+                "case": "gen",
+                "gender": "neut",
+                "number": "sg",
+                "determiner_type": "ein-word",
+                "determiner_stem": "ein",
+                "lemma": "Spiel",
+                "adjective_stem": "verloren",
+            }
+        ]
+    )
+    assert expected_blank_answers(blanks) == ["es"]
+
+
+def test_decline_logs_normalization_failure(caplog):
+    import logging
+
+    caplog.set_level(logging.WARNING)
+    result = decline(
+        lemma="Spiel",
+        gender="INVALID",
+        number="sg",
+        case="gen",
+        determiner_type="ein-word",
+    )
+    assert result == {"determiner": "", "adjective": "", "noun": ""}
+    assert "decline_normalization_failed" in caplog.text
+    assert "gender='INVALID'" in caplog.text

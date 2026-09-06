@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from app.core.answer_match import text_answers_match
@@ -14,18 +15,23 @@ from app.core.german_case_analysis import (
     verify_case_label,
 )
 from app.core.german_declension import (
+    cloze_answers_repairable,
     expected_blank_answers,
     parse_grammar_blanks,
     verify_cloze_answer,
 )
 
+_log = logging.getLogger(__name__)
+
 
 def _given_answers(template: dict[str, Any]) -> list[str]:
-    answers_raw = template.get("answers") or []
+    answers_raw = template.get("answers")
+    if answers_raw is None:
+        return []
     if isinstance(answers_raw, str):
-        return [a.strip() for a in answers_raw.split("|") if a.strip()]
+        return [part.strip() for part in answers_raw.split("|")]
     if isinstance(answers_raw, list):
-        return [str(a).strip() for a in answers_raw if str(a).strip()]
+        return [str(a).strip() for a in answers_raw]
     return []
 
 
@@ -38,10 +44,10 @@ def verify_german_cloze_template(template: dict[str, Any]) -> tuple[bool, str | 
     if not blanks:
         return True, None
     given = _given_answers(template)
-    if not given:
+    if len(given) != len(blanks):
         return False, "grammar.blanks vorhanden, aber keine answers"
     given_joined = "|".join(given)
-    if verify_cloze_answer(blanks=blanks, given_answer=given_joined):
+    if verify_cloze_answer(blanks=blanks, given_answer=given):
         return True, None
     expected = expected_blank_answers(blanks)
     return False, f"Erwartet {'|'.join(expected)}, erhalten {given_joined}"
@@ -109,7 +115,7 @@ def verify_basiswissen_grammar(basiswissen: dict[str, Any]) -> list[str]:
 
 
 def repair_basiswissen_grammar(basiswissen: dict[str, Any]) -> dict[str, Any]:
-    """Repariert Antworten aus der Engine; verwirft Templates ohne gültige grammar.blanks."""
+    """Repariert Antworten aus der Engine; verwirft unprüfbare grammar-Clozes."""
     group = normalize_focus_group(str(basiswissen.get("focus_group") or ""))
     if group != "german":
         return basiswissen
@@ -122,7 +128,18 @@ def repair_basiswissen_grammar(basiswissen: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(grammar, dict) or not parse_grammar_blanks(grammar.get("blanks")):
             templates.append(raw)
             continue
-        templates.append(repair_german_cloze_template(raw))
+        fixed = repair_german_cloze_template(raw)
+        blanks = parse_grammar_blanks(grammar.get("blanks"))
+        answers = fixed.get("answers") or []
+        ok, reason = cloze_answers_repairable(blanks, list(answers))
+        if not ok:
+            _log.warning(
+                "repair_basiswissen drop cloze id=%s reason=%s",
+                raw.get("id") or "?",
+                reason,
+            )
+            continue
+        templates.append(fixed)
     repaired["cloze_templates"] = templates
     return repaired
 
