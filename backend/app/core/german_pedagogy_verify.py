@@ -95,7 +95,40 @@ def is_circular_case_definition(term: str, definition: str) -> bool:
 
 
 def _method_label_is_genitive_preposition(label: str) -> bool:
-    return bool(_GENITIV_PREP_METHOD.search(normalize_label(label)))
+    return bool(_GENITIVE_PREP_METHOD.search(normalize_label(label)))
+
+
+_DETERMINERS = frozenset({"das", "die", "der", "ein", "eine", "einem", "einen", "einer", "eines"})
+_GENITIVE_ARTICLE_MARKERS = frozenset(
+    {"des", "eines", "einer", "vom", "beim", "am", "im", "zum", "zur", "dem", "den"}
+)
+
+
+def _looks_like_adjective(word: str) -> bool:
+    w = str(word or "").lower()
+    if len(w) < 4:
+        return False
+    return w.endswith(("e", "en", "er", "es", "em", "ige", "ische", "liche", "bar", "sam"))
+
+
+def text_has_noun_noun_without_genitive_marker(text: str) -> bool:
+    """Struktur: Artikel + Nomen + Nomen ohne Genitiv-Artikel dazwischen (Ersatzprobe-Fehler)."""
+    tokens = normalize_label(text).split()
+    for i, tok in enumerate(tokens):
+        if tok not in _DETERMINERS:
+            continue
+        nouns: list[str] = []
+        for j in range(i + 1, min(i + 6, len(tokens))):
+            word = tokens[j]
+            if word in _GENITIVE_ARTICLE_MARKERS:
+                break
+            if _looks_like_adjective(word):
+                continue
+            if len(word) >= 3:
+                nouns.append(word)
+            if len(nouns) >= 2:
+                return True
+    return False
 
 
 def _fragments_share_anchor(left: str, right: str) -> bool:
@@ -127,8 +160,7 @@ def worked_example_is_coherent(example: dict[str, Any]) -> bool:
             continue
         if not _fragments_share_anchor(parts[0], parts[-1]):
             return False
-    norm = normalize_label(text)
-    if re.search(r"\bfell\s+[a-zaeiou]{3,}\b", norm) and " des " not in f" {norm} " and " der " not in f" {norm} ":
+    if text_has_noun_noun_without_genitive_marker(text):
         return False
     return True
 

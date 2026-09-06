@@ -32,6 +32,9 @@ GENITIVE_PREPOSITIONS: frozenset[str] = frozenset(
         "westlich",
         "noerdlich",
         "nordlich",
+        "suedlich",
+        "sudlich",
+        "südlich",
     }
 )
 

@@ -1,5 +1,3 @@
-import pytest
-
 from app.core.german_pedagogy_verify import (
     finalize_german_pedagogy_digest,
     is_circular_case_definition,
@@ -100,6 +98,12 @@ def test_broken_zoo_example_is_dropped():
             "steps": ["Ich sehe im Zoo Affen. → Das Fell Affen ist braun."],
         }
     )
+    assert not worked_example_is_coherent(
+        {
+            "problem": "Ersatzprobe Genitiv",
+            "steps": ["Das Buch Lehrers ist alt. → Das Buch des Lehrers ist alt."],
+        }
+    )
     pedagogy = {
         "key_terms": [],
         "methods": [],
@@ -121,6 +125,21 @@ def test_broken_zoo_example_is_dropped():
     }
     repaired = finalize_german_pedagogy_digest(pedagogy, focus_group="german")
     assert len(repaired["worked_examples"]) == 1
+
+
+def test_genitive_preposition_method_label_does_not_crash():
+    pedagogy = finalize_german_pedagogy_digest(
+        {
+            "key_terms": [],
+            "methods": [{"label": "Genitiv nach Präposition", "when": "Beispiel", "example": ""}],
+            "worked_examples": [],
+            "exercise_formats": [],
+            "exercise_patterns": [],
+            "teaching_notes": [],
+        },
+        focus_group="german",
+    )
+    assert pedagogy["methods"]
 
 
 def test_verify_reports_remaining_issues_before_repair():
