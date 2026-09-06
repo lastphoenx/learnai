@@ -156,7 +156,7 @@ def _attach_template_fields(row: dict, record: LearningRecord | None) -> None:
     row["is_sandbox_copy"] = is_sandbox_copy
 
 
-def _dec_unit(unit: LearningUnit, *, sources: bool = True, modules: bool = True) -> dict:
+def _dec_unit(unit: LearningUnit, *, sources: bool = True, modules: bool = True, quality_level: str | None = None) -> dict:
     learner_name = None
     if unit.profile_id and unit.profile:
         learner_name = unit.profile.display_name
@@ -182,6 +182,9 @@ def _dec_unit(unit: LearningUnit, *, sources: bool = True, modules: bool = True)
         data["sources"] = [_dec_source(s) for s in unit.sources]
     if modules:
         data["modules"] = [_dec_module(m) for m in sorted(unit.modules, key=lambda x: x.order_index)]
+    from app.services.unit_release_service import attach_learner_release_fields
+
+    attach_learner_release_fields(data, unit, quality_level=quality_level)
     return data
 
 
@@ -266,7 +269,12 @@ def _accessible_units(db: Session, user: User):
 def list_units(db: Session, user: User) -> list[dict]:
     from app.services.learn_service import learn_progress_for_unit
 
-    units = _accessible_units(db, user).order_by(LearningUnit.created_at.desc()).all()
+    units = (
+        _accessible_units(db, user)
+        .options(joinedload(LearningUnit.profile))
+        .order_by(LearningUnit.created_at.desc())
+        .all()
+    )
     unit_ids = [u.id for u in units]
     records_by_unit: dict[uuid.UUID, LearningRecord] = {}
     if unit_ids:
@@ -274,6 +282,8 @@ def list_units(db: Session, user: User) -> list[dict]:
             records_by_unit[record.unit_id] = record
     out = []
     for u in units:
+        if user.is_child and not u.learner_released_at:
+            continue
         row = _dec_unit(u, sources=False, modules=False)
         record = records_by_unit.get(u.id)
         _attach_template_fields(row, record)
@@ -348,6 +358,9 @@ def _get_unit_or_404(db: Session, user: User, unit_id: uuid.UUID) -> LearningUni
     accessible = _accessible_units(db, user).filter(LearningUnit.id == unit_id).first()
     if not accessible:
         raise UnitError("Kein Zugriff auf diese Lerneinheit", "forbidden")
+    from app.services.unit_release_service import assert_child_can_access_unit
+
+    assert_child_can_access_unit(user, unit)
     return unit
 
 

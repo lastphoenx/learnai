@@ -165,6 +165,10 @@ class UnitProfileRequest(BaseModel):
     profile_id: str | None = Field(default=None, max_length=64)
 
 
+class UnitLearnerReleaseRequest(BaseModel):
+    released: bool
+
+
 class TrainerOptionsSchema(BaseModel):
     cards: int = Field(default=50, ge=10, le=100)
     questions: int = Field(default=50, ge=10, le=100)

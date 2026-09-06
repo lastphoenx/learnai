@@ -386,6 +386,9 @@ def _save_generated_modules(
                     "task_type": task,
                 },
             )
+        from app.services.unit_release_service import sync_learner_release_for_unit
+
+        sync_learner_release_for_unit(db, unit)
         if task == "interactive":
             from app.services.learn_service import clear_learn_state_after_regenerate
 

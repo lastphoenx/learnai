@@ -27,6 +27,7 @@ import {
   cancelGenerate,
   fetchQuizWeaknesses,
   patchUnit,
+  patchUnitLearnerRelease,
   purgeSource,
   regenerateBasiswissen,
   sourceFileUrl,
@@ -127,6 +128,7 @@ export default function UnitDetailPage() {
     refreshed: number;
     skipped: number;
   } | null>(null);
+  const [releaseBusy, setReleaseBusy] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [previewSource, setPreviewSource] = useState<UnitSource | null>(null);
@@ -404,6 +406,23 @@ export default function UnitDetailPage() {
   const lastGenerateBadge = lastGenerate ? generateStatusLabel(lastGenerate.status) : null;
   const pedagogyLastWhen = formatZurich(pedagogy?.last_extract?.updated_at);
   const pedagogyLastBadge = pedagogyStatusLabel(pedagogy?.last_extract?.status);
+  const learnerRelease = unit?.learner_release;
+  const releasePending = Boolean(learnerRelease?.targets_child && learnerRelease.pending);
+  const childViewBlocked = releasePending && asChild;
+
+  async function onLearnerRelease(released: boolean) {
+    if (!unit) return;
+    setReleaseBusy(true);
+    setError(null);
+    try {
+      const updated = await patchUnitLearnerRelease(unit.id, released);
+      setUnit(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Freigabe fehlgeschlagen");
+    } finally {
+      setReleaseBusy(false);
+    }
+  }
 
   return (
     <main className="shell shell-wide unit-page">
@@ -418,6 +437,57 @@ export default function UnitDetailPage() {
             <span aria-hidden="true">›</span>
             <span>{sandboxUnitTitle(unit)}</span>
           </nav>
+
+          {childViewBlocked && (
+            <p className="warn card stack">
+              Diese Einheit ist deinem Profil zugeordnet, aber noch nicht freigegeben. Bitte wende dich an deine
+              Eltern.
+            </p>
+          )}
+
+          {learnerRelease?.targets_child && !asChild && (
+            <section className="card stack unit-learner-release">
+              <h2 className="aside-subhead" style={{ margin: 0 }}>
+                Freigabe für Kind
+              </h2>
+              {learnerRelease.released ? (
+                <p className="muted" style={{ margin: 0 }}>
+                  {learnerRelease.mode === "auto"
+                    ? "Automatisch freigegeben — Didaktik-Qualität «gut strukturiert»."
+                    : learnerRelease.mode === "legacy"
+                      ? "Freigegeben (bestehende Einheit vor Freigabe-Feature)."
+                      : "Manuell freigegeben — das Kind kann lernen."}
+                </p>
+              ) : (
+                <p className="muted" style={{ margin: 0 }}>
+                  Noch nicht freigegeben.
+                  {pedagogy?.quality?.level === "good"
+                    ? " Didaktik-Qualität ist gut — wird nach dem nächsten Einlesen automatisch freigegeben."
+                    : pedagogy?.quality
+                      ? ` Didaktik-Qualität: ${
+                          pedagogy.quality.level === "partial" ? "teilweise" : "gering"
+                        } — bitte kurz prüfen und freigeben.`
+                      : " Bitte Inhalt prüfen und freigeben, bevor das Kind startet."}
+                </p>
+              )}
+              <div className="btn-row">
+                {!learnerRelease.released ? (
+                  <button type="button" disabled={releaseBusy} onClick={() => onLearnerRelease(true)}>
+                    Für Kind freigeben
+                  </button>
+                ) : learnerRelease.mode !== "legacy" ? (
+                  <button
+                    type="button"
+                    className="btn ghost"
+                    disabled={releaseBusy}
+                    onClick={() => onLearnerRelease(false)}
+                  >
+                    Freigabe zurückziehen
+                  </button>
+                ) : null}
+              </div>
+            </section>
+          )}
 
           <section className={`unit-hero card${unit.is_sandbox_copy ? " unit-hero-sandbox" : ""}`}>
             <div className="unit-hero-top">
@@ -798,7 +868,7 @@ export default function UnitDetailPage() {
           <aside className="card unit-section unit-page-aside">
             <h2>Aktionen</h2>
 
-            {htmlPacks.length > 0 && (
+            {htmlPacks.length > 0 && !childViewBlocked && (
               <section className="unit-aside-learn" aria-labelledby="aside-html-heading">
                 <h3 id="aside-html-heading" className="aside-subhead">
                   HTML-Übungen
@@ -820,7 +890,7 @@ export default function UnitDetailPage() {
               </section>
             )}
 
-            {moduleCount > 0 && (
+            {moduleCount > 0 && !childViewBlocked && (
               <section className="unit-aside-learn" aria-labelledby="aside-learn-heading">
                 <h3 id="aside-learn-heading" className="aside-subhead">
                   Lernen

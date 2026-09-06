@@ -543,6 +543,15 @@ export type LearningUnit = {
   modules?: UnitModule[];
   exams?: ExamResult[];
   last_generate?: GenerateJobStatus | null;
+  learner_release?: {
+    targets_child: boolean;
+    released: boolean;
+    released_at: string | null;
+    mode: "auto" | "manual" | "legacy" | null;
+    quality_level?: string | null;
+    auto_release_eligible?: boolean;
+    pending?: boolean;
+  };
 };
 
 export type ExamTransfer = {
@@ -858,6 +867,12 @@ export const patchUnitProfile = (unitId: string, profileId: string | null) =>
   apiFetch<LearningUnit>(`/api/v1/units/${unitId}/profile`, {
     method: "PATCH",
     json: { profile_id: profileId },
+  });
+
+export const patchUnitLearnerRelease = (unitId: string, released: boolean) =>
+  apiFetch<LearningUnit>(`/api/v1/units/${unitId}/learner-release`, {
+    method: "PATCH",
+    json: { released },
   });
 
 export const assignUnitToProfiles = (unitId: string, profileIds: string[]) =>

@@ -259,6 +259,9 @@ export default function UnitsPage() {
                       {u.learn_progress?.status === "in_progress" && u.learn_progress.percent > 0 && (
                         <span className="badge badge-neutral">{u.learn_progress.percent}% gelernt</span>
                       )}
+                      {u.learner_release?.pending && (
+                        <span className="badge badge-draft">Wartet auf Freigabe</span>
+                      )}
                     </div>
                     {u.brief && <p className="unit-list-brief">{u.brief}</p>}
                   </div>

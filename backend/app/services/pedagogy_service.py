@@ -297,6 +297,9 @@ def extract_unit_pedagogy(db: Session, user: User, unit_id: uuid.UUID) -> dict:
         quality_level=str(quality_level) if quality_level else None,
     )
     persist_last_pedagogy(db, unit_id, snapshot)
+    from app.services.unit_release_service import sync_learner_release_from_quality
+
+    sync_learner_release_from_quality(db, unit, quality_level)
     payload["last_extract"] = _last_extract_payload(
         db,
         unit,

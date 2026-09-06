@@ -341,6 +341,8 @@ class LearningUnit(Base, TimestampMixin):
     difficulty: Mapped[int] = mapped_column(SmallInteger, default=1, nullable=False)
     task_type: Mapped[str] = mapped_column(String(32), default="mixed", nullable=False)
     status: Mapped[str] = mapped_column(String(24), default="draft", nullable=False)
+    learner_released_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    learner_release_mode: Mapped[str | None] = mapped_column(String(16), nullable=True)
     auto_purge_sources: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     classification: Mapped[int] = mapped_column(
         SmallInteger, default=DataClassification.INTERNAL, nullable=False
