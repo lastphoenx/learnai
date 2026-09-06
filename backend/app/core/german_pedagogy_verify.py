@@ -102,32 +102,33 @@ _DETERMINERS = frozenset({"das", "die", "der", "ein", "eine", "einem", "einen", 
 _GENITIVE_ARTICLE_MARKERS = frozenset(
     {"des", "eines", "einer", "vom", "beim", "am", "im", "zum", "zur", "dem", "den"}
 )
-
-
-def _looks_like_adjective(word: str) -> bool:
-    w = str(word or "").lower()
-    if len(w) < 4:
-        return False
-    return w.endswith(("e", "en", "er", "es", "em", "ige", "ische", "liche", "bar", "sam"))
+_CASE_TOKEN_RE = re.compile(r"[A-Za-zÄÖÜäöüß]+")
 
 
 def text_has_noun_noun_without_genitive_marker(text: str) -> bool:
-    """Struktur: Artikel + Nomen + Nomen ohne Genitiv-Artikel dazwischen (Ersatzprobe-Fehler)."""
-    tokens = normalize_label(text).split()
+    """Artikel + zwei grossgeschriebene Wörter ohne Genitiv-Marker dazwischen.
+
+    Nutzt Original-Grossschreibung (nicht normalize_label): deutsche Nomen sind
+    gross, Verben/Adjektive klein — «Das Fell Affen» trifft, «Das Fell gefällt» nicht.
+    """
+    tokens = _CASE_TOKEN_RE.findall(str(text or ""))
     for i, tok in enumerate(tokens):
-        if tok not in _DETERMINERS:
+        if tok.lower() not in _DETERMINERS:
             continue
-        nouns: list[str] = []
+        capitalized: list[str] = []
         for j in range(i + 1, min(i + 6, len(tokens))):
             word = tokens[j]
-            if word in _GENITIVE_ARTICLE_MARKERS:
+            lower = word.lower()
+            if lower in _GENITIVE_ARTICLE_MARKERS:
                 break
-            if _looks_like_adjective(word):
+            if word[:1].isupper() and len(word) >= 3:
+                capitalized.append(word)
+                if len(capitalized) >= 2:
+                    return True
                 continue
-            if len(word) >= 3:
-                nouns.append(word)
-            if len(nouns) >= 2:
-                return True
+            if capitalized:
+                # Nach dem ersten Nomen folgt Kleinbuchstabe → Verb/Adj, kein Nomen-Nomen.
+                break
     return False
 
 

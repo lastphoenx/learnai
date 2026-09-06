@@ -104,6 +104,12 @@ def test_broken_zoo_example_is_dropped():
             "steps": ["Das Buch Lehrers ist alt. → Das Buch des Lehrers ist alt."],
         }
     )
+    assert worked_example_is_coherent(
+        {
+            "problem": "Das Fell des Tigers gefällt mir.",
+            "steps": ["Das Fell gefällt mir. → Das Fell des Tigers gefällt mir."],
+        }
+    )
     pedagogy = {
         "key_terms": [],
         "methods": [],
