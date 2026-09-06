@@ -9,7 +9,7 @@ from collections.abc import Callable
 
 from sqlalchemy.orm import Session
 
-from app.ai.catalog import resolve_task_ai
+from app.ai.catalog import resolve_task_ai_for_unit
 from app.ai.errors import LlmError
 from app.ai.generate import _collect_source_notes, _save_generated_modules
 from app.core.quiz_numeric import repair_quiz_block
@@ -50,9 +50,8 @@ from app.core.method_taxonomy import classify_method, normalize_method_id
 from app.core.pedagogy_validation import enforce_label_coverage, log_pedagogy_coverage_warnings
 from app.models import LearningRecord, User
 from app.services.crypto_json import decrypt_json
-from app.services.profile_service import resolve_prefs_for_profile
+from app.services.profile_service import resolve_unit_ai_prefs
 from app.services.unit_service import _dec_unit, _get_unit_or_404, get_trainer_options
-from app.services.user_service import get_user_settings
 
 _log = logging.getLogger(__name__)
 
@@ -542,7 +541,8 @@ def generate_interactive_modules(
     progress: Callable[..., None] | None = None,
 ) -> dict:
     unit = _get_unit_or_404(db, user, unit_id)
-    prefs = resolve_prefs_for_profile(db, unit.profile_id) or get_user_settings(user)
+    target_prefs, fallback_prefs = resolve_unit_ai_prefs(db, user, unit.profile_id)
+    prefs = target_prefs
     ai_task = AI_TASK_FOR_UNIT.get("interactive", "mixed")
 
     record = db.query(LearningRecord).filter(LearningRecord.unit_id == unit.id).first()
@@ -557,7 +557,9 @@ def generate_interactive_modules(
         if isinstance(unit_provider, str) and unit_provider.strip():
             effective_provider = unit_provider.strip()
 
-    name, model = resolve_task_ai(prefs, ai_task, override=effective_provider)
+    name, model = resolve_task_ai_for_unit(
+        target_prefs, fallback_prefs, ai_task, override=effective_provider
+    )
     name = resolve_provider(name)
 
     title = decrypt_text_master(unit.title_encrypted)
@@ -579,7 +581,7 @@ def generate_interactive_modules(
     t0 = time.monotonic()
     if progress:
         progress("extracting_sources")
-    notes = _collect_source_notes(db, unit, prefs)
+    notes = _collect_source_notes(db, unit, target_prefs, fallback_prefs)
     db.commit()
     from app.ai.subject_focus import detect_focus_group
 
@@ -828,8 +830,9 @@ def backfill_basiswissen_for_unit(
     if not unit.modules:
         raise UnitError("Keine Module zum Ergänzen.", "no_modules")
 
-    prefs = resolve_prefs_for_profile(db, unit.profile_id) or get_user_settings(user)
-    name, model = resolve_provider(provider or prefs.get("ai_provider"))
+    target_prefs, fallback_prefs = resolve_unit_ai_prefs(db, user, unit.profile_id)
+    name, model = resolve_task_ai_for_unit(target_prefs, fallback_prefs, "mixed", override=provider)
+    name = resolve_provider(name)
     focus_group = (
         detect_focus_group(subject=unit.subject, task_type=str(unit.task_type or "interactive"))
         or "general"
@@ -837,7 +840,7 @@ def backfill_basiswissen_for_unit(
 
     record = db.query(LearningRecord).filter(LearningRecord.unit_id == unit.id).first()
     recon = decrypt_json(record.reconstruction_encrypted) if record and record.reconstruction_encrypted else {}
-    notes = _collect_source_notes(db, unit, prefs)
+    notes = _collect_source_notes(db, unit, target_prefs, fallback_prefs)
     pedagogy_profile = collect_pedagogy_from_unit_sources(unit.sources, focus_group=focus_group)
     pedagogy_digest = build_pedagogy_digest(pedagogy_profile)
     title = decrypt_text_master(unit.title_encrypted)

@@ -85,6 +85,11 @@ TASK_CATALOG: list[dict] = [
 
 TASK_KEYS = {item["key"] for item in TASK_CATALOG}
 
+# Qualitäts-Aufgaben: Kind-Profil erbt vom auslösenden Erwachsenen, wenn dort nichts gepflegt ist.
+QUALITY_TASK_KEYS = frozenset({"explain", "quiz", "practice", "mixed", "vocab", "vision"})
+# Leistungsdaten: strikt am Ziel-Kind-Profil, keine Vererbung.
+SENSITIVE_TASK_KEYS = frozenset({"exam", "exam_analysis"})
+
 
 def task_catalog_entry(task_key: str) -> dict | None:
     for item in TASK_CATALOG:
@@ -141,6 +146,40 @@ def default_for(task_key: str, *, installed_ollama: list[str] | None = None) -> 
     else:
         model = pick_external_model(provider, item["external"], task_key=task_key)
     return {"provider": provider, "model": model}
+
+
+def has_explicit_task_setting(prefs: dict, task_key: str) -> bool:
+    """True wenn für task_key ein Provider in by_task gepflegt ist."""
+    by_task = prefs.get("by_task") if isinstance(prefs.get("by_task"), dict) else {}
+    row = by_task.get(task_key) if isinstance(by_task.get(task_key), dict) else {}
+    return bool(str(row.get("provider") or "").strip())
+
+
+def effective_prefs_for_task(
+    target_prefs: dict,
+    fallback_prefs: dict | None,
+    task_key: str,
+) -> dict:
+    """Welche Profil-Einstellungen für einen Aufgabentyp gelten (Vererbung)."""
+    if task_key in SENSITIVE_TASK_KEYS:
+        return target_prefs
+    if task_key in QUALITY_TASK_KEYS and fallback_prefs:
+        if not has_explicit_task_setting(target_prefs, task_key):
+            return fallback_prefs
+    return target_prefs
+
+
+def resolve_task_ai_for_unit(
+    target_prefs: dict,
+    fallback_prefs: dict | None,
+    task_key: str,
+    *,
+    override: str | None = None,
+    installed_ollama: list[str] | None = None,
+) -> tuple[str, str | None]:
+    """Provider/Modell mit zweistufiger Vererbung (Kind → auslösender Erwachsener → Katalog)."""
+    prefs = effective_prefs_for_task(target_prefs, fallback_prefs, task_key)
+    return resolve_task_ai(prefs, task_key, override=override, installed_ollama=installed_ollama)
 
 
 def resolve_task_ai(

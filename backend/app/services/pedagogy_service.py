@@ -20,9 +20,8 @@ from app.ai.source_pedagogy import (
 )
 from app.core.pedagogy_labels import sanitize_pedagogy_field
 from app.models import User
-from app.services.profile_service import resolve_prefs_for_profile
+from app.services.profile_service import resolve_unit_ai_prefs
 from app.services.unit_service import _dec_source, _get_unit_or_404
-from app.services.user_service import get_user_settings
 
 
 def _pedagogy_quality(profile: dict, *, focus_group: str | None = None) -> dict:
@@ -251,7 +250,7 @@ def get_unit_pedagogy(db: Session, user: User, unit_id: uuid.UUID) -> dict:
 def extract_unit_pedagogy(db: Session, user: User, unit_id: uuid.UUID) -> dict:
     """Vision für alle Bildquellen erneut ausführen (ignoriert den Didaktik-Cache)."""
     unit = _get_unit_or_404(db, user, unit_id)
-    prefs = resolve_prefs_for_profile(db, unit.profile_id) or get_user_settings(user)
+    target_prefs, fallback_prefs = resolve_unit_ai_prefs(db, user, unit.profile_id)
     refreshed = 0
     structured_count = 0
     raw_only_count = 0
@@ -270,7 +269,12 @@ def extract_unit_pedagogy(db: Session, user: User, unit_id: uuid.UUID) -> dict:
             else "image"
         )
         result = _vision_extract_image_source(
-            db=db, unit=unit, source=source, label=name, prefs=prefs
+            db=db,
+            unit=unit,
+            source=source,
+            label=name,
+            prefs=target_prefs,
+            fallback_prefs=fallback_prefs,
         )
         if result and result.ok and not result.summary.startswith("("):
             refreshed += 1

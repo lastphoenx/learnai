@@ -9,7 +9,7 @@ from pathlib import Path
 
 from sqlalchemy.orm import Session
 
-from app.ai.catalog import resolve_task_ai
+from app.ai.catalog import resolve_task_ai_for_unit
 from app.ai.errors import LlmError
 from app.ai.providers import complete, describe_image, parse_json_object, resolve_provider
 from app.ai.source_pedagogy import (
@@ -28,7 +28,6 @@ from app.config import settings
 from app.core.crypto import decrypt_text_master, encrypt_text_master
 from app.models import LearningRecord, LearningUnit, UnitModule, User
 from app.services.crypto_json import encrypt_json
-from app.services.user_service import get_user_settings
 from app.services.unit_service import (
     _add_event,
     _dec_unit,
@@ -411,18 +410,21 @@ def generate_modules(
             db, user, unit_id, provider=provider, progress=progress
         )
 
-    from app.services.profile_service import resolve_prefs_for_profile
+    from app.services.profile_service import resolve_unit_ai_prefs
 
     def report(stage: str, **extra: object) -> None:
         if progress:
             progress(stage, **extra)
 
     report("extracting_sources")
-    prefs = resolve_prefs_for_profile(db, unit.profile_id) or get_user_settings(user)
+    target_prefs, fallback_prefs = resolve_unit_ai_prefs(db, user, unit.profile_id)
+    prefs = target_prefs
     ai_task = AI_TASK_FOR_UNIT.get(task, "mixed")
-    name, model = resolve_task_ai(prefs, ai_task, override=provider)
+    name, model = resolve_task_ai_for_unit(
+        target_prefs, fallback_prefs, ai_task, override=provider
+    )
     name = resolve_provider(name)
-    vision_name, vision_model = resolve_task_ai(prefs, "vision")
+    vision_name, vision_model = resolve_task_ai_for_unit(target_prefs, fallback_prefs, "vision")
     _log.info(
         "generate_llm start unit_id=%s task=%s chat=%s/%s vision=%s/%s sources=%s profile_id=%s",
         unit_id,
@@ -435,7 +437,7 @@ def generate_modules(
         unit.profile_id,
     )
     t0 = time.monotonic()
-    notes = _collect_source_notes(db, unit, prefs)
+    notes = _collect_source_notes(db, unit, target_prefs, fallback_prefs)
     db.commit()
     from app.ai.subject_focus import detect_focus_group
 
@@ -545,6 +547,7 @@ def _vision_extract_image_source(
     source,
     label: str,
     prefs: dict,
+    fallback_prefs: dict | None = None,
 ) -> VisionExtractResult | None:
     """Bild per Vision extrahieren; Ergebnis mit structured-Flag oder None bei fehlender Datei."""
     from app.ai.errors import LlmError
@@ -558,7 +561,7 @@ def _vision_extract_image_source(
     if len(data) > 8 * 1024 * 1024:
         return VisionExtractResult(summary="(Bild zu groß für Vision, übersprungen)", ok=False)
     mime = source.content_type or "image/jpeg"
-    vision_name, vision_model = resolve_task_ai(prefs, "vision")
+    vision_name, vision_model = resolve_task_ai_for_unit(prefs, fallback_prefs, "vision")
     _log.info(
         "generate_llm vision_start label=%s provider=%s model=%s bytes=%d",
         label,
@@ -654,7 +657,12 @@ def _vision_extract_image_source(
     return VisionExtractResult(summary=summary, structured=structured, ok=True)
 
 
-def _collect_source_notes(db: Session, unit: LearningUnit, prefs: dict) -> str:
+def _collect_source_notes(
+    db: Session,
+    unit: LearningUnit,
+    prefs: dict,
+    fallback_prefs: dict | None = None,
+) -> str:
     from app.ai.extract import extract_pdf_text, fetch_url_text, effective_stt_provider, transcribe_audio
     from app.ai.errors import LlmError
 
@@ -674,7 +682,12 @@ def _collect_source_notes(db: Session, unit: LearningUnit, prefs: dict) -> str:
                 and blob_needs_pedagogy_refresh(source.analysis_encrypted)
             ):
                 refreshed = _vision_extract_image_source(
-                    db=db, unit=unit, source=source, label=label, prefs=prefs
+                    db=db,
+                    unit=unit,
+                    source=source,
+                    label=label,
+                    prefs=prefs,
+                    fallback_prefs=fallback_prefs,
                 )
                 if refreshed and refreshed.ok and not refreshed.summary.startswith("("):
                     text = refreshed.summary
@@ -711,7 +724,12 @@ def _collect_source_notes(db: Session, unit: LearningUnit, prefs: dict) -> str:
             continue
         if source.kind == "image" and source.storage_path and source.purged_at is None:
             result = _vision_extract_image_source(
-                db=db, unit=unit, source=source, label=label, prefs=prefs
+                db=db,
+                unit=unit,
+                source=source,
+                label=label,
+                prefs=prefs,
+                fallback_prefs=fallback_prefs,
             )
             if result and result.ok:
                 parts.append(_format_source_section(label, result.summary))

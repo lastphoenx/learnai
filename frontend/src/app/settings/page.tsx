@@ -234,6 +234,7 @@ export default function SettingsPage() {
               {profiles.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.display_name}
+                  {p.id === user?.profile_id ? " (Du)" : ""}
                   {p.is_child_profile ? " (Kind)" : ""}
                 </option>
               ))}
@@ -242,6 +243,7 @@ export default function SettingsPage() {
         ) : selected ? (
           <p>
             Profil: <strong>{selected.display_name}</strong>
+            {selected.id === user?.profile_id && <span className="muted"> · Du</span>}
             {selected.is_child_profile && <span className="muted"> · Kind</span>}
           </p>
         ) : null}

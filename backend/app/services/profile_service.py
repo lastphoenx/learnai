@@ -319,3 +319,29 @@ def resolve_prefs_for_profile(db: Session, profile_id: uuid.UUID | None) -> dict
     if not profile:
         return {}
     return get_profile_settings(profile)
+
+
+def resolve_unit_ai_prefs(
+    db: Session,
+    acting_user: User,
+    unit_profile_id: uuid.UUID | None,
+) -> tuple[dict, dict | None]:
+    """Ziel-Profil der Einheit + optional Einstellungen des auslösenden Kontos für Vererbung."""
+    from app.services.user_service import get_user_settings
+
+    target = resolve_prefs_for_profile(db, unit_profile_id) if unit_profile_id else {}
+    acting = (
+        resolve_prefs_for_profile(db, acting_user.profile_id)
+        if acting_user.profile_id
+        else get_user_settings(acting_user)
+    )
+    if not acting:
+        acting = get_user_settings(acting_user)
+
+    if not target:
+        return get_user_settings(acting_user), None
+
+    if unit_profile_id and acting_user.profile_id == unit_profile_id:
+        return target, None
+
+    return target, acting
