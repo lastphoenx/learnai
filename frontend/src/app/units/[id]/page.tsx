@@ -9,6 +9,7 @@ import { UnitDeleteDialog } from "@/components/UnitDeleteDialog";
 import { UnitEditDialog } from "@/components/UnitEditDialog";
 import { UnitExamSection } from "@/components/UnitExamSection";
 import { SourcePreviewModal } from "@/components/SourcePreviewModal";
+import { LearnerReleaseToggle, learnerReleaseBadge } from "@/components/LearnerReleaseToggle";
 import { useChildPreview } from "@/lib/childPreview";
 import {
   addSourceUrl,
@@ -27,7 +28,6 @@ import {
   cancelGenerate,
   fetchQuizWeaknesses,
   patchUnit,
-  patchUnitLearnerRelease,
   purgeSource,
   regenerateBasiswissen,
   sourceFileUrl,
@@ -128,7 +128,6 @@ export default function UnitDetailPage() {
     refreshed: number;
     skipped: number;
   } | null>(null);
-  const [releaseBusy, setReleaseBusy] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [previewSource, setPreviewSource] = useState<UnitSource | null>(null);
@@ -409,20 +408,7 @@ export default function UnitDetailPage() {
   const learnerRelease = unit?.learner_release;
   const releasePending = Boolean(learnerRelease?.targets_child && learnerRelease.pending);
   const childViewBlocked = releasePending && asChild;
-
-  async function onLearnerRelease(released: boolean) {
-    if (!unit) return;
-    setReleaseBusy(true);
-    setError(null);
-    try {
-      const updated = await patchUnitLearnerRelease(unit.id, released);
-      setUnit(updated);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Freigabe fehlgeschlagen");
-    } finally {
-      setReleaseBusy(false);
-    }
-  }
+  const releaseBadge = learnerReleaseBadge(learnerRelease);
 
   return (
     <main className="shell shell-wide unit-page">
@@ -446,46 +432,42 @@ export default function UnitDetailPage() {
           )}
 
           {learnerRelease?.targets_child && !asChild && (
-            <section className="card stack unit-learner-release">
-              <h2 className="aside-subhead" style={{ margin: 0 }}>
-                Freigabe für Kind
-              </h2>
-              {learnerRelease.released ? (
-                <p className="muted" style={{ margin: 0 }}>
-                  {learnerRelease.mode === "auto"
+            <section
+              className={`card stack unit-learner-release${learnerRelease.released ? " unit-learner-release--on" : " unit-learner-release--off"}`}
+            >
+              <div className="unit-learner-release-head">
+                <div>
+                  <h2 className="aside-subhead" style={{ margin: 0 }}>
+                    Freigabe für Kind
+                  </h2>
+                  {releaseBadge ? (
+                    <span className={releaseBadge.className} style={{ marginTop: "0.35rem" }}>
+                      {releaseBadge.label}
+                    </span>
+                  ) : null}
+                </div>
+                <LearnerReleaseToggle
+                  unitId={unitId}
+                  release={learnerRelease}
+                  onUpdated={(updated) => setUnit(updated)}
+                  onError={(msg) => setError(msg)}
+                />
+              </div>
+              <p className="muted" style={{ margin: 0 }}>
+                {learnerRelease.released
+                  ? learnerRelease.mode === "auto"
                     ? "Automatisch freigegeben — Didaktik-Qualität «gut strukturiert»."
                     : learnerRelease.mode === "legacy"
                       ? "Freigegeben (bestehende Einheit vor Freigabe-Feature)."
-                      : "Manuell freigegeben — das Kind kann lernen."}
-                </p>
-              ) : (
-                <p className="muted" style={{ margin: 0 }}>
-                  Noch nicht freigegeben.
-                  {pedagogy?.quality?.level === "good"
-                    ? " Didaktik-Qualität ist gut — wird nach dem nächsten Einlesen automatisch freigegeben."
+                      : "Manuell freigegeben — das Kind kann lernen."
+                  : pedagogy?.quality?.level === "good"
+                    ? "Didaktik-Qualität ist gut — wird nach dem nächsten Einlesen automatisch freigegeben."
                     : pedagogy?.quality
-                      ? ` Didaktik-Qualität: ${
+                      ? `Didaktik-Qualität ${
                           pedagogy.quality.level === "partial" ? "teilweise" : "gering"
-                        } — bitte kurz prüfen und freigeben.`
-                      : " Bitte Inhalt prüfen und freigeben, bevor das Kind startet."}
-                </p>
-              )}
-              <div className="btn-row">
-                {!learnerRelease.released ? (
-                  <button type="button" disabled={releaseBusy} onClick={() => onLearnerRelease(true)}>
-                    Für Kind freigeben
-                  </button>
-                ) : learnerRelease.mode !== "legacy" ? (
-                  <button
-                    type="button"
-                    className="btn ghost"
-                    disabled={releaseBusy}
-                    onClick={() => onLearnerRelease(false)}
-                  >
-                    Freigabe zurückziehen
-                  </button>
-                ) : null}
-              </div>
+                        } — bitte kurz prüfen, dann Schalter aktivieren.`
+                      : "Bitte Inhalt prüfen und Schalter aktivieren, bevor das Kind startet."}
+              </p>
             </section>
           )}
 
@@ -523,6 +505,7 @@ export default function UnitDetailPage() {
               <span className="badge badge-neutral">Stufe {unit.difficulty}</span>
               {unit.target_age && <span className="badge badge-neutral">{unit.target_age} J.</span>}
               {unit.learner_name && <span className="badge badge-neutral">{unit.learner_name}</span>}
+              {releaseBadge && <span className={releaseBadge.className}>{releaseBadge.label}</span>}
             </div>
 
             {unit.brief ? (

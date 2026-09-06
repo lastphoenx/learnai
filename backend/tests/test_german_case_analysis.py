@@ -65,6 +65,20 @@ def test_whole_sentence_span_is_unavailable_not_high_confidence():
     assert result.confidence == "unavailable"
 
 
+def test_whole_sentence_span_does_not_treat_sentence_start_as_full_sentence():
+    from app.core.german_case_analysis import _span_covers_whole_sentence
+
+    sentence = "Der Mars trägt den Namen des römischen Kriegsgottes."
+    assert not _span_covers_whole_sentence(sentence, "Der Mars")
+    assert _span_covers_whole_sentence(sentence, sentence)
+
+
+def test_parse_case_check_rejects_sentence_start_as_whole_span():
+    spec = parse_case_check({"sentence": "Der Mars trägt den Namen.", "span": "Der Mars"})
+    assert spec is not None
+    assert spec["span"] == "Der Mars"
+
+
 @pytest.mark.parametrize(
     "sentence,span,expected",
     [

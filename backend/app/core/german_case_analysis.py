@@ -181,7 +181,7 @@ def _span_covers_whole_sentence(sentence: str, span: str) -> bool:
         return True
     sent_norm = _normalize_label(sentence)
     span_norm = _normalize_label(span)
-    return bool(sent_norm and span_norm and (span_norm == sent_norm or sent_norm.startswith(span_norm)))
+    return bool(sent_norm and span_norm and span_norm == sent_norm)
 
 
 def _span_from_blank_sentence(sentence: str) -> str | None:

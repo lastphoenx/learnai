@@ -1558,6 +1558,107 @@ button.btn.action-tile {
   border-radius: 12px;
 }
 
+.unit-learner-release {
+  border-width: 2px;
+}
+
+.unit-learner-release--on {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: color-mix(in srgb, var(--accent) 6%, var(--card));
+}
+
+.unit-learner-release--off {
+  border-color: color-mix(in srgb, var(--danger, #c0392b) 40%, var(--border));
+  background: color-mix(in srgb, var(--danger, #c0392b) 5%, var(--card));
+}
+
+.unit-learner-release-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.learner-release-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  cursor: pointer;
+  user-select: none;
+  font-size: 0.88rem;
+  font-weight: 600;
+  margin-top: 0.35rem;
+}
+
+.learner-release-toggle--compact {
+  margin-top: 0.65rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 10px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+}
+
+.learner-release-toggle input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.learner-release-toggle-text {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.learner-release-toggle-status {
+  min-width: 5.5rem;
+  font-weight: 700;
+  color: var(--danger, #c0392b);
+}
+
+.learner-release-toggle-status.is-on {
+  color: var(--accent);
+}
+
+.learner-release-toggle.is-busy {
+  opacity: 0.65;
+  pointer-events: none;
+}
+
+.slide-switch {
+  position: relative;
+  width: 2.65rem;
+  height: 1.5rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--danger, #c0392b) 28%, var(--border));
+  border: 1px solid color-mix(in srgb, var(--danger, #c0392b) 35%, var(--border));
+  transition: background 0.2s, border-color 0.2s;
+  flex-shrink: 0;
+}
+
+.slide-switch.on {
+  background: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 70%, var(--border));
+}
+
+.slide-switch-knob {
+  position: absolute;
+  top: 0.14rem;
+  left: 0.14rem;
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.22);
+  transition: transform 0.2s;
+}
+
+.slide-switch.on .slide-switch-knob {
+  transform: translateX(1.12rem);
+}
+
 .unit-pedagogy-collapsible {
   padding: 0;
 }

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
+import { LearnerReleaseToggle, learnerReleaseBadge } from "@/components/LearnerReleaseToggle";
 import { sandboxUnitTitle } from "@/lib/sandboxUnitTitle";
 import { fetchMe, fetchUnits, importTrainerJson, type LearningUnit, type User } from "@/lib/api";
 import { warmupSpeechInput } from "@/lib/speechWarmup";
@@ -218,6 +219,9 @@ export default function UnitsPage() {
           <ul className="unit-list">
             {filtered.map((u) => {
               const badge = statusBadge(u.status);
+              const releaseBadge = learnerReleaseBadge(u.learner_release);
+              const showReleaseToggle =
+                Boolean(u.learner_release?.targets_child) && !user?.is_child;
               return (
                 <li
                   key={u.id}
@@ -259,11 +263,20 @@ export default function UnitsPage() {
                       {u.learn_progress?.status === "in_progress" && u.learn_progress.percent > 0 && (
                         <span className="badge badge-neutral">{u.learn_progress.percent}% gelernt</span>
                       )}
-                      {u.learner_release?.pending && (
-                        <span className="badge badge-draft">Wartet auf Freigabe</span>
-                      )}
+                      {releaseBadge && <span className={releaseBadge.className}>{releaseBadge.label}</span>}
                     </div>
                     {u.brief && <p className="unit-list-brief">{u.brief}</p>}
+                    {showReleaseToggle && u.learner_release && (
+                      <LearnerReleaseToggle
+                        unitId={u.id}
+                        release={u.learner_release}
+                        compact
+                        onUpdated={(updated) =>
+                          setUnits((prev) => prev.map((row) => (row.id === updated.id ? updated : row)))
+                        }
+                        onError={(msg) => setError(msg)}
+                      />
+                    )}
                   </div>
                   {u.module_count > 0 && (
                     <div className="unit-list-actions">
