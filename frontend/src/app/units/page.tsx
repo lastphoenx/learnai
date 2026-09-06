@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { LearnerReleaseToggle, learnerReleaseBadge } from "@/components/LearnerReleaseToggle";
+import { LearnProgressSummary } from "@/components/LearnProgressSummary";
 import { sandboxUnitTitle } from "@/lib/sandboxUnitTitle";
 import { fetchMe, fetchUnits, importTrainerJson, type LearningUnit, type User } from "@/lib/api";
 import { warmupSpeechInput } from "@/lib/speechWarmup";
@@ -257,15 +258,14 @@ export default function UnitsPage() {
                       <span className="badge badge-neutral">Stufe {u.difficulty}</span>
                       <span className="badge badge-neutral">{u.source_count} Quellen</span>
                       <span className="badge badge-neutral">{u.module_count} Blöcke</span>
-                      {u.learn_progress?.status === "completed" && (
-                        <span className="badge badge-ready">Abgeschlossen</span>
-                      )}
-                      {u.learn_progress?.status === "in_progress" && u.learn_progress.percent > 0 && (
-                        <span className="badge badge-neutral">{u.learn_progress.percent}% gelernt</span>
-                      )}
                       {releaseBadge && <span className={releaseBadge.className}>{releaseBadge.label}</span>}
                     </div>
                     {u.brief && <p className="unit-list-brief">{u.brief}</p>}
+                    <LearnProgressSummary
+                      moduleCount={u.module_count}
+                      progress={u.learn_progress}
+                      compact
+                    />
                     {showReleaseToggle && u.learner_release && (
                       <LearnerReleaseToggle
                         unitId={u.id}

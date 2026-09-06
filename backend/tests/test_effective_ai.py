@@ -24,3 +24,11 @@ def test_effective_empty_profile_uses_catalog_fallback():
     mixed = out["unit_generate"]["mixed"]
     assert mixed["provider"] == "ollama"
     assert "recommended" in mixed
+
+
+def test_effective_uses_inheritance_when_fallback_prefs_given():
+    child = {"by_task": {}}
+    parent = {"by_task": {"mixed": {"provider": "openai", "model": "gpt-4o"}}}
+    out = effective_ai_config(child, fallback_prefs=parent)
+    assert out["tasks"]["mixed"]["provider"] == "openai"
+    assert out["tasks"]["exam"]["provider"] == "ollama"

@@ -10,6 +10,8 @@ import { UnitEditDialog } from "@/components/UnitEditDialog";
 import { UnitExamSection } from "@/components/UnitExamSection";
 import { SourcePreviewModal } from "@/components/SourcePreviewModal";
 import { LearnerReleaseToggle, learnerReleaseBadge } from "@/components/LearnerReleaseToggle";
+import { LearnProgressSummary } from "@/components/LearnProgressSummary";
+import { UnitEffectiveAiPanel } from "@/components/UnitEffectiveAiPanel";
 import { useChildPreview } from "@/lib/childPreview";
 import {
   addSourceUrl,
@@ -512,6 +514,14 @@ export default function UnitDetailPage() {
               <p className="unit-brief">{unit.brief}</p>
             ) : (
               <p className="muted unit-brief-empty">Keine Beschreibung — Stift klicken zum Ergänzen.</p>
+            )}
+            <LearnProgressSummary moduleCount={moduleCount} progress={unit.learn_progress} />
+            {!asChild && (
+              <UnitEffectiveAiPanel
+                unitId={unitId}
+                taskType={unit.task_type}
+                sourceCount={unit.source_count ?? 0}
+              />
             )}
           </section>
 

@@ -28,13 +28,24 @@ def _effective_model(provider: str, model: str | None, task_key: str, installed:
     return rec.get("model") or "(leer)"
 
 
-def effective_ai_config(prefs: dict | None) -> dict:
+def effective_ai_config(
+    prefs: dict | None,
+    *,
+    fallback_prefs: dict | None = None,
+) -> dict:
     prefs = prefs if isinstance(prefs, dict) else {}
     ollama = ollama_status()
     installed = ollama.get("models") or []
     tasks: dict[str, dict] = {}
     for task_key in sorted(TASK_KEYS):
-        provider, model = resolve_task_ai(prefs, task_key, installed_ollama=installed)
+        if fallback_prefs is not None:
+            from app.ai.catalog import resolve_task_ai_for_unit
+
+            provider, model = resolve_task_ai_for_unit(
+                prefs, fallback_prefs, task_key, installed_ollama=installed
+            )
+        else:
+            provider, model = resolve_task_ai(prefs, task_key, installed_ollama=installed)
         tasks[task_key] = {
             "provider": provider,
             "profile_model": model or None,

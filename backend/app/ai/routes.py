@@ -58,12 +58,21 @@ def ai_effective(
 
     if unit_id:
         try:
+            from app.services.profile_service import resolve_unit_ai_prefs
+            from app.services.unit_service import _get_unit_or_404
+
+            unit = _get_unit_or_404(db, user, unit_id)
             unit_data = get_unit(db, user, unit_id)
             context["unit_title"] = unit_data.get("title")
-            pid = unit_data.get("profile_id")
-            if pid:
-                context["profile_id"] = pid
-                prefs = resolve_prefs_for_profile(db, UUID(pid))
+            context["task_type"] = unit.task_type
+            context["profile_id"] = str(unit.profile_id) if unit.profile_id else None
+            target_prefs, fallback_prefs = resolve_unit_ai_prefs(db, user, unit.profile_id)
+            if not target_prefs:
+                target_prefs = get_user_settings(user)
+                fallback_prefs = None
+            out = effective_ai_config(target_prefs, fallback_prefs=fallback_prefs)
+            out["context"] = context
+            return out
         except UnitError as exc:
             raise HTTPException(status_code=404, detail=exc.message) from exc
     elif profile_id:

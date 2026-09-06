@@ -1322,6 +1322,33 @@ export type TaskCatalogItem = {
   external_resolved?: string[];
 };
 
+export type EffectiveAiTask = {
+  provider: string;
+  profile_model: string | null;
+  effective_model: string;
+  recommended?: string[];
+};
+
+export type EffectiveAiResponse = {
+  tasks: Record<string, EffectiveAiTask>;
+  task_catalog: TaskCatalogItem[];
+  unit_generate?: Record<string, EffectiveAiTask>;
+  context?: {
+    unit_id?: string | null;
+    profile_id?: string | null;
+    unit_title?: string;
+    task_type?: string;
+  };
+};
+
+export const fetchAiEffective = (unitId?: string, profileId?: string) => {
+  const params = new URLSearchParams();
+  if (unitId) params.set("unit_id", unitId);
+  if (profileId) params.set("profile_id", profileId);
+  const q = params.toString() ? `?${params.toString()}` : "";
+  return apiFetch<EffectiveAiResponse>(`/api/v1/ai/effective${q}`);
+};
+
 export const fetchAiStatus = () =>
   apiFetch<{
     llm_provider: string;

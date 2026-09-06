@@ -1659,6 +1659,99 @@ button.btn.action-tile {
   transform: translateX(1.12rem);
 }
 
+.learn-progress-summary {
+  margin-top: 0.85rem;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.learn-progress-summary--compact {
+  margin-top: 0.65rem;
+}
+
+.learn-progress-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
+  align-items: baseline;
+  font-size: 0.88rem;
+}
+
+.learn-progress-label {
+  font-weight: 600;
+}
+
+.learn-progress-detail {
+  font-size: 0.82rem;
+}
+
+.learn-progress-bar {
+  height: 0.45rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--border) 70%, transparent);
+  overflow: hidden;
+}
+
+.learn-progress-bar.is-complete {
+  background: color-mix(in srgb, var(--accent) 20%, var(--border));
+}
+
+.learn-progress-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 0.25s ease;
+}
+
+.unit-effective-ai {
+  margin-top: 0.85rem;
+  font-size: 0.88rem;
+}
+
+.unit-effective-ai-summary {
+  cursor: pointer;
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.45rem 0.65rem;
+  align-items: center;
+  list-style: none;
+}
+
+.unit-effective-ai-summary::-webkit-details-marker {
+  display: none;
+}
+
+.unit-effective-ai-primary {
+  font-weight: 600;
+}
+
+.unit-effective-ai-list {
+  list-style: none;
+  margin: 0.65rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.unit-effective-ai-item details summary {
+  cursor: pointer;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.65rem;
+  align-items: baseline;
+}
+
+.unit-effective-ai-item details summary::-webkit-details-marker {
+  display: none;
+}
+
+.unit-effective-ai-why {
+  margin: 0.35rem 0 0;
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
 .unit-pedagogy-collapsible {
   padding: 0;
 }
