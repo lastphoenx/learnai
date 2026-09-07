@@ -94,6 +94,16 @@ export default function AdminUnitReportPage() {
               {copied ? "Kopiert" : "Report kopieren"}
             </button>
           </div>
+          {result.content && (result.content.warn ?? 0) > 0 && (
+            <p className="muted section-lead">
+              Inhalts-QA:{" "}
+              <span className="err">
+                {result.content.warn} Warnung{(result.content.warn ?? 0) === 1 ? "" : "en"}
+              </span>
+              {" · "}
+              {result.content.total} geprüft
+            </p>
+          )}
           {result.grammar && result.grammar.total > 0 && (
             <p className="muted section-lead">
               Grammatik-QA:{" "}

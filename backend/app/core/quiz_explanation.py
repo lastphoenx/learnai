@@ -1266,7 +1266,22 @@ def enrich_quiz_explanation(q: dict) -> str:
     q_type = str(q.get("question_type") or "").strip().lower()
 
     if q_type == "concept":
-        return _clarify_step_separators(original or "Der Begriff passt zum beschriebenen Muster.")
+        target = str(q.get("target_term") or "").strip()
+        options = q.get("options") if isinstance(q.get("options"), list) else []
+        answer_idx = q.get("answer")
+        correct = ""
+        if isinstance(answer_idx, int) and 0 <= answer_idx < len(options):
+            correct = str(options[answer_idx] or "")
+            correct = re.sub(r"^[A-D]\)\s*", "", correct).strip()
+        if not target and correct:
+            target = correct
+        shown = original
+        if target and (not shown or target.lower() not in shown.lower() or explanation_is_weak(shown, question)):
+            bits = [f"Richtig: {target}."]
+            if shown and target.lower() not in shown.lower():
+                bits.append(shown)
+            shown = " ".join(bits).strip()
+        return _clarify_step_separators(shown or "Der Begriff passt zum beschriebenen Muster.")
 
     if q_type == "method":
         filled = complete_method_explanation(original, question, q)

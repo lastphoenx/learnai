@@ -13,7 +13,7 @@ TASK_CATALOG: list[dict] = [
         "label": "Erklären / Lerntext",
         "why": "Fließtext, Didaktik. Lokal ist stark; Fotos der Kinder bleiben intern.",
         "default_provider": "ollama",
-        "local": ["qwen2.5:32b", "qwen3:32b", "llama3.3:70b"],
+        "local": ["qwen3.8:27b", "qwen2.5:32b", "qwen3:32b", "llama3.3:70b"],
         "external": ["claude-sonnet-4-0", "gpt-4o", "gpt-4o-mini"],
     },
     {
@@ -21,7 +21,7 @@ TASK_CATALOG: list[dict] = [
         "label": "Quiz / Verständnis",
         "why": "Strukturierte Fragen. Lokal reicht; weniger Halluzinations-Risiko als freie Essays.",
         "default_provider": "ollama",
-        "local": ["qwen2.5:32b", "qwen3:32b", "qwen2.5:7b-instruct"],
+        "local": ["qwen3.8:27b", "qwen2.5:32b", "qwen3:32b", "qwen2.5:7b-instruct"],
         "external": ["gpt-4o-mini", "claude-sonnet-4-0", "gpt-4o"],
     },
     {
@@ -29,7 +29,7 @@ TASK_CATALOG: list[dict] = [
         "label": "Übungen",
         "why": "Mathe/Deutsch-Aufgaben. Qwen ist lokal oft sehr gut; Privacy bei Kinderheften.",
         "default_provider": "ollama",
-        "local": ["qwen2.5:32b", "qwen3:32b", "llama3.3:70b"],
+        "local": ["qwen3.8:27b", "qwen2.5:32b", "qwen3:32b", "llama3.3:70b"],
         "external": ["gpt-4o", "claude-sonnet-4-0", "gpt-4o-mini"],
     },
     {
@@ -37,7 +37,7 @@ TASK_CATALOG: list[dict] = [
         "label": "Gemischt (Text + Quiz)",
         "why": "Standard-Einheit. Default lokal, außer du merkst Qualitätsbruch.",
         "default_provider": "ollama",
-        "local": ["qwen2.5:32b", "qwen3:32b", "llama3.3:70b"],
+        "local": ["qwen3.8:27b", "qwen2.5:32b", "qwen3:32b", "llama3.3:70b"],
         "external": ["claude-sonnet-4-0", "gpt-4o", "gpt-4o-mini"],
     },
     {
@@ -45,7 +45,7 @@ TASK_CATALOG: list[dict] = [
         "label": "Kurzprüfung",
         "why": "Noten/Leistung — Datenschutz vor Qualität. Deshalb lokal.",
         "default_provider": "ollama",
-        "local": ["qwen2.5:32b", "qwen3:32b", "llama3.3:70b"],
+        "local": ["qwen3.8:27b", "qwen2.5:32b", "qwen3:32b", "llama3.3:70b"],
         "external": ["claude-sonnet-4-0", "gpt-4o", "gpt-4o-mini"],
     },
     {
@@ -53,7 +53,7 @@ TASK_CATALOG: list[dict] = [
         "label": "Vokabeln / Sprache",
         "why": "Betonung, Idiome, Beispielsätze. Text lieber extern; Vorlesen sowieso OpenAI-TTS.",
         "default_provider": "anthropic",
-        "local": ["qwen2.5:32b", "qwen3:32b", "llama3.3:70b"],
+        "local": ["qwen3.8:27b", "qwen2.5:32b", "qwen3:32b", "llama3.3:70b"],
         "external": ["claude-sonnet-4-0", "gpt-4o", "gpt-4o-mini"],
     },
     {
@@ -69,7 +69,7 @@ TASK_CATALOG: list[dict] = [
         "label": "Schulprüfung analysieren",
         "why": "Auswertung korrigierter Prüfungen: Fehlermuster und Empfehlungen. Fotos/OCR nutzen zusätzlich «Fotos / OCR».",
         "default_provider": "ollama",
-        "local": ["qwen2.5:32b", "qwen3:32b", "llama3.3:70b"],
+        "local": ["qwen3.8:27b", "qwen2.5:32b", "qwen3:32b", "llama3.3:70b"],
         "external": ["claude-sonnet-4-0", "gpt-4o", "gpt-4o-mini"],
     },
     {

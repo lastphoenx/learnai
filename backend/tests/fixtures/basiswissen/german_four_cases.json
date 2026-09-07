@@ -1,0 +1,23 @@
+{
+  "basiswissen": {
+    "schema_version": 1,
+    "focus_group": "german",
+    "concepts": [
+      {
+        "id": "four_cases",
+        "kind": "rule",
+        "label": "Die vier Fälle",
+        "parts": [
+          {"role": "nominativ", "term": "Nominativ"},
+          {"role": "genitiv", "term": "Genitiv"},
+          {"role": "dativ", "term": "Dativ"},
+          {"role": "akkusativ", "term": "Akkusativ"}
+        ],
+        "pattern": "Wer? = Nominativ; Wessen? = Genitiv; Wem? = Dativ; Wen? = Akkusativ",
+        "example": "Der Mars leuchtet. — Wer leuchtet? Der Mars: Nominativ.",
+        "hint": "Fälle zeigen, welche Aufgabe ein Nomen im Satz hat."
+      }
+    ],
+    "cloze_templates": []
+  }
+}

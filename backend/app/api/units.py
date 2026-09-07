@@ -525,7 +525,13 @@ def units_source_file(
         if source.kind == "html" or "html" in media:
             media = "text/html; charset=utf-8"
             name = name if name.lower().endswith((".html", ".htm")) else f"{name}.html"
-        response = FileResponse(path, media_type=media, filename=name)
+        disposition = "inline" if source.kind == "html" or "html" in (source.content_type or "") else "attachment"
+        response = FileResponse(
+            path,
+            media_type=media,
+            filename=name,
+            content_disposition_type=disposition,
+        )
         if source.kind == "html" or "html" in (source.content_type or ""):
             # Middleware setzt Header nur, wenn sie noch fehlen — hier explizit freigeben für iframe.
             response.headers["X-Frame-Options"] = "SAMEORIGIN"

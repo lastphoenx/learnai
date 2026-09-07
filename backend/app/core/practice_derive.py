@@ -116,6 +116,26 @@ def _formats_imply_draw(pedagogy: dict[str, Any]) -> bool:
     return False
 
 
+def _visual_tasks_have_label_placements(pedagogy: dict[str, Any]) -> bool:
+    for task in pedagogy.get("visual_tasks") or []:
+        if not isinstance(task, dict):
+            continue
+        if not is_label_format(str(task.get("kind") or "")):
+            continue
+        placements = task.get("placements")
+        if isinstance(placements, list) and len(placements) >= 3:
+            return True
+    return False
+
+
+def _allow_generic_label_diagram(*, focus_group: str, pedagogy: dict[str, Any]) -> bool:
+    """Deutsch ohne echte Bild-Placements: kein generisches Rad (didaktisch wertlos)."""
+    group = normalize_focus_group(focus_group)
+    if group != "german":
+        return True
+    return _visual_tasks_have_label_placements(pedagogy)
+
+
 def derive_practice_items(
     *,
     pedagogy: dict[str, Any] | None,
@@ -148,6 +168,8 @@ def derive_practice_items(
         use_terms = task_terms or terms
         placements = task.get("placements") if isinstance(task.get("placements"), list) else None
         if is_label_format(kind) and use_terms:
+            if not _allow_generic_label_diagram(focus_group=group, pedagogy=pedagogy) and not placements:
+                continue
             diagram = build_label_diagram_from_terms(
                 use_terms,
                 title=f"{title} beschriften",
@@ -192,6 +214,8 @@ def derive_practice_items(
                 )
             )
         elif is_label_format(fmt) and terms:
+            if not _allow_generic_label_diagram(focus_group=group, pedagogy=pedagogy):
+                continue
             diagram = build_label_diagram_from_terms(
                 terms,
                 title=f"{title} beschriften",
@@ -208,19 +232,20 @@ def derive_practice_items(
 
     if not any(i.get("answer_type") == "label_diagram" for i in items):
         if terms and (_formats_imply_label(pedagogy) or is_nmg_focus(group)):
-            diagram = build_label_diagram_from_terms(
-                terms,
-                title=f"{title} beschriften",
-                instruction="Ordne die Fachbegriffe den passenden Stellen auf dem Schema zu.",
-            )
-            if diagram:
-                add_item(
-                    _label_practice_item(
-                        diagram=diagram,
-                        hint="Lies die Merksätze im Wissens-Hub.",
-                        source="basiswissen",
-                    )
+            if _allow_generic_label_diagram(focus_group=group, pedagogy=pedagogy):
+                diagram = build_label_diagram_from_terms(
+                    terms,
+                    title=f"{title} beschriften",
+                    instruction="Ordne die Fachbegriffe den passenden Stellen auf dem Schema zu.",
                 )
+                if diagram:
+                    add_item(
+                        _label_practice_item(
+                            diagram=diagram,
+                            hint="Lies die Merksätze im Wissens-Hub.",
+                            source="basiswissen",
+                        )
+                    )
 
     if not any(i.get("answer_type") == "drawing" for i in items):
         if _formats_imply_draw(pedagogy):

@@ -91,6 +91,32 @@ def test_derive_mental_term_cards_dedupes_repeated_terms():
     assert len(factor_cards) == 1
 
 
+def test_derive_mental_term_cards_use_term_specific_answers():
+    from pathlib import Path
+    import json
+
+    fixture_path = Path(__file__).parent / "fixtures" / "basiswissen" / "german_four_cases.json"
+    bw = parse_basiswissen_payload(json.loads(fixture_path.read_text(encoding="utf-8")), focus_group="german")
+    cards = derive_mental_term_cards(bw)
+    nominativ = next(c for c in cards if "Nominativ" in c["question"])
+    dativ = next(c for c in cards if "Dativ" in c["question"])
+    assert nominativ["answer"] != dativ["answer"]
+    assert "Nominativ" in nominativ["answer"]
+
+
+def test_derive_concept_quiz_avoids_ambiguous_four_cases_question():
+    from pathlib import Path
+    import json
+
+    fixture_path = Path(__file__).parent / "fixtures" / "basiswissen" / "german_four_cases.json"
+    bw = parse_basiswissen_payload(json.loads(fixture_path.read_text(encoding="utf-8")), focus_group="german")
+    questions = derive_concept_quiz_questions(bw, max_count=8)
+    assert questions
+    assert not any("Welcher Begriff passt bei Die vier Fälle?" in q["q"] for q in questions)
+    assert all("target_term" in q for q in questions)
+    assert all("Richtig:" in q["explanation"] for q in questions)
+
+
 def test_derive_concept_quiz_questions():
     bw = parse_basiswissen_payload(SAMPLE_BASISWISSEN, focus_group="math")
     questions = derive_concept_quiz_questions(bw, max_count=4)

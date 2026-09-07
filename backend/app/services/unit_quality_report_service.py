@@ -13,6 +13,10 @@ from app.core.grammar_verify import (
     format_grammar_report_section,
     summarize_grammar_warnings,
 )
+from app.core.content_qa import (
+    collect_content_warnings_for_module,
+    summarize_content_warnings,
+)
 from app.core.quiz_explanation import enrich_quiz_explanation, explanation_is_weak, method_explanation_incomplete
 from app.core.solution_repair import enrich_card_answer
 from app.models import LearningRecord, LearningUnit, User
@@ -135,6 +139,45 @@ def _grammar_warnings_for_unit(unit: LearningUnit) -> list[dict[str, str]]:
             tagged["ref"] = f"{prefix}/{item.get('ref', '?')}"
             warnings.append(tagged)
     return warnings
+
+
+def _content_warnings_for_unit(unit: LearningUnit) -> list[dict[str, str]]:
+    from app.ai.subject_focus import detect_focus_group
+
+    focus_group = (
+        detect_focus_group(subject=unit.subject, task_type=str(unit.task_type or "interactive"))
+        or "general"
+    )
+    warnings: list[dict[str, str]] = []
+    for mod in sorted(unit.modules or [], key=lambda m: m.order_index):
+        order = mod.order_index + 1
+        prefix = f"M{order:02d}"
+        content = decrypt_json(mod.content_encrypted) or {}
+        quiz = decrypt_json(mod.quiz_encrypted) or {}
+        for item in collect_content_warnings_for_module(
+            content=content if isinstance(content, dict) else {},
+            quiz=quiz if isinstance(quiz, dict) else {},
+            focus_group=focus_group,
+        ):
+            tagged = dict(item)
+            tagged["ref"] = f"{prefix}/{item.get('ref', '?')}"
+            warnings.append(tagged)
+    return warnings
+
+
+def _content_section(unit: LearningUnit) -> list[str]:
+    warnings = _content_warnings_for_unit(unit)
+    lines = ["## Inhalts-QA", ""]
+    if not warnings:
+        lines.append("_Keine Auffälligkeiten (generische Texte, Platzhalter-Übungen, mehrdeutige Fragen)._")
+        lines.append("")
+        return lines
+    for item in warnings:
+        level = str(item.get("level") or "info").upper()
+        ref = item.get("ref") or "?"
+        lines.append(f"- [{level}] `{ref}` — {item.get('message', '')}")
+    lines.append("")
+    return lines
 
 
 def _grammar_section(unit: LearningUnit) -> list[str]:
@@ -334,6 +377,8 @@ def build_unit_quality_report(db: Session, user: User, ref: str) -> dict:
             lines.append("")
             lines.extend(_grammar_section(root_loaded))
             lines.append("")
+            lines.extend(_content_section(root_loaded))
+            lines.append("")
             lines.append("## Module, Karten & Quiz (Lösungsvarianten)")
             lines.append("")
             fam = refs.get("reference_family") or family
@@ -361,6 +406,8 @@ def build_unit_quality_report(db: Session, user: User, ref: str) -> dict:
         lines.append("")
         lines.extend(_grammar_section(unit))
         lines.append("")
+        lines.extend(_content_section(unit))
+        lines.append("")
         lines.append("## Module, Karten & Quiz (Lösungsvarianten)")
         lines.append("")
         fam = refs.get("reference_family") or family
@@ -373,6 +420,7 @@ def build_unit_quality_report(db: Session, user: User, ref: str) -> dict:
 
     report = "\n".join(lines).strip() + "\n"
     grammar_warnings = _grammar_warnings_for_unit(grammar_unit) if grammar_unit else []
+    content_warnings = _content_warnings_for_unit(grammar_unit) if grammar_unit else []
     return {
         "ref": ref,
         "scope": scope,
@@ -382,6 +430,8 @@ def build_unit_quality_report(db: Session, user: User, ref: str) -> dict:
         "report": report,
         "grammar": summarize_grammar_warnings(grammar_warnings),
         "grammar_warnings": grammar_warnings,
+        "content": summarize_content_warnings(content_warnings),
+        "content_warnings": content_warnings,
         "ai": ai_payload,
         "ok": True,
     }

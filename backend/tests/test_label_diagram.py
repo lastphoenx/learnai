@@ -70,6 +70,35 @@ def test_grade_label_diagram_answer():
     assert not grade_label_diagram_answer(expected, user_bad)
 
 
+def test_derive_practice_skips_generic_label_for_german_without_placements():
+    from app.core.basiswissen import parse_basiswissen_payload as _parse
+
+    bw = _parse(
+        {
+            "basiswissen": {
+                "focus_group": "german",
+                "concepts": [
+                    {
+                        "id": "cases",
+                        "label": "Fälle",
+                        "parts": [{"role": "case", "term": "Nominativ"}],
+                        "hint": "Wer-Frage",
+                    }
+                ],
+                "cloze_templates": [],
+            }
+        },
+        focus_group="german",
+    )
+    items = derive_practice_items(
+        pedagogy={"exercise_formats": ["beschriften"], "visual_tasks": []},
+        basiswissen=bw,
+        category_label="Fälle",
+        focus_group="german",
+    )
+    assert not any(i.get("answer_type") == "label_diagram" for i in items)
+
+
 def test_derive_practice_items_from_pedagogy_and_basiswissen():
     bw = parse_basiswissen_payload(CASTLE_BASISWISSEN, focus_group="nmg")
     items = derive_practice_items(

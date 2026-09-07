@@ -793,6 +793,17 @@ export type UnitQualityReport = {
       stats?: Record<string, number>;
     } | null;
   };
+  content?: {
+    total?: number;
+    warn?: number;
+    info?: number;
+  };
+  content_warnings?: Array<{
+    kind: string;
+    level: string;
+    ref: string;
+    message: string;
+  }>;
   grammar?: {
     total: number;
     ok: number;

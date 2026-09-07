@@ -322,36 +322,79 @@ def derive_cloze_cards(basiswissen: dict[str, Any]) -> list[dict[str, Any]]:
     return cards
 
 
+def _pattern_lists_multiple_parts(pattern: str, parts: list[dict[str, Any]]) -> bool:
+    if not pattern:
+        return False
+    terms = [str(p.get("term") or "").strip() for p in parts if str(p.get("term") or "").strip()]
+    if len(terms) < 2:
+        return False
+    pl = pattern.lower()
+    hits = sum(1 for term in terms if term.lower() in pl)
+    return hits >= 2
+
+
+def _mental_term_answer(part: dict[str, Any], concept: dict[str, Any]) -> str:
+    term = str(part.get("term") or "").strip()
+    role = str(part.get("role") or "").strip()
+    role_label = ROLE_LABELS_DE.get(role, role)
+    example = str(concept.get("example") or "").strip()
+    pattern = str(concept.get("pattern") or "").strip()
+    hint = str(concept.get("hint") or "").strip()
+
+    if example and term.lower() in example.lower():
+        return f"{term}: {example}"[:2000]
+    if pattern and term.lower() in pattern.lower():
+        suffix = f" {hint}" if hint and hint.lower() not in pattern.lower() else ""
+        return f"{term} — {pattern}.{suffix}".strip()[:2000]
+    if role_label and role_label.lower() not in {term.lower(), ""}:
+        line = f"{term} ({role_label})"
+        if hint:
+            line = f"{line}: {hint}"
+        return line[:2000]
+    if hint:
+        return f"{term}: {hint}"[:2000]
+    return pattern or example or term
+
+
+def _concept_quiz_explanation(concept: dict[str, Any], part: dict[str, Any], correct: str) -> str:
+    example = str(concept.get("example") or "").strip()
+    pattern = str(concept.get("pattern") or "").strip()
+    role = str(part.get("role") or "").strip()
+    role_label = ROLE_LABELS_DE.get(role, role)
+    bits = [f"Richtig: {correct}."]
+    if role_label and role_label.lower() not in {correct.lower(), ""}:
+        bits.append(f"Rolle: {role_label}.")
+    if example and correct.lower() in example.lower():
+        bits.append(example)
+    elif pattern and correct.lower() in pattern.lower():
+        bits.append(f"Muster: {pattern}")
+    return " ".join(bits)[:1200]
+
+
 def derive_mental_term_cards(basiswissen: dict[str, Any]) -> list[dict[str, Any]]:
     cards: list[dict[str, Any]] = []
     for concept in basiswissen.get("concepts") or []:
         if not isinstance(concept, dict):
             continue
         label = str(concept.get("label") or "").strip()
-        hint = str(concept.get("hint") or "").strip()
         example = str(concept.get("example") or "").strip()
         pattern = str(concept.get("pattern") or "").strip()
-        answer_body = hint or pattern or example
-        if not label or not answer_body:
+        hint = str(concept.get("hint") or "").strip()
+        if not label or not (hint or pattern or example):
             continue
         seen_terms: set[str] = set()
         for part in concept.get("parts") or []:
             if not isinstance(part, dict):
                 continue
             term = str(part.get("term") or "").strip()
-            role = str(part.get("role") or "").strip()
             if not term:
                 continue
             term_key = term.lower()
             if term_key in seen_terms:
                 continue
             seen_terms.add(term_key)
-            role_label = ROLE_LABELS_DE.get(role, role)
             question = f"Was bedeutet «{term}» bei {label}?"
-            if role_label and role_label.lower() != term.lower():
-                answer = f"{role_label}: {answer_body}"
-            else:
-                answer = answer_body
+            answer = _mental_term_answer(part, concept)
             cards.append(
                 {
                     "kind": "mental",
@@ -383,34 +426,44 @@ def derive_concept_quiz_questions(
         parts = [p for p in (concept.get("parts") or []) if isinstance(p, dict)]
         if not parts:
             continue
-        target = parts[-1]
-        correct = str(target.get("term") or "").strip()
-        if not correct:
-            continue
-        distractors = _distractor_terms(concepts, exclude={correct}, count=3)
-        while len(distractors) < 3:
-            distractors.append(f"Antwort {len(distractors) + 1}")
-        options = [correct] + distractors[:3]
-        # shuffle deterministically by concept id hash
-        order = sorted(range(4), key=lambda i: (options[i], concept.get("id"), i))
-        shuffled = [options[i] for i in order]
-        answer_idx = shuffled.index(correct)
         pattern = str(concept.get("pattern") or "").strip()
-        q_text = (
-            f"Welcher Begriff passt bei {label}? "
-            f"(Muster: {pattern})" if pattern else f"Welcher Begriff gehört zu {label}?"
-        )
-        explanation = str(concept.get("hint") or concept.get("example") or pattern or correct)
-        questions.append(
-            {
-                "q": q_text[:400],
-                "options": [f"{chr(65 + i)}) {opt}" for i, opt in enumerate(shuffled)],
-                "answer": answer_idx,
-                "explanation": explanation[:1200],
-                "question_type": "concept",
-                "concept_id": str(concept.get("id") or "")[:64],
-            }
-        )
+        multi_part = len(parts) > 1 or _pattern_lists_multiple_parts(pattern, parts)
+        targets = parts if multi_part else [parts[-1]]
+        for part in targets:
+            if len(questions) >= max_count:
+                break
+            correct = str(part.get("term") or "").strip()
+            if not correct:
+                continue
+            distractors = _distractor_terms(concepts, exclude={correct}, count=3)
+            while len(distractors) < 3:
+                distractors.append(f"Antwort {len(distractors) + 1}")
+            options = [correct] + distractors[:3]
+            order = sorted(range(4), key=lambda i: (options[i], concept.get("id"), part.get("role"), i))
+            shuffled = [options[i] for i in order]
+            answer_idx = shuffled.index(correct)
+            role_label = ROLE_LABELS_DE.get(str(part.get("role") or "").strip(), "")
+            if multi_part:
+                if role_label and role_label.lower() not in {correct.lower(), ""}:
+                    q_text = f"Welche Rolle hat «{correct}» bei {label}?"
+                else:
+                    q_text = f"Was bezeichnet «{correct}» bei {label}?"
+            elif pattern:
+                q_text = f"Welcher Begriff passt bei {label}? (Muster: {pattern})"
+            else:
+                q_text = f"Welcher Begriff gehört zu {label}?"
+            explanation = _concept_quiz_explanation(concept, part, correct)
+            questions.append(
+                {
+                    "q": q_text[:400],
+                    "options": [f"{chr(65 + i)}) {opt}" for i, opt in enumerate(shuffled)],
+                    "answer": answer_idx,
+                    "explanation": explanation[:1200],
+                    "question_type": "concept",
+                    "concept_id": str(concept.get("id") or "")[:64],
+                    "target_term": correct[:80],
+                }
+            )
     for template in basiswissen.get("cloze_templates") or []:
         if len(questions) >= max_count:
             break

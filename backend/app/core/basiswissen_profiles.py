@@ -11,6 +11,7 @@ FOCUS_GROUP_PROMPTS: dict[str, str] = {
     "german": (
         "Deutsch: Wortarten, Satzglieder, Kasus/Deklination, Rechtschreib- oder Grammatikregeln. "
         "Rollen z. B. subject, predicate, object, attribute, nominativ, genitiv, dativ, akkusativ, preposition. "
+        "hint/pattern/example pro Concept sollen term-spezifisch sein — kein einziger Merksatz für alle Begriffe. "
         "Bei Deklinations-Lückentexten: cloze_templates.grammar.blanks mit case, gender, number, "
         "determiner_type (der-word|ein-word), determiner_stem, adjective_stem, lemma, part (ending|word). "
         "Antworten werden serverseitig aus Regeln berechnet — Metadata muss stimmen. "
