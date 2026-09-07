@@ -55,3 +55,11 @@ ROLE_LABELS_DE: dict[str, str] = {
     "term": "Begriff",
     "definition": "Definition",
 }
+
+# Kurz-Erklärungen für Mental-Karten (ein Satz pro Rolle, nicht der Concept-hint).
+CASE_ROLE_MENTAL_HINTS: dict[str, str] = {
+    "nominativ": "Wer-Fall — oft Subjekt (Wer tut etwas?).",
+    "genitiv": "Wessen-Fall — Besitz oder Zugehörigkeit.",
+    "dativ": "Wem-Fall — oft indirektes Objekt.",
+    "akkusativ": "Wen-/Was-Fall — oft direktes Objekt.",
+}

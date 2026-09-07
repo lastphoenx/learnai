@@ -98,10 +98,18 @@ def test_derive_mental_term_cards_use_term_specific_answers():
     fixture_path = Path(__file__).parent / "fixtures" / "basiswissen" / "german_four_cases.json"
     bw = parse_basiswissen_payload(json.loads(fixture_path.read_text(encoding="utf-8")), focus_group="german")
     cards = derive_mental_term_cards(bw)
-    nominativ = next(c for c in cards if "Nominativ" in c["question"])
-    dativ = next(c for c in cards if "Dativ" in c["question"])
-    assert nominativ["answer"] != dativ["answer"]
-    assert "Nominativ" in nominativ["answer"]
+    by_term = {
+        c["question"].split("«")[1].split("»")[0]: c["answer"]
+        for c in cards
+        if "«" in c["question"]
+    }
+    assert set(by_term) == {"Nominativ", "Genitiv", "Dativ", "Akkusativ"}
+    answers = list(by_term.values())
+    assert len(set(answers)) == 4
+    assert "Wessen?" in by_term["Genitiv"]
+    assert "Wem?" in by_term["Dativ"]
+    assert "Wen?" in by_term["Akkusativ"]
+    assert "Der Mars leuchtet" in by_term["Nominativ"]
 
 
 def test_derive_concept_quiz_avoids_ambiguous_four_cases_question():

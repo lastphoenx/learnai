@@ -9,7 +9,7 @@ from typing import Any
 
 from app.core.answer_match import infer_answer_type
 from app.core.focus_groups import normalize_focus_group
-from app.core.basiswissen_profiles import FOCUS_GROUP_PROMPTS, ROLE_LABELS_DE
+from app.core.basiswissen_profiles import CASE_ROLE_MENTAL_HINTS, FOCUS_GROUP_PROMPTS, ROLE_LABELS_DE
 from app.core.german_pedagogy_verify import repair_german_concept_genitive_preposition
 from app.core.grammar_verify import repair_basiswissen_grammar, verify_basiswissen_grammar
 from app.core.practice_derive import derive_practice_items
@@ -333,24 +333,46 @@ def _pattern_lists_multiple_parts(pattern: str, parts: list[dict[str, Any]]) -> 
     return hits >= 2
 
 
+def _pattern_segment_for_term(pattern: str, term: str) -> str | None:
+    """Extrahiert den Muster-Abschnitt für einen Begriff (z. B. «Wessen? = Genitiv»)."""
+    if not pattern or not term:
+        return None
+    needle = term.lower()
+    for chunk in re.split(r"[;\n|]+", pattern):
+        piece = chunk.strip()
+        if piece and needle in piece.lower():
+            return piece
+    return None
+
+
 def _mental_term_answer(part: dict[str, Any], concept: dict[str, Any]) -> str:
     term = str(part.get("term") or "").strip()
-    role = str(part.get("role") or "").strip()
+    role = str(part.get("role") or "").strip().lower()
     role_label = ROLE_LABELS_DE.get(role, role)
     example = str(concept.get("example") or "").strip()
     pattern = str(concept.get("pattern") or "").strip()
     hint = str(concept.get("hint") or "").strip()
+    role_hint = CASE_ROLE_MENTAL_HINTS.get(role, "")
 
     if example and term.lower() in example.lower():
         return f"{term}: {example}"[:2000]
-    if pattern and term.lower() in pattern.lower():
-        suffix = f" {hint}" if hint and hint.lower() not in pattern.lower() else ""
-        return f"{term} — {pattern}.{suffix}".strip()[:2000]
+
+    segment = _pattern_segment_for_term(pattern, term)
+    if segment:
+        bits = [f"{term}: {segment}"]
+        if role_hint and role_hint.lower() not in segment.lower():
+            bits.append(role_hint)
+        return ". ".join(bits)[:2000]
+
     if role_label and role_label.lower() not in {term.lower(), ""}:
         line = f"{term} ({role_label})"
-        if hint:
+        if role_hint:
+            line = f"{line}: {role_hint}"
+        elif hint:
             line = f"{line}: {hint}"
         return line[:2000]
+    if role_hint:
+        return f"{term}: {role_hint}"[:2000]
     if hint:
         return f"{term}: {hint}"[:2000]
     return pattern or example or term

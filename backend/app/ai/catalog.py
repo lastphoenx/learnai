@@ -59,9 +59,9 @@ TASK_CATALOG: list[dict] = [
     {
         "key": "vision",
         "label": "Fotos / OCR (Lernmittel)",
-        "why": "Hefte und Arbeitsblätter — hohe Privacy. Kleinere Vision-Modelle zuerst (schneller, weniger Timeout).",
+        "why": "Hefte und Arbeitsblätter — hohe Privacy. Grösseres Vision-Modell zuerst (Genauigkeit vor Tempo).",
         "default_provider": "ollama",
-        "local": ["qwen2.5vl:7b", "qwen2.5vl:32b", "qwen2.5vl:latest"],
+        "local": ["qwen2.5vl:32b", "qwen2.5vl:7b", "qwen2.5vl:latest"],
         "external": ["gpt-4o", "gpt-4o-mini", "claude-sonnet-4-0"],
     },
     {

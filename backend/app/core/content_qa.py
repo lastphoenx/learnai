@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import re
+from collections import Counter
+from difflib import SequenceMatcher
 from typing import Any
 
 _AMBIGUOUS_CONCEPT_Q = re.compile(
@@ -13,6 +15,42 @@ _GENERIC_CASE_EXPL = re.compile(
     r"Fälle zeigen,.+W-Fragen findest",
     re.I | re.S,
 )
+_MENTAL_TERM_Q = re.compile(r"Was bedeutet «([^»]+)»")
+
+
+def _mental_term_from_question(question: str) -> str:
+    match = _MENTAL_TERM_Q.search(question)
+    return match.group(1).strip() if match else ""
+
+
+def _strip_leading_term_prefix(answer: str, term: str) -> str:
+    text = answer.strip()
+    if not term:
+        return text.lower()
+    prefix = term.strip()
+    if text.lower().startswith(prefix.lower()):
+        rest = text[len(prefix) :].lstrip()
+        if rest[:1] in {":", "—", "-"}:
+            rest = rest[1:].lstrip()
+        return rest.lower()
+    return text.lower()
+
+
+def _near_duplicate_bodies(bodies: list[str], *, ratio: float = 0.88) -> int:
+    """Grösste Gruppe inhaltlich (fast) gleicher Antwort-Körper."""
+    if len(bodies) < 2:
+        return len(bodies)
+    groups: list[list[str]] = []
+    for body in bodies:
+        placed = False
+        for group in groups:
+            if SequenceMatcher(None, body, group[0]).ratio() >= ratio:
+                group.append(body)
+                placed = True
+                break
+        if not placed:
+            groups.append([body])
+    return max(len(group) for group in groups)
 
 
 def collect_content_warnings_for_module(
@@ -46,6 +84,7 @@ def collect_content_warnings_for_module(
         answer_by_question.setdefault(q, a)
 
     answers_seen: dict[str, list[str]] = {}
+    mental_bodies: list[str] = []
     for card in content.get("cards") or []:
         if not isinstance(card, dict) or str(card.get("source") or "") != "basiswissen":
             continue
@@ -54,6 +93,11 @@ def collect_content_warnings_for_module(
         if not q or not a:
             continue
         answers_seen.setdefault(a, []).append(q)
+        if str(card.get("card_role") or "") == "term" and _MENTAL_TERM_Q.search(q):
+            term = _mental_term_from_question(q)
+            body = _strip_leading_term_prefix(a, term)
+            if len(body) >= 12:
+                mental_bodies.append(body)
     for answer, questions in answers_seen.items():
         if len(questions) >= 3 and len({q.split("«")[1].split("»")[0] if "«" in q else q for q in questions}) >= 3:
             warnings.append(
@@ -64,6 +108,22 @@ def collect_content_warnings_for_module(
                     "message": (
                         f"{len(questions)} Kurzkarten teilen dieselbe Antwort "
                         f"(«{answer[:80]}…») — vermutlich generischer Textbaustein."
+                    ),
+                }
+            )
+    if len(mental_bodies) >= 3:
+        exact_dupes = Counter(mental_bodies).most_common(1)[0][1]
+        near_dupes = _near_duplicate_bodies(mental_bodies)
+        dup_count = max(exact_dupes, near_dupes)
+        if dup_count >= 3:
+            warnings.append(
+                {
+                    "kind": "generic_mental_cards",
+                    "level": "warn",
+                    "ref": "cards",
+                    "message": (
+                        f"{dup_count} Mental-Karten haben (fast) identischen Erklärtext "
+                        "— nur der Begriff unterscheidet sich."
                     ),
                 }
             )
