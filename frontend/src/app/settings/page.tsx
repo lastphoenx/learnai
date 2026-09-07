@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { InlineEditName } from "@/components/InlineEditName";
 import { LearnerSettingsForm, type TaskRow } from "@/components/LearnerSettingsForm";
@@ -50,7 +50,7 @@ export default function SettingsPage() {
   const [newPassword, setNewPassword] = useState("");
   const [newPassword2, setNewPassword2] = useState("");
   const [passwordSaved, setPasswordSaved] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle");
   const [byTask, setByTask] = useState<Record<string, TaskRow>>({});
   const [llmProvider, setLlmProvider] = useState("default");
   const [llmModel, setLlmModel] = useState("");
@@ -64,6 +64,29 @@ export default function SettingsPage() {
   const selected = profiles.find((p) => p.id === selectedId) ?? null;
   const { asChild } = useChildPreview(user);
   const readOnly = asChild;
+  const saveHintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function clearSaveHintTimer() {
+    if (saveHintTimer.current) {
+      clearTimeout(saveHintTimer.current);
+      saveHintTimer.current = null;
+    }
+  }
+
+  function markLearnerSettingsDirty() {
+    clearSaveHintTimer();
+    setSaveState((state) => (state === "saved" ? "idle" : state));
+  }
+
+  function showSaveSuccess() {
+    clearSaveHintTimer();
+    setSaveState("saved");
+    saveHintTimer.current = setTimeout(() => {
+      setSaveState((state) => (state === "saved" ? "idle" : state));
+    }, 4000);
+  }
+
+  useEffect(() => () => clearSaveHintTimer(), []);
 
   function loadProfileForm(profile: LearnerProfile) {
     setByTask(profile.by_task || {});
@@ -109,7 +132,9 @@ export default function SettingsPage() {
   useEffect(() => {
     const profile = profiles.find((p) => p.id === selectedId);
     if (profile) loadProfileForm(profile);
-  }, [selectedId, profiles]);
+    clearSaveHintTimer();
+    setSaveState("idle");
+  }, [selectedId]);
 
   async function onSetup(e: FormEvent) {
     e.preventDefault();
@@ -254,7 +279,8 @@ export default function SettingsPage() {
             onSubmit={async (e) => {
               e.preventDefault();
               setError(null);
-              setSaved(false);
+              clearSaveHintTimer();
+              setSaveState("saving");
               try {
                 const updated = await updateProfile(selected.id, {
                   llm_provider: llmProvider,
@@ -263,8 +289,9 @@ export default function SettingsPage() {
                   stt_provider: sttProvider,
                 });
                 setProfiles((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
-                setSaved(true);
+                showSaveSuccess();
               } catch (err) {
+                setSaveState("idle");
                 setError(err instanceof Error ? err.message : "Speichern fehlgeschlagen");
               }
             }}
@@ -285,8 +312,12 @@ export default function SettingsPage() {
               byTask={byTask}
               llmProvider={llmProvider}
               llmModel={llmModel}
-              onByTaskChange={setByTask}
+              onByTaskChange={(next) => {
+                markLearnerSettingsDirty();
+                setByTask(next);
+              }}
               onFallbackChange={(provider, model) => {
+                markLearnerSettingsDirty();
                 setLlmProvider(provider);
                 setLlmModel(model);
               }}
@@ -294,13 +325,25 @@ export default function SettingsPage() {
                 const updated = await applyProfileRecommendations(selected.id);
                 setProfiles((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
                 loadProfileForm(updated);
+                showSaveSuccess();
               }}
               sttProvider={sttProvider}
               sttStatus={sttStatus}
-              onSttProviderChange={setSttProvider}
+              onSttProviderChange={(provider) => {
+                markLearnerSettingsDirty();
+                setSttProvider(provider);
+              }}
             />
-            <button type="submit">Lerner-Einstellungen speichern</button>
-            {saved && <p>Gespeichert.</p>}
+            <div className="settings-save-row">
+              <button type="submit" disabled={saveState === "saving"}>
+                {saveState === "saving" ? "Speichern…" : "Lerner-Einstellungen speichern"}
+              </button>
+              {saveState === "saved" && (
+                <p className="save-status-ok" role="status" aria-live="polite">
+                  Gespeichert.
+                </p>
+              )}
+            </div>
           </form>
         )}
       </div>

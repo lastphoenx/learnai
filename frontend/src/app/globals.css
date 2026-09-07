@@ -311,6 +311,19 @@ button:disabled {
   margin: 0;
 }
 
+.settings-save-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1rem;
+}
+
+.save-status-ok {
+  margin: 0;
+  color: var(--good, #168a55);
+  font-weight: 650;
+}
+
 .hero-kicker {
   text-transform: uppercase;
   letter-spacing: 0.14em;
