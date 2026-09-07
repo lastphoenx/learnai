@@ -10,6 +10,8 @@ from starlette.responses import FileResponse
 from app.models import UnitSource
 
 _HTML_PREFIXES = (b"<!doctype", b"<html", b"<head", b"<body", b"<meta", b"<title")
+# Explizite Nicht-HTML-Quellen: kein Content-Sniffing (sonst würde kind=document ignoriert).
+_EXPLICIT_NON_HTML_KINDS = frozenset({"document", "image", "audio", "pdf"})
 
 
 def is_html_pack_source(
@@ -28,6 +30,8 @@ def is_html_pack_source(
         return True
     if name.lower().endswith((".html", ".htm")):
         return True
+    if source.kind in _EXPLICIT_NON_HTML_KINDS:
+        return False
     try:
         head = path.read_bytes()[:512].lstrip().lower()
     except OSError:

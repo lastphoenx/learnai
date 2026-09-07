@@ -23,11 +23,18 @@ def test_pack_query_forces_html_mode(tmp_path: Path):
     assert is_html_pack_source(source, "note.txt", html, pack_mode=True)
 
 
-def test_sniff_html_without_kind(tmp_path: Path):
-    path = tmp_path / "trainer"
+def test_html_extension_overrides_non_html_kind(tmp_path: Path):
+    path = tmp_path / "pack.htm"
     path.write_text("<html><body>Hi</body></html>", encoding="utf-8")
     source = UnitSource(kind="document", content_type="application/octet-stream")
-    assert is_html_pack_source(source, "trainer", path)
+    assert is_html_pack_source(source, "pack.htm", path)
+
+
+def test_document_kind_blocks_html_sniffing(tmp_path: Path):
+    path = tmp_path / "notes.txt"
+    path.write_text("<!doctype html><title>x</title>", encoding="utf-8")
+    source = UnitSource(kind="document", content_type="application/octet-stream")
+    assert not is_html_pack_source(source, "notes.txt", path, pack_mode=False)
 
 
 def test_inline_content_disposition_ascii():
