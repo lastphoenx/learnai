@@ -1,0 +1,69 @@
+"""Serving self-contained HTML exercise packs in a sandboxed iframe."""
+
+from __future__ import annotations
+
+from pathlib import Path
+from urllib.parse import quote
+
+from starlette.responses import FileResponse
+
+from app.models import UnitSource
+
+_HTML_PREFIXES = (b"<!doctype", b"<html", b"<head", b"<body", b"<meta", b"<title")
+
+
+def is_html_pack_source(
+    source: UnitSource,
+    name: str,
+    path: Path,
+    *,
+    pack_mode: bool = False,
+) -> bool:
+    """True when the file should render inline in HtmlPackFrame (not as download)."""
+    if pack_mode:
+        return True
+    if source.kind == "html":
+        return True
+    if "html" in (source.content_type or "").lower():
+        return True
+    if name.lower().endswith((".html", ".htm")):
+        return True
+    try:
+        head = path.read_bytes()[:512].lstrip().lower()
+    except OSError:
+        return False
+    return head.startswith(_HTML_PREFIXES)
+
+
+def html_pack_filename(name: str) -> str:
+    if name.lower().endswith((".html", ".htm")):
+        return name
+    return f"{name}.html"
+
+
+def inline_content_disposition(filename: str) -> str:
+    quoted = quote(filename)
+    if quoted != filename:
+        return f"inline; filename*=utf-8''{quoted}"
+    return f'inline; filename="{filename}"'
+
+
+def build_html_pack_file_response(path: Path, name: str) -> FileResponse:
+    filename = html_pack_filename(name)
+    response = FileResponse(
+        path,
+        media_type="text/html; charset=utf-8",
+        filename=filename,
+        content_disposition_type="inline",
+    )
+    # Explicit header: Starlette setdefault can lose to proxies; pack viewer must never attach.
+    response.headers["Content-Disposition"] = inline_content_disposition(filename)
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    response.headers["Content-Security-Policy"] = (
+        "frame-ancestors 'self'; default-src 'none'; "
+        "script-src 'unsafe-inline' 'unsafe-eval'; "
+        "style-src 'unsafe-inline'; img-src data: blob: 'self'; "
+        "font-src data: 'self'; connect-src 'none'; base-uri 'none'; form-action 'self'"
+    )
+    response.headers["Cache-Control"] = "private, no-cache"
+    return response

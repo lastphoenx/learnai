@@ -2,7 +2,7 @@ from uuid import UUID
 
 import logging
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import FileResponse, JSONResponse, Response
 from sqlalchemy.exc import DataError, IntegrityError
 from sqlalchemy.orm import Session
@@ -509,39 +509,28 @@ async def units_upload_source(
 def units_source_file(
     unit_id: UUID,
     source_id: UUID,
+    pack: bool = Query(False, description="HTML-Übung im iframe (?pack=1)"),
     user: User = Depends(get_app_user),
     db: Session = Depends(get_db),
 ):
     try:
-        source, path = get_source_file(db, user, unit_id, source_id)
         from app.core.crypto import decrypt_text_master
+        from app.core.html_source_serve import build_html_pack_file_response, is_html_pack_source
 
+        source, path = get_source_file(db, user, unit_id, source_id)
         name = (
             decrypt_text_master(source.original_name_encrypted)
             if source.original_name_encrypted
             else "quelle"
         )
-        media = source.content_type or "application/octet-stream"
-        if source.kind == "html" or "html" in media:
-            media = "text/html; charset=utf-8"
-            name = name if name.lower().endswith((".html", ".htm")) else f"{name}.html"
-        disposition = "inline" if source.kind == "html" or "html" in (source.content_type or "") else "attachment"
-        response = FileResponse(
+        if is_html_pack_source(source, name, path, pack_mode=pack):
+            return build_html_pack_file_response(path, name)
+        return FileResponse(
             path,
-            media_type=media,
+            media_type=source.content_type or "application/octet-stream",
             filename=name,
-            content_disposition_type=disposition,
+            content_disposition_type="attachment",
         )
-        if source.kind == "html" or "html" in (source.content_type or ""):
-            # Middleware setzt Header nur, wenn sie noch fehlen — hier explizit freigeben für iframe.
-            response.headers["X-Frame-Options"] = "SAMEORIGIN"
-            response.headers["Content-Security-Policy"] = (
-                "frame-ancestors 'self'; default-src 'none'; "
-                "script-src 'unsafe-inline' 'unsafe-eval'; "
-                "style-src 'unsafe-inline'; img-src data: blob: 'self'; "
-                "font-src data: 'self'; connect-src 'none'; base-uri 'none'; form-action 'self'"
-            )
-        return response
     except UnitError as exc:
         raise _http(exc) from exc
 
