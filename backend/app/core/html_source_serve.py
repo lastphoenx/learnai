@@ -49,15 +49,13 @@ def inline_content_disposition(filename: str) -> str:
 
 
 def build_html_pack_file_response(path: Path, name: str) -> FileResponse:
-    filename = html_pack_filename(name)
     response = FileResponse(
         path,
         media_type="text/html; charset=utf-8",
-        filename=filename,
         content_disposition_type="inline",
     )
-    # Explicit header: Starlette setdefault can lose to proxies; pack viewer must never attach.
-    response.headers["Content-Disposition"] = inline_content_disposition(filename)
+    # Ohne filename: manche Browser/iframes behandeln inline+filename sonst als Download.
+    response.headers["Content-Disposition"] = "inline"
     response.headers["X-Frame-Options"] = "SAMEORIGIN"
     response.headers["Content-Security-Policy"] = (
         "frame-ancestors 'self'; default-src 'none'; "

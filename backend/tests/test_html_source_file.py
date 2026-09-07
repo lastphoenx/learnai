@@ -11,7 +11,7 @@ from app.models import UnitSource
 def test_html_source_uses_inline_disposition():
     response = build_html_pack_file_response(Path("/tmp/x.html"), "pack.html")
     disp = response.headers.get("content-disposition", "").lower()
-    assert "inline" in disp
+    assert disp == "inline"
     assert "attachment" not in disp
 
 
