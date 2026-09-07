@@ -63,6 +63,15 @@ def test_resolve_generation_ai_tasks_includes_vision_with_sources():
     assert "vision" in tasks
 
 
+def test_adult_label_for_user_without_display_name_attribute():
+    from types import SimpleNamespace
+
+    from app.services.ai_run_snapshot import adult_label_for_user
+
+    user = SimpleNamespace(email="admin@example.com", profile=None)
+    assert adult_label_for_user(user) == "admin"
+
+
 def test_format_ai_tasks_suffix():
     from app.services.ai_run_snapshot import format_ai_tasks_suffix
 

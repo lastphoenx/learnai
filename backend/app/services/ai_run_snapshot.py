@@ -149,6 +149,24 @@ def format_ai_tasks_report_section(
     return lines
 
 
+def adult_label_for_user(user) -> str:
+    """Anzeigename des auslösenden Erwachsenen (User hat kein display_name-Feld)."""
+    from app.services.user_service import _account_display_name
+
+    name = (_account_display_name(user) or "").strip()
+    if name:
+        return name
+    profile = getattr(user, "profile", None)
+    if profile and getattr(profile, "display_name", None):
+        name = str(profile.display_name).strip()
+        if name:
+            return name
+    email = getattr(user, "email", None)
+    if email:
+        return str(email).split("@")[0]
+    return "Erwachsenen"
+
+
 def summarize_unit_ai_context(
     db,
     user,
@@ -181,7 +199,7 @@ def summarize_unit_ai_context(
     ctx = EffectiveAiContext(
         has_unit_profile=bool(unit.profile_id),
         child_label=child_label,
-        adult_label=(user.display_name or "Erwachsenen").strip() or "Erwachsenen",
+        adult_label=adult_label_for_user(user),
         unit_provider_override=unit_override,
     )
     eff = effective_ai_config(target_prefs, fallback_prefs=fallback_prefs, context=ctx)
