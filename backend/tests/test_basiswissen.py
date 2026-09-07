@@ -1,4 +1,5 @@
 import json
+import re
 from pathlib import Path
 
 from app.core.answer_match import cloze_answers_match
@@ -131,6 +132,63 @@ def test_derive_concept_quiz_questions():
     assert questions
     assert all(q.get("question_type") == "concept" for q in questions)
     assert all(len(q.get("options") or []) == 4 for q in questions)
+
+
+def test_derive_concept_quiz_stores_plain_option_text():
+    bw = parse_basiswissen_payload(SAMPLE_BASISWISSEN, focus_group="math")
+    questions = derive_concept_quiz_questions(bw, max_count=4)
+    for question in questions:
+        for opt in question.get("options") or []:
+            text = str(opt)
+            assert not re.match(r"^[a-d]\)\s", text, re.I), f"prefixed option: {text!r}"
+
+
+def test_derive_mental_term_cards_use_distinct_table_forms():
+    import json
+    from pathlib import Path
+
+    fixture_path = Path(__file__).parent / "fixtures" / "basiswissen" / "german_declension_table.json"
+    bw = parse_basiswissen_payload(json.loads(fixture_path.read_text(encoding="utf-8")), focus_group="german")
+    cards = derive_mental_term_cards(bw)
+    by_term = {
+        c["question"].split("«")[1].split("»")[0]: c["answer"]
+        for c in cards
+        if "«" in c["question"]
+    }
+    assert set(by_term) == {"der Löwe", "des Löwen", "dem Löwen", "den Löwen"}
+    answers = list(by_term.values())
+    assert len(set(answers)) == 4
+    assert "Genitiv" in by_term["des Löwen"]
+    assert "Dativ" in by_term["dem Löwen"]
+    assert "Akkusativ" in by_term["den Löwen"]
+    assert "Nominativ" in by_term["der Löwe"]
+    assert all(" – " not in answer for answer in answers)
+
+
+def test_derive_mental_term_cards_use_distinct_procedure_steps():
+    import json
+    from pathlib import Path
+
+    fixture_path = Path(__file__).parent / "fixtures" / "basiswissen" / "german_procedure_steps.json"
+    bw = parse_basiswissen_payload(json.loads(fixture_path.read_text(encoding="utf-8")), focus_group="german")
+    cards = derive_mental_term_cards(bw)
+    by_term = {
+        c["question"].split("«")[1].split("»")[0]: c["answer"]
+        for c in cards
+        if "«" in c["question"]
+    }
+    assert len(by_term) == 4
+    answers = list(by_term.values())
+    assert len(set(answers)) == 4
+    assert "Zuerst" in by_term["Verb markieren"]
+    assert "Satzglieder" in by_term["Satzglieder markieren"]
+    assert "W-Frage" in by_term["W-Frage stellen"] or "w-frage" in by_term["W-Frage stellen"].lower()
+    assert "Fall bestimmen" in by_term["Fall bestimmen"]
+    bodies = [
+        a.split(":", 1)[1].strip().lower() if ":" in a else a.lower()
+        for a in answers
+    ]
+    assert len(set(bodies)) == 4
 
 
 def test_merge_concept_questions_replaces_calculation_slots():

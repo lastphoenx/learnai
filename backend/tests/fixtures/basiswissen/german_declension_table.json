@@ -1,0 +1,23 @@
+{
+  "basiswissen": {
+    "schema_version": 1,
+    "focus_group": "german",
+    "concepts": [
+      {
+        "id": "declension_table",
+        "kind": "rule",
+        "label": "Falltabelle mit Artikeln und Nomen",
+        "parts": [
+          {"role": "nominativ", "term": "der Löwe"},
+          {"role": "genitiv", "term": "des Löwen"},
+          {"role": "dativ", "term": "dem Löwen"},
+          {"role": "akkusativ", "term": "den Löwen"}
+        ],
+        "pattern": "der Löwe – des Löwen – dem Löwen – den Löwen",
+        "example": "Der Löwe schläft. – Wer schläft? Der Löwe.",
+        "hint": "Die Artikel zeigen den Fall oft deutlicher als das Nomen."
+      }
+    ],
+    "cloze_templates": []
+  }
+}

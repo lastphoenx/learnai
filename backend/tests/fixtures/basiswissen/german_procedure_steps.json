@@ -1,0 +1,23 @@
+{
+  "basiswissen": {
+    "schema_version": 1,
+    "focus_group": "german",
+    "concepts": [
+      {
+        "id": "case_steps",
+        "kind": "rule",
+        "label": "Fälle Schritt für Schritt bestimmen",
+        "parts": [
+          {"role": "step", "term": "Verb markieren"},
+          {"role": "step", "term": "Satzglieder markieren"},
+          {"role": "step", "term": "W-Frage stellen"},
+          {"role": "result", "term": "Fall bestimmen"}
+        ],
+        "pattern": "Zuerst Verb markieren, dann Satzglieder erkennen und zuletzt die passende W-Frage vom Verb aus stellen.",
+        "example": "Die Erde umkreist die Sonne: Verb „umkreist“; Wer umkreist? Die Erde (Nominativ); Wen umkreist die Erde? Die Sonne (Akkusativ).",
+        "hint": "Nicht nur auf einzelne Endungen schauen: Die W-Frage vom Verb zeigt, welche Aufgabe das Satzglied wirklich hat."
+      }
+    ],
+    "cloze_templates": []
+  }
+}

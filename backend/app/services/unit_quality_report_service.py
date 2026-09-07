@@ -18,6 +18,7 @@ from app.core.content_qa import (
     summarize_content_warnings,
 )
 from app.core.quiz_explanation import enrich_quiz_explanation, explanation_is_weak, method_explanation_incomplete
+from app.core.quiz_numeric import strip_option_label
 from app.core.solution_repair import enrich_card_answer
 from app.models import LearningRecord, LearningUnit, User
 from app.services.ai_run_snapshot import (
@@ -58,7 +59,8 @@ def _quiz_lines(quiz: dict, *, module_ref: str) -> list[str]:
         if isinstance(options, list):
             for oi, opt in enumerate(options):
                 mark = " ✓" if answer == oi else ""
-                lines.append(f"  - [{chr(65 + oi)}]{mark} {opt}")
+                label = strip_option_label(str(opt))
+                lines.append(f"  - [{chr(65 + oi)}]{mark} {label}")
         if shown and (
             (qtype == "method" and method_explanation_incomplete(shown, qtext, question))
             or (qtype != "method" and explanation_is_weak(shown, qtext))

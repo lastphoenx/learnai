@@ -333,47 +333,194 @@ def _pattern_lists_multiple_parts(pattern: str, parts: list[dict[str, Any]]) -> 
     return hits >= 2
 
 
-def _pattern_segment_for_term(pattern: str, term: str) -> str | None:
-    """Extrahiert den Muster-Abschnitt für einen Begriff (z. B. «Wessen? = Genitiv»)."""
-    if not pattern or not term:
+_PATTERN_CHUNK_SPLIT = re.compile(
+    r"[;\n|]"
+    r"|(?:\s*[–—→>]\s*)"
+    r"|(?:,\s+(?=[A-ZÄÖÜ\"«(]|der |die |das |des |dem |den ))"
+)
+_TERM_STOPWORDS = frozenset(
+    {
+        "der",
+        "die",
+        "das",
+        "des",
+        "dem",
+        "den",
+        "ein",
+        "eine",
+        "eines",
+        "einem",
+        "einen",
+        "und",
+        "oder",
+        "bei",
+        "mit",
+        "zum",
+        "zur",
+        "vom",
+        "aus",
+        "als",
+        "nach",
+        "the",
+    }
+)
+_ARTICLE_CASE_HINTS: tuple[tuple[str, str], ...] = (
+    ("des ", "Genitiv — Wessen?"),
+    ("dem ", "Dativ — Wem?"),
+    ("den ", "Akkusativ — Wen oder was?"),
+    ("der ", "Nominativ — Wer oder was?"),
+)
+_PROCEDURE_MATCH_STOPWORDS = frozenset(
+    {"markieren", "stellen", "bestimmen", "bilden", "fragen", "erkennen", "passende", "passenden"}
+)
+_PROCEDURE_ORDINALS = ("Zuerst", "Dann", "Danach", "Zum Schluss")
+
+
+def _is_procedural_role(role: str) -> bool:
+    if not role:
+        return False
+    if role in {"step", "result", "method", "strategy", "procedure", "question", "function", "ending"}:
+        return True
+    return role.startswith("step_")
+
+
+def _term_content_tokens(term: str, *, for_pattern: bool = False) -> set[str]:
+    stop = _TERM_STOPWORDS if not for_pattern else (_TERM_STOPWORDS | _PROCEDURE_MATCH_STOPWORDS)
+    return {
+        token
+        for token in re.findall(r"[a-zäöüß]{3,}", term.lower())
+        if token not in stop
+    }
+
+
+def _split_pattern_chunks(pattern: str) -> list[str]:
+    if not pattern:
+        return []
+    chunks: list[str] = []
+    for chunk in re.split(_PATTERN_CHUNK_SPLIT, pattern):
+        piece = chunk.strip().strip(".")
+        if not piece:
+            continue
+        for step in re.split(
+            r"\s+(?=(?:zuerst|dann|danach|als nächstes|zuletzt)\b)|(?:\s+und\s+zuletzt\s+)",
+            piece,
+            flags=re.I,
+        ):
+            step_piece = step.strip().strip(",")
+            if step_piece:
+                chunks.append(step_piece)
+    return chunks
+
+
+def _segment_lists_multiple_forms(segment: str) -> bool:
+    return len(_split_pattern_chunks(segment)) >= 2
+
+
+def _declension_form_hint(term: str) -> str:
+    lower = term.lower().lstrip()
+    for prefix, hint in _ARTICLE_CASE_HINTS:
+        if lower.startswith(prefix):
+            return hint
+    return ""
+
+
+def _best_pattern_segment(pattern: str, term: str) -> str | None:
+    """Extrahiert den passenden Muster-Abschnitt (Fallzeile, Verfahrensschritt, Tabellenform)."""
+    needle = term.strip().lower()
+    if not needle or not pattern:
         return None
-    needle = term.lower()
-    for chunk in re.split(r"[;\n|]+", pattern):
-        piece = chunk.strip()
-        if piece and needle in piece.lower():
-            return piece
+    chunks = _split_pattern_chunks(pattern)
+    if not chunks:
+        return None
+    exact = [chunk for chunk in chunks if chunk.lower() == needle]
+    if exact:
+        return exact[0]
+    substring = [chunk for chunk in chunks if needle in chunk.lower()]
+    if len(substring) == 1:
+        return substring[0]
+    if len(substring) > 1:
+        return min(substring, key=len)
+    tokens = _term_content_tokens(term, for_pattern=True)
+    if tokens:
+        best: str | None = None
+        best_score = 0
+        for chunk in chunks:
+            score = len(tokens & _term_content_tokens(chunk, for_pattern=True))
+            if score > best_score:
+                best_score = score
+                best = chunk
+        if best_score >= 1 and best:
+            return best
+    for chunk in chunks:
+        if needle in chunk.lower():
+            return chunk
     return None
 
 
-def _mental_term_answer(part: dict[str, Any], concept: dict[str, Any]) -> str:
+def _pattern_segment_for_term(pattern: str, term: str) -> str | None:
+    return _best_pattern_segment(pattern, term)
+
+
+def _mental_term_answer(
+    part: dict[str, Any],
+    concept: dict[str, Any],
+    *,
+    step_index: int | None = None,
+) -> str:
     term = str(part.get("term") or "").strip()
     role = str(part.get("role") or "").strip().lower()
+    label = str(concept.get("label") or "").strip()
     role_label = ROLE_LABELS_DE.get(role, role)
     example = str(concept.get("example") or "").strip()
     pattern = str(concept.get("pattern") or "").strip()
     hint = str(concept.get("hint") or "").strip()
     role_hint = CASE_ROLE_MENTAL_HINTS.get(role, "")
+    multi_part = _pattern_lists_multiple_parts(pattern, concept.get("parts") or [])
+    shared_hint = multi_part and hint
+    form_hint = _declension_form_hint(term)
+    is_table_form = bool(form_hint and re.match(r"^(der|die|das|des|dem|den)\s+", term, re.I))
 
-    if example and term.lower() in example.lower():
+    if example and term.lower() in example.lower() and not is_table_form:
         return f"{term}: {example}"[:2000]
 
-    segment = _pattern_segment_for_term(pattern, term)
+    segment = _best_pattern_segment(pattern, term)
+    if segment and _segment_lists_multiple_forms(segment) and segment.lower() != term.lower():
+        narrowed = _best_pattern_segment(segment, term)
+        if narrowed and not _segment_lists_multiple_forms(narrowed):
+            segment = narrowed
+    if segment and segment.strip().lower() == pattern.strip().lower() and term.lower() not in segment.lower():
+        segment = None
     if segment:
+        if segment.lower() == term.lower() and form_hint:
+            return f"{term}: {form_hint}"[:2000]
         bits = [f"{term}: {segment}"]
         if role_hint and role_hint.lower() not in segment.lower():
             bits.append(role_hint)
         return ". ".join(bits)[:2000]
 
+    if is_table_form:
+        return f"{term}: {form_hint}"[:2000]
+
+    if _is_procedural_role(role):
+        if step_index:
+            ordinal = (
+                _PROCEDURE_ORDINALS[step_index - 1]
+                if 1 <= step_index <= len(_PROCEDURE_ORDINALS)
+                else f"Schritt {step_index}"
+            )
+            return f"{term}: {ordinal} bei «{label}» — {term}."[:2000]
+        return f"{term}: Schritt bei «{label}» — {term}."[:2000]
+
     if role_label and role_label.lower() not in {term.lower(), ""}:
         line = f"{term} ({role_label})"
         if role_hint:
             line = f"{line}: {role_hint}"
-        elif hint:
+        elif hint and not shared_hint:
             line = f"{line}: {hint}"
         return line[:2000]
     if role_hint:
         return f"{term}: {role_hint}"[:2000]
-    if hint:
+    if hint and not shared_hint:
         return f"{term}: {hint}"[:2000]
     return pattern or example or term
 
@@ -405,6 +552,14 @@ def derive_mental_term_cards(basiswissen: dict[str, Any]) -> list[dict[str, Any]
         if not label or not (hint or pattern or example):
             continue
         seen_terms: set[str] = set()
+        procedural_parts = [
+            p
+            for p in (concept.get("parts") or [])
+            if isinstance(p, dict) and _is_procedural_role(str(p.get("role") or "").strip().lower())
+        ]
+        step_index_by_term = {
+            str(p.get("term") or "").strip(): idx + 1 for idx, p in enumerate(procedural_parts)
+        }
         for part in concept.get("parts") or []:
             if not isinstance(part, dict):
                 continue
@@ -416,7 +571,11 @@ def derive_mental_term_cards(basiswissen: dict[str, Any]) -> list[dict[str, Any]
                 continue
             seen_terms.add(term_key)
             question = f"Was bedeutet «{term}» bei {label}?"
-            answer = _mental_term_answer(part, concept)
+            answer = _mental_term_answer(
+                part,
+                concept,
+                step_index=step_index_by_term.get(term),
+            )
             cards.append(
                 {
                     "kind": "mental",
@@ -478,7 +637,7 @@ def derive_concept_quiz_questions(
             questions.append(
                 {
                     "q": q_text[:400],
-                    "options": [f"{chr(65 + i)}) {opt}" for i, opt in enumerate(shuffled)],
+                    "options": [str(opt).strip() for opt in shuffled],
                     "answer": answer_idx,
                     "explanation": explanation[:1200],
                     "question_type": "concept",
@@ -506,7 +665,7 @@ def derive_concept_quiz_questions(
         questions.append(
             {
                 "q": f"Welcher Begriff fehlt? {sentence}"[:400],
-                "options": [f"{chr(65 + i)}) {opt}" for i, opt in enumerate(shuffled)],
+                "options": [str(opt).strip() for opt in shuffled],
                 "answer": answer_idx,
                 "explanation": f"Richtig: {correct}."[:1200],
                 "question_type": "concept",
