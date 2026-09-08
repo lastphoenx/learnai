@@ -35,7 +35,16 @@ _WORD_IN_SENTENCE = re.compile(
 _BLANK_AFTER = re.compile(r"___\s+([A-Za-zÄÖÜäöüß][\wÄÖÜäöüß\-]*)")
 _BLANK_BEFORE = re.compile(r"([A-Za-zÄÖÜäöüß][\wÄÖÜäöüß\-]*)\s+___")
 _BLANK_AT_END = re.compile(r"___\s*[.!?]?\s*$")
-_CASE_QUESTION = re.compile(r"\b(welchen|welcher|welches|welchem)\s+fall\b|\bkasus\b|\bfall\b.*[«\"']", re.I)
+_CASE_QUESTION = re.compile(
+    r"\b(welchen|welcher|welches|welchem)\s+fall\b|\bkasus\b|\bfall\b.*[«\"']|"
+    r"^fall\s+(?:von|in)\s*:",
+    re.I,
+)
+_FALL_DRILL_PREFIX = re.compile(
+    r"^(?:Bestimme\s+den\s+Fall(?:\s+der\s+markierten\s+Wortgruppe)?|Fall)"
+    r"(?:\s+(?:von|in|des\s+(?:markierten\s+)?(?:Satzglieds|Wortgruppe)))?\s*:\s*(.+)$",
+    re.I,
+)
 
 _FUNCTION_WORDS = frozenset(
     {
@@ -391,6 +400,75 @@ def analyze_span_case(*, sentence: str, span: str) -> CaseAnalysisResult:
     )
 
 
+def extract_case_drill_sentence(question: str) -> str | None:
+    """Satz aus «Fall von: …» / Doppelpunkt-Fragen — ohne markiertes Satzglied."""
+    q = str(question or "").strip()
+    if not q:
+        return None
+    match = _FALL_DRILL_PREFIX.match(q)
+    if match:
+        return match.group(1).strip().strip("«»\"'")[:500]
+    for marker in (
+        "markierten Wortgruppe:",
+        "markierten Wortgruppe",
+        "markierten Satzglieds:",
+        "markierten Satzglieds",
+    ):
+        if marker in q:
+            tail = q.split(marker, 1)[1].strip().strip("«»\"'")
+            if len(tail) > 8:
+                return tail[:500]
+    if ":" in q:
+        tail = q.rsplit(":", 1)[1].strip().strip("«»\"'")
+        if len(tail) > 8 and (tail.endswith((".", "!", "?")) or len(tail.split()) >= 4):
+            return tail[:500]
+    return None
+
+
+def build_case_check_spec(
+    *,
+    sentence: str,
+    span: str = "",
+    expected_answer: str = "",
+) -> dict[str, str] | None:
+    """Baut case_check aus Satz + optional Span oder erwartetem Fall-Label."""
+    sent = str(sentence or "").strip()
+    if not sent:
+        return None
+    sp = str(span or "").strip()
+    if not sp and expected_answer:
+        sp = find_span_for_expected_case(sentence=sent, expected_answer=expected_answer) or ""
+    if not sp or sp not in sent or _span_covers_whole_sentence(sent, sp):
+        return None
+    return {"sentence": sent[:500], "span": sp[:120]}
+
+
+def expected_case_answer_from_item(item: dict[str, Any]) -> str:
+    """Fall-Label aus Karte oder Quiz (options[answer])."""
+    raw = item.get("answer")
+    if isinstance(raw, bool):
+        return ""
+    if isinstance(raw, int) or (isinstance(raw, str) and str(raw).strip().isdigit()):
+        options = item.get("options") if isinstance(item.get("options"), list) else []
+        idx = int(raw)
+        if 0 <= idx < len(options):
+            return str(options[idx]).strip()
+    return str(raw or "").strip()
+
+
+def sentence_has_finite_verb(sentence: str) -> bool | None:
+    """None wenn spaCy fehlt."""
+    nlp = _load_nlp()
+    sent = str(sentence or "").strip()
+    if nlp is None or not sent:
+        return None
+    doc = nlp(sent)
+    for token in doc:
+        if token.pos_ in ("VERB", "AUX") and token.morph.get("VerbForm") == "Fin":
+            return True
+    return False
+
+
 def parse_case_check(raw: object) -> dict[str, str] | None:
     if not isinstance(raw, dict):
         return None
@@ -467,6 +545,15 @@ def get_case_check_spec(card: dict[str, Any]) -> dict[str, str] | None:
         inferred = infer_case_check_from_question(str(card.get(key) or ""))
         if inferred:
             return inferred
+    answer = expected_case_answer_from_item(card)
+    primary = answer.split("|")[0].strip()
+    if case_from_label(primary):
+        for key in ("question", "q"):
+            sentence = extract_case_drill_sentence(str(card.get(key) or ""))
+            if sentence:
+                built = build_case_check_spec(sentence=sentence, expected_answer=primary)
+                if built:
+                    return built
     return None
 
 

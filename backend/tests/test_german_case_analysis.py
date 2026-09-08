@@ -2,10 +2,13 @@ import pytest
 
 from app.core.german_case_analysis import (
     analyze_span_case,
+    build_case_check_spec,
     case_from_label,
     case_with_nested_attributes,
+    extract_case_drill_sentence,
     format_case_card_question,
     format_case_quiz_question,
+    get_case_check_spec,
     infer_case_check_from_question,
     parse_case_check,
     repair_case_check,
@@ -27,6 +30,37 @@ def test_parse_case_check():
     spec = parse_case_check({"sentence": "Die Erde umkreist die Sonne.", "span": "die Sonne"})
     assert spec is not None
     assert spec["span"] == "die Sonne"
+
+
+def test_extract_case_drill_sentence_fall_von():
+    assert (
+        extract_case_drill_sentence("Fall von: Die Ringe des Saturns glitzern.")
+        == "Die Ringe des Saturns glitzern."
+    )
+
+
+def test_build_case_check_spec_picks_span_from_expected_case():
+    if not spacy_available():
+        pytest.skip("spaCy not available")
+    spec = build_case_check_spec(
+        sentence="Die Katze fängt die Maus.",
+        expected_answer="Akkusativ",
+    )
+    assert spec is not None
+    assert spec["span"] == "die Maus"
+
+
+def test_get_case_check_spec_resolves_unmarked_fall_von():
+    if not spacy_available():
+        pytest.skip("spaCy not available")
+    card = {
+        "kind": "mental",
+        "question": "Fall von: Die Katze fängt die Maus.",
+        "answer": "Akkusativ",
+    }
+    spec = get_case_check_spec(card)
+    assert spec is not None
+    assert spec["span"] == "die Maus"
 
 
 def test_infer_case_check_from_question_two_quotes():

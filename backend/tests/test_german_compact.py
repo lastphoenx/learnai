@@ -7,7 +7,9 @@ import pytest
 
 from app.ai.generate_german_compact import (
     _collapse_duplicate_mental_answers,
+    _enrich_case_drill_card,
     _enrich_compact_quiz,
+    _parse_cards,
     _parse_understand,
     compact_payload_to_modules,
     should_use_german_compact,
@@ -109,6 +111,41 @@ def test_content_qa_flags_compact_mental_duplicates():
     assert any(w["kind"] == "generic_mental_cards" for w in warnings)
 
 
+def test_enrich_case_drill_card_adds_mark_for_fall_von():
+    if not spacy_available():
+        pytest.skip("spaCy not available")
+    card = {
+        "kind": "mental",
+        "question": "Fall von: Die Ringe des Saturns glitzern.",
+        "answer": "Genitiv",
+    }
+    enriched = _enrich_case_drill_card(card)
+    assert enriched is not None
+    assert "<mark>" in enriched["question"]
+    assert enriched.get("grammar", {}).get("case_check", {}).get("span")
+
+
+def test_enrich_case_drill_card_drops_verbless_sentence():
+    if not spacy_available():
+        pytest.skip("spaCy not available")
+    card = {
+        "kind": "mental",
+        "question": "Fall von: Das Fell des Tigers.",
+        "answer": "Genitiv",
+    }
+    assert _enrich_case_drill_card(card) is None
+
+
+def test_parse_cards_tags_w_fragen_merk_as_term():
+    raw = [
+        {"kind": "merk", "question": "Welche Frage gehört zum Nominativ?", "answer": "Wer oder was?"},
+        {"kind": "mental", "question": "Wer schläft?", "answer": "Nominativ"},
+    ]
+    merk, mental = _parse_cards(raw)
+    assert merk[0].get("card_role") == "term"
+    assert "card_role" not in mental[0]
+
+
 def test_compact_payload_to_modules_counts():
     payload = {
         "theory": {
@@ -152,8 +189,6 @@ def test_compact_payload_to_modules_counts():
     }
     modules = compact_payload_to_modules(payload, title="Die vier Fälle", difficulty=1)
     assert len(modules) == 4
-    drill = modules[2]["content"]["cards"]
-    assert sum(1 for c in drill if c.get("card_role") == "term") == COMPACT_COUNTS["merk_cards"]
     total_cards = sum(len(m["content"]["cards"]) for m in modules)
     total_quiz = sum(len(m["quiz"]["questions"]) for m in modules)
     assert total_cards == COMPACT_COUNTS["understand"] + COMPACT_COUNTS["merk_cards"] + COMPACT_COUNTS["mental_cards"]

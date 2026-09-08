@@ -24,12 +24,16 @@ from app.ai.validators.interactive import dedupe_interactive_modules, validate_i
 from app.core.basiswissen import empty_basiswissen
 from app.core.crypto import decrypt_text_master
 from app.core.german_case_analysis import (
+    build_case_check_spec,
     case_from_label,
     case_label_de,
+    extract_case_drill_sentence,
     find_span_for_expected_case,
     format_case_card_question,
     format_case_quiz_question,
+    get_case_check_spec,
     repair_case_check,
+    sentence_has_finite_verb,
 )
 from app.core.grammar_verify import finalize_german_cards_with_drops
 from app.core.quiz_numeric import repair_quiz_block
@@ -102,6 +106,78 @@ def _understand_to_card(raw: dict) -> dict | None:
     return format_case_card_question(card)
 
 
+def _enrich_case_drill_card(card: dict, *, raw: dict | None = None) -> dict | None:
+    """Fall-Kurzabfragen: span + <mark> wie bei Verstehen/Quiz; verwirft Mehrdeutiges."""
+    answer = str(card.get("answer") or "").strip()
+    primary = answer.split("|")[0].strip()
+    if not case_from_label(primary):
+        return card
+    sentence = str((raw or {}).get("sentence") or "").strip()
+    span = str((raw or {}).get("span") or "").strip()
+    if not sentence:
+        sentence = extract_case_drill_sentence(str(card.get("question") or "")) or ""
+    if not sentence:
+        return card
+    spec = build_case_check_spec(sentence=sentence, span=span, expected_answer=primary)
+    if not spec:
+        return None
+    enriched = dict(card)
+    grammar: dict = {"case_check": dict(spec)}
+    nested = (raw or {}).get("nested")
+    if isinstance(nested, dict):
+        nested_span = str(nested.get("span") or nested.get("text") or "").strip()
+        try:
+            nested_answer = _case_answer_label(nested.get("answer"))
+        except ValueError:
+            nested_answer = ""
+        if nested_span and nested_answer:
+            grammar["case_check"]["nested"] = {
+                "span": nested_span[:120],
+                "answer": nested_answer,
+                "explanation": str(nested.get("explanation") or nested.get("why") or "")[:400],
+            }
+    enriched["grammar"] = grammar
+    enriched = repair_case_check(enriched, answer=primary)
+    if not get_case_check_spec(enriched):
+        return None
+    has_verb = sentence_has_finite_verb(spec["sentence"])
+    if has_verb is False:
+        return None
+    enriched = format_case_card_question(enriched)
+    if "<mark>" not in str(enriched.get("question") or ""):
+        spec2 = get_case_check_spec(enriched) or spec
+        marked = spec2["sentence"].replace(
+            spec2["span"],
+            f"<mark>{spec2['span']}</mark>",
+            1,
+        )
+        enriched["question"] = f"Bestimme den Fall der markierten Wortgruppe: {marked}"[:500]
+    return enriched
+
+
+def _finalize_drill_case_cards(cards: list[dict], *, difficulty: int) -> list[dict]:
+    out: list[dict] = []
+    dropped = 0
+    for card in cards:
+        if not get_case_check_spec(card):
+            out.append(card)
+            continue
+        kept, drop_reasons = finalize_german_cards_with_drops(
+            [card],
+            focus_group="german",
+            difficulty=difficulty,
+        )
+        if kept:
+            out.append(kept[0])
+        else:
+            dropped += 1
+            if drop_reasons:
+                _log.warning("german_compact drill_drop %s", drop_reasons[0][:120])
+    if dropped:
+        _log.warning("german_compact drill_case_drops=%d", dropped)
+    return out
+
+
 def _parse_cards(raw: object) -> tuple[list[dict], list[dict]]:
     if not isinstance(raw, list):
         return [], []
@@ -127,6 +203,11 @@ def _parse_cards(raw: object) -> tuple[list[dict], list[dict]]:
             re.I,
         ):
             entry["card_role"] = "term"
+        if entry["kind"] == "mental":
+            enriched = _enrich_case_drill_card(entry, raw=item)
+            if enriched is None:
+                continue
+            entry = enriched
         if entry["kind"] == "merk":
             merk.append(entry)
         else:
@@ -298,6 +379,7 @@ def compact_payload_to_modules(payload: dict, *, title: str, difficulty: int) ->
     drill_cards = _collapse_duplicate_mental_answers(
         list(payload.get("merk_cards") or []) + list(payload.get("mental_cards") or [])
     )
+    drill_cards = _finalize_drill_case_cards(drill_cards, difficulty=difficulty)
     quiz_questions = list(payload.get("quiz_questions") or [])
     for q in quiz_questions:
         if isinstance(q, dict):

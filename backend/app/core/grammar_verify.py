@@ -11,8 +11,11 @@ from app.core.german_case_analysis import (
     analyze_span_case_nested,
     case_from_label,
     case_label_de,
+    expected_case_answer_from_item,
     format_case_card_question,
+    format_case_quiz_question,
     get_case_check_spec,
+    sentence_has_finite_verb,
     spacy_available,
     verify_case_answer_with_nesting,
     verify_case_label,
@@ -117,7 +120,7 @@ def enrich_german_case_card(card: dict[str, Any]) -> dict[str, Any]:
 
 
 def verify_card_case_label(card: dict[str, Any]) -> tuple[str | None, str | None]:
-    """Prüft Fall-Karte gegen spaCy.
+    """Prüft Fall-Karte oder Quizfrage gegen spaCy.
 
     Returns:
         (level, message) — level: ok | warn | info | None (nicht prüfbar)
@@ -125,8 +128,8 @@ def verify_card_case_label(card: dict[str, Any]) -> tuple[str | None, str | None
     spec = get_case_check_spec(card)
     if not spec:
         return None, None
-    answer = str(card.get("answer") or "")
-    expected_case = case_from_label(answer)
+    answer = expected_case_answer_from_item(card)
+    expected_case = case_from_label(answer.split("|")[0].strip())
     if not expected_case:
         return "warn", f"Antwort «{answer[:40]}» ist kein Fall-Label"
     match, result = verify_case_label(
@@ -293,6 +296,45 @@ def collect_grammar_warnings_for_module(
                         "level": "ok",
                         "ref": ref,
                         "message": f"Karte {ref}: Deklination engine-geprüft",
+                    }
+                )
+            spec = get_case_check_spec(card)
+            if spec and kind == "mental":
+                has_verb = sentence_has_finite_verb(spec["sentence"])
+                if has_verb is False:
+                    warnings.append(
+                        {
+                            "kind": "case",
+                            "level": "info",
+                            "ref": ref,
+                            "message": f"«{spec['span']}»: Satz ohne finites Verb — methodisch schwächer",
+                        }
+                    )
+    quiz = quiz if isinstance(quiz, dict) else {}
+    for qi, question in enumerate(quiz.get("questions") or []):
+        if not isinstance(question, dict):
+            continue
+        ref = f"Q{qi + 1:02d}"
+        level, message = verify_card_case_label(question)
+        if level and message:
+            warnings.append(
+                {
+                    "kind": "case",
+                    "level": level,
+                    "ref": ref,
+                    "message": message,
+                }
+            )
+        spec = get_case_check_spec(question)
+        if spec:
+            has_verb = sentence_has_finite_verb(spec["sentence"])
+            if has_verb is False:
+                warnings.append(
+                    {
+                        "kind": "case",
+                        "level": "info",
+                        "ref": ref,
+                        "message": f"«{spec['span']}»: Satz ohne finites Verb — methodisch schwächer",
                     }
                 )
     return warnings

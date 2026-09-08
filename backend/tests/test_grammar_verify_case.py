@@ -29,6 +29,31 @@ def test_finalize_german_cards_with_drops_returns_reason_list():
     assert isinstance(dropped, list)
 
 
+def test_collect_grammar_warnings_includes_quiz_case_checks():
+    content = {"cards": []}
+    quiz = {
+        "questions": [
+            {
+                "q": "Bestimme den Fall der markierten Wortgruppe: Die Katze fängt die Maus.",
+                "options": ["Nominativ", "Genitiv", "Dativ", "Akkusativ"],
+                "answer": 3,
+                "grammar": {
+                    "case_check": {
+                        "sentence": "Die Katze fängt die Maus.",
+                        "span": "die Maus",
+                    }
+                },
+            }
+        ]
+    }
+    warnings = collect_grammar_warnings_for_module(
+        content=content,
+        quiz=quiz,
+        focus_group="german",
+    )
+    assert any(str(w.get("ref") or "").startswith("Q") for w in warnings)
+
+
 def test_collect_grammar_warnings_declension_ok():
     content = {
         "basiswissen": {

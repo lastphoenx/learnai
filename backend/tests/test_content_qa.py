@@ -17,6 +17,17 @@ def test_content_qa_flags_duplicate_explanations():
     assert "duplicate_quiz_explanation" in kinds
 
 
+def test_content_qa_ignores_german_case_drill_shared_answers():
+    content = {
+        "cards": [
+            {"kind": "mental", "question": f"Wer schläft? Satz {i}.", "answer": "Nominativ"}
+            for i in range(5)
+        ]
+    }
+    warnings = collect_content_warnings_for_module(content=content, quiz={"questions": []}, focus_group="german")
+    assert not any(w["kind"] == "generic_mental_cards" for w in warnings)
+
+
 def test_content_qa_flags_generic_label_diagram_for_german():
     warnings = collect_content_warnings_for_module(
         content={

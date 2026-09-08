@@ -23,7 +23,8 @@ GERMAN_COMPACT_SYSTEM = (
     '"cases":[{"name":"Nominativ","question":"Wer?","example":"Der Löwe schläft."}]},'
     '"understand":[{"sentence":"vollständiger Satz","span":"markiertes Satzglied","answer":"Nominativ",'
     '"explanation":"Frageprobe kurz","nested":{"span":"innerer Teil","answer":"Genitiv","explanation":"..."}}],'
-    '"cards":[{"kind":"merk|mental","question":"...","answer":"...","tip":"optional"}],'
+    '"cards":[{"kind":"merk|mental","question":"...","answer":"...","tip":"optional",'
+    '"sentence":"bei Fall-Abfrage","span":"markiertes Satzglied"}],'
     '"quiz":[{"q":"Frage mit Satz","options":["Nominativ","Genitiv","Dativ","Akkusativ"],'
     '"answer":0,"explanation":"...","sentence":"vollständiger Satz","span":"markiertes Satzglied"}]}\n'
     "Regeln:\n"
@@ -39,6 +40,9 @@ GERMAN_COMPACT_SYSTEM = (
     "- Keine Duplikate; Beispiele aus dem Material, sonst passende Neusätze im gleichen Stoff.\n"
     "- Keine Lückentext-Antworten wie deres|derem|deren — nur klare Fall-Labels oder kurze Phrasen.\n"
     "- cards: Merkregeln und kurze Kopf-Abfragen (Frage→Fall), keine langen Freitext-Antworten.\n"
+    "- mental mit Fall-Antwort (Nominativ/Genitiv/Dativ/Akkusativ): sentence + span PFLICHT "
+    "(wie quiz); vollständige Sätze mit finitem Verb.\n"
+    "- Keine unmarkierten Fall-Fragen — span muss eindeutig im Satz sein.\n"
 )
 
 

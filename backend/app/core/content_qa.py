@@ -16,6 +16,15 @@ _GENERIC_CASE_EXPL = re.compile(
     re.I | re.S,
 )
 _MENTAL_TERM_Q = re.compile(r"Was bedeutet «([^»]+)»")
+_CASE_ONLY_ANSWER = re.compile(
+    r"^(nominativ|genitiv|dativ|akkusativ|nom\.?|gen\.?|dat\.?|akk\.?)$",
+    re.I,
+)
+
+
+def _is_case_label_answer(answer: str) -> bool:
+    primary = str(answer or "").split("|")[0].strip()
+    return bool(_CASE_ONLY_ANSWER.match(primary))
 
 
 def _mental_term_from_question(question: str) -> str:
@@ -107,7 +116,10 @@ def collect_content_warnings_for_module(
         body = _strip_leading_term_prefix(a, term) if term else a.lower()
         if len(body) >= 12:
             mental_bodies.append(body)
+    group = str(focus_group or "general").strip().lower()
     for answer, questions in answers_seen.items():
+        if group == "german" and _is_case_label_answer(answer):
+            continue
         if len(questions) >= 3 and len({q.split("«")[1].split("»")[0] if "«" in q else q for q in questions}) >= 3:
             warnings.append(
                 {
