@@ -463,36 +463,118 @@ def get_case_check_spec(card: dict[str, Any]) -> dict[str, str] | None:
         case_check = parse_case_check(grammar.get("case_check"))
         if case_check:
             return case_check
-    inferred = infer_case_check_from_question(str(card.get("question") or ""))
-    return inferred
+    for key in ("question", "q"):
+        inferred = infer_case_check_from_question(str(card.get(key) or ""))
+        if inferred:
+            return inferred
+    return None
 
 
-def format_case_card_question(card: dict[str, Any]) -> dict[str, Any]:
-    """Markiert span in Fall-Fragen mit […], wenn noch keine Hervorhebung vorhanden ist."""
-    spec = get_case_check_spec(card)
+def find_span_for_expected_case(*, sentence: str, expected_answer: str) -> str | None:
+    """Findet ein Satzglied mit dem erwarteten Fall (spaCy, confidence=high)."""
+    expected_case = case_from_label(expected_answer)
+    sent = str(sentence or "").strip()
+    if not expected_case or not sent:
+        return None
+    nlp = _load_nlp()
+    if nlp is None:
+        return None
+    doc = nlp(sent)
+    best: tuple[int, str] | None = None
+    for chunk in doc.noun_chunks:
+        span = chunk.text.strip()
+        if len(span) < 2:
+            continue
+        result = analyze_span_case(sentence=sent, span=span)
+        if result.case != expected_case or result.confidence != "high":
+            continue
+        score = len(span)
+        if best is None or score > best[0]:
+            best = (score, span)
+    return best[1] if best else None
+
+
+def repair_case_check(item: dict[str, Any], *, answer: str | None = None) -> dict[str, Any]:
+    """Span reparieren wenn LLM ganzen Satz oder ungültiges Satzglied liefert (K05-Fall)."""
+    grammar = item.get("grammar")
+    if not isinstance(grammar, dict):
+        return item
+    raw = grammar.get("case_check")
+    if not isinstance(raw, dict):
+        return item
+    sentence = str(raw.get("sentence") or "").strip()
+    span = str(raw.get("span") or "").strip()
+    expected = str(answer or item.get("answer") or "").strip()
+    if not sentence:
+        return item
+    invalid = not span or span not in sentence or _span_covers_whole_sentence(sentence, span)
+    if invalid and expected:
+        fixed = find_span_for_expected_case(sentence=sentence, expected_answer=expected)
+        if fixed:
+            span = fixed
+    if not span or span not in sentence or _span_covers_whole_sentence(sentence, span):
+        return item
+    out = dict(item)
+    g = dict(grammar)
+    cc: dict[str, Any] = {"sentence": sentence[:500], "span": span[:120]}
+    nested = raw.get("nested")
+    if isinstance(nested, dict):
+        cc["nested"] = nested
+    g["case_check"] = cc
+    out["grammar"] = g
+    return out
+
+
+def _replace_sentence_variant(question: str, sentence: str, marked_sentence: str) -> str | None:
+    if sentence in question:
+        return question.replace(sentence, marked_sentence, 1)
+    stripped = sentence.strip().strip("«»\"'")
+    for variant in (sentence, stripped, f"«{stripped}»", f"«{stripped.rstrip('.')}»"):
+        if variant and variant in question:
+            return question.replace(variant, marked_sentence, 1)
+    return None
+
+
+def _format_case_highlight_text(
+    item: dict[str, Any],
+    *,
+    text_key: str,
+    max_len: int,
+) -> dict[str, Any]:
+    item = repair_case_check(item, answer=str(item.get("answer") or ""))
+    spec = get_case_check_spec(item)
     if not spec:
-        return card
-    question = str(card.get("question") or "")
+        return item
+    question = str(item.get(text_key) or "")
     if re.search(r"<mark>|\[[^\]]+\]", question, re.I):
-        return card
+        return item
     sentence = spec["sentence"].strip()
     span = spec["span"].strip()
     if not sentence or not span or span not in sentence:
-        return card
-    marked_sentence = sentence.replace(span, f"[{span}]", 1)
-    if sentence in question:
-        new_question = question.replace(sentence, marked_sentence, 1)
-    else:
+        return item
+    marked_sentence = sentence.replace(span, f"<mark>{span}</mark>", 1)
+    new_question = _replace_sentence_variant(question, sentence, marked_sentence)
+    if not new_question:
         colon_idx = question.rfind(":")
         if colon_idx < 0:
-            return card
-        tail = question[colon_idx + 1 :].strip()
-        if tail not in {sentence, sentence.rstrip(".")}:
-            return card
+            return item
+        tail = question[colon_idx + 1 :].strip().strip("«»\"'")
+        if tail not in {sentence, sentence.rstrip("."), sentence.strip("«»\"'")}:
+            return item
         new_question = f"{question[: colon_idx + 1]} {marked_sentence}"
-    out = dict(card)
-    out["question"] = new_question.strip()[:500]
+    out = dict(item)
+    out[text_key] = new_question.strip()[:max_len]
     return out
+
+
+def format_case_card_question(card: dict[str, Any]) -> dict[str, Any]:
+    """Markiert span in Fall-Fragen mit <mark>, wenn noch keine Hervorhebung vorhanden ist."""
+    return _format_case_highlight_text(card, text_key="question", max_len=500)
+
+
+def format_case_quiz_question(question: dict[str, Any]) -> dict[str, Any]:
+    """Wie format_case_card_question, für Quiz-Einträge mit Feld «q»."""
+    return _format_case_highlight_text(question, text_key="q", max_len=400)
 
 
 def analyze_span_case_nested(*, sentence: str, span: str) -> dict[str, Any]:

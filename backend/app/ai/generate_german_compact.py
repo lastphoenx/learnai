@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
 import uuid
 from collections.abc import Callable
@@ -22,7 +23,14 @@ from app.ai.providers import parse_json_object
 from app.ai.validators.interactive import dedupe_interactive_modules, validate_interactive_modules
 from app.core.basiswissen import empty_basiswissen
 from app.core.crypto import decrypt_text_master
-from app.core.german_case_analysis import case_from_label, case_label_de, format_case_card_question
+from app.core.german_case_analysis import (
+    case_from_label,
+    case_label_de,
+    find_span_for_expected_case,
+    format_case_card_question,
+    format_case_quiz_question,
+    repair_case_check,
+)
 from app.core.grammar_verify import finalize_german_cards_with_drops
 from app.core.quiz_numeric import repair_quiz_block
 from app.models import LearningRecord, User
@@ -89,6 +97,7 @@ def _understand_to_card(raw: dict) -> dict | None:
         "tip": explanation[:240],
         "grammar": grammar,
     }
+    card = repair_case_check(card, answer=answer)
     return format_case_card_question(card)
 
 
@@ -111,6 +120,12 @@ def _parse_cards(raw: object) -> tuple[list[dict], list[dict]]:
             "answer": a[:2000],
             "tip": str(item.get("tip") or "")[:240],
         }
+        if entry["kind"] == "merk" and re.search(
+            r"frage\s+(gehört|probe)|wer\s+oder\s+was|wessen|wem|wen\s+oder\s+was",
+            q,
+            re.I,
+        ):
+            entry["card_role"] = "term"
         if entry["kind"] == "merk":
             merk.append(entry)
         else:
@@ -131,6 +146,60 @@ def _parse_understand(raw: object) -> list[dict]:
     return out[: COMPACT_COUNTS["understand"]]
 
 
+def _extract_quiz_sentence(text: str) -> str:
+    q = str(text or "").strip()
+    for marker in (
+        "markierten Wortgruppe:",
+        "markierten Wortgruppe",
+        "markierten Satzglieds:",
+        "markierten Satzglieds",
+    ):
+        if marker in q:
+            tail = q.split(marker, 1)[1].strip().strip("«»\"'")
+            return tail[:240]
+    if ":" in q:
+        tail = q.rsplit(":", 1)[1].strip().strip("«»\"'")
+        if len(tail) > 8:
+            return tail[:240]
+    return ""
+
+
+def _enrich_compact_quiz(raw_items: list, questions: list[dict]) -> list[dict]:
+    enriched: list[dict] = []
+    for index, question in enumerate(questions):
+        if not isinstance(question, dict):
+            continue
+        raw = raw_items[index] if index < len(raw_items) and isinstance(raw_items[index], dict) else {}
+        sentence = str(raw.get("sentence") or "").strip()
+        span = str(raw.get("span") or raw.get("target") or "").strip()
+        if not sentence:
+            sentence = _extract_quiz_sentence(str(question.get("q") or ""))
+        answer_idx = int(question.get("answer") or 0)
+        options = question.get("options") if isinstance(question.get("options"), list) else []
+        expected = str(options[answer_idx] if 0 <= answer_idx < len(options) else "").strip()
+        if not span and sentence and expected:
+            span = find_span_for_expected_case(sentence=sentence, expected_answer=expected) or ""
+        item = dict(question)
+        if sentence and span:
+            grammar: dict = {"case_check": {"sentence": sentence[:240], "span": span[:120]}}
+            nested = raw.get("nested")
+            if isinstance(nested, dict):
+                nested_span = str(nested.get("span") or nested.get("text") or "").strip()
+                nested_case = case_from_label(str(nested.get("answer") or ""))
+                nested_answer = case_label_de(nested_case) if nested_case else ""
+                if nested_span and nested_answer and nested_answer != "?":
+                    grammar["case_check"]["nested"] = {
+                        "span": nested_span[:120],
+                        "answer": nested_answer,
+                        "explanation": str(nested.get("explanation") or nested.get("why") or "")[:400],
+                    }
+            item["grammar"] = grammar
+            item = repair_case_check(item, answer=expected)
+            item = format_case_quiz_question(item)
+        enriched.append(item)
+    return enriched
+
+
 def _parse_compact_payload(text: str) -> dict:
     parsed = parse_json_object(text)
     if not isinstance(parsed, dict):
@@ -144,6 +213,7 @@ def _parse_compact_payload(text: str) -> dict:
         json.dumps({"questions": quiz_list}, ensure_ascii=False),
         COMPACT_COUNTS["quiz"],
     )
+    questions = _enrich_compact_quiz(quiz_list, questions)
     min_understand = max(6, int(COMPACT_COUNTS["understand"] * 0.5))
     min_cards = max(12, COMPACT_COUNTS["merk_cards"] + COMPACT_COUNTS["mental_cards"] - 4)
     if len(understand) < min_understand:
@@ -165,13 +235,42 @@ def _parse_compact_payload(text: str) -> dict:
     }
 
 
+def _collapse_duplicate_mental_answers(cards: list[dict]) -> list[dict]:
+    """Behält pro identischer Antwort höchstens zwei Mental-Karten (Compact-Schutz)."""
+    kept: list[dict] = []
+    answer_counts: dict[str, int] = {}
+    for card in cards:
+        if not isinstance(card, dict):
+            kept.append(card)
+            continue
+        if str(card.get("kind") or "") != "mental":
+            kept.append(card)
+            continue
+        answer_key = str(card.get("answer") or "").strip().lower()
+        if not answer_key:
+            kept.append(card)
+            continue
+        count = answer_counts.get(answer_key, 0)
+        if count >= 2:
+            continue
+        answer_counts[answer_key] = count + 1
+        kept.append(card)
+    return kept
+
+
 def _finalize_cards(cards: list[dict], *, difficulty: int) -> list[dict]:
     kept, _ = finalize_german_cards_with_drops(
         cards,
         focus_group="german",
         difficulty=difficulty,
     )
-    return [format_case_card_question(c) if c.get("kind") == "input" else c for c in kept]
+    out: list[dict] = []
+    for card in kept:
+        if card.get("kind") == "input":
+            card = repair_case_check(card, answer=str(card.get("answer") or ""))
+            card = format_case_card_question(card)
+        out.append(card)
+    return out
 
 
 def compact_payload_to_modules(payload: dict, *, title: str, difficulty: int) -> list[dict]:
@@ -194,7 +293,9 @@ def compact_payload_to_modules(payload: dict, *, title: str, difficulty: int) ->
             )
 
     understand_cards = _finalize_cards(list(payload.get("understand_cards") or []), difficulty=difficulty)
-    drill_cards = list(payload.get("merk_cards") or []) + list(payload.get("mental_cards") or [])
+    drill_cards = _collapse_duplicate_mental_answers(
+        list(payload.get("merk_cards") or []) + list(payload.get("mental_cards") or [])
+    )
     quiz_questions = list(payload.get("quiz_questions") or [])
     for q in quiz_questions:
         if isinstance(q, dict):
@@ -289,6 +390,26 @@ def generate_german_grammar_compact(
     )
     payload = _parse_compact_payload(result["text"])
     modules = compact_payload_to_modules(payload, title=title, difficulty=difficulty)
+    from app.core.content_qa import collect_content_warnings_for_module, summarize_content_warnings
+
+    qa_warnings: list[dict[str, str]] = []
+    for module in modules:
+        content = module.get("content") if isinstance(module.get("content"), dict) else {}
+        quiz = module.get("quiz") if isinstance(module.get("quiz"), dict) else {}
+        qa_warnings.extend(
+            collect_content_warnings_for_module(
+                content=content,
+                quiz=quiz,
+                focus_group="german",
+            )
+        )
+    qa_summary = summarize_content_warnings(qa_warnings)
+    if qa_summary.get("warn"):
+        _log.warning(
+            "generate_german_compact content_qa unit_id=%s warn=%d",
+            unit_id,
+            qa_summary["warn"],
+        )
     modules, dedupe_warnings = dedupe_interactive_modules(modules)
     for warning in dedupe_warnings:
         _log.warning("generate_german_compact dedupe unit_id=%s %s", unit_id, warning)

@@ -874,9 +874,13 @@ button.quiz-nav-jump.active.review {
 }
 
 .card-marked-span {
-  background: rgba(45, 125, 110, 0.18);
-  border-radius: 4px;
-  padding: 0 0.2em;
+  display: inline;
+  background: #fff0a8;
+  border: 2px solid #e1b900;
+  border-radius: 7px;
+  padding: 1px 5px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
 }
 
 .card-choice-exercise .learn-quiz-options {

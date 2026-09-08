@@ -5,8 +5,11 @@ from app.core.german_case_analysis import (
     case_from_label,
     case_with_nested_attributes,
     format_case_card_question,
+    format_case_quiz_question,
     infer_case_check_from_question,
     parse_case_check,
+    repair_case_check,
+    spacy_available,
     verify_case_answer_with_nesting,
     verify_case_label,
 )
@@ -161,9 +164,25 @@ def test_answer_matching_embedded_case_is_not_flatly_wrong():
     assert outcome == "teilrichtig_falsche_ebene"
 
 
-def test_format_case_card_question_adds_bracket_mark():
+def test_format_case_quiz_question_adds_bracket_mark():
+    question = {
+        "q": "Bestimme den Fall der markierten Wortgruppe: Das Spielzeug der Katze liegt im Flur.",
+        "options": ["Dativ", "Akkusativ", "Nominativ", "Genitiv"],
+        "answer": 3,
+        "grammar": {
+            "case_check": {
+                "sentence": "Das Spielzeug der Katze liegt im Flur.",
+                "span": "der Katze",
+            }
+        },
+    }
+    formatted = format_case_quiz_question(question)
+    assert "<mark>der Katze</mark>" in formatted["q"]
+
+
+def test_format_case_card_question_adds_mark_highlight():
     card = {
-        "question": "Bestimme den Fall des markierten Satzglieds: Der Mars leuchtet rot am Himmel.",
+        "question": "Bestimme den Fall der markierten Wortgruppe: Der Mars leuchtet rot am Himmel.",
         "answer": "Nominativ",
         "grammar": {
             "case_check": {
@@ -173,5 +192,25 @@ def test_format_case_card_question_adds_bracket_mark():
         },
     }
     formatted = format_case_card_question(card)
-    assert "[Der Mars]" in formatted["question"]
-    assert "Der Mars leuchtet" in formatted["question"]
+    assert "<mark>Der Mars</mark>" in formatted["question"]
+    assert formatted["question"].index("<mark>Der Mars</mark>") < formatted["question"].index("leuchtet")
+
+
+def test_repair_case_check_fixes_whole_sentence_span():
+    if not spacy_available():
+        pytest.skip("spaCy not available")
+    card = {
+        "question": "Bestimme den Fall der markierten Wortgruppe: «Die Ringe des Saturns glitzern.»",
+        "answer": "Nominativ",
+        "grammar": {
+            "case_check": {
+                "sentence": "Die Ringe des Saturns glitzern.",
+                "span": "Die Ringe des Saturns glitzern.",
+            }
+        },
+    }
+    repaired = repair_case_check(card, answer="Nominativ")
+    spec = repaired.get("grammar", {}).get("case_check", {})
+    assert spec.get("span") != "Die Ringe des Saturns glitzern."
+    formatted = format_case_card_question(repaired)
+    assert "<mark>" in formatted["question"]

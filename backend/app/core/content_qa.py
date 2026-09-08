@@ -86,18 +86,27 @@ def collect_content_warnings_for_module(
     answers_seen: dict[str, list[str]] = {}
     mental_bodies: list[str] = []
     for card in content.get("cards") or []:
-        if not isinstance(card, dict) or str(card.get("source") or "") != "basiswissen":
+        if not isinstance(card, dict):
             continue
         q = str(card.get("question") or "").strip()
         a = str(card.get("answer") or "").strip()
         if not q or not a:
             continue
         answers_seen.setdefault(a, []).append(q)
-        if str(card.get("card_role") or "") == "term" and _MENTAL_TERM_Q.search(q):
-            term = _mental_term_from_question(q)
-            body = _strip_leading_term_prefix(a, term)
-            if len(body) >= 12:
-                mental_bodies.append(body)
+
+        kind = str(card.get("kind") or "mental").strip().lower()
+        card_role = str(card.get("card_role") or "").strip().lower()
+        track_body = (
+            card_role in {"term", "cloze"}
+            or kind == "mental"
+            or _MENTAL_TERM_Q.search(q) is not None
+        )
+        if not track_body:
+            continue
+        term = _mental_term_from_question(q) if _MENTAL_TERM_Q.search(q) else ""
+        body = _strip_leading_term_prefix(a, term) if term else a.lower()
+        if len(body) >= 12:
+            mental_bodies.append(body)
     for answer, questions in answers_seen.items():
         if len(questions) >= 3 and len({q.split("«")[1].split("»")[0] if "«" in q else q for q in questions}) >= 3:
             warnings.append(

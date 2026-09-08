@@ -25,7 +25,7 @@ GERMAN_COMPACT_SYSTEM = (
     '"explanation":"Frageprobe kurz","nested":{"span":"innerer Teil","answer":"Genitiv","explanation":"..."}}],'
     '"cards":[{"kind":"merk|mental","question":"...","answer":"...","tip":"optional"}],'
     '"quiz":[{"q":"Frage mit Satz","options":["Nominativ","Genitiv","Dativ","Akkusativ"],'
-    '"answer":0,"explanation":"...","sentence":"...","span":"..."}]}\n'
+    '"answer":0,"explanation":"...","sentence":"vollständiger Satz","span":"markiertes Satzglied"}]}\n'
     "Regeln:\n"
     f"- Genau {COMPACT_COUNTS['understand']} understand-Aufgaben: Fall der markierten Wortgruppe bestimmen.\n"
     f"- Genau {COMPACT_COUNTS['merk_cards']} merk + {COMPACT_COUNTS['mental_cards']} mental cards "
@@ -34,6 +34,7 @@ GERMAN_COMPACT_SYSTEM = (
     "- theory.knowledge: 4–6 Einträge (Frageproben, Ersatzprobe, Signalwörter, verschachtelte Fälle).\n"
     "- theory.cases: alle vier Fälle mit Frage und Beispiel.\n"
     "- understand/quiz: sentence und span müssen exakt im Satz vorkommen; span ist das zu bestimmende Satzglied.\n"
+    "- quiz: sentence und span PFLICHT; q enthält den Satz nach dem Doppelpunkt.\n"
     "- 2–3 understand/quiz mit nested (gelbe Wortgruppe + innerer Genitiv/Dativ).\n"
     "- Keine Duplikate; Beispiele aus dem Material, sonst passende Neusätze im gleichen Stoff.\n"
     "- Keine Lückentext-Antworten wie deres|derem|deren — nur klare Fall-Labels oder kurze Phrasen.\n"

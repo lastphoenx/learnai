@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-/** Markierte Satzglieder (<mark>…</mark> oder […]) als Highlight statt Rohtext. */
+/** Markierte Satzglieder (<mark>…</mark>, legacy […]) als gelbes Highlight. */
 const HIGHLIGHT_RE =
   /<mark>([\s\S]*?)<\/mark>|\[(?![A-D]\])([^\[\]]+)\]/gi;
 

@@ -17,6 +17,7 @@ import {
   type TrainerBasiswissenSection,
   type TrainerPracticeItem,
 } from "@/lib/api";
+import { renderCardQuestion } from "@/lib/cardQuestion";
 import { CardChoiceExercise } from "@/components/learn/CardChoiceExercise";
 import { CardInputExercise } from "@/components/learn/CardInputExercise";
 import { ClozeExercise } from "@/components/learn/ClozeExercise";
@@ -56,10 +57,11 @@ import {
 
 type CardFilter = "due" | "all" | "merk" | "mental" | "input" | "terms" | "practice";
 
-function isTermCard(card: { card_role?: string; answer_type?: string; source?: string }): boolean {
+function isTermCard(card: { card_role?: string; answer_type?: string; source?: string; kind?: string }): boolean {
+  if (card.kind === "input") return false;
   if (card.card_role === "term" || card.card_role === "cloze") return true;
   if (card.source === "basiswissen") return true;
-  return card.answer_type === "cloze" || card.answer_type === "short_text";
+  return card.answer_type === "cloze";
 }
 
 function cardKind(card: { kind?: string }): string {
@@ -1552,7 +1554,7 @@ export function InteractiveTrainer({
             }
             onSelect={goToQuizQuestion}
           />
-          <p className="learn-quiz-question">{currentQuestion.q}</p>
+          <p className="learn-quiz-question">{renderCardQuestion(currentQuestion.q)}</p>
           <div className="quiz-options">
             {(currentQuestion.options || []).map((opt, i) => (
               <button
