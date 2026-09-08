@@ -467,6 +467,34 @@ def get_case_check_spec(card: dict[str, Any]) -> dict[str, str] | None:
     return inferred
 
 
+def format_case_card_question(card: dict[str, Any]) -> dict[str, Any]:
+    """Markiert span in Fall-Fragen mit […], wenn noch keine Hervorhebung vorhanden ist."""
+    spec = get_case_check_spec(card)
+    if not spec:
+        return card
+    question = str(card.get("question") or "")
+    if re.search(r"<mark>|\[[^\]]+\]", question, re.I):
+        return card
+    sentence = spec["sentence"].strip()
+    span = spec["span"].strip()
+    if not sentence or not span or span not in sentence:
+        return card
+    marked_sentence = sentence.replace(span, f"[{span}]", 1)
+    if sentence in question:
+        new_question = question.replace(sentence, marked_sentence, 1)
+    else:
+        colon_idx = question.rfind(":")
+        if colon_idx < 0:
+            return card
+        tail = question[colon_idx + 1 :].strip()
+        if tail not in {sentence, sentence.rstrip(".")}:
+            return card
+        new_question = f"{question[: colon_idx + 1]} {marked_sentence}"
+    out = dict(card)
+    out["question"] = new_question.strip()[:500]
+    return out
+
+
 def analyze_span_case_nested(*, sentence: str, span: str) -> dict[str, Any]:
     """Wie analyze_span_case, inkl. eingebetteter abweichender Fälle in der Spanne."""
     sent = str(sentence or "").strip()

@@ -4,6 +4,7 @@ from app.core.german_case_analysis import (
     analyze_span_case,
     case_from_label,
     case_with_nested_attributes,
+    format_case_card_question,
     infer_case_check_from_question,
     parse_case_check,
     verify_case_answer_with_nesting,
@@ -158,3 +159,19 @@ def test_answer_matching_embedded_case_is_not_flatly_wrong():
         span="die Farbe des Blutes",
     )
     assert outcome == "teilrichtig_falsche_ebene"
+
+
+def test_format_case_card_question_adds_bracket_mark():
+    card = {
+        "question": "Bestimme den Fall des markierten Satzglieds: Der Mars leuchtet rot am Himmel.",
+        "answer": "Nominativ",
+        "grammar": {
+            "case_check": {
+                "sentence": "Der Mars leuchtet rot am Himmel.",
+                "span": "Der Mars",
+            }
+        },
+    }
+    formatted = format_case_card_question(card)
+    assert "[Der Mars]" in formatted["question"]
+    assert "Der Mars leuchtet" in formatted["question"]

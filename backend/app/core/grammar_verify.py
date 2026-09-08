@@ -11,6 +11,7 @@ from app.core.german_case_analysis import (
     analyze_span_case_nested,
     case_from_label,
     case_label_de,
+    format_case_card_question,
     get_case_check_spec,
     spacy_available,
     verify_case_answer_with_nesting,
@@ -237,7 +238,7 @@ def finalize_german_cards_with_drops(
                 dropped.append(f"{question!r}: {msg}")
                 continue
         out = enrich_german_case_card(card) if nested_meta else card
-        kept.append(out)
+        kept.append(format_case_card_question(out))
     return kept, dropped
 
 

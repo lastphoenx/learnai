@@ -97,7 +97,7 @@ def _split_card_kinds(
     focus_group: str | None = None,
 ) -> tuple[int, int, int]:
     if focus_group and focus_group != "math":
-        merk_ratio, mental_ratio = 0.3, 0.35
+        merk_ratio, mental_ratio = 0.38, 0.22
     elif math_focus:
         merk_ratio, mental_ratio = 0.3, 0.3
     else:
@@ -604,6 +604,21 @@ def generate_interactive_modules(
         detect_focus_group(subject=unit.subject, task_type=str(unit.task_type or "interactive"))
         or "general"
     )
+    if focus_group == "german":
+        difficulty = int(unit.difficulty or 3)
+        if difficulty <= 2:
+            card_target = min(card_target, 32)
+            question_target = min(question_target, 28)
+        elif difficulty <= 3:
+            card_target = min(card_target, 40)
+            question_target = min(question_target, 36)
+        _log.info(
+            "generate_interactive german_cap unit_id=%s difficulty=%d cards=%d questions=%d",
+            unit_id,
+            difficulty,
+            card_target,
+            question_target,
+        )
     pedagogy_profile = collect_pedagogy_from_unit_sources(unit.sources, focus_group=focus_group)
     pedagogy_digest = build_pedagogy_digest(pedagogy_profile)
     _log.info(

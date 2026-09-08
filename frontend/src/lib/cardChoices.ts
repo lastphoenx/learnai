@@ -1,6 +1,8 @@
 const CASE_NAMES = ["Nominativ", "Genitiv", "Dativ", "Akkusativ"] as const;
 const W_FALL_NAMES = ["Wer-Fall", "Wessen-Fall", "Wem-Fall", "Wen- oder Was-Fall"] as const;
-const W_QUESTIONS = ["Wer oder was?", "Wessen?", "Wem?", "Wen oder was?"] as const;
+const W_QUESTIONS = ["Wer?", "Wessen?", "Wem?", "Wen?", "Wen oder was?", "Wer oder was?"] as const;
+const PRONOUN_CHOICES = ["er", "ihn", "ihm", "es"] as const;
+const ARTICLE_ENDINGS = ["er", "en", "em", "es", "e", "n", "s", "den", "dem", "des", "der"] as const;
 
 function normalizeAnswer(answer: string): string {
   return answer.split("|")[0]?.trim() || "";
@@ -17,14 +19,27 @@ function matchesWFallAnswer(answer: string): boolean {
 }
 
 function matchesWQuestionAnswer(answer: string): boolean {
-  const a = normalizeAnswer(answer).toLowerCase();
-  return a.startsWith("wer") || a.startsWith("wessen") || a.startsWith("wem") || a.startsWith("wen");
+  const a = normalizeAnswer(answer).toLowerCase().replace(/\?+$/, "");
+  if (["wer", "wessen", "wem", "wen"].includes(a)) return true;
+  if (a.startsWith("wer") || a.startsWith("wessen") || a.startsWith("wem") || a.startsWith("wen")) {
+    return true;
+  }
+  return false;
 }
 
 function matchesVerbQuestion(question: string, answer: string): boolean {
   const a = normalizeAnswer(answer).toLowerCase();
-  if (a !== "verb") return false;
-  return /verb|satzglied|markier/i.test(question);
+  if (a === "verb" && /verb|satzglied|markier/i.test(question)) return true;
+  if (a === "satzglieder" && /satzglied/i.test(question)) return true;
+  return false;
+}
+
+function matchesPronounAnswer(answer: string): boolean {
+  return /^(er|ihn|ihm|es|sie|ihr)$/i.test(normalizeAnswer(answer));
+}
+
+function matchesArticleEndingAnswer(answer: string): boolean {
+  return /^(er|en|em|es|e|n|s|den|dem|des|der)$/i.test(normalizeAnswer(answer));
 }
 
 /** Einzel-Lücke mit bekannter Antwortmenge → Buttons statt Cloze-Tippen. */
@@ -52,10 +67,12 @@ export function inferCardChoices(question: string, answer: string): string[] | n
   if (matchesWFallAnswer(answer)) return [...W_FALL_NAMES];
   if (matchesWQuestionAnswer(answer)) return [...W_QUESTIONS];
   if (matchesVerbQuestion(question, answer)) {
-    return ["Verb", "Subjekt", "Objekt", "Präposition"];
+    return ["Verb", "Satzglieder", "Subjekt", "Objekt"];
   }
+  if (matchesPronounAnswer(answer)) return [...PRONOUN_CHOICES];
+  if (matchesArticleEndingAnswer(answer)) return [...ARTICLE_ENDINGS];
   if (/^er\|ihn$/i.test(answer.replace(/\s+/g, ""))) {
-    return ["er", "ihn", "ihm", "des"];
+    return ["er", "ihn", "ihm", "es"];
   }
   if (/^er$/i.test(normalizeAnswer(answer)) && /ersatzprobe|zeigt.*nominativ/i.test(question)) {
     return ["er", "ihn", "ihm", "es"];

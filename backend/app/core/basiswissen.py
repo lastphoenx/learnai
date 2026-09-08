@@ -563,6 +563,7 @@ def _concept_quiz_explanation(concept: dict[str, Any], part: dict[str, Any], cor
 
 def derive_mental_term_cards(basiswissen: dict[str, Any]) -> list[dict[str, Any]]:
     cards: list[dict[str, Any]] = []
+    seen_answers: set[str] = set()
     for concept in basiswissen.get("concepts") or []:
         if not isinstance(concept, dict):
             continue
@@ -597,6 +598,10 @@ def derive_mental_term_cards(basiswissen: dict[str, Any]) -> list[dict[str, Any]
                 concept,
                 step_index=step_index_by_term.get(term),
             )
+            answer_key = answer[:80].strip().lower()
+            if answer_key in seen_answers:
+                continue
+            seen_answers.add(answer_key)
             cards.append(
                 {
                     "kind": "mental",
@@ -609,7 +614,7 @@ def derive_mental_term_cards(basiswissen: dict[str, Any]) -> list[dict[str, Any]
                     "method_label": label[:120],
                 }
             )
-    return cards[:24]
+    return cards[:16]
 
 
 def derive_concept_quiz_questions(
@@ -768,8 +773,8 @@ def strip_basiswissen_derivatives(
     return content, quiz
 
 
-_MAX_DERIVED_MENTAL_CARDS = 12
-_MAX_DERIVED_CLOZE_CARDS = 5
+_MAX_DERIVED_MENTAL_CARDS = 8
+_MAX_DERIVED_CLOZE_CARDS = 3
 
 
 def enrich_module_with_basiswissen(
@@ -799,7 +804,7 @@ def enrich_module_with_basiswissen(
     derived += derive_cloze_cards(bw)[:_MAX_DERIVED_CLOZE_CARDS]
     content["cards"] = prepend_unique_cards(cards, derived)
     questions = list(quiz.get("questions") or [])
-    concept_max = max(2, question_count // 3)
+    concept_max = max(2, question_count // 4)
     concept_qs = derive_concept_quiz_questions(bw, max_count=concept_max)
     quiz["questions"] = merge_concept_questions(questions, concept_qs)
     practice = list(content.get("practice") or [])
