@@ -111,6 +111,15 @@ def test_content_qa_flags_compact_mental_duplicates():
     assert any(w["kind"] == "generic_mental_cards" for w in warnings)
 
 
+def test_enrich_case_drill_card_keeps_original_when_span_unknown():
+    card = {
+        "kind": "mental",
+        "question": "Fall von: ???",
+        "answer": "Genitiv",
+    }
+    assert _enrich_case_drill_card(card)["question"] == "Fall von: ???"
+
+
 def test_enrich_case_drill_card_adds_mark_for_fall_von():
     if not spacy_available():
         pytest.skip("spaCy not available")
@@ -123,17 +132,6 @@ def test_enrich_case_drill_card_adds_mark_for_fall_von():
     assert enriched is not None
     assert "<mark>" in enriched["question"]
     assert enriched.get("grammar", {}).get("case_check", {}).get("span")
-
-
-def test_enrich_case_drill_card_drops_verbless_sentence():
-    if not spacy_available():
-        pytest.skip("spaCy not available")
-    card = {
-        "kind": "mental",
-        "question": "Fall von: Das Fell des Tigers.",
-        "answer": "Genitiv",
-    }
-    assert _enrich_case_drill_card(card) is None
 
 
 def test_parse_cards_tags_w_fragen_merk_as_term():

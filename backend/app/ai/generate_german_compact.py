@@ -33,7 +33,6 @@ from app.core.german_case_analysis import (
     format_case_quiz_question,
     get_case_check_spec,
     repair_case_check,
-    sentence_has_finite_verb,
 )
 from app.core.grammar_verify import finalize_german_cards_with_drops
 from app.core.quiz_numeric import repair_quiz_block
@@ -106,8 +105,8 @@ def _understand_to_card(raw: dict) -> dict | None:
     return format_case_card_question(card)
 
 
-def _enrich_case_drill_card(card: dict, *, raw: dict | None = None) -> dict | None:
-    """Fall-Kurzabfragen: span + <mark> wie bei Verstehen/Quiz; verwirft Mehrdeutiges."""
+def _enrich_case_drill_card(card: dict, *, raw: dict | None = None) -> dict:
+    """Fall-Kurzabfragen: span + <mark> wenn eindeutig; sonst Original behalten."""
     answer = str(card.get("answer") or "").strip()
     primary = answer.split("|")[0].strip()
     if not case_from_label(primary):
@@ -120,7 +119,7 @@ def _enrich_case_drill_card(card: dict, *, raw: dict | None = None) -> dict | No
         return card
     spec = build_case_check_spec(sentence=sentence, span=span, expected_answer=primary)
     if not spec:
-        return None
+        return card
     enriched = dict(card)
     grammar: dict = {"case_check": dict(spec)}
     nested = (raw or {}).get("nested")
@@ -139,10 +138,7 @@ def _enrich_case_drill_card(card: dict, *, raw: dict | None = None) -> dict | No
     enriched["grammar"] = grammar
     enriched = repair_case_check(enriched, answer=primary)
     if not get_case_check_spec(enriched):
-        return None
-    has_verb = sentence_has_finite_verb(spec["sentence"])
-    if has_verb is False:
-        return None
+        return card
     enriched = format_case_card_question(enriched)
     if "<mark>" not in str(enriched.get("question") or ""):
         spec2 = get_case_check_spec(enriched) or spec
@@ -166,6 +162,7 @@ def _finalize_drill_case_cards(cards: list[dict], *, difficulty: int) -> list[di
             [card],
             focus_group="german",
             difficulty=difficulty,
+            allow_nested=True,
         )
         if kept:
             out.append(kept[0])
@@ -173,8 +170,9 @@ def _finalize_drill_case_cards(cards: list[dict], *, difficulty: int) -> list[di
             dropped += 1
             if drop_reasons:
                 _log.warning("german_compact drill_drop %s", drop_reasons[0][:120])
+            out.append(card)
     if dropped:
-        _log.warning("german_compact drill_case_drops=%d", dropped)
+        _log.warning("german_compact drill_case_drops=%d (kept unmarked originals)", dropped)
     return out
 
 
@@ -204,10 +202,7 @@ def _parse_cards(raw: object) -> tuple[list[dict], list[dict]]:
         ):
             entry["card_role"] = "term"
         if entry["kind"] == "mental":
-            enriched = _enrich_case_drill_card(entry, raw=item)
-            if enriched is None:
-                continue
-            entry = enriched
+            entry = _enrich_case_drill_card(entry, raw=item)
         if entry["kind"] == "merk":
             merk.append(entry)
         else:

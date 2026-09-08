@@ -211,6 +211,7 @@ def finalize_german_cards_with_drops(
     *,
     focus_group: str,
     difficulty: int = 3,
+    allow_nested: bool = False,
 ) -> tuple[list[dict[str, Any]], list[str]]:
     """Verwirft Fall-Karten mit hochkonfidenter spaCy-Abweichung; liefert Drop-Gründe."""
     group = normalize_focus_group(focus_group)
@@ -223,7 +224,7 @@ def finalize_german_cards_with_drops(
         if not isinstance(card, dict):
             continue
         nested_meta = _nested_case_metadata(card)
-        if nested_meta and difficulty <= max_difficulty_for_nested:
+        if nested_meta and difficulty <= max_difficulty_for_nested and not allow_nested:
             spec = get_case_check_spec(card) or {}
             span = spec.get("span", "?")
             question = str(card.get("question") or "")[:80]
@@ -231,8 +232,9 @@ def finalize_german_cards_with_drops(
             continue
         level, msg = verify_card_case_label(card)
         if level == "warn":
+            answer = expected_case_answer_from_item(card)
             match, result = verify_case_label(
-                expected_answer=str(card.get("answer") or ""),
+                expected_answer=answer,
                 sentence=(get_case_check_spec(card) or {}).get("sentence", ""),
                 span=(get_case_check_spec(card) or {}).get("span", ""),
             )

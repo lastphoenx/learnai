@@ -457,14 +457,16 @@ def expected_case_answer_from_item(item: dict[str, Any]) -> str:
 
 
 def sentence_has_finite_verb(sentence: str) -> bool | None:
-    """None wenn spaCy fehlt."""
+    """None wenn spaCy fehlt. de_core_news_sm liefert oft kein VerbForm — POS reicht."""
     nlp = _load_nlp()
     sent = str(sentence or "").strip()
     if nlp is None or not sent:
         return None
     doc = nlp(sent)
     for token in doc:
-        if token.pos_ in ("VERB", "AUX") and token.morph.get("VerbForm") == "Fin":
+        if token.pos_ == "VERB":
+            return True
+        if token.pos_ == "AUX" and token.dep_ in ("ROOT", "cop", "aux", "oc"):
             return True
     return False
 
