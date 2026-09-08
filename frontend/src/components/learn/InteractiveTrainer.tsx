@@ -1470,7 +1470,7 @@ export function InteractiveTrainer({
                         {currentCard.tip ? <p className="muted">{currentCard.tip}</p> : null}
                       </div>
                     ) : (
-                      <p>{currentCard.question}</p>
+                      <p className="learn-quiz-question">{renderCardQuestion(currentCard.question)}</p>
                     )}
                   </button>
                   <p className="trainer-shortcuts muted">
