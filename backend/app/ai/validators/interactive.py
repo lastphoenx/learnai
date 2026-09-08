@@ -176,11 +176,12 @@ def validate_interactive_modules(
     *,
     min_cards: int,
     min_questions: int,
+    min_modules: int = 4,
 ) -> None:
     validate_interactive_structure(modules)
-    if len(modules) < 4:
+    if len(modules) < min_modules:
         raise LlmError(
-            f"Zu wenige Themenbereiche ({len(modules)}, mindestens 4)",
+            f"Zu wenige Themenbereiche ({len(modules)}, mindestens {min_modules})",
             "thin_content",
         )
     total_cards = 0

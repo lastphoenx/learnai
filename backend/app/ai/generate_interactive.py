@@ -604,6 +604,27 @@ def generate_interactive_modules(
         detect_focus_group(subject=unit.subject, task_type=str(unit.task_type or "interactive"))
         or "general"
     )
+    math_focus = (recon or {}).get("math_focus") if isinstance(recon, dict) else None
+    from app.ai.generate_german_compact import generate_german_grammar_compact, should_use_german_compact
+
+    if should_use_german_compact(
+        focus_group=focus_group,
+        math_focus=str(math_focus) if math_focus else None,
+    ):
+        _log.info("generate_interactive route=german_compact unit_id=%s math_focus=%s", unit_id, math_focus)
+        return generate_german_grammar_compact(
+            db,
+            user,
+            unit_id,
+            provider=name,
+            model=model,
+            title=title,
+            brief=brief,
+            notes=notes,
+            options=options,
+            progress=progress,
+            provider_override=effective_provider,
+        )
     if focus_group == "german":
         difficulty = int(unit.difficulty or 3)
         if difficulty <= 2:
@@ -629,7 +650,6 @@ def generate_interactive_modules(
         int((time.monotonic() - t0) * 1000),
     )
 
-    math_focus = (recon or {}).get("math_focus") if isinstance(recon, dict) else None
     math_focus_label: str | None = None
     if math_focus:
         from app.ai.subject_focus import focus_label
