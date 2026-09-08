@@ -1,21 +1,37 @@
 import type { ReactNode } from "react";
 
-/** Markierte Satzglieder (<mark>…) als Highlight statt Rohtext anzeigen. */
+/** Markierte Satzglieder (<mark>…</mark> oder […]) als Highlight statt Rohtext. */
+const HIGHLIGHT_RE =
+  /<mark>([\s\S]*?)<\/mark>|\[(?![A-D]\])([^\[\]]+)\]/gi;
+
 export function renderCardQuestion(text: string): ReactNode {
   const src = text || "";
-  if (!src.includes("<mark")) {
+  HIGHLIGHT_RE.lastIndex = 0;
+  if (!HIGHLIGHT_RE.test(src)) {
     return src;
   }
-  const parts = src.split(/(<mark>[\s\S]*?<\/mark>)/gi);
-  return parts.map((part, index) => {
-    const match = part.match(/^<mark>([\s\S]*?)<\/mark>$/i);
-    if (!match) {
-      return <span key={index}>{part}</span>;
+
+  HIGHLIGHT_RE.lastIndex = 0;
+  const parts: ReactNode[] = [];
+  let lastIndex = 0;
+  let key = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = HIGHLIGHT_RE.exec(src)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(<span key={key++}>{src.slice(lastIndex, match.index)}</span>);
     }
-    return (
-      <mark key={index} className="card-marked-span">
-        {match[1]}
-      </mark>
+    const inner = match[1] ?? match[2] ?? "";
+    parts.push(
+      <mark key={key++} className="card-marked-span">
+        {inner}
+      </mark>,
     );
-  });
+    lastIndex = HIGHLIGHT_RE.lastIndex;
+  }
+
+  if (lastIndex < src.length) {
+    parts.push(<span key={key++}>{src.slice(lastIndex)}</span>);
+  }
+  return parts;
 }

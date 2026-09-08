@@ -27,7 +27,7 @@ import { JumpStrip } from "@/components/learn/JumpStrip";
 import { QuizWeaknessPanel } from "@/components/QuizWeaknessPanel";
 import { PracticeExercise } from "@/components/learn/PracticeExercise";
 import { answerWithVisibleResult } from "@/lib/cardResult";
-import { inferCardChoices } from "@/lib/cardChoices";
+import { inferCardChoices, shouldUseCardChoices } from "@/lib/cardChoices";
 import { formatQuizOption, quizOptionClassName, quizOptionStyle } from "@/lib/quizOption";
 import {
   formatAttemptSuccessLabel,
@@ -1409,7 +1409,7 @@ export function InteractiveTrainer({
                       setBusy(false);
                     }
                   };
-                  if (choices && !currentCard.question.includes("___")) {
+                  if (choices && shouldUseCardChoices(currentCard.question, currentCard.answer || "")) {
                     return (
                       <CardChoiceExercise
                         key={currentCard.card_key}

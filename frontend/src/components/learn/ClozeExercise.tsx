@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { SpeechInputButton } from "@/components/SpeechInputButton";
 import { QuizExplanation } from "@/components/learn/QuizExplanation";
+import { renderCardQuestion } from "@/lib/cardQuestion";
 import type { SttProvider } from "@/lib/api";
 
 const BLANK = "___";
@@ -68,7 +69,7 @@ export function ClozeExercise({
         <p className="learn-quiz-question cloze-question-line">
           {parts.map((part, index) => (
             <span key={`${index}-${part.slice(0, 12)}`}>
-              {part}
+              {renderCardQuestion(part)}
               {index < blankCount ? (
                 <input
                   type="text"

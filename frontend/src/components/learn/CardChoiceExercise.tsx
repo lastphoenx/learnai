@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { QuizExplanation } from "@/components/learn/QuizExplanation";
 import { answerWithVisibleResult } from "@/lib/cardResult";
+import { formatChoiceQuestion } from "@/lib/cardChoices";
 import { renderCardQuestion } from "@/lib/cardQuestion";
 
 type Props = {
@@ -19,10 +20,11 @@ type Props = {
 
 export function CardChoiceExercise({ question, choices, busy, result, onSubmit }: Props) {
   const [selected, setSelected] = useState<string | null>(null);
+  const displayQuestion = formatChoiceQuestion(question);
 
   return (
     <div className="card-choice-exercise stack">
-      <p className="learn-quiz-question">{renderCardQuestion(question)}</p>
+      <p className="learn-quiz-question">{renderCardQuestion(displayQuestion)}</p>
       <div className="learn-quiz-options" role="list">
         {choices.map((choice) => {
           let cls = "learn-quiz-option";

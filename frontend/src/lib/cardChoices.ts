@@ -27,6 +27,24 @@ function matchesVerbQuestion(question: string, answer: string): boolean {
   return /verb|satzglied|markier/i.test(question);
 }
 
+/** Einzel-Lücke mit bekannter Antwortmenge → Buttons statt Cloze-Tippen. */
+export function shouldUseCardChoices(question: string, answer: string): boolean {
+  const choices = inferCardChoices(question, answer);
+  if (!choices) return false;
+  const blanks = question.match(/___/g)?.length ?? 0;
+  if (blanks === 0) return true;
+  const parts = answer
+    .split("|")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  return blanks === 1 && parts.length === 1;
+}
+
+/** Lückentext in Choice-Aufgaben lesbar machen (Antwort kommt per Klick). */
+export function formatChoiceQuestion(question: string): string {
+  return question.replace(/___+/g, "…");
+}
+
 /** Endliche Antwortmengen → Klick-Auswahl statt freies Tippen. */
 export function inferCardChoices(question: string, answer: string): string[] | null {
   if (!answer?.trim()) return null;
