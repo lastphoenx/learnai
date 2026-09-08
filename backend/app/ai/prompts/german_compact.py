@@ -6,8 +6,8 @@ from app.ai.prompts.interactive import SOURCE_RULES, learner_style_hint, truncat
 
 COMPACT_COUNTS = {
     "understand": 12,
-    "merk_cards": 8,
-    "mental_cards": 12,
+    "merk_cards": 10,
+    "mental_cards": 14,
     "quiz": 22,
 }
 

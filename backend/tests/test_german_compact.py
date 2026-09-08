@@ -74,10 +74,26 @@ def test_collapse_duplicate_mental_answers():
         {"kind": "mental", "question": "A?", "answer": "Nominativ"},
         {"kind": "mental", "question": "B?", "answer": "Nominativ"},
         {"kind": "mental", "question": "C?", "answer": "Nominativ"},
-        {"kind": "merk", "question": "D?", "answer": "Nominativ"},
+        {
+            "kind": "mental",
+            "question": "D?",
+            "answer": "Genitiv — Wer? = Nominativ; Wessen? = Genitiv; Wem? = Dativ; Wen? = Akkusativ.",
+        },
+        {
+            "kind": "mental",
+            "question": "E?",
+            "answer": "Genitiv — Wer? = Nominativ; Wessen? = Genitiv; Wem? = Dativ; Wen? = Akkusativ.",
+        },
+        {
+            "kind": "mental",
+            "question": "F?",
+            "answer": "Genitiv — Wer? = Nominativ; Wessen? = Genitiv; Wem? = Dativ; Wen? = Akkusativ.",
+        },
+        {"kind": "merk", "question": "G?", "answer": "Nominativ"},
     ]
     kept = _collapse_duplicate_mental_answers(cards)
-    assert len([c for c in kept if c.get("kind") == "mental"]) == 2
+    assert len([c for c in kept if c.get("kind") == "mental" and c.get("answer") == "Nominativ"]) == 3
+    assert len([c for c in kept if c.get("kind") == "mental" and "Genitiv —" in c.get("answer", "")]) == 2
     assert len([c for c in kept if c.get("kind") == "merk"]) == 1
 
 
@@ -144,8 +160,8 @@ def test_compact_payload_to_modules_counts():
     assert total_quiz == COMPACT_COUNTS["quiz"]
     validate_interactive_modules(
         modules,
-        min_cards=25,
-        min_questions=20,
+        min_cards=28,
+        min_questions=18,
         min_modules=4,
     )
 

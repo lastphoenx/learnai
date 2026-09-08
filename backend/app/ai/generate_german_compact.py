@@ -40,8 +40,9 @@ from app.services.unit_service import _get_unit_or_404, get_trainer_options
 _log = logging.getLogger(__name__)
 
 _COMPACT_NUM_PREDICT = 16384
-_MIN_CARDS = 25
-_MIN_QUESTIONS = 20
+_MIN_CARDS = 28
+_MIN_QUESTIONS = 18
+_GENERIC_ANSWER_MIN_LEN = 24
 
 
 def _parse_knowledge(raw: object) -> list[dict]:
@@ -236,7 +237,7 @@ def _parse_compact_payload(text: str) -> dict:
 
 
 def _collapse_duplicate_mental_answers(cards: list[dict]) -> list[dict]:
-    """Behält pro identischer Antwort höchstens zwei Mental-Karten (Compact-Schutz)."""
+    """Kürzt nur lange, kopierte Erklärtexte — kurze Fall-Labels (Nominativ …) bleiben."""
     kept: list[dict] = []
     answer_counts: dict[str, int] = {}
     for card in cards:
@@ -246,10 +247,11 @@ def _collapse_duplicate_mental_answers(cards: list[dict]) -> list[dict]:
         if str(card.get("kind") or "") != "mental":
             kept.append(card)
             continue
-        answer_key = str(card.get("answer") or "").strip().lower()
-        if not answer_key:
+        answer = str(card.get("answer") or "").strip()
+        if len(answer) < _GENERIC_ANSWER_MIN_LEN:
             kept.append(card)
             continue
+        answer_key = answer.lower()
         count = answer_counts.get(answer_key, 0)
         if count >= 2:
             continue
@@ -378,51 +380,90 @@ def generate_german_grammar_compact(
         notes=notes,
     )
     t0 = time.monotonic()
-    if progress:
-        progress("generating_compact")
-    result = _complete_with_retry(
-        prompt=prompt,
-        provider=provider,
-        system=GERMAN_COMPACT_SYSTEM,
-        model=model,
-        num_predict=_COMPACT_NUM_PREDICT,
-        label="german_compact",
-    )
-    payload = _parse_compact_payload(result["text"])
-    modules = compact_payload_to_modules(payload, title=title, difficulty=difficulty)
-    from app.core.content_qa import collect_content_warnings_for_module, summarize_content_warnings
+    retry_hint = ""
+    result: dict | None = None
+    modules: list[dict] = []
+    last_exc: LlmError | None = None
 
-    qa_warnings: list[dict[str, str]] = []
-    for module in modules:
-        content = module.get("content") if isinstance(module.get("content"), dict) else {}
-        quiz = module.get("quiz") if isinstance(module.get("quiz"), dict) else {}
-        qa_warnings.extend(
-            collect_content_warnings_for_module(
-                content=content,
-                quiz=quiz,
-                focus_group="german",
+    for attempt in (1, 2):
+        if progress:
+            progress("generating_compact", attempt=attempt)
+        result = _complete_with_retry(
+            prompt=prompt + retry_hint,
+            provider=provider,
+            system=GERMAN_COMPACT_SYSTEM,
+            model=model,
+            num_predict=_COMPACT_NUM_PREDICT,
+            label=f"german_compact_{attempt}",
+        )
+        try:
+            payload = _parse_compact_payload(result["text"])
+            modules = compact_payload_to_modules(payload, title=title, difficulty=difficulty)
+            from app.core.content_qa import collect_content_warnings_for_module, summarize_content_warnings
+
+            qa_warnings: list[dict[str, str]] = []
+            for module in modules:
+                content = module.get("content") if isinstance(module.get("content"), dict) else {}
+                quiz = module.get("quiz") if isinstance(module.get("quiz"), dict) else {}
+                qa_warnings.extend(
+                    collect_content_warnings_for_module(
+                        content=content,
+                        quiz=quiz,
+                        focus_group="german",
+                    )
+                )
+            qa_summary = summarize_content_warnings(qa_warnings)
+            if qa_summary.get("warn"):
+                _log.warning(
+                    "generate_german_compact content_qa unit_id=%s warn=%d attempt=%d",
+                    unit_id,
+                    qa_summary["warn"],
+                    attempt,
+                )
+            modules, dedupe_warnings = dedupe_interactive_modules(modules)
+            for warning in dedupe_warnings:
+                _log.warning("generate_german_compact dedupe unit_id=%s %s", unit_id, warning)
+            for module in modules:
+                quiz = module.get("quiz") if isinstance(module, dict) else None
+                if isinstance(module, dict) and isinstance(quiz, dict):
+                    module["quiz"] = repair_quiz_block(quiz)
+            validate_interactive_modules(
+                modules,
+                min_cards=_MIN_CARDS,
+                min_questions=_MIN_QUESTIONS,
+                min_modules=4,
             )
-        )
-    qa_summary = summarize_content_warnings(qa_warnings)
-    if qa_summary.get("warn"):
-        _log.warning(
-            "generate_german_compact content_qa unit_id=%s warn=%d",
-            unit_id,
-            qa_summary["warn"],
-        )
-    modules, dedupe_warnings = dedupe_interactive_modules(modules)
-    for warning in dedupe_warnings:
-        _log.warning("generate_german_compact dedupe unit_id=%s %s", unit_id, warning)
-    for module in modules:
-        quiz = module.get("quiz") if isinstance(module, dict) else None
-        if isinstance(module, dict) and isinstance(quiz, dict):
-            module["quiz"] = repair_quiz_block(quiz)
-    validate_interactive_modules(
-        modules,
-        min_cards=_MIN_CARDS,
-        min_questions=_MIN_QUESTIONS,
-        min_modules=4,
-    )
+            last_exc = None
+            break
+        except LlmError as exc:
+            last_exc = exc
+            total_try = sum(
+                len(m.get("content", {}).get("cards") or [])
+                for m in modules
+                if isinstance(m, dict)
+            )
+            _log.warning(
+                "generate_german_compact attempt=%d unit_id=%s code=%s msg=%s cards=%d",
+                attempt,
+                unit_id,
+                exc.code,
+                exc.message,
+                total_try,
+            )
+            if attempt == 1 and exc.code == "thin_content":
+                retry_hint = (
+                    "\n\nWICHTIG — vorheriger Versuch zu dünn. "
+                    f"Liefere mindestens {COMPACT_COUNTS['understand']} understand, "
+                    f"{COMPACT_COUNTS['merk_cards']} merk + {COMPACT_COUNTS['mental_cards']} mental cards "
+                    f"und {COMPACT_COUNTS['quiz']} Quizfragen — keine Auslassungen.\n"
+                )
+                continue
+            raise
+
+    if last_exc is not None or result is None:
+        assert last_exc is not None
+        raise last_exc
+
     total_cards = sum(len(m["content"]["cards"]) for m in modules)
     total_questions = sum(len(m["quiz"]["questions"]) for m in modules)
     meta = dict(result)
