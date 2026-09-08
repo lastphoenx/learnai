@@ -21,5 +21,5 @@ pymupdf-fonts==1.0.5
 pytest==9.1.1
 
 # Deutsch-Grammatik (Ticket B — Fallbestimmung)
-spacy==3.8.11
+spacy==3.8.16
 de-core-news-sm @ https://github.com/explosion/spacy-models/releases/download/de_core_news_sm-3.8.0/de_core_news_sm-3.8.0-py3-none-any.whl
