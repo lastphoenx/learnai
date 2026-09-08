@@ -368,8 +368,13 @@ _ARTICLE_CASE_HINTS: tuple[tuple[str, str], ...] = (
     ("des ", "Genitiv — Wessen?"),
     ("dem ", "Dativ — Wem?"),
     ("den ", "Akkusativ — Wen oder was?"),
-    ("der ", "Nominativ — Wer oder was?"),
 )
+_CASE_ROLE_FORM_HINTS: dict[str, str] = {
+    "nominativ": "Nominativ — Wer oder was?",
+    "genitiv": "Genitiv — Wessen?",
+    "dativ": "Dativ — Wem?",
+    "akkusativ": "Akkusativ — Wen oder was?",
+}
 _PROCEDURE_MATCH_STOPWORDS = frozenset(
     {"markieren", "stellen", "bestimmen", "bilden", "fragen", "erkennen", "passende", "passenden"}
 )
@@ -416,11 +421,27 @@ def _segment_lists_multiple_forms(segment: str) -> bool:
     return len(_split_pattern_chunks(segment)) >= 2
 
 
-def _declension_form_hint(term: str) -> str:
+def _declension_form_hint(
+    term: str,
+    *,
+    concept: dict[str, Any] | None = None,
+    part: dict[str, Any] | None = None,
+) -> str:
+    role = str((part or {}).get("role") or "").strip().lower()
+    if role in _CASE_ROLE_FORM_HINTS:
+        return _CASE_ROLE_FORM_HINTS[role]
     lower = term.lower().lstrip()
+    label = str((concept or {}).get("label") or "").lower()
     for prefix, hint in _ARTICLE_CASE_HINTS:
         if lower.startswith(prefix):
             return hint
+    if lower.startswith("der "):
+        if any(token in label for token in ("genitiv", "wessen", "besitz", "plural")):
+            return "Genitiv — Wessen?"
+        if any(token in label for token in ("dativ", "wem")):
+            return "Dativ — Wem?"
+        if any(token in label for token in ("nominativ", "wer-fall", "subjekt")):
+            return "Nominativ — Wer oder was?"
     return ""
 
 
@@ -477,7 +498,7 @@ def _mental_term_answer(
     role_hint = CASE_ROLE_MENTAL_HINTS.get(role, "")
     multi_part = _pattern_lists_multiple_parts(pattern, concept.get("parts") or [])
     shared_hint = multi_part and hint
-    form_hint = _declension_form_hint(term)
+    form_hint = _declension_form_hint(term, concept=concept, part=part)
     is_table_form = bool(form_hint and re.match(r"^(der|die|das|des|dem|den)\s+", term, re.I))
 
     if example and term.lower() in example.lower() and not is_table_form:
@@ -630,7 +651,7 @@ def derive_concept_quiz_questions(
                 else:
                     q_text = f"Was bezeichnet «{correct}» bei {label}?"
             elif pattern:
-                q_text = f"Welcher Begriff passt bei {label}? (Muster: {pattern})"
+                q_text = f"Was bezeichnet «{correct}» bei {label}?"
             else:
                 q_text = f"Welcher Begriff gehört zu {label}?"
             explanation = _concept_quiz_explanation(concept, part, correct)
@@ -747,6 +768,10 @@ def strip_basiswissen_derivatives(
     return content, quiz
 
 
+_MAX_DERIVED_MENTAL_CARDS = 12
+_MAX_DERIVED_CLOZE_CARDS = 5
+
+
 def enrich_module_with_basiswissen(
     *,
     content: dict[str, Any],
@@ -770,7 +795,8 @@ def enrich_module_with_basiswissen(
         knowledge.insert(0, overview)
     content["knowledge"] = knowledge
     cards = list(content.get("cards") or [])
-    derived = derive_mental_term_cards(bw) + derive_cloze_cards(bw)
+    derived = derive_mental_term_cards(bw)[:_MAX_DERIVED_MENTAL_CARDS]
+    derived += derive_cloze_cards(bw)[:_MAX_DERIVED_CLOZE_CARDS]
     content["cards"] = prepend_unique_cards(cards, derived)
     questions = list(quiz.get("questions") or [])
     concept_max = max(2, question_count // 3)

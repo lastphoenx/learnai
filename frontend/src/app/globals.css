@@ -873,6 +873,18 @@ button.quiz-nav-jump.active.review {
   margin: 0 0 0.75rem;
 }
 
+.card-marked-span {
+  background: rgba(45, 125, 110, 0.18);
+  border-radius: 4px;
+  padding: 0 0.2em;
+}
+
+.card-choice-exercise .learn-quiz-options {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
 .learn-feedback {
   margin-top: 1rem;
   padding: 0.85rem 1rem;

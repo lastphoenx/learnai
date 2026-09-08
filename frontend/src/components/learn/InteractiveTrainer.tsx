@@ -17,6 +17,7 @@ import {
   type TrainerBasiswissenSection,
   type TrainerPracticeItem,
 } from "@/lib/api";
+import { CardChoiceExercise } from "@/components/learn/CardChoiceExercise";
 import { CardInputExercise } from "@/components/learn/CardInputExercise";
 import { ClozeExercise } from "@/components/learn/ClozeExercise";
 import { DrawingCanvas } from "@/components/learn/DrawingCanvas";
@@ -26,6 +27,7 @@ import { JumpStrip } from "@/components/learn/JumpStrip";
 import { QuizWeaknessPanel } from "@/components/QuizWeaknessPanel";
 import { PracticeExercise } from "@/components/learn/PracticeExercise";
 import { answerWithVisibleResult } from "@/lib/cardResult";
+import { inferCardChoices } from "@/lib/cardChoices";
 import { formatQuizOption, quizOptionClassName, quizOptionStyle } from "@/lib/quizOption";
 import {
   formatAttemptSuccessLabel,
@@ -1355,75 +1357,12 @@ export function InteractiveTrainer({
 
               {cardKind(currentCard) === "input" ? (
                 <>
-                {currentCard.answer_type === "cloze" || currentCard.question.includes("___") ? (
-                  <ClozeExercise
-                    key={currentCard.card_key}
-                    question={currentCard.question}
-                    language={state.unit.language || "de"}
-                    sttProvider={sttProvider}
-                    profileId={state.unit.profile_id || undefined}
-                    busy={busy}
-                    result={cardInputResult}
-                    onSpeechError={setError}
-                    onSubmit={async (answer) => {
-                      setBusy(true);
-                      setError(null);
-                      try {
-                        const res = await submitCardInputAnswer(unitId, {
-                          module_id: currentCard.module_id,
-                          card_index: currentCard.card_index,
-                          answer,
-                        });
-                        onStateChange({
-                          ...state,
-                          progress: res.progress,
-                          summary: res.summary,
-                          trainer: state.trainer
-                            ? {
-                                ...state.trainer,
-                                flashcard_progress: res.flashcard_progress || {
-                                  ...state.trainer.flashcard_progress,
-                                  [res.card_key]: {
-                                    ...(state.trainer.flashcard_progress[res.card_key] || {
-                                      status: res.correct ? "known" : "review",
-                                      attempts: 1,
-                                    }),
-                                    status: res.correct ? "known" : "review",
-                                    due: !res.correct,
-                                  },
-                                },
-                              }
-                            : state.trainer,
-                        });
-                        setCardInputResult({
-                          correct: res.correct,
-                          result_correct: res.result_correct,
-                          partial_correct: res.partial_correct,
-                          partial_reason: res.partial_reason,
-                          worked_correct: res.worked_correct,
-                          worked_feedback: res.worked_feedback,
-                          explanation: res.explanation,
-                          expected: res.expected,
-                        });
-                      } catch (err) {
-                        setError(err instanceof Error ? err.message : "Antwort fehlgeschlagen");
-                      } finally {
-                        setBusy(false);
-                      }
-                    }}
-                  />
-                ) : (
-                <CardInputExercise
-                  key={currentCard.card_key}
-                  question={currentCard.question}
-                  expectedMethod={currentCard.expected_method}
-                  language={state.unit.language || "de"}
-                  sttProvider={sttProvider}
-                  profileId={state.unit.profile_id || undefined}
-                  busy={busy}
-                  result={cardInputResult}
-                  onSpeechError={setError}
-                  onSubmit={async (answer, workedSolution) => {
+                {(() => {
+                  const isGermanGrammar = /deutsch|grammatik|grammar|fall/i.test(
+                    `${state.unit.subject || ""} ${currentCard.domain || ""}`,
+                  );
+                  const choices = inferCardChoices(currentCard.question, currentCard.answer || "");
+                  const submitInput = async (answer: string, workedSolution?: string) => {
                     setBusy(true);
                     setError(null);
                     try {
@@ -1469,9 +1408,50 @@ export function InteractiveTrainer({
                     } finally {
                       setBusy(false);
                     }
-                  }}
-                />
-                )}
+                  };
+                  if (choices && !currentCard.question.includes("___")) {
+                    return (
+                      <CardChoiceExercise
+                        key={currentCard.card_key}
+                        question={currentCard.question}
+                        choices={choices}
+                        busy={busy}
+                        result={cardInputResult}
+                        onSubmit={(answer) => void submitInput(answer)}
+                      />
+                    );
+                  }
+                  if (currentCard.answer_type === "cloze" || currentCard.question.includes("___")) {
+                    return (
+                      <ClozeExercise
+                        key={currentCard.card_key}
+                        question={currentCard.question}
+                        language={state.unit.language || "de"}
+                        sttProvider={sttProvider}
+                        profileId={state.unit.profile_id || undefined}
+                        busy={busy}
+                        result={cardInputResult}
+                        onSpeechError={setError}
+                        onSubmit={(answer) => void submitInput(answer)}
+                      />
+                    );
+                  }
+                  return (
+                    <CardInputExercise
+                      key={currentCard.card_key}
+                      question={currentCard.question}
+                      expectedMethod={currentCard.expected_method}
+                      language={state.unit.language || "de"}
+                      sttProvider={sttProvider}
+                      profileId={state.unit.profile_id || undefined}
+                      busy={busy}
+                      variant={isGermanGrammar ? "grammar" : "math"}
+                      result={cardInputResult}
+                      onSpeechError={setError}
+                      onSubmit={(answer, workedSolution) => void submitInput(answer, workedSolution)}
+                    />
+                  );
+                })()}
                 <p className="trainer-shortcuts muted">← → = weiter · S = später</p>
                 </>
               ) : (

@@ -165,6 +165,32 @@ def test_derive_mental_term_cards_use_distinct_table_forms():
     assert all(" – " not in answer for answer in answers)
 
 
+def test_declension_form_hint_respects_genitiv_concept_for_der_sonne():
+    bw = parse_basiswissen_payload(
+        {
+            "basiswissen": {
+                "schema_version": 1,
+                "focus_group": "german",
+                "concepts": [
+                    {
+                        "id": "gen_sing",
+                        "label": "Genitiv Singular bilden",
+                        "parts": [{"role": "example", "term": "der Sonne"}],
+                        "pattern": "des Marses — der Sonne — der Erde",
+                        "hint": "Feminin: der Sonne im Genitiv.",
+                    }
+                ],
+                "cloze_templates": [],
+            }
+        },
+        focus_group="german",
+    )
+    cards = derive_mental_term_cards(bw)
+    assert cards
+    assert "Genitiv" in cards[0]["answer"]
+    assert "Nominativ" not in cards[0]["answer"]
+
+
 def test_derive_mental_term_cards_use_distinct_procedure_steps():
     import json
     from pathlib import Path

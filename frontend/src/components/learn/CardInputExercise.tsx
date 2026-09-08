@@ -4,6 +4,7 @@ import { FormEvent, useState } from "react";
 import { SpeechInputButton } from "@/components/SpeechInputButton";
 import { QuizExplanation } from "@/components/learn/QuizExplanation";
 import { answerWithVisibleResult } from "@/lib/cardResult";
+import { renderCardQuestion } from "@/lib/cardQuestion";
 import type { SttProvider } from "@/lib/api";
 import { METHOD_LABELS } from "@/lib/api";
 
@@ -14,6 +15,7 @@ type Props = {
   sttProvider?: SttProvider;
   profileId?: string;
   busy: boolean;
+  variant?: "math" | "grammar";
   result: {
     correct: boolean;
     result_correct?: boolean;
@@ -35,12 +37,15 @@ export function CardInputExercise({
   sttProvider = "browser",
   profileId,
   busy,
+  variant = "math",
   result,
   onSubmit,
   onSpeechError,
 }: Props) {
   const [answer, setAnswer] = useState("");
   const [worked, setWorked] = useState("");
+  const isGrammar = variant === "grammar";
+  const showWorked = Boolean(expectedMethod) && !isGrammar;
 
   function onFormSubmit(e: FormEvent) {
     e.preventDefault();
@@ -50,7 +55,7 @@ export function CardInputExercise({
 
   return (
     <div className="card-input-exercise stack">
-      <p className="learn-quiz-question">{question}</p>
+      <p className="learn-quiz-question">{renderCardQuestion(question)}</p>
       {expectedMethod && (
         <p className="muted card-method-hint">
           Erwarteter Lösungsweg: {METHOD_LABELS[expectedMethod] || expectedMethod}
@@ -59,7 +64,7 @@ export function CardInputExercise({
       <form onSubmit={onFormSubmit} className="card-input-form">
         <label className="card-input-label card-input-answer">
           <span className="card-input-label-row">
-            Ergebnis
+            {isGrammar ? "Antwort" : "Ergebnis"}
             <SpeechInputButton
               language={language}
               sttProvider={sttProvider}
@@ -77,14 +82,15 @@ export function CardInputExercise({
           </span>
           <input
             type="text"
-            inputMode="decimal"
+            inputMode={isGrammar ? "text" : "decimal"}
             className="practice-input"
-            placeholder="z.B. 3,08"
+            placeholder={isGrammar ? "z. B. Nominativ" : "z. B. 3,08"}
             value={answer}
             onChange={(e) => setAnswer(e.target.value)}
             disabled={busy || Boolean(result)}
           />
         </label>
+        {showWorked && (
         <label className="card-input-label">
           <span className="card-input-label-row">
             Lösungsweg (optional)
@@ -113,6 +119,7 @@ export function CardInputExercise({
             disabled={busy || Boolean(result)}
           />
         </label>
+        )}
         {!result && (
           <div className="card-input-actions">
             <button type="submit" className="btn-primary" disabled={busy || !answer.trim()}>

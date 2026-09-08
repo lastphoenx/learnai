@@ -97,7 +97,7 @@ def _split_card_kinds(
     focus_group: str | None = None,
 ) -> tuple[int, int, int]:
     if focus_group and focus_group != "math":
-        merk_ratio, mental_ratio = 0.35, 0.15
+        merk_ratio, mental_ratio = 0.3, 0.35
     elif math_focus:
         merk_ratio, mental_ratio = 0.3, 0.3
     else:
