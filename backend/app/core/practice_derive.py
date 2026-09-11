@@ -120,7 +120,7 @@ def _prompt_fingerprint(prompt: str) -> str:
 
 
 def _should_skip_prompt(*, prompt: str, practice_state: dict[str, Any] | None) -> bool:
-    if not practice_state:
+    if practice_state is None:
         return False
     fp = _prompt_fingerprint(prompt)
     if not fp:
@@ -161,17 +161,27 @@ def _concept_term_pool(concepts: list[dict[str, Any]]) -> list[str]:
     return terms
 
 
-def _should_skip_option_set(*, options: list[str], practice_state: dict[str, Any] | None) -> bool:
-    if not practice_state:
+def _normalize_option_set(options: list[str]) -> tuple[str, ...]:
+    return tuple(sorted(str(o).strip().lower() for o in options if str(o).strip()))
+
+
+def _option_set_already_used(*, options: list[str], practice_state: dict[str, Any] | None) -> bool:
+    if practice_state is None:
         return False
-    normalized = tuple(sorted(str(o).strip().lower() for o in options if str(o).strip()))
+    normalized = _normalize_option_set(options)
     if len(normalized) < 2:
         return False
-    seen = practice_state.setdefault("knowledge_option_sets", set())
-    if normalized in seen:
-        return True
-    seen.add(normalized)
-    return False
+    seen = practice_state.get("knowledge_option_sets")
+    return isinstance(seen, set) and normalized in seen
+
+
+def _remember_option_set(*, options: list[str], practice_state: dict[str, Any] | None) -> None:
+    if practice_state is None:
+        return
+    normalized = _normalize_option_set(options)
+    if len(normalized) < 2:
+        return
+    practice_state.setdefault("knowledge_option_sets", set()).add(normalized)
 
 
 def _is_definition_like_term(text: str) -> bool:
@@ -183,14 +193,7 @@ def _is_definition_like_term(text: str) -> bool:
     return bool(_DEFINITION_LIKE.search(cleaned) or cleaned.endswith("."))
 
 
-def _pick_distractors(
-    *,
-    pool: list[str],
-    correct: str,
-    siblings: list[str],
-    count: int = 3,
-    seed: str = "",
-) -> list[str]:
+def _distractor_candidates(*, pool: list[str], correct: str, siblings: list[str]) -> list[str]:
     candidates = [t for t in siblings + pool if t.lower() != correct.lower()]
     deduped: list[str] = []
     seen: set[str] = {correct.lower()}
@@ -200,11 +203,57 @@ def _pick_distractors(
             continue
         seen.add(key)
         deduped.append(term)
+    return deduped
+
+
+def _should_skip_option_set(*, options: list[str], practice_state: dict[str, Any] | None) -> bool:
+    if _option_set_already_used(options=options, practice_state=practice_state):
+        return True
+    _remember_option_set(options=options, practice_state=practice_state)
+    return False
+
+
+def _pick_distractors(
+    *,
+    pool: list[str],
+    correct: str,
+    siblings: list[str],
+    count: int = 3,
+    seed: str = "",
+) -> list[str]:
+    deduped = _distractor_candidates(pool=pool, correct=correct, siblings=siblings)
     if not deduped:
         return []
     offset = sum(ord(ch) for ch in seed) % len(deduped)
     rotated = deduped[offset:] + deduped[:offset]
     return rotated[:count]
+
+
+def _pick_unique_mc_options(
+    *,
+    pool: list[str],
+    correct: str,
+    siblings: list[str],
+    practice_state: dict[str, Any] | None,
+    seed: str = "",
+) -> tuple[list[str], int] | None:
+    """MC-Optionen wählen und dabei bereits vergebene 4er-Sets vermeiden."""
+    deduped = _distractor_candidates(pool=pool, correct=correct, siblings=siblings)
+    if len(deduped) < 2:
+        return None
+    base = sum(ord(ch) for ch in seed) % len(deduped)
+    for attempt in range(len(deduped)):
+        offset = (base + attempt) % len(deduped)
+        rotated = deduped[offset:] + deduped[:offset]
+        shuffled = _shuffle_mc_options(correct, rotated[:3])
+        if not shuffled:
+            continue
+        options, answer_idx = shuffled
+        if _option_set_already_used(options=options, practice_state=practice_state):
+            continue
+        _remember_option_set(options=options, practice_state=practice_state)
+        return options, answer_idx
+    return None
 
 
 def _shuffle_mc_options(correct: str, distractors: list[str]) -> tuple[list[str], int] | None:
@@ -470,14 +519,28 @@ def _derive_knowledge_choice_items(
             continue
         if _should_skip_prompt(prompt=prompt, practice_state=practice_state):
             continue
-        if _should_skip_option_set(options=options, practice_state=practice_state):
-            continue
+        correct_term = str(question.get("target_term") or "").strip()
         try:
             answer_index = int(question.get("answer"))
         except (TypeError, ValueError):
-            continue
+            answer_index = -1
         if answer_index < 0 or answer_index >= len(options):
             continue
+        if not correct_term:
+            correct_term = options[answer_index]
+        if _option_set_already_used(options=options, practice_state=practice_state):
+            alt = _pick_unique_mc_options(
+                pool=pool,
+                correct=correct_term,
+                siblings=_concept_term_pool([c for c in (basiswissen.get("concepts") or []) if isinstance(c, dict)]),
+                practice_state=practice_state,
+                seed=f"{question.get('concept_id')}:{correct_term}",
+            )
+            if not alt:
+                continue
+            options, answer_index = alt
+        else:
+            _remember_option_set(options=options, practice_state=practice_state)
         hint = _practice_hint_from_question(question, basiswissen)
         items.append(
             _choice_practice_item(
@@ -505,14 +568,17 @@ def _derive_knowledge_choice_items(
         prompt = f"Welcher Fachbegriff passt? «{clue}» (Thema: {_short_topic(label)})"
         if _should_skip_prompt(prompt=prompt, practice_state=practice_state):
             continue
-        distractors = _pick_distractors(pool=pool, correct=term, siblings=[], seed=term)
-        shuffled = _shuffle_mc_options(term, distractors)
-        if not shuffled:
+        picked = _pick_unique_mc_options(
+            pool=pool,
+            correct=term,
+            siblings=[],
+            practice_state=practice_state,
+            seed=term,
+        )
+        if not picked:
             continue
-        options, answer_index = shuffled
+        options, answer_index = picked
         if _is_weak_practice_prompt(prompt, term, options):
-            continue
-        if _should_skip_option_set(options=options, practice_state=practice_state):
             continue
         items.append(
             _choice_practice_item(

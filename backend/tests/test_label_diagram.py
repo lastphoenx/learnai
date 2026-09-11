@@ -245,7 +245,7 @@ def test_derive_practice_uses_definition_not_tautology():
 
 def test_derive_practice_dedupes_option_sets_across_modules():
     bw = parse_basiswissen_payload(CASTLE_BASISWISSEN, focus_group="nmg")
-    state: dict = {}
+    state: dict = {}  # empty dict must still enable cross-module dedup (not falsy-check bug)
     first = derive_practice_items(
         pedagogy=NMG_PEDAGOGY,
         basiswissen=bw,
