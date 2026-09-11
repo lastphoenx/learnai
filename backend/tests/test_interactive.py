@@ -1,5 +1,6 @@
 from app.ai.validators.interactive import (
     dedupe_interactive_modules,
+    sanitize_interactive_modules,
     trim_interactive_modules_to_budget,
     validate_interactive_modules,
 )
@@ -96,3 +97,36 @@ def test_trim_interactive_modules_to_budget():
     total_quiz = sum(len(m["quiz"]["questions"]) for m in trimmed)
     assert total_cards <= 12
     assert total_quiz <= 8
+
+
+def test_sanitize_interactive_modules_removes_weak_mental_cards():
+    modules = [
+        {
+            "title": "Römerzeit",
+            "content": {
+                "cards": [
+                    {
+                        "kind": "mental",
+                        "question": "Was bedeutet «Vindonissa» bei Vindonissa?",
+                        "answer": "Vindonissa: Von Vindonissa aus kontrollierten die Römer die Umgebung.",
+                    },
+                    {
+                        "kind": "mental",
+                        "question": "Was bedeutet «Schwertgriff aus Knochen» bei Waffen und Helmteile?",
+                        "answer": "Schwertgriff aus Knochen: Schwertgriff",
+                    },
+                    {
+                        "kind": "input",
+                        "question": "Vindonissa war ein römisches ___.",
+                        "answer": "Legionslager",
+                    },
+                ]
+            },
+            "quiz": {"questions": []},
+        }
+    ]
+    cleaned, warnings = sanitize_interactive_modules(modules)
+    cards = cleaned[0]["content"]["cards"]
+    assert len(cards) == 1
+    assert cards[0]["kind"] == "input"
+    assert len(warnings) == 2

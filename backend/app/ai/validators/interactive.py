@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 
 from app.ai.errors import LlmError
+from app.core.basiswissen import is_weak_mental_card_entry, mental_term_from_question
 from app.core.quiz_numeric import parse_quiz_numeric, resolve_quiz_expected_value
 
 _IMPORT_TERM = re.compile(r"«([^»]+)»")
@@ -182,6 +183,37 @@ def dedupe_interactive_modules(modules: list) -> tuple[list, list[str]]:
             kept_questions.append(q)
         quiz["questions"] = kept_questions
 
+    return modules, warnings
+
+
+def sanitize_interactive_modules(modules: list) -> tuple[list, list[str]]:
+    """Entfernt schwache Mental-Karten (tautologisch/leer) aus allen Modulen."""
+    warnings: list[str] = []
+    for index, raw in enumerate(modules):
+        if not isinstance(raw, dict):
+            continue
+        content = raw.get("content") if isinstance(raw.get("content"), dict) else {}
+        cards = content.get("cards") if isinstance(content.get("cards"), list) else []
+        kept_cards: list = []
+        for card in cards:
+            if not isinstance(card, dict):
+                kept_cards.append(card)
+                continue
+            kind = str(card.get("kind") or "").strip().lower()
+            question = str(card.get("question") or "").strip()
+            answer = str(card.get("answer") or "").strip()
+            is_mental = kind == "mental" or "was bedeutet «" in question.lower()
+            if not is_mental:
+                kept_cards.append(card)
+                continue
+            term = mental_term_from_question(question)
+            if term and is_weak_mental_card_entry(question=question, answer=answer, term=term):
+                warnings.append(
+                    f"Schwache Mental-Karte entfernt (Bereich {index + 1}): {question[:120]}"
+                )
+                continue
+            kept_cards.append(card)
+        content["cards"] = kept_cards
     return modules, warnings
 
 

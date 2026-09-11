@@ -34,6 +34,7 @@ from app.ai.task_types import AI_TASK_FOR_UNIT
 from app.ai.validators.interactive import (
     dedupe_interactive_modules,
     parse_quiz_answer,
+    sanitize_interactive_modules,
     trim_interactive_modules_to_budget,
     validate_interactive_modules,
 )
@@ -829,6 +830,13 @@ def generate_interactive_modules(
             len(questions),
         )
 
+    modules, sanitize_warnings = sanitize_interactive_modules(modules)
+    if sanitize_warnings:
+        _log.info(
+            "generate_interactive sanitize unit_id=%s removed=%d",
+            unit_id,
+            len(sanitize_warnings),
+        )
     modules, dedupe_warnings = dedupe_interactive_modules(modules)
     if dedupe_warnings:
         _log.info(
@@ -843,6 +851,8 @@ def generate_interactive_modules(
     )
     for warning in dedupe_warnings:
         _log.warning("generate_interactive dedupe unit_id=%s %s", unit_id, warning)
+    for warning in sanitize_warnings:
+        _log.warning("generate_interactive sanitize unit_id=%s %s", unit_id, warning)
 
     log_pedagogy_coverage_warnings(modules, pedagogy_profile, unit_id=str(unit_id))
     enforce_label_coverage(modules, pedagogy_profile)
@@ -1047,7 +1057,7 @@ def backfill_basiswissen_for_unit(
             errors.append(f"{domain}: {exc}")
             skipped += 1
 
-    if updated:
+    if updated or force:
         max_cards = int(trainer_opts.get("cards") or 12)
         max_questions = int(trainer_opts.get("questions") or 8)
         module_rows = sorted(unit.modules, key=lambda m: m.order_index)
@@ -1062,6 +1072,9 @@ def backfill_basiswissen_for_unit(
                     "quiz": quiz if isinstance(quiz, dict) else {"questions": []},
                 }
             )
+        payload, sanitize_warnings = sanitize_interactive_modules(payload)
+        for warning in sanitize_warnings:
+            _log.warning("backfill_basiswissen sanitize unit_id=%s %s", unit_id, warning)
         payload, dedupe_warnings = dedupe_interactive_modules(payload)
         for warning in dedupe_warnings:
             _log.warning("backfill_basiswissen dedupe unit_id=%s %s", unit_id, warning)
@@ -1072,12 +1085,12 @@ def backfill_basiswissen_for_unit(
                 max_questions=max_questions,
             )
         for module, row in zip(module_rows, payload):
-                if not isinstance(row, dict):
-                    continue
-                content = row.get("content") if isinstance(row.get("content"), dict) else {}
-                quiz = row.get("quiz") if isinstance(row.get("quiz"), dict) else {"questions": []}
-                module.content_encrypted = encrypt_json(content)
-                module.quiz_encrypted = encrypt_json(quiz)
+            if not isinstance(row, dict):
+                continue
+            content = row.get("content") if isinstance(row.get("content"), dict) else {}
+            quiz = row.get("quiz") if isinstance(row.get("quiz"), dict) else {"questions": []}
+            module.content_encrypted = encrypt_json(content)
+            module.quiz_encrypted = encrypt_json(quiz)
         db.flush()
     _log.info(
         "backfill_basiswissen unit_id=%s updated=%d skipped=%d focus_group=%s errors=%d",

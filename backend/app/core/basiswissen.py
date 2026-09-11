@@ -511,13 +511,15 @@ def _mental_term_answer(
             segment = narrowed
     if segment and segment.strip().lower() == pattern.strip().lower() and term.lower() not in segment.lower():
         segment = None
-    if segment:
+    if segment and not _is_degenerate_segment_answer(term, segment):
         if segment.lower() == term.lower() and form_hint:
             return f"{term}: {form_hint}"[:2000]
         bits = [f"{term}: {segment}"]
         if role_hint and role_hint.lower() not in segment.lower():
             bits.append(role_hint)
-        return ". ".join(bits)[:2000]
+        answer_text = ". ".join(bits)[:2000]
+        if not _is_degenerate_mental_answer(term, answer_text):
+            return answer_text
 
     if is_table_form:
         return f"{term}: {form_hint}"[:2000]
@@ -590,6 +592,57 @@ def _mental_term_question(term: str, part: dict[str, Any], concept: dict[str, An
     return f"Was ist der Fachbegriff «{term}»?"
 
 
+def mental_term_from_question(question: str) -> str:
+    match = re.search(r"«([^»]+)»", str(question or ""))
+    return match.group(1).strip() if match else ""
+
+
+def _answer_body_after_term_prefix(term: str, answer: str) -> str:
+    text = str(answer or "").strip()
+    prefix = str(term or "").strip()
+    if not prefix:
+        return text.lower()
+    if text.lower().startswith(prefix.lower()):
+        rest = text[len(prefix) :].lstrip()
+        if rest[:1] in {":", "—", "-"}:
+            rest = rest[1:].lstrip()
+        return rest.lower()
+    return text.lower()
+
+
+def _is_degenerate_segment_answer(term: str, segment: str) -> bool:
+    t = term.strip().lower()
+    s = segment.strip().lower()
+    if not s or s == t:
+        return True
+    words = t.split()
+    if len(words) > 1 and s == words[0]:
+        return True
+    if s in t and len(s) < max(8, len(t) * 0.45):
+        return True
+    return False
+
+
+def _is_degenerate_mental_answer(term: str, answer: str) -> bool:
+    t = term.strip().lower()
+    body = _answer_body_after_term_prefix(term, answer)
+    if not body or body == t:
+        return True
+    if len(body.split()) <= 1 and body in t:
+        return True
+    if t in body and len(body) < len(t) + 12:
+        return True
+    return False
+
+
+def is_weak_mental_card_entry(*, question: str, answer: str, term: str | None = None) -> bool:
+    """Schwache/tautologische Mental-Karte (LLM oder abgeleitet)."""
+    resolved = (term or mental_term_from_question(question)).strip()
+    if not resolved:
+        return False
+    return _is_weak_mental_card(question, resolved, answer)
+
+
 def _is_weak_mental_card(question: str, term: str, answer: str) -> bool:
     q = question.strip().lower()
     t = term.strip().lower()
@@ -600,6 +653,8 @@ def _is_weak_mental_card(question: str, term: str, answer: str) -> bool:
         tail = q.split(" bei ", 1)[-1].strip(" ?.")
         if t in tail or tail == t:
             return True
+    if _is_degenerate_mental_answer(term, answer):
+        return True
     if a.startswith(f"{t}:") and t in a and len(a.split()) <= 8:
         return True
     if a == t or a.startswith(f"{t} ") and len(a) < len(t) + 16:

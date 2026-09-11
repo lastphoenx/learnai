@@ -162,6 +162,27 @@ def test_derive_mental_term_cards_avoids_tautological_was_bedeutet_bei():
     assert not any("was bedeutet" in c["question"].lower() and " bei bergfried" in c["question"].lower() for c in cards)
 
 
+def test_is_weak_mental_card_entry_rejects_degenerate_and_tautology():
+    from app.core.basiswissen import is_weak_mental_card_entry
+
+    assert is_weak_mental_card_entry(
+        question="Was bedeutet «Schwertgriff aus Knochen» bei Waffen und Helmteile?",
+        answer="Schwertgriff aus Knochen: Schwertgriff",
+    )
+    assert is_weak_mental_card_entry(
+        question="Was bedeutet «Form, Material und Funktion prüfen» bei Fundstücke zuordnen?",
+        answer="Form, Material und Funktion prüfen: Form",
+    )
+    assert is_weak_mental_card_entry(
+        question="Was bedeutet «Vindonissa» bei Vindonissa?",
+        answer="Vindonissa: Von Vindonissa aus kontrollierten die Römer die Umgebung.",
+    )
+    assert not is_weak_mental_card_entry(
+        question="Was ist «Vindonissa»? (Hinweis: römisches Legionslager in Windisch; Thema: Römerzeit)",
+        answer="Vindonissa: römisches Legionslager in Windisch.",
+    )
+
+
 def test_derive_mental_term_cards_use_term_specific_answers():
     from pathlib import Path
     import json
