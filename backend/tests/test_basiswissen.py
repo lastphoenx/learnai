@@ -92,6 +92,76 @@ def test_derive_mental_term_cards_dedupes_repeated_terms():
     assert len(factor_cards) == 1
 
 
+def test_derive_mental_term_cards_dedupes_across_modules():
+    bw = parse_basiswissen_payload(
+        {
+            "basiswissen": {
+                "schema_version": 1,
+                "focus_group": "nmg",
+                "concepts": [
+                    {
+                        "id": "castle_terms",
+                        "label": "Burg im Hochmittelalter",
+                        "parts": [
+                            {"role": "bergfried", "term": "Bergfried", "hint": "Höchster Turm"},
+                            {"role": "wehrgang", "term": "Wehrgang", "hint": "Gang auf der Mauer"},
+                            {"role": "palas", "term": "Palas", "hint": "Wohngebäude"},
+                        ],
+                        "hint": "Teile einer Burg.",
+                    }
+                ],
+                "cloze_templates": [],
+            }
+        },
+        focus_group="nmg",
+    )
+    state: dict = {}
+    first = derive_mental_term_cards(bw, card_state=state)
+    second = derive_mental_term_cards(bw, card_state=state)
+    first_terms = {
+        m.group(1)
+        for c in first
+        if (m := re.search(r"«([^»]+)»", c["question"]))
+    }
+    second_terms = {
+        m.group(1)
+        for c in second
+        if (m := re.search(r"«([^»]+)»", c["question"]))
+    }
+    assert first_terms
+    assert not second_terms.intersection(first_terms)
+
+
+def test_derive_mental_term_cards_avoids_tautological_was_bedeutet_bei():
+    bw = parse_basiswissen_payload(
+        {
+            "basiswissen": {
+                "schema_version": 1,
+                "focus_group": "nmg",
+                "concepts": [
+                    {
+                        "id": "bf",
+                        "label": "Bergfried",
+                        "parts": [
+                            {
+                                "role": "begriff",
+                                "term": "Bergfried",
+                                "hint": "Der höchste Turm der Burg — gute Fernsicht.",
+                            }
+                        ],
+                        "hint": "Der Bergfried ist der höchste Turm.",
+                    }
+                ],
+                "cloze_templates": [],
+            }
+        },
+        focus_group="nmg",
+    )
+    cards = derive_mental_term_cards(bw)
+    assert cards
+    assert not any("was bedeutet" in c["question"].lower() and " bei bergfried" in c["question"].lower() for c in cards)
+
+
 def test_derive_mental_term_cards_use_term_specific_answers():
     from pathlib import Path
     import json

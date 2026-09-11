@@ -34,6 +34,7 @@ from app.ai.task_types import AI_TASK_FOR_UNIT
 from app.ai.validators.interactive import (
     dedupe_interactive_modules,
     parse_quiz_answer,
+    trim_interactive_modules_to_budget,
     validate_interactive_modules,
 )
 from app.core.crypto import decrypt_text_master
@@ -723,6 +724,8 @@ def generate_interactive_modules(
     all_card_questions: list[str] = []
     all_quiz_questions: list[str] = []
     practice_state: dict[str, Any] = {}
+    card_state: dict[str, Any] = {}
+    compact = card_target <= 15 and question_target <= 10
 
     for index, cat in enumerate(categories):
         if progress:
@@ -807,6 +810,8 @@ def generate_interactive_modules(
             category_label=cat["name"],
             pedagogy=pedagogy_profile,
             practice_state=practice_state,
+            card_state=card_state,
+            compact=compact,
         )
 
         modules.append(
@@ -825,6 +830,17 @@ def generate_interactive_modules(
         )
 
     modules, dedupe_warnings = dedupe_interactive_modules(modules)
+    if dedupe_warnings:
+        _log.info(
+            "generate_interactive dedupe unit_id=%s removed=%d",
+            unit_id,
+            len(dedupe_warnings),
+        )
+    modules = trim_interactive_modules_to_budget(
+        modules,
+        max_cards=card_target,
+        max_questions=question_target,
+    )
     for warning in dedupe_warnings:
         _log.warning("generate_interactive dedupe unit_id=%s %s", unit_id, warning)
 
@@ -960,6 +976,8 @@ def backfill_basiswissen_for_unit(
     skipped = 0
     errors: list[str] = []
     practice_state: dict[str, Any] = {}
+    card_state: dict[str, Any] = {}
+    compact = int(trainer_opts.get("cards") or 50) <= 15
     for module in sorted(unit.modules, key=lambda m: m.order_index):
         content = decrypt_json(module.content_encrypted) or {}
         quiz = decrypt_json(module.quiz_encrypted) or {}
@@ -1009,6 +1027,8 @@ def backfill_basiswissen_for_unit(
                 category_label=domain,
                 pedagogy=pedagogy_profile,
                 practice_state=practice_state,
+                card_state=card_state,
+                compact=compact,
             )
             repaired = repair_generated_module({"content": content, "quiz": quiz_dict})
             content = repaired.get("content") if isinstance(repaired.get("content"), dict) else content
@@ -1028,6 +1048,33 @@ def backfill_basiswissen_for_unit(
             skipped += 1
 
     if updated:
+        max_cards = int(trainer_opts.get("cards") or 12)
+        max_questions = int(trainer_opts.get("questions") or 8)
+        if compact:
+            module_rows = sorted(unit.modules, key=lambda m: m.order_index)
+            payload = []
+            for module in module_rows:
+                content = decrypt_json(module.content_encrypted) or {}
+                quiz = decrypt_json(module.quiz_encrypted) or {}
+                payload.append(
+                    {
+                        "title": decrypt_text_master(module.title_encrypted),
+                        "content": content if isinstance(content, dict) else {},
+                        "quiz": quiz if isinstance(quiz, dict) else {"questions": []},
+                    }
+                )
+            trimmed = trim_interactive_modules_to_budget(
+                payload,
+                max_cards=max_cards,
+                max_questions=max_questions,
+            )
+            for module, row in zip(module_rows, trimmed):
+                if not isinstance(row, dict):
+                    continue
+                content = row.get("content") if isinstance(row.get("content"), dict) else {}
+                quiz = row.get("quiz") if isinstance(row.get("quiz"), dict) else {"questions": []}
+                module.content_encrypted = encrypt_json(content)
+                module.quiz_encrypted = encrypt_json(quiz)
         db.flush()
     _log.info(
         "backfill_basiswissen unit_id=%s updated=%d skipped=%d focus_group=%s errors=%d",

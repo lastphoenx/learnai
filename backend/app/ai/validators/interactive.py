@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import re
+
 from app.ai.errors import LlmError
 from app.core.quiz_numeric import parse_quiz_numeric, resolve_quiz_expected_value
+
+_IMPORT_TERM = re.compile(r"«([^»]+)»")
 
 IMPORT_MAX_MODULES = 8
 IMPORT_MAX_CARDS = 150
@@ -129,6 +133,7 @@ def dedupe_interactive_modules(modules: list) -> tuple[list, list[str]]:
     """Entfernt doppelte Karten-/Quizfragen (behalten: erste). Warnungen statt Abbruch."""
     warnings: list[str] = []
     seen: set[str] = set()
+    seen_terms: set[str] = set()
 
     for index, raw in enumerate(modules):
         if not isinstance(raw, dict):
@@ -144,12 +149,21 @@ def dedupe_interactive_modules(modules: list) -> tuple[list, list[str]]:
                 kept_cards.append(card)
                 continue
             norm = normalize_question(str(card.get("question") or ""))
+            term_match = _IMPORT_TERM.search(str(card.get("question") or ""))
+            term_key = term_match.group(1).strip().lower() if term_match else ""
+            if term_key and term_key in seen_terms:
+                warnings.append(
+                    f"Duplikat-Begriff entfernt (Bereich {index + 1}): {card.get('question')}"
+                )
+                continue
             if norm in seen:
                 warnings.append(
                     f"Duplikat Lernkarte entfernt (Bereich {index + 1}): {card.get('question')}"
                 )
                 continue
             seen.add(norm)
+            if term_key:
+                seen_terms.add(term_key)
             kept_cards.append(card)
         content["cards"] = kept_cards
 
@@ -169,6 +183,60 @@ def dedupe_interactive_modules(modules: list) -> tuple[list, list[str]]:
         quiz["questions"] = kept_questions
 
     return modules, warnings
+
+
+def trim_interactive_modules_to_budget(
+    modules: list,
+    *,
+    max_cards: int | None = None,
+    max_questions: int | None = None,
+) -> list:
+    """Kürzt Module auf Preset-Obergrenze — spätere Module zuerst."""
+    if not modules:
+        return modules
+    if max_cards is None and max_questions is None:
+        return modules
+
+    def totals() -> tuple[int, int]:
+        cards = 0
+        questions = 0
+        for raw in modules:
+            if not isinstance(raw, dict):
+                continue
+            content = raw.get("content") if isinstance(raw.get("content"), dict) else {}
+            quiz = raw.get("quiz") if isinstance(raw.get("quiz"), dict) else {}
+            cards += len(content.get("cards") or [])
+            questions += len(quiz.get("questions") or [])
+        return cards, questions
+
+    total_cards, total_questions = totals()
+    if (max_cards is None or total_cards <= max_cards) and (
+        max_questions is None or total_questions <= max_questions
+    ):
+        return modules
+
+    for index in range(len(modules) - 1, -1, -1):
+        raw = modules[index]
+        if not isinstance(raw, dict):
+            continue
+        content = raw.get("content") if isinstance(raw.get("content"), dict) else {}
+        quiz = raw.get("quiz") if isinstance(raw.get("quiz"), dict) else {}
+        cards = content.get("cards") if isinstance(content.get("cards"), list) else []
+        questions = quiz.get("questions") if isinstance(quiz.get("questions"), list) else []
+        while cards and max_cards is not None and total_cards > max_cards:
+            cards.pop()
+            total_cards -= 1
+        while questions and max_questions is not None and total_questions > max_questions:
+            questions.pop()
+            total_questions -= 1
+        content["cards"] = cards
+        quiz["questions"] = questions
+        total_cards, total_questions = totals()
+        if (max_cards is None or total_cards <= max_cards) and (
+            max_questions is None or total_questions <= max_questions
+        ):
+            break
+    return modules
 
 
 def validate_interactive_modules(

@@ -561,12 +561,78 @@ def _concept_quiz_explanation(concept: dict[str, Any], part: dict[str, Any], cor
     return " ".join(bits)[:1200]
 
 
-def derive_mental_term_cards(basiswissen: dict[str, Any]) -> list[dict[str, Any]]:
+def _scrub_term_clue(text: str, term: str) -> str | None:
+    raw = re.sub(r"\s+", " ", str(text or "").strip())
+    if len(raw) < 12:
+        return None
+    if term.lower() not in raw.lower():
+        return raw[:220]
+    clue = re.sub(re.escape(term), "…", raw, flags=re.I)
+    clue = re.sub(r"\s+", " ", clue).strip(" .—–-")
+    if len(clue) < 14 or clue in {"…", "….", "… …"}:
+        return None
+    return clue[:220]
+
+
+def _mental_term_question(term: str, part: dict[str, Any], concept: dict[str, Any]) -> str:
+    label = str(concept.get("label") or "").strip()
+    role = str(part.get("role") or "").strip().lower()
+    role_label = ROLE_LABELS_DE.get(role, "")
+    for raw in (str(part.get("hint") or "").strip(), str(concept.get("hint") or "").strip()):
+        clue = _scrub_term_clue(raw, term)
+        if clue:
+            topic = label[:48] if label and label.lower() != term.lower() else "Thema"
+            return f"Was ist «{term}»? (Hinweis: {clue}; Thema: {topic})"
+    if role_label and role_label.lower() not in {term.lower(), "", "begriff", "term", "part", "whole"}:
+        return f"Welche Rolle hat «{term}» — {role_label}?"
+    if label and term.lower() != label.lower() and len(label.split()) <= 6:
+        return f"Was bezeichnet «{term}» im Zusammenhang «{label}»?"
+    return f"Was ist der Fachbegriff «{term}»?"
+
+
+def _is_weak_mental_card(question: str, term: str, answer: str) -> bool:
+    q = question.strip().lower()
+    t = term.strip().lower()
+    a = answer.strip().lower()
+    if not t or not a:
+        return True
+    if "was bedeutet" in q and f"«{term}»".lower() in q and " bei " in q:
+        tail = q.split(" bei ", 1)[-1].strip(" ?.")
+        if t in tail or tail == t:
+            return True
+    if a.startswith(f"{t}:") and t in a and len(a.split()) <= 8:
+        return True
+    if a == t or a.startswith(f"{t} ") and len(a) < len(t) + 16:
+        return True
+    return False
+
+
+def _mental_question_key(question: str) -> str:
+    return re.sub(r"\s+", " ", str(question or "").strip().lower())[:240]
+
+
+def _mental_term_key(term: str) -> str:
+    return str(term or "").strip().lower()
+
+
+def derive_mental_term_cards(
+    basiswissen: dict[str, Any],
+    *,
+    card_state: dict[str, Any] | None = None,
+    max_count: int = 16,
+) -> list[dict[str, Any]]:
     cards: list[dict[str, Any]] = []
     seen_answers: set[str] = set()
+    global_terms: set[str] | None = None
+    global_questions: set[str] | None = None
+    if card_state is not None:
+        global_terms = card_state.setdefault("mental_terms", set())
+        global_questions = card_state.setdefault("mental_questions", set())
     for concept in basiswissen.get("concepts") or []:
         if not isinstance(concept, dict):
             continue
+        if len(cards) >= max_count:
+            break
         label = str(concept.get("label") or "").strip()
         example = str(concept.get("example") or "").strip()
         pattern = str(concept.get("pattern") or "").strip()
@@ -583,25 +649,38 @@ def derive_mental_term_cards(basiswissen: dict[str, Any]) -> list[dict[str, Any]
             str(p.get("term") or "").strip(): idx + 1 for idx, p in enumerate(procedural_parts)
         }
         for part in concept.get("parts") or []:
+            if len(cards) >= max_count:
+                break
             if not isinstance(part, dict):
                 continue
             term = str(part.get("term") or "").strip()
             if not term:
                 continue
-            term_key = term.lower()
+            term_key = _mental_term_key(term)
             if term_key in seen_terms:
                 continue
+            if global_terms is not None and term_key in global_terms:
+                continue
             seen_terms.add(term_key)
-            question = f"Was bedeutet «{term}» bei {label}?"
+            question = _mental_term_question(term, part, concept)
             answer = _mental_term_answer(
                 part,
                 concept,
                 step_index=step_index_by_term.get(term),
             )
+            if _is_weak_mental_card(question, term, answer):
+                continue
+            q_key = _mental_question_key(question)
+            if global_questions is not None and q_key in global_questions:
+                continue
             answer_key = answer[:80].strip().lower()
             if answer_key in seen_answers:
                 continue
             seen_answers.add(answer_key)
+            if global_terms is not None:
+                global_terms.add(term_key)
+            if global_questions is not None:
+                global_questions.add(q_key)
             cards.append(
                 {
                     "kind": "mental",
@@ -614,7 +693,7 @@ def derive_mental_term_cards(basiswissen: dict[str, Any]) -> list[dict[str, Any]
                     "method_label": label[:120],
                 }
             )
-    return cards[:16]
+    return cards[:max_count]
 
 
 def _concept_quiz_question_text(
@@ -801,6 +880,7 @@ def strip_basiswissen_derivatives(
 
 _MAX_DERIVED_MENTAL_CARDS = 8
 _MAX_DERIVED_CLOZE_CARDS = 3
+_MAX_DERIVED_MENTAL_PER_MODULE_COMPACT = 2
 
 
 def enrich_module_with_basiswissen(
@@ -812,6 +892,8 @@ def enrich_module_with_basiswissen(
     category_label: str = "",
     pedagogy: dict[str, Any] | None = None,
     practice_state: dict[str, Any] | None = None,
+    card_state: dict[str, Any] | None = None,
+    compact: bool = False,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     bw = basiswissen if isinstance(basiswissen, dict) else empty_basiswissen()
     content = dict(content)
@@ -827,8 +909,9 @@ def enrich_module_with_basiswissen(
         knowledge.insert(0, overview)
     content["knowledge"] = knowledge
     cards = list(content.get("cards") or [])
-    derived = derive_mental_term_cards(bw)[:_MAX_DERIVED_MENTAL_CARDS]
-    derived += derive_cloze_cards(bw)[:_MAX_DERIVED_CLOZE_CARDS]
+    mental_cap = _MAX_DERIVED_MENTAL_PER_MODULE_COMPACT if compact else _MAX_DERIVED_MENTAL_CARDS
+    derived = derive_mental_term_cards(bw, card_state=card_state, max_count=mental_cap)
+    derived += derive_cloze_cards(bw)[: (_MAX_DERIVED_CLOZE_CARDS if not compact else 1)]
     content["cards"] = prepend_unique_cards(cards, derived)
     questions = list(quiz.get("questions") or [])
     concept_max = max(2, question_count // 4)
