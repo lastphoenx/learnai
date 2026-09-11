@@ -597,8 +597,10 @@ def generate_interactive_modules(
     answer_length = str(options.get("answer_length") or "short")
 
     _log.info(
-        "generate_interactive start unit_id=%s cards=%d questions=%d style=%s sources=%d",
+        "generate_interactive start unit_id=%s chat=%s/%s cards=%d questions=%d style=%s sources=%d",
         unit_id,
+        name,
+        model or "(auto)",
         card_target,
         question_target,
         style,

@@ -1,17 +1,24 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { fetchMe, fetchUnitQualityReport, type UnitQualityReport, type User } from "@/lib/api";
 
 export default function AdminUnitReportPage() {
+  const searchParams = useSearchParams();
   const [user, setUser] = useState<User | null>(null);
   const [ref, setRef] = useState("");
   const [result, setResult] = useState<UnitQualityReport | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    const preset = searchParams.get("ref");
+    if (preset) setRef(preset);
+  }, [searchParams]);
 
   useEffect(() => {
     fetchMe()

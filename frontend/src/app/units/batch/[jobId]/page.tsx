@@ -6,11 +6,15 @@ import { useEffect, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import {
   batchImportCanResume,
+  batchImportRowCanRetry,
   cancelBatchImport,
+  fetchBatchImportQuality,
   fetchBatchImportStatus,
   fetchMe,
   resumeBatchImport,
+  retryBatchImportUnits,
   type BatchImportJob,
+  type BatchImportQualitySummary,
   type User,
 } from "@/lib/api";
 
@@ -50,6 +54,19 @@ function unitStatusLabel(status?: string) {
   }
 }
 
+function pedagogyLevelLabel(level?: string | null) {
+  switch (level) {
+    case "good":
+      return "gut";
+    case "partial":
+      return "teilweise";
+    case "low":
+      return "gering";
+    default:
+      return level || "—";
+  }
+}
+
 export default function BatchImportProgressPage() {
   const params = useParams();
   const batchId = String(params.jobId || "");
@@ -58,7 +75,10 @@ export default function BatchImportProgressPage() {
   const [error, setError] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
   const [resuming, setResuming] = useState(false);
+  const [retrying, setRetrying] = useState(false);
   const [pollRev, setPollRev] = useState(0);
+  const [selected, setSelected] = useState<Set<number>>(() => new Set());
+  const [quality, setQuality] = useState<BatchImportQualitySummary | null>(null);
 
   useEffect(() => {
     fetchMe()
@@ -94,6 +114,48 @@ export default function BatchImportProgressPage() {
       if (timer) clearTimeout(timer);
     };
   }, [batchId, pollRev]);
+
+  useEffect(() => {
+    if (!batchId || !job) return;
+    const finishedUnits = job.units?.filter((u) => u.generate_status === "done").length ?? 0;
+    if (finishedUnits === 0 && !["done", "partial", "failed", "cancelled"].includes(job.status)) return;
+    let cancelled = false;
+    fetchBatchImportQuality(batchId)
+      .then((summary) => {
+        if (!cancelled) setQuality(summary);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [batchId, job]);
+
+  function toggleSelected(index: number) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
+  }
+
+  async function onRetry(indices: number[]) {
+    if (!batchId || retrying || indices.length === 0) return;
+    setRetrying(true);
+    setError(null);
+    try {
+      const next = await retryBatchImportUnits(batchId, indices);
+      setJob(next);
+      setSelected(new Set());
+      if (["queued", "running", "cancelling"].includes(next.status)) {
+        setPollRev((value) => value + 1);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erneut starten fehlgeschlagen");
+    } finally {
+      setRetrying(false);
+    }
+  }
 
   async function onCancel() {
     if (!batchId || cancelling) return;
@@ -133,6 +195,11 @@ export default function BatchImportProgressPage() {
   const total = job?.total ?? job?.units?.length ?? 0;
   const active = job && ["queued", "running", "cancelling"].includes(job.status);
   const canResume = job && batchImportCanResume(job);
+  const retryableSelected = [...selected].filter((index) => {
+    const row = job?.units?.[index];
+    return row && job && batchImportRowCanRetry(job, row);
+  });
+  const qualityByIndex = new Map((quality?.rows ?? []).map((row) => [row.index, row.quality]));
 
   if (error && !user) {
     return (
@@ -204,6 +271,16 @@ export default function BatchImportProgressPage() {
               {resuming ? "Startet…" : "Fortsetzen"}
             </button>
           )}
+          {!active && retryableSelected.length > 0 && (
+            <button
+              type="button"
+              className="btn"
+              disabled={retrying}
+              onClick={() => void onRetry(retryableSelected)}
+            >
+              {retrying ? "Startet…" : `Auswahl erneut (${retryableSelected.length})`}
+            </button>
+          )}
           <Link className="btn" href="/units/batch">
             Neuer Batch
           </Link>
@@ -215,10 +292,22 @@ export default function BatchImportProgressPage() {
           <ul className="unit-list batch-progress-list">
             {job.units.map((row, index) => {
               const rowBadge = statusLabel(row.generate_status || "pending");
+              const canRetryRow = job && batchImportRowCanRetry(job, row);
+              const q = qualityByIndex.get(index);
               return (
                 <li key={`${index}-${row.title}`} className="unit-list-item card unit-list-card batch-progress-row">
                   <div className="unit-list-link">
                     <div className="unit-list-head">
+                      {canRetryRow && (
+                        <label style={{ display: "flex", alignItems: "center", marginRight: 8 }}>
+                          <input
+                            type="checkbox"
+                            checked={selected.has(index)}
+                            onChange={() => toggleSelected(index)}
+                            aria-label={`Zeile ${index + 1} für Erneut-Start auswählen`}
+                          />
+                        </label>
+                      )}
                       <span className="unit-list-title">
                         {index + 1}. {row.title}
                         {row.posten ? ` (Posten ${row.posten})` : ""}
@@ -228,20 +317,91 @@ export default function BatchImportProgressPage() {
                     </div>
                     <p className="muted" style={{ margin: "0.35rem 0 0", fontSize: "0.9rem" }}>
                       PDF S. {row.page_from}–{row.page_to}
+                      {q?.reference_code ? ` · Ref. ${q.reference_code}` : ""}
+                      {q?.card_count != null && q?.question_count != null
+                        ? ` · ${q.card_count}/${q.trainer_target_cards ?? "?"} Karten, ${q.question_count}/${q.trainer_target_questions ?? "?"} Quiz`
+                        : ""}
+                      {q?.pedagogy_level ? ` · Didaktik ${pedagogyLevelLabel(q.pedagogy_level)}` : ""}
                     </p>
                     {row.error && <p className="err" style={{ margin: "0.35rem 0 0" }}>{row.error}</p>}
                   </div>
-                  {row.unit_id && row.generate_status === "done" && (
-                    <div className="unit-list-actions">
-                      <Link className="btn btn-primary" href={`/units/${row.unit_id}`}>
-                        Öffnen
-                      </Link>
-                    </div>
-                  )}
+                  <div className="unit-list-actions" style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem" }}>
+                    {canRetryRow && (
+                      <button
+                        type="button"
+                        className="btn ghost btn-sm"
+                        disabled={retrying}
+                        onClick={() => void onRetry([index])}
+                      >
+                        Erneut
+                      </button>
+                    )}
+                    {row.unit_id && row.generate_status === "done" && (
+                      <>
+                        <Link className="btn btn-primary btn-sm" href={`/units/${row.unit_id}`}>
+                          Öffnen
+                        </Link>
+                        <Link className="btn ghost btn-sm" href={`/units/${row.unit_id}#didaktik`}>
+                          Didaktik
+                        </Link>
+                        {user?.is_admin && q?.report_ref && (
+                          <Link
+                            className="btn ghost btn-sm"
+                            href={`/admin/unit-report?ref=${encodeURIComponent(q.report_ref)}`}
+                          >
+                            Report
+                          </Link>
+                        )}
+                      </>
+                    )}
+                  </div>
                 </li>
               );
             })}
           </ul>
+        </section>
+      )}
+
+      {quality && (quality.done ?? 0) > 0 && (
+        <section className="card stack">
+          <h2 style={{ margin: 0, fontSize: "1.05rem" }}>Qualitätsübersicht</h2>
+          <p className="muted" style={{ margin: 0 }}>
+            {quality.done}/{quality.total} fertig
+            {(quality.failed ?? 0) > 0 ? ` · ${quality.failed} Fehler` : ""}
+            {(quality.pending ?? 0) > 0 ? ` · ${quality.pending} wartend` : ""}
+          </p>
+          <div style={{ overflowX: "auto" }}>
+            <table className="batch-quality-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Titel</th>
+                  <th>Ref.</th>
+                  <th>Karten</th>
+                  <th>Quiz</th>
+                  <th>Didaktik</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(quality.rows ?? [])
+                  .filter((row) => row.quality)
+                  .map((row) => (
+                    <tr key={row.index}>
+                      <td>{row.index + 1}</td>
+                      <td>{row.title}</td>
+                      <td>{row.quality?.reference_code || "—"}</td>
+                      <td>
+                        {row.quality?.card_count}/{row.quality?.trainer_target_cards ?? "?"}
+                      </td>
+                      <td>
+                        {row.quality?.question_count}/{row.quality?.trainer_target_questions ?? "?"}
+                      </td>
+                      <td>{pedagogyLevelLabel(row.quality?.pedagogy_level)}</td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
         </section>
       )}
     </main>

@@ -656,7 +656,7 @@ export default function UnitDetailPage() {
           </section>
 
           {sourceCount > 0 && unit.task_type === "interactive" && (
-            <details className="card unit-section unit-pedagogy-section unit-pedagogy-collapsible" open={!pedagogy?.has_pedagogy || pedagogy?.analysis_current === false}>
+            <details className="card unit-section unit-pedagogy-section unit-pedagogy-collapsible" id="didaktik" open={!pedagogy?.has_pedagogy || pedagogy?.analysis_current === false}>
               <summary className="unit-pedagogy-summary">
                 <span className="section-head unit-pedagogy-summary-head">
                   <h2>Didaktik aus Quellen</h2>

@@ -2813,6 +2813,24 @@ details[open].unit-effective-ai-row > summary .unit-effective-ai-row-chevron {
   cursor: default;
 }
 
+.batch-quality-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+.batch-quality-table th,
+.batch-quality-table td {
+  padding: 0.45rem 0.6rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+
+.batch-quality-table th {
+  font-weight: 600;
+  color: var(--muted);
+}
+
 /* —— Responsive: Smartphone → Tablet → Desktop → grosser Monitor —— */
 
 /* Smartphone */

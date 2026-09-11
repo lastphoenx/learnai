@@ -1031,6 +1031,58 @@ export function batchImportCanResume(job: BatchImportJob | null | undefined): bo
   return (job.units ?? []).some((row) => row.generate_status !== "done");
 }
 
+export function batchImportRowCanRetry(
+  job: BatchImportJob | null | undefined,
+  row: BatchImportUnitRow,
+): boolean {
+  if (!job || ["queued", "running", "cancelling"].includes(job.status)) return false;
+  return row.generate_status === "failed" || row.generate_status === "pending";
+}
+
+export type BatchImportUnitQuality = {
+  unit_id: string;
+  reference_code?: string | null;
+  title?: string;
+  status?: string;
+  module_count?: number;
+  card_count?: number;
+  question_count?: number;
+  trainer_target_cards?: number;
+  trainer_target_questions?: number;
+  pedagogy_level?: string | null;
+  pedagogy_methods?: number | null;
+  pedagogy_key_terms?: number | null;
+  unit_url?: string;
+  report_ref?: string | null;
+};
+
+export type BatchImportQualitySummary = {
+  batch_id: string;
+  job_status?: string;
+  total?: number;
+  done?: number;
+  failed?: number;
+  pending?: number;
+  rows?: Array<{
+    index: number;
+    title?: string;
+    posten?: number | null;
+    is_review?: boolean;
+    generate_status?: string;
+    error?: string | null;
+    quality?: BatchImportUnitQuality | null;
+  }>;
+};
+
+export const fetchBatchImportQuality = (batchId: string) =>
+  apiFetch<BatchImportQualitySummary>(`/api/v1/units/batch-import/${batchId}/quality`);
+
+export const retryBatchImportUnits = (batchId: string, indices: number[]) =>
+  apiFetch<BatchImportJob>(`/api/v1/units/batch-import/${batchId}/retry`, {
+    method: "POST",
+    json: { indices },
+  });
+
 export async function waitForBatchImportJob(
   batchId: string,
   onUpdate?: (job: BatchImportJob) => void,

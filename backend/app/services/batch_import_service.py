@@ -334,6 +334,60 @@ def cancel_batch_import(db: Session, user: User, batch_id: str) -> dict[str, Any
     return updated
 
 
+_RETRYABLE_UNIT_STATUSES = frozenset({"failed", "pending"})
+
+
+def _reset_batch_unit_rows(
+    units: list[Any],
+    *,
+    indices: set[int] | None = None,
+) -> tuple[list[dict[str, Any]], int]:
+    """Setzt ausgewählte (oder alle offenen) Zeilen auf pending. Returns (rows, reset_count)."""
+    updated_units: list[dict[str, Any]] = []
+    reset_count = 0
+    for index, row in enumerate(units):
+        if not isinstance(row, dict):
+            updated_units.append(row)
+            continue
+        next_row = dict(row)
+        if next_row.get("generate_status") == "done":
+            updated_units.append(next_row)
+            continue
+        if indices is not None and index not in indices:
+            updated_units.append(next_row)
+            continue
+        status = str(next_row.get("generate_status") or "pending")
+        if indices is not None and status not in _RETRYABLE_UNIT_STATUSES:
+            raise UnitError(
+                f"Zeile {index + 1} kann nicht erneut gestartet werden (Status: {status})",
+                "invalid_state",
+            )
+        next_row["generate_status"] = "pending"
+        next_row["error"] = None
+        next_row["unit_id"] = None
+        updated_units.append(next_row)
+        reset_count += 1
+    return updated_units, reset_count
+
+
+def _queue_batch_import_job(batch_id: str, user_id: str, *, message: str) -> dict[str, Any]:
+    from app.tasks.batch_import import batch_import_task
+
+    update_batch_import_job(
+        batch_id,
+        status="queued",
+        cancel_requested=False,
+        error=None,
+        message=message,
+    )
+    task = batch_import_task.delay(batch_id, user_id)
+    update_batch_import_job(batch_id, celery_task_id=task.id)
+    job = get_batch_import_job(batch_id)
+    if not job:
+        raise UnitError("Batch-Job nicht gefunden", "not_found")
+    return job
+
+
 def resume_batch_import(db: Session, user: User, batch_id: str) -> dict[str, Any]:
     """Fehlgeschlagene/abgebrochene Batch-Jobs fortsetzen — fertige Einheiten werden übersprungen."""
     job = get_batch_import_status(db, user, batch_id)
@@ -346,37 +400,53 @@ def resume_batch_import(db: Session, user: User, batch_id: str) -> dict[str, Any
     if not pdf_path.is_file():
         raise UnitError("PDF-Datei nicht mehr vorhanden — neuer Batch nötig", "not_found")
 
-    updated_units: list[dict[str, Any]] = []
-    for row in job.get("units") or []:
-        if not isinstance(row, dict):
-            updated_units.append(row)
-            continue
-        next_row = dict(row)
-        if next_row.get("generate_status") == "done":
-            updated_units.append(next_row)
-            continue
-        next_row["generate_status"] = "pending"
-        next_row["error"] = None
-        next_row["unit_id"] = None
-        updated_units.append(next_row)
+    updated_units, reset_count = _reset_batch_unit_rows(job.get("units") or [], indices=None)
+    if reset_count <= 0:
+        raise UnitError("Keine Einheiten zum Fortsetzen", "nothing_to_do")
 
-    update_batch_import_job(
+    update_batch_import_job(batch_id, units=updated_units)
+    return _queue_batch_import_job(batch_id, str(user.id), message="Fortsetzung in Warteschlange…")
+
+
+def retry_batch_import_units(
+    db: Session,
+    user: User,
+    batch_id: str,
+    indices: list[int],
+) -> dict[str, Any]:
+    """Einzelne fehlgeschlagene/wartende Batch-Zeilen erneut in die Queue stellen."""
+    if not indices:
+        raise UnitError("Keine Zeilen ausgewählt", "invalid_payload")
+
+    job = get_batch_import_status(db, user, batch_id)
+    if batch_is_active(job):
+        raise UnitError("Batch läuft bereits", "conflict")
+
+    status = str(job.get("status") or "")
+    if status in {"queued", "running", "cancelling"}:
+        raise UnitError("Batch kann nicht erneut gestartet werden", "invalid_state")
+
+    pdf_path = Path(str(job.get("pdf_path") or ""))
+    if not pdf_path.is_file():
+        raise UnitError("PDF-Datei nicht mehr vorhanden — neuer Batch nötig", "not_found")
+
+    units = job.get("units") or []
+    index_set = {int(i) for i in indices}
+    for idx in index_set:
+        if idx < 0 or idx >= len(units):
+            raise UnitError(f"Ungültiger Index {idx + 1}", "invalid_payload")
+
+    updated_units, reset_count = _reset_batch_unit_rows(units, indices=index_set)
+    if reset_count <= 0:
+        raise UnitError("Keine passenden Zeilen zum Erneut-Starten", "nothing_to_do")
+
+    update_batch_import_job(batch_id, units=updated_units)
+    label = reset_count == 1 and f"Zeile {sorted(index_set)[0] + 1}" or f"{reset_count} Zeilen"
+    return _queue_batch_import_job(
         batch_id,
-        status="queued",
-        cancel_requested=False,
-        error=None,
-        message="Fortsetzung in Warteschlange…",
-        units=updated_units,
+        str(user.id),
+        message=f"Erneut starten: {label}…",
     )
-
-    from app.tasks.batch_import import batch_import_task
-
-    task = batch_import_task.delay(batch_id, str(user.id))
-    update_batch_import_job(batch_id, celery_task_id=task.id)
-    resumed = get_batch_import_job(batch_id)
-    if not resumed:
-        raise UnitError("Batch-Job nicht gefunden", "not_found")
-    return resumed
 
 
 def _spec_from_job_row(row: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
