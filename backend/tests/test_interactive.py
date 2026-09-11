@@ -155,3 +155,35 @@ def test_sanitize_interactive_modules_removes_weak_mental_cards():
     assert len(cards) == 1
     assert cards[0]["kind"] == "input"
     assert len(warnings) == 2
+
+
+def test_parse_plan_compact_accepts_three_categories():
+    from app.ai.generate_interactive import _coalesce_plan_categories, _parse_plan
+
+    text = """{"categories":[
+        {"name":"A","focus":"f1"},
+        {"name":"B","focus":"f2"},
+        {"name":"C","focus":"f3"}
+    ]}"""
+    categories = _parse_plan(text, compact=True)
+    assert len(categories) == 3
+    assert categories[0]["name"] == "A"
+
+
+def test_coalesce_plan_categories_merges_overflow():
+    from app.ai.generate_interactive import _coalesce_plan_categories
+
+    raw = [{"name": f"Bereich {i}", "focus": f"Fokus {i}"} for i in range(6)]
+    merged = _coalesce_plan_categories(raw, max_categories=3)
+    assert len(merged) == 3
+    assert merged[-1]["name"] == "Bereich 3"
+    assert "Fokus 5" in merged[-1]["focus"]
+
+
+def test_plan_system_compact_mentions_three_categories():
+    from app.ai.prompts.interactive import plan_system_for_preset
+
+    compact = plan_system_for_preset(compact=True)
+    standard = plan_system_for_preset(compact=False)
+    assert "2 bis 3" in compact
+    assert "5 bis 6" in standard

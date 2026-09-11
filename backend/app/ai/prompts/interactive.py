@@ -25,6 +25,18 @@ PLAN_SYSTEM = (
     f"{PLAN_PEDAGOGY_RULES}"
 )
 
+PLAN_SYSTEM_COMPACT = (
+    "Du planst einen kompakten Lerntrainer für EINE Heft-Doppelseite. Antworte NUR mit JSON, ohne Markdown.\n"
+    'Schema: {"categories":[{"name":"Themenbereich","focus":"1 Satz Lernziel","cards":4,"questions":3}]}\n'
+    "Genau 2 bis 3 Kategorien — nicht mehr. Eine Doppelseite = wenige Bereiche, kein Kapitel mit 5 Unterthemen.\n"
+    "cards und questions pro Kategorie so verteilen, dass die Summen den Vorgaben entsprechen.\n"
+    f"{PLAN_PEDAGOGY_RULES}"
+)
+
+
+def plan_system_for_preset(*, compact: bool) -> str:
+    return PLAN_SYSTEM_COMPACT if compact else PLAN_SYSTEM
+
 CARDS_SYSTEM = (
     "Du schreibst Lernkarten für einen Lerntrainer. Antworte NUR mit JSON.\n"
     'Schema: {"cards":[{"question":"...","answer":"...","tip":"..."}]}\n'
@@ -186,7 +198,13 @@ def build_interactive_plan_prompt(
     card_target: int,
     question_target: int,
     pedagogy_digest: str = "",
+    compact: bool = False,
 ) -> str:
+    category_hint = (
+        "Verteile cards/questions auf 2–3 Kategorien (eine Doppelseite, kompakt)."
+        if compact
+        else "Verteile cards/questions sinnvoll auf 5–6 Kategorien."
+    )
     return (
         _context_block(
             title=title,
@@ -202,7 +220,7 @@ def build_interactive_plan_prompt(
             pedagogy_digest=pedagogy_digest,
         )
         + f"\nZiel: {card_target} Lernkarten und {question_target} Quizfragen gesamt.\n"
-        "Verteile cards/questions sinnvoll auf 5–6 Kategorien."
+        + category_hint
     )
 
 

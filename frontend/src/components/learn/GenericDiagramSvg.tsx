@@ -6,6 +6,8 @@ type Props = {
   className?: string;
   layout?: Layout | string;
   slotCount?: number;
+  /** Wenn false: nur Hintergrund/Linien — Hotspots liegen als HTML darüber. */
+  showSlotNodes?: boolean;
 };
 
 function radialCoords(index: number, count: number): { x: number; y: number; deg: number } {
@@ -34,7 +36,12 @@ function pyramidCoords(index: number, count: number): { x: number; y: number } {
 }
 
 /** Neutrales Schema — Fragezeichen-Plätze zum Zuordnen von Begriffen. */
-export function GenericDiagramSvg({ className, layout = "radial", slotCount = 5 }: Props) {
+export function GenericDiagramSvg({
+  className,
+  layout = "radial",
+  slotCount = 5,
+  showSlotNodes = true,
+}: Props) {
   const count = Math.max(3, Math.min(12, slotCount || 5));
   const layoutName: Layout =
     layout === "timeline" || layout === "pyramid" ? layout : "radial";
@@ -139,14 +146,15 @@ export function GenericDiagramSvg({ className, layout = "radial", slotCount = 5 
         </>
       )}
 
-      {nodes.map((node, index) => (
-        <g key={`node-${index}`}>
-          <circle cx={node.x} cy={node.y} r="16" fill="#f8fafc" stroke="#64748b" strokeWidth="2" />
-          <text x={node.x} y={node.y + 5} textAnchor="middle" fontSize="14" fontWeight="700" fill="#1e293b">
-            ?
-          </text>
-        </g>
-      ))}
+      {showSlotNodes &&
+        nodes.map((node, index) => (
+          <g key={`node-${index}`}>
+            <circle cx={node.x} cy={node.y} r="16" fill="#f8fafc" stroke="#64748b" strokeWidth="2" />
+            <text x={node.x} y={node.y + 5} textAnchor="middle" fontSize="14" fontWeight="700" fill="#1e293b">
+              ?
+            </text>
+          </g>
+        ))}
     </svg>
   );
 }

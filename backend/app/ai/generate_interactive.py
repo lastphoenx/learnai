@@ -18,7 +18,6 @@ from app.ai.prompts.basiswissen import BASISWISSEN_SYSTEM, build_basiswissen_pro
 from app.ai.prompts.interactive import (
     CARDS_SYSTEM,
     KNOWLEDGE_SYSTEM,
-    PLAN_SYSTEM,
     QUIZ_SYSTEM,
     TYPED_CARDS_SYSTEM,
     build_interactive_card_prompt,
@@ -26,6 +25,7 @@ from app.ai.prompts.interactive import (
     build_interactive_plan_prompt,
     build_interactive_quiz_prompt,
     build_interactive_typed_cards_prompt,
+    plan_system_for_preset,
     truncate_context,
 )
 from app.ai.providers import complete, parse_json_object, resolve_provider
@@ -77,13 +77,15 @@ def _distribute(total: int, buckets: int) -> list[int]:
     return [base + (1 if i < rest else 0) for i in range(buckets)]
 
 
-def _parse_plan(text: str) -> list[dict]:
+def _parse_plan(text: str, *, compact: bool = False) -> list[dict]:
     parsed = parse_json_object(text)
     categories = parsed.get("categories")
-    if not isinstance(categories, list) or len(categories) < 4:
+    min_categories = 2 if compact else 4
+    max_categories = 3 if compact else 6
+    if not isinstance(categories, list) or len(categories) < min_categories:
         raise LlmError("Gliederung unvollständig", "thin_content")
     out: list[dict] = []
-    for raw in categories[:6]:
+    for raw in categories[:max_categories]:
         if not isinstance(raw, dict):
             continue
         name = str(raw.get("name") or raw.get("title") or "").strip()
@@ -95,9 +97,24 @@ def _parse_plan(text: str) -> list[dict]:
                 "focus": str(raw.get("focus") or "")[:300],
             }
         )
-    if len(out) < 4:
+    if len(out) < min_categories:
         raise LlmError("Zu wenige Kategorien in der Gliederung", "thin_content")
     return out
+
+
+def _coalesce_plan_categories(categories: list[dict], *, max_categories: int) -> list[dict]:
+    if len(categories) <= max_categories:
+        return categories
+    kept = categories[: max_categories - 1]
+    overflow = categories[max_categories - 1 :]
+    focus_bits = [str(c.get("focus") or "").strip() for c in overflow if str(c.get("focus") or "").strip()]
+    kept.append(
+        {
+            "name": overflow[0]["name"][:120],
+            "focus": " · ".join(focus_bits)[:300] if focus_bits else str(overflow[0].get("focus") or "")[:300],
+        }
+    )
+    return kept
 
 
 def _split_card_kinds(
@@ -680,6 +697,8 @@ def generate_interactive_modules(
 
         math_focus_label = focus_label(str(math_focus))
 
+    compact = card_target <= 15 and question_target <= 10
+
     context_prompt = build_interactive_plan_prompt(
         title=title,
         brief=brief,
@@ -694,6 +713,7 @@ def generate_interactive_modules(
         card_target=card_target,
         question_target=question_target,
         pedagogy_digest=pedagogy_digest,
+        compact=compact,
     )
     batch_context = truncate_context(context_prompt, pedagogy_digest=pedagogy_digest)
 
@@ -702,13 +722,17 @@ def generate_interactive_modules(
     plan_result = _complete_with_retry(
         prompt=context_prompt,
         provider=name,
-        system=PLAN_SYSTEM,
+        system=plan_system_for_preset(compact=compact),
         model=model,
         num_predict=_PLAN_NUM_PREDICT,
         label="plan",
     )
+    max_plan_categories = 3 if compact else 6
     categories = _normalize_plan_counts(
-        _parse_plan(plan_result["text"]),
+        _coalesce_plan_categories(
+            _parse_plan(plan_result["text"], compact=compact),
+            max_categories=max_plan_categories,
+        ),
         card_target=card_target,
         question_target=question_target,
         math_focus=math_focus,
@@ -726,7 +750,6 @@ def generate_interactive_modules(
     all_quiz_questions: list[str] = []
     practice_state: dict[str, Any] = {}
     card_state: dict[str, Any] = {}
-    compact = card_target <= 15 and question_target <= 10
 
     for index, cat in enumerate(categories):
         if progress:
@@ -867,9 +890,11 @@ def generate_interactive_modules(
             modules,
             min_cards=max(5, card_target),
             min_questions=max(5, question_target),
+            min_modules=2 if compact else 4,
         )
     except LlmError:
-        if len(modules) >= 4:
+        min_modules_for_partial = 2 if compact else 4
+        if len(modules) >= min_modules_for_partial:
             total_cards = sum(len(m["content"]["cards"]) for m in modules)
             total_questions = sum(len(m["quiz"]["questions"]) for m in modules)
             if progress:
