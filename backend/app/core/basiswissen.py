@@ -889,6 +889,7 @@ def derive_concept_quiz_questions(
                     "answer": answer_idx,
                     "explanation": explanation[:1200],
                     "question_type": "concept",
+                    "source": "basiswissen",
                     "concept_id": str(concept.get("id") or "")[:64],
                     "target_term": correct[:80],
                 }
@@ -958,6 +959,23 @@ def prepend_unique_cards(existing: list[dict], derived: list[dict]) -> list[dict
 
 _OVERVIEW_TITLE = "fachbegriffe im überblick"
 
+_COMPACT_QUIZ_SOURCES = frozenset({"posten_compact", "german_compact"})
+
+
+def _is_basiswissen_derived_quiz_question(question: dict[str, Any]) -> bool:
+    """Erkennt abgeleitete Basiswissen-Quizfragen — nicht posten_compact/german_compact."""
+    if not isinstance(question, dict):
+        return False
+    source = str(question.get("source") or "").strip().lower()
+    if source in _COMPACT_QUIZ_SOURCES:
+        return False
+    if source == "basiswissen":
+        return True
+    qtype = str(question.get("question_type") or "").strip().lower()
+    if qtype == "concept" and (question.get("concept_id") or question.get("target_term")):
+        return True
+    return False
+
 
 def strip_basiswissen_derivatives(
     content: dict[str, Any],
@@ -980,7 +998,7 @@ def strip_basiswissen_derivatives(
     questions = [
         question
         for question in (quiz.get("questions") or [])
-        if isinstance(question, dict) and str(question.get("question_type") or "") != "concept"
+        if isinstance(question, dict) and not _is_basiswissen_derived_quiz_question(question)
     ]
     practice = [
         item

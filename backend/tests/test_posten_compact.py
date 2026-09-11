@@ -42,6 +42,10 @@ def test_is_weak_card_rejects_tautology_and_dates():
     )
 
 
+def test_is_weak_card_rejects_single_year_terms():
+    assert _is_weak_card("Was bedeutet «800 v. Chr.»?", "800 v. Chr.: Die Eisenzeit beginnt etwa 800 v. Chr.")
+
+
 def test_parse_posten_compact_posten14_fixture():
     fixture = Path(__file__).parent / "fixtures" / "posten_compact_posten14.json"
     payload = _parse_posten_compact_payload(
@@ -52,6 +56,7 @@ def test_parse_posten_compact_posten14_fixture():
     assert len(payload["facts"]) >= 3
     assert len(payload["cards"]) == 12
     assert len(payload["quiz_questions"]) == 8
+    assert all(q.get("source") == "posten_compact" for q in payload["quiz_questions"])
     assert payload["timeline"] is not None
 
 

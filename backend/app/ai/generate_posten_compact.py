@@ -41,6 +41,10 @@ _DATE_RANGE_TERM = re.compile(
     r"^\d{1,4}\s*(?:bis|–|-)\s*\d{1,4}\s*(?:v\.?\s*Chr|n\.?\s*Chr)?",
     re.I,
 )
+_SINGLE_YEAR_TERM = re.compile(
+    r"^\d{1,4}\s*(?:v\.?\s*Chr|n\.?\s*Chr)\.?$",
+    re.I,
+)
 _CIRCULAR_QUESTION = re.compile(
     r"was\s+(?:ist\s+(?:der\s+)?fachbegriff|bedeutet)\s+[«\"]?(.+?)[»\"]?[\s?]*$",
     re.I,
@@ -75,7 +79,7 @@ def _is_weak_card(question: str, answer: str) -> bool:
     quoted = re.findall(r"[«\"]([^»\"]+)[»\"]", q)
     for fragment in quoted:
         frag = fragment.strip()
-        if _DATE_RANGE_TERM.match(frag):
+        if _DATE_RANGE_TERM.match(frag) or _SINGLE_YEAR_TERM.match(frag):
             return True
         if frag.lower() in a.lower() and len(a) <= len(frag) + 8:
             return True
@@ -205,6 +209,7 @@ def _parse_posten_compact_payload(
     )
     for q in questions:
         q["question_type"] = "concept"
+        q["source"] = "posten_compact"
     timeline = _parse_timeline(parsed.get("timeline"))
 
     min_facts = POSTEN_COMPACT_COUNTS["facts_min"]

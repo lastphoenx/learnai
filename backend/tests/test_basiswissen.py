@@ -483,13 +483,16 @@ def test_strip_basiswissen_derivatives_removes_derived_content():
     quiz = {
         "questions": [
             {"q": "2+2?", "question_type": "calculation"},
-            {"q": "Begriff?", "question_type": "concept"},
+            {"q": "Begriff?", "question_type": "concept", "concept_id": "c1"},
+            {"q": "Compact?", "question_type": "concept", "source": "posten_compact"},
         ]
     }
     stripped_content, stripped_quiz = strip_basiswissen_derivatives(content, quiz)
     assert len(stripped_content["cards"]) == 1
     assert len(stripped_content["knowledge"]) == 1
-    assert all(q.get("question_type") != "concept" for q in stripped_quiz["questions"])
+    assert len(stripped_quiz["questions"]) == 2
+    assert stripped_quiz["questions"][0]["question_type"] == "calculation"
+    assert stripped_quiz["questions"][1]["source"] == "posten_compact"
 
 
 def test_golden_fixture_math_arithmetic_terms():
