@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import {
   batchImportCanResume,
+  batchImportNeedsDraftLink,
   batchImportRowCanRepair,
   batchImportRowCanRetry,
   batchImportRowHasDraft,
@@ -13,6 +14,7 @@ import {
   fetchBatchImportQuality,
   fetchBatchImportStatus,
   fetchMe,
+  linkBatchImportDrafts,
   repairBatchImportUnits,
   resumeBatchImport,
   retryBatchImportUnits,
@@ -82,6 +84,7 @@ export default function BatchImportProgressPage() {
   const [resuming, setResuming] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [repairing, setRepairing] = useState(false);
+  const [linkingDrafts, setLinkingDrafts] = useState(false);
   const [pollRev, setPollRev] = useState(0);
   const [selected, setSelected] = useState<Set<number>>(() => new Set());
   const [quality, setQuality] = useState<BatchImportQualitySummary | null>(null);
@@ -163,6 +166,23 @@ export default function BatchImportProgressPage() {
     }
   }
 
+  async function onLinkDrafts() {
+    if (!batchId || linkingDrafts) return;
+    setLinkingDrafts(true);
+    setError(null);
+    try {
+      const result = await linkBatchImportDrafts(batchId);
+      setJob(result.job);
+      if (result.linked <= 0) {
+        setError("Keine passenden Entwürfe gefunden — ggf. «Neu generieren».");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Entwürfe verknüpfen fehlgeschlagen");
+    } finally {
+      setLinkingDrafts(false);
+    }
+  }
+
   async function onRepair(indices: number[]) {
     if (!batchId || repairing || indices.length === 0) return;
     setRepairing(true);
@@ -228,6 +248,8 @@ export default function BatchImportProgressPage() {
     return row && batchImportRowCanRepair(row);
   });
   const qualityByIndex = new Map((quality?.rows ?? []).map((row) => [row.index, row.quality]));
+
+  const needsDraftLink = job && batchImportNeedsDraftLink(job);
 
   if (error && !user) {
     return (
@@ -297,6 +319,16 @@ export default function BatchImportProgressPage() {
           {canResume && (
             <button type="button" className="btn btn-primary" disabled={resuming} onClick={() => void onResume()}>
               {resuming ? "Startet…" : "Fortsetzen"}
+            </button>
+          )}
+          {!active && needsDraftLink && (
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={linkingDrafts}
+              onClick={() => void onLinkDrafts()}
+            >
+              {linkingDrafts ? "Verknüpft…" : "Entwürfe verknüpfen"}
             </button>
           )}
           {!active && retryableSelected.length > 0 && (

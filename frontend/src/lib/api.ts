@@ -1053,6 +1053,13 @@ export function batchImportRowHasDraft(row: BatchImportUnitRow): boolean {
   return Boolean(row.unit_id && row.generate_status === "failed");
 }
 
+export function batchImportNeedsDraftLink(job: BatchImportJob | null | undefined): boolean {
+  if (!job || ["queued", "running", "cancelling"].includes(job.status)) return false;
+  return (job.units ?? []).some(
+    (row) => row.generate_status === "failed" && !row.unit_id && Boolean(row.error),
+  );
+}
+
 export type BatchImportUnitQuality = {
   unit_id: string;
   reference_code?: string | null;
@@ -1101,6 +1108,18 @@ export const repairBatchImportUnits = (batchId: string, indices: number[]) =>
   apiFetch<BatchImportJob>(`/api/v1/units/batch-import/${batchId}/repair`, {
     method: "POST",
     json: { indices },
+  });
+
+export type BatchImportLinkDraftsResponse = {
+  batch_id: string;
+  linked: number;
+  rows?: Array<{ index: number; title?: string; posten?: number | null; unit_id: string }>;
+  job: BatchImportJob;
+};
+
+export const linkBatchImportDrafts = (batchId: string) =>
+  apiFetch<BatchImportLinkDraftsResponse>(`/api/v1/units/batch-import/${batchId}/link-drafts`, {
+    method: "POST",
   });
 
 export async function waitForBatchImportJob(

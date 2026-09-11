@@ -70,6 +70,7 @@ from app.services.pedagogy_service import extract_unit_pedagogy, get_unit_pedago
 from app.services.pdf_export_service import unit_worksheet_pdf
 from app.services.trainer_export_service import export_trainer_json, import_trainer_json
 from app.services.batch_import_service import cancel_batch_import, get_batch_import_status, repair_batch_import_units, resume_batch_import, retry_batch_import_units, start_batch_import
+from app.services.batch_import_draft_link import link_batch_import_drafts
 from app.services.batch_import_quality import build_batch_import_quality_summary
 from app.core.trainer_presets import trainer_presets_public
 from app.ai.task_types import math_focus_public, task_types_public
@@ -243,6 +244,18 @@ def units_batch_import_repair(
         raise _http(exc) from exc
     except (TypeError, ValueError) as exc:
         raise HTTPException(status_code=400, detail="indices muss eine Liste von Zahlen sein") from exc
+
+
+@router.post("/batch-import/{batch_id}/link-drafts")
+def units_batch_import_link_drafts(
+    batch_id: str,
+    user: User = Depends(get_app_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        return link_batch_import_drafts(db, user, batch_id)
+    except UnitError as exc:
+        raise _http(exc) from exc
 
 
 @router.post("/{unit_id}/review", status_code=status.HTTP_201_CREATED)
