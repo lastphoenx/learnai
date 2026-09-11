@@ -167,8 +167,12 @@ def test_compact_payload_to_modules_counts():
             for i in range(COMPACT_COUNTS["understand"])
         ],
         "merk_cards": [
-            {"kind": "merk", "question": "Welche Frage gehört zum Nominativ?", "answer": "Wer oder was?"}
-            for _ in range(COMPACT_COUNTS["merk_cards"])
+            {
+                "kind": "merk",
+                "question": f"Welche Frageprobe {i} gehört zum Nominativ?",
+                "answer": "Wer oder was?",
+            }
+            for i in range(COMPACT_COUNTS["merk_cards"])
         ],
         "mental_cards": [
             {"kind": "mental", "question": f"Kopf {i}?", "answer": f"B{i}"}

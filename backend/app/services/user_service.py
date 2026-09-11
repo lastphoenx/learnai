@@ -193,7 +193,8 @@ def confirm_totp(db: Session, user: User, code: str, email: str) -> list[str]:
 
 
 def _read_account_settings(user: User) -> dict:
-    data = decrypt_json(user.settings_encrypted) if user.settings_encrypted else None
+    settings_enc = getattr(user, "settings_encrypted", None)
+    data = decrypt_json(settings_enc) if settings_enc else None
     return dict(data) if isinstance(data, dict) else {}
 
 

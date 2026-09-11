@@ -117,6 +117,37 @@ def _validate_page_ranges(pdf_path: Path, specs: list[dict[str, Any]]) -> None:
             )
 
 
+def _intro_page_ranges(payload: dict[str, Any]) -> list[tuple[int, int]]:
+    pages = payload.get("shared_brief_pages")
+    if not isinstance(pages, list) or not pages:
+        return []
+    nums = sorted({int(p) for p in pages if int(p) > 0})
+    if not nums:
+        return []
+    ranges: list[tuple[int, int]] = []
+    start = end = nums[0]
+    for page in nums[1:]:
+        if page == end + 1:
+            end = page
+            continue
+        ranges.append((start, end))
+        start = end = page
+    ranges.append((start, end))
+    return ranges
+
+
+def _validate_intro_pages(pdf_path: Path, payload: dict[str, Any]) -> None:
+    count = pdf_page_count(pdf_path)
+    for start, end in _intro_page_ranges(payload):
+        if start < 1 or end < 1 or start > end:
+            raise UnitError("Intro-Seiten: ungültiger Bereich", "invalid_page_range")
+        if start > count or end > count:
+            raise UnitError(
+                f"Intro-Seiten {start}–{end} ausserhalb PDF (1–{count})",
+                "invalid_page_range",
+            )
+
+
 def _batch_storage_dir(batch_id: str) -> Path:
     path = upload_dir() / "_batch" / batch_id
     path.mkdir(parents=True, exist_ok=True)
@@ -127,23 +158,20 @@ def _build_shared_brief(pdf_path: Path, payload: dict[str, Any]) -> str:
     override = str(payload.get("shared_brief_text") or "").strip()
     if override:
         return override
-    pages = payload.get("shared_brief_pages")
-    if isinstance(pages, list) and pages:
-        nums = sorted({int(p) for p in pages if int(p) > 0})
-        if not nums:
-            return ""
-        text_parts: list[str] = []
-        for n in nums:
-            chunk = extract_pdf_pages_text(
-                pdf_path,
-                page_from=n,
-                page_to=n,
-                vision_fallback=False,
-            )
-            if chunk.strip():
-                text_parts.append(chunk.strip())
-        return "\n\n".join(text_parts).strip()
-    return ""
+    ranges = _intro_page_ranges(payload)
+    if not ranges:
+        return ""
+    text_parts: list[str] = []
+    for page_from, page_to in ranges:
+        chunk = extract_pdf_pages_text(
+            pdf_path,
+            page_from=page_from,
+            page_to=page_to,
+            vision_fallback=False,
+        )
+        if chunk.strip():
+            text_parts.append(chunk.strip())
+    return "\n\n".join(text_parts).strip()
 
 
 def _compose_brief(*, shared: str, suffix: str | None, title: str) -> str | None:
@@ -216,6 +244,7 @@ def start_batch_import(
     pdf_path.write_bytes(pdf_bytes)
 
     _validate_page_ranges(pdf_path, all_specs)
+    _validate_intro_pages(pdf_path, payload)
     acquire_batch_generate_rate_slot(user_id=str(user.id))
 
     unit_rows: list[dict[str, Any]] = []
@@ -227,6 +256,7 @@ def start_batch_import(
                 "page_to": spec["page_to"],
                 "posten": spec.get("posten"),
                 "preset": spec.get("preset"),
+                "brief_suffix": spec.get("brief_suffix"),
                 "generate_status": "pending",
                 "unit_id": None,
                 "error": None,
@@ -240,6 +270,7 @@ def start_batch_import(
                 "page_to": review["page_to"],
                 "posten": None,
                 "preset": review.get("preset"),
+                "brief_suffix": review.get("brief_suffix"),
                 "generate_status": "pending",
                 "unit_id": None,
                 "error": None,
@@ -313,6 +344,15 @@ def _spec_from_job_row(row: dict[str, Any], payload: dict[str, Any]) -> dict[str
     }
 
 
+def _fail_batch_job(batch_id: str, message: str) -> None:
+    update_batch_import_job(
+        batch_id,
+        status="failed",
+        error=message,
+        message=message,
+    )
+
+
 def run_batch_import(batch_id: str, user_id: str) -> None:
     """Celery-Einstieg: Einheiten anlegen, Quellen rendern, nacheinander generieren."""
     from app.core.db.session import SessionLocal
@@ -336,11 +376,18 @@ def run_batch_import(batch_id: str, user_id: str) -> None:
             return
 
         payload = job.get("payload") if isinstance(job.get("payload"), dict) else {}
-        update_batch_import_job(batch_id, status="running", message="Batch-Import läuft…")
-        shared_brief = _build_shared_brief(pdf_path, payload)
-
-        targets = _profile_ids_from_payload(db, user, payload)
-        profile_id = targets[0] if targets else None
+        try:
+            update_batch_import_job(batch_id, status="running", message="Batch-Import läuft…")
+            shared_brief = _build_shared_brief(pdf_path, payload)
+            targets = _profile_ids_from_payload(db, user, payload)
+            profile_id = targets[0] if targets else None
+        except UnitError as exc:
+            _fail_batch_job(batch_id, exc.message)
+            return
+        except Exception:
+            _log.exception("batch_import setup failed batch=%s", batch_id)
+            _fail_batch_job(batch_id, "Batch-Import fehlgeschlagen")
+            return
 
         units = job.get("units") or []
         failures = 0
@@ -396,8 +443,12 @@ def run_batch_import(batch_id: str, user_id: str) -> None:
                 )
                 _log.exception("batch_import unit failed batch=%s index=%s", batch_id, index)
 
-        final = get_batch_import_job(batch_id) or {}
-        if final.get("status") == "cancelled":
+        if batch_cancel_requested(batch_id) or (get_batch_import_job(batch_id) or {}).get("cancel_requested"):
+            update_batch_import_job(
+                batch_id,
+                status="cancelled",
+                message="Batch abgebrochen",
+            )
             return
         if failures and failures < len(units):
             update_batch_import_job(

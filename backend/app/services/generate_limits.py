@@ -27,6 +27,22 @@ def _rate_key(user_id: str) -> str:
     return f"generate:rate:user:{user_id}:{hour}"
 
 
+def _acquire_hourly_rate_slot(*, user_id: str) -> None:
+    client = _redis_client()
+    if not client:
+        return
+    rate_key = _rate_key(user_id)
+    started = client.incr(rate_key)
+    if started == 1:
+        client.expire(rate_key, 3600)
+    if started > settings.generate_rate_limit_per_user_hour:
+        client.decr(rate_key)
+        raise UnitError(
+            f"Stündliches Generierungs-Limit erreicht ({settings.generate_rate_limit_per_user_hour}/h)",
+            "rate_limited",
+        )
+
+
 def acquire_generate_slot(
     *,
     user_id: str,
@@ -45,16 +61,7 @@ def acquire_generate_slot(
         return
 
     if not skip_rate_limit:
-        rate_key = _rate_key(user_id)
-        started = client.incr(rate_key)
-        if started == 1:
-            client.expire(rate_key, 3600)
-        if started > settings.generate_rate_limit_per_user_hour:
-            client.decr(rate_key)
-            raise UnitError(
-                f"Stündliches Generierungs-Limit erreicht ({settings.generate_rate_limit_per_user_hour}/h)",
-                "rate_limited",
-            )
+        _acquire_hourly_rate_slot(user_id=user_id)
 
     if client.scard(user_key) >= settings.generate_max_active_per_user:
         if not skip_rate_limit:
@@ -83,16 +90,7 @@ def acquire_batch_generate_rate_slot(*, user_id: str) -> None:
     if not client:
         _log.warning("generate_limits redis unavailable — batch rate skipped")
         return
-    rate_key = _rate_key(user_id)
-    started = client.incr(rate_key)
-    if started == 1:
-        client.expire(rate_key, 3600)
-    if started > settings.generate_rate_limit_per_user_hour:
-        client.decr(rate_key)
-        raise UnitError(
-            f"Stündliches Generierungs-Limit erreicht ({settings.generate_rate_limit_per_user_hour}/h)",
-            "rate_limited",
-        )
+    _acquire_hourly_rate_slot(user_id=user_id)
 
 
 def release_generate_slot(*, user_id: str, tenant_id: str, unit_id: str) -> None:

@@ -86,9 +86,6 @@ export function UnitEditDialog({ unit, open, onClose, onSaved }: Props) {
     setTrainerStyle(unit.trainer_options?.style ?? "playful");
     setTrainerProvider(unit.trainer_options?.llm_provider ?? "");
     setPosten(unit.posten ? String(unit.posten) : "");
-    setTrainerPreset(
-      detectTrainerPresetId(trainerPresets, unit.trainer_options, unit.trainer_preset),
-    );
     setGoalQuiz(String(unit.learn_goals?.quiz ?? ""));
     setGoalMerk(
       unit.learn_goals?.cards?.merk === "all" ? "all" : String(unit.learn_goals?.cards?.merk ?? ""),
@@ -101,6 +98,13 @@ export function UnitEditDialog({ unit, open, onClose, onSaved }: Props) {
     );
     setGoalDeadline(unit.learn_goals?.deadline ?? "");
     setError(null);
+  }, [open, unit]);
+
+  useEffect(() => {
+    if (!open) return;
+    setTrainerPreset(
+      detectTrainerPresetId(trainerPresets, unit.trainer_options, unit.trainer_preset),
+    );
   }, [open, unit, trainerPresets]);
 
   useEffect(() => {

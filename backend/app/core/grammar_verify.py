@@ -230,8 +230,9 @@ def finalize_german_cards_with_drops(
             question = str(card.get("question") or "")[:80]
             dropped.append(f"{question!r}: «{span}» enthält verschachtelte Fälle (Stufe {difficulty})")
             continue
+        skip_verify_drop = bool(nested_meta and difficulty > max_difficulty_for_nested)
         level, msg = verify_card_case_label(card)
-        if level == "warn":
+        if level == "warn" and not skip_verify_drop:
             answer = expected_case_answer_from_item(card)
             match, result = verify_case_label(
                 expected_answer=answer,
