@@ -1050,25 +1050,28 @@ def backfill_basiswissen_for_unit(
     if updated:
         max_cards = int(trainer_opts.get("cards") or 12)
         max_questions = int(trainer_opts.get("questions") or 8)
+        module_rows = sorted(unit.modules, key=lambda m: m.order_index)
+        payload = []
+        for module in module_rows:
+            content = decrypt_json(module.content_encrypted) or {}
+            quiz = decrypt_json(module.quiz_encrypted) or {}
+            payload.append(
+                {
+                    "title": decrypt_text_master(module.title_encrypted),
+                    "content": content if isinstance(content, dict) else {},
+                    "quiz": quiz if isinstance(quiz, dict) else {"questions": []},
+                }
+            )
+        payload, dedupe_warnings = dedupe_interactive_modules(payload)
+        for warning in dedupe_warnings:
+            _log.warning("backfill_basiswissen dedupe unit_id=%s %s", unit_id, warning)
         if compact:
-            module_rows = sorted(unit.modules, key=lambda m: m.order_index)
-            payload = []
-            for module in module_rows:
-                content = decrypt_json(module.content_encrypted) or {}
-                quiz = decrypt_json(module.quiz_encrypted) or {}
-                payload.append(
-                    {
-                        "title": decrypt_text_master(module.title_encrypted),
-                        "content": content if isinstance(content, dict) else {},
-                        "quiz": quiz if isinstance(quiz, dict) else {"questions": []},
-                    }
-                )
-            trimmed = trim_interactive_modules_to_budget(
+            payload = trim_interactive_modules_to_budget(
                 payload,
                 max_cards=max_cards,
                 max_questions=max_questions,
             )
-            for module, row in zip(module_rows, trimmed):
+        for module, row in zip(module_rows, payload):
                 if not isinstance(row, dict):
                     continue
                 content = row.get("content") if isinstance(row.get("content"), dict) else {}
