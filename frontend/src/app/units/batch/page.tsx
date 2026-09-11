@@ -30,6 +30,11 @@ import {
   type TrainerPresetDefinition,
   type TrainerPresetId,
 } from "@/lib/trainerPresets";
+import {
+  NMG_PILOT_INTRO,
+  NMG_PILOT_META,
+  NMG_PILOT_ROWS,
+} from "@/lib/batchPresets/nmgGeschichtePilot";
 
 const MAX_PDF_BYTES = 50 * 1024 * 1024;
 
@@ -143,6 +148,34 @@ export default function BatchImportWizardPage() {
       })
       .catch(() => undefined);
   }, []);
+
+  function loadNmgPilotPreset() {
+    setSubject(NMG_PILOT_META.subject);
+    setMathFocus(NMG_PILOT_META.mathFocus);
+    setTargetAge(NMG_PILOT_META.targetAge);
+    setDifficulty(NMG_PILOT_META.difficulty);
+    setDefaultPreset(NMG_PILOT_META.defaultPreset);
+    setIntroFrom(NMG_PILOT_INTRO.from);
+    setIntroTo(NMG_PILOT_INTRO.to);
+    setRows(
+      NMG_PILOT_ROWS.map((row) =>
+        newRow({
+          title: row.title,
+          pageFrom: row.pageFrom,
+          pageTo: row.pageTo,
+          posten: String(row.posten),
+          preset: row.preset || "",
+        }),
+      ),
+    );
+    setActiveRowIndex(0);
+    setSharedBriefText(NMG_PILOT_META.sharedBriefText);
+    setIncludeReview(true);
+    setReviewTitle(NMG_PILOT_META.reviewTitle);
+    setReviewFrom(NMG_PILOT_META.reviewFrom);
+    setReviewTo(NMG_PILOT_META.reviewTo);
+    setError(null);
+  }
 
   function onPdfSelected(file: File | null) {
     setError(null);
@@ -334,6 +367,14 @@ export default function BatchImportWizardPage() {
               onChange={(e) => onPdfSelected(e.target.files?.[0] ?? null)}
             />
           </label>
+          <p style={{ margin: 0 }}>
+            <button type="button" className="btn-sm" onClick={loadNmgPilotPreset}>
+              NMG Pilot (Posten 14–26) vorbefüllen
+            </button>
+            <span className="muted" style={{ marginLeft: "0.5rem", fontSize: "0.9rem" }}>
+              Mapping + Meta — PDF separat wählen, Titel an Thumbnails prüfen.
+            </span>
+          </p>
           {pdfFile && (
             <p className="muted" style={{ margin: 0 }}>
               {pdfFile.name} ({Math.round(pdfFile.size / 1024 / 1024)} MB)

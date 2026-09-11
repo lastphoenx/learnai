@@ -1,0 +1,47 @@
+{
+  "_meta": {
+    "subject_group": "nmg",
+    "subject_hint": "Schweizer Geschichte — Posten kompakt (Heft-Doppelseite)",
+    "min_method_labels": 2
+  },
+  "summary": "Schweizer Geschichte: Zeitstrahl, Steinzeit bis Mittelalter — fokussiert auf eine Heft-Doppelseite.",
+  "page_summary": "Posten aus NMG-Arbeitsheft: zentrale Begriffe, Jahreszahlen und Leitfrage der Doppelseite.",
+  "is_metadata_only": false,
+  "key_terms": [
+    {"term": "Zeitstrahl", "definition": "Chronologische Darstellung historischer Ereignisse"},
+    {"term": "Urgeschichte", "definition": "Zeit vor schriftlichen Quellen"},
+    {"term": "Eidgenossenschaft", "definition": "Zusammenschluss der Orte der Alten Eidgenossenschaft"}
+  ],
+  "assignments": [
+    {"ref": "1", "instruction": "Ordne Ereignisse auf dem Zeitstrahl ein.", "format": "einordnen"},
+    {"ref": "2", "instruction": "Beantworte die Leitfrage der Doppelseite in 2–3 Sätzen.", "format": "kurzantwort"}
+  ],
+  "exercise_formats": ["Zeitstrahl", "Begriffe zuordnen", "Kurzantwort"],
+  "methods": [
+    {
+      "label": "Zeitstrahl",
+      "when": "Wenn Jahreszahlen oder Perioden eingeordnet werden",
+      "example": "1291 — Gründung Eidgenossenschaft"
+    },
+    {
+      "label": "Merksatz",
+      "when": "Zum Einprägen zentraler Begriffe einer Epoche",
+      "example": "Jungsteinzeit: Ackerbau und Siedlungen"
+    }
+  ],
+  "worked_examples": [
+    {
+      "problem": "Welche Epoche folgt auf die Altsteinzeit?",
+      "method_label": "Zeitstrahl",
+      "steps": ["Perioden auf dem Strahl ablesen", "Mittelsteinzeit / Jungsteinzeit", "Begründung in einem Satz"]
+    }
+  ],
+  "exercises": [
+    {"ref": "3", "text": "Nenne zwei Ereignisse aus dem behandelten Abschnitt mit Jahreszahl", "suggested_method": "Zeitstrahl"}
+  ],
+  "exercise_patterns": ["Jahreszahlen nennen", "Epochen zuordnen", "Leitfrage beantworten"],
+  "teaching_notes": [
+    "Nur Stoff der zugehörigen Heftseiten — keine späteren Posten mischen",
+    "Jahreszahlen exakt aus dem Material übernehmen (1291, 1315, …)"
+  ]
+}

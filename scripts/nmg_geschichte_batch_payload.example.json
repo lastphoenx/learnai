@@ -1,0 +1,32 @@
+{
+  "subject": "NMG",
+  "math_focus": "nmg_history",
+  "target_age": "11-12",
+  "language": "de",
+  "difficulty": 2,
+  "task_type": "interactive",
+  "default_preset": "posten_compact",
+  "shared_brief_pages": [1, 2, 3, 4, 5],
+  "shared_brief_text": "NMG Schweizer Geschichte. Nur Stoff der jeweiligen Heft-Doppelseite. Jahreszahlen exakt aus dem Material.",
+  "units": [
+    {"title": "Posten 14 — Zeitstrahl", "page_from": 6, "page_to": 7, "posten": 14},
+    {"title": "Posten 15 — Altsteinzeit", "page_from": 8, "page_to": 9, "posten": 15},
+    {"title": "Posten 16 — Mittel- und Jungsteinzeit", "page_from": 10, "page_to": 11, "posten": 16},
+    {"title": "Posten 17 — Bronze- und Eisenzeit", "page_from": 12, "page_to": 13, "posten": 17},
+    {"title": "Posten 18", "page_from": 14, "page_to": 15, "posten": 18},
+    {"title": "Posten 19", "page_from": 16, "page_to": 17, "posten": 19},
+    {"title": "Posten 20", "page_from": 18, "page_to": 19, "posten": 20},
+    {"title": "Posten 21", "page_from": 20, "page_to": 21, "posten": 21},
+    {"title": "Posten 22", "page_from": 22, "page_to": 23, "posten": 22},
+    {"title": "Posten 23", "page_from": 24, "page_to": 25, "posten": 23},
+    {"title": "Posten 24", "page_from": 26, "page_to": 27, "posten": 24},
+    {"title": "Posten 25", "page_from": 28, "page_to": 29, "posten": 25},
+    {"title": "Posten 26", "page_from": 30, "page_to": 31, "posten": 26}
+  ],
+  "review_unit": {
+    "title": "Lernzielkontrolle NMG Geschichte",
+    "page_from": 1,
+    "page_to": 5,
+    "preset": "exam_review"
+  }
+}
