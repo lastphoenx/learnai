@@ -12,6 +12,19 @@ from app.services.generate_job import _redis_client
 _JOB_TTL_SEC = 86400 * 2
 
 
+def _persist(job: dict[str, Any]) -> None:
+    if not job:
+        return
+    try:
+        from app.services.batch_import_registry import persist_batch_manifest
+
+        persist_batch_manifest(job)
+    except Exception:
+        import logging
+
+        logging.getLogger(__name__).exception("batch manifest persist failed batch_id=%s", job.get("batch_id"))
+
+
 def _key(batch_id: str) -> str:
     return f"batch_import:{batch_id}"
 
@@ -48,6 +61,7 @@ def create_batch_import_job(
     client = _redis_client()
     if client:
         client.setex(_key(batch_id), _JOB_TTL_SEC, json.dumps(payload, ensure_ascii=False))
+    _persist(payload)
     return payload
 
 
@@ -66,7 +80,11 @@ def get_batch_import_job(batch_id: str) -> dict[str, Any] | None:
 
 
 def update_batch_import_job(batch_id: str, **fields: Any) -> dict[str, Any] | None:
-    existing = get_batch_import_job(batch_id) or {}
+    existing = get_batch_import_job(batch_id)
+    if not existing:
+        from app.services.batch_import_registry import load_batch_manifest
+
+        existing = load_batch_manifest(batch_id) or {}
     if not existing:
         return None
     existing.update(fields)
@@ -82,6 +100,7 @@ def update_batch_import_job(batch_id: str, **fields: Any) -> dict[str, Any] | No
     client = _redis_client()
     if client:
         client.setex(_key(batch_id), _JOB_TTL_SEC, json.dumps(existing, ensure_ascii=False))
+    _persist(existing)
     return existing
 
 

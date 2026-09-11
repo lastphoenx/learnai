@@ -21,10 +21,11 @@ from app.ai.generate_interactive import backfill_basiswissen_for_unit  # noqa: E
 from app.core.db.session import SessionLocal  # noqa: E402
 from app.models import User  # noqa: E402
 from app.services.batch_import_job import get_batch_import_job  # noqa: E402
+from app.services.batch_import_registry import resolve_batch_job  # noqa: E402
 
 
 def _unit_ids_from_batch(batch_id: str) -> list[str]:
-    job = get_batch_import_job(batch_id)
+    job = resolve_batch_job(batch_id)
     if not job:
         raise SystemExit(f"Batch nicht gefunden: {batch_id}")
     ids: list[str] = []
@@ -60,7 +61,7 @@ def main() -> int:
         if args.user_id:
             user = db.query(User).filter(User.id == uuid.UUID(args.user_id)).first()
         if not user and args.batch:
-            job = get_batch_import_job(args.batch)
+            job = resolve_batch_job(args.batch)
             if job and job.get("user_id"):
                 user = db.query(User).filter(User.id == job["user_id"]).first()
         if not user:

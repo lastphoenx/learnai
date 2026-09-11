@@ -982,6 +982,10 @@ export type BatchImportJob = {
   batch_id: string;
   user_id: string;
   tenant_id?: string;
+  label?: string | null;
+  description?: string | null;
+  source_filename?: string | null;
+  from_manifest?: boolean;
   status: "queued" | "running" | "done" | "partial" | "failed" | "cancelled" | "cancelling";
   cancel_requested?: boolean;
   total: number;
@@ -992,6 +996,47 @@ export type BatchImportJob = {
   updated_at?: string;
   error?: string | null;
   message?: string | null;
+};
+
+export type BatchImportSummary = {
+  batch_id: string;
+  label?: string | null;
+  description?: string | null;
+  subject?: string | null;
+  source_filename?: string | null;
+  status?: string | null;
+  total?: number | null;
+  progress_pct?: number | null;
+  started_at?: string | null;
+  updated_at?: string | null;
+  unit_count_done?: number | null;
+};
+
+export type BatchImportListResponse = {
+  batches: BatchImportSummary[];
+  total: number;
+};
+
+export type BatchMaintenanceStatus = {
+  status: "idle" | "queued" | "running" | "done" | "partial" | "failed";
+  action?: string;
+  batch_id?: string;
+  message?: string | null;
+  error?: string | null;
+  total?: number;
+  current?: number;
+  ok?: number;
+  failed?: number;
+  results?: Array<{
+    index?: number;
+    unit_id?: string;
+    title?: string;
+    ok?: boolean;
+    error?: string;
+    updated_modules?: number;
+    errors?: string[];
+  }>;
+  updated_at?: string;
 };
 
 export type BatchImportStartResponse = {
@@ -1022,6 +1067,22 @@ export async function startBatchImport(
 
 export const fetchBatchImportStatus = (batchId: string) =>
   apiFetch<BatchImportJob>(`/api/v1/units/batch-import/${batchId}`);
+
+export const fetchBatchImports = () =>
+  apiFetch<BatchImportListResponse>(`/api/v1/units/batch-import`);
+
+export const fetchBatchMaintenanceStatus = (batchId: string) =>
+  apiFetch<BatchMaintenanceStatus>(`/api/v1/units/batch-import/${batchId}/maintenance`);
+
+export const rederiveBatchPractice = (batchId: string, indices?: number[]) =>
+  apiFetch<{ batch_id: string; action: string; status: string; celery_task_id: string }>(
+    `/api/v1/units/batch-import/${batchId}/maintenance/rederive-practice`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(indices && indices.length > 0 ? { indices } : {}),
+    },
+  );
 
 export const cancelBatchImport = (batchId: string) =>
   apiFetch<BatchImportJob>(`/api/v1/units/batch-import/${batchId}/cancel`, { method: "POST" });

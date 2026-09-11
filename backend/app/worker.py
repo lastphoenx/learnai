@@ -8,7 +8,7 @@ celery_app = Celery(
     "learnai",
     broker=os.environ.get("REDIS_URL", "redis://redis:6379/0"),
     backend=os.environ.get("REDIS_URL", "redis://redis:6379/0"),
-    include=["app.tasks.generate", "app.tasks.batch_import"],
+    include=["app.tasks.generate", "app.tasks.batch_import", "app.tasks.batch_maintenance"],
 )
 
 

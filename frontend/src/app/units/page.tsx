@@ -122,6 +122,9 @@ export default function UnitsPage() {
           >
             Neue Einheit
           </Link>
+          <Link className="btn" href="/units/batches">
+            Batch-Hub
+          </Link>
           <Link className="btn" href="/units/batch">
             Mehrere aus PDF
           </Link>

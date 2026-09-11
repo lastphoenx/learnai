@@ -69,7 +69,8 @@ from app.services.unit_release_service import set_unit_learner_release
 from app.services.pedagogy_service import extract_unit_pedagogy, get_unit_pedagogy
 from app.services.pdf_export_service import unit_worksheet_pdf
 from app.services.trainer_export_service import export_trainer_json, import_trainer_json
-from app.services.batch_import_service import cancel_batch_import, get_batch_import_status, repair_batch_import_units, resume_batch_import, retry_batch_import_units, start_batch_import
+from app.services.batch_import_service import cancel_batch_import, get_batch_import_status, list_batch_import_jobs, repair_batch_import_units, resume_batch_import, retry_batch_import_units, start_batch_import
+from app.services.batch_import_maintenance import get_batch_maintenance_status
 from app.services.batch_import_draft_link import link_batch_import_drafts
 from app.services.batch_import_quality import build_batch_import_quality_summary
 from app.core.trainer_presets import trainer_presets_public
@@ -158,6 +159,17 @@ async def units_batch_import(
         db.rollback()
         _log.exception("batch_import start failed")
         raise HTTPException(status_code=500, detail="Batch-Import fehlgeschlagen") from exc
+
+
+@router.get("/batch-import")
+def units_batch_import_list(
+    user: User = Depends(get_app_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        return list_batch_import_jobs(db, user)
+    except UnitError as exc:
+        raise _http(exc) from exc
 
 
 @router.get("/batch-import/{batch_id}")
@@ -254,6 +266,52 @@ def units_batch_import_link_drafts(
 ):
     try:
         return link_batch_import_drafts(db, user, batch_id)
+    except UnitError as exc:
+        raise _http(exc) from exc
+
+
+@router.get("/batch-import/{batch_id}/maintenance")
+def units_batch_import_maintenance_status(
+    batch_id: str,
+    user: User = Depends(get_app_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        get_batch_import_status(db, user, batch_id)
+        status_payload = get_batch_maintenance_status(batch_id)
+        return status_payload or {"status": "idle"}
+    except UnitError as exc:
+        raise _http(exc) from exc
+
+
+@router.post("/batch-import/{batch_id}/maintenance/rederive-practice", status_code=status.HTTP_202_ACCEPTED)
+def units_batch_import_rederive_practice(
+    batch_id: str,
+    body: dict | None = None,
+    user: User = Depends(get_app_user),
+    db: Session = Depends(get_db),
+):
+    from app.services.batch_import_job import batch_is_active
+    from app.tasks.batch_maintenance import batch_rederive_practice_task
+
+    try:
+        job = get_batch_import_status(db, user, batch_id)
+        if batch_is_active(job):
+            raise UnitError("Batch-Generierung läuft noch — bitte warten", "conflict")
+        raw_indices = (body or {}).get("indices")
+        indices: list[int] | None = None
+        if raw_indices is not None:
+            if not isinstance(raw_indices, list):
+                raise UnitError("indices muss eine Liste sein", "invalid_payload")
+            indices = [int(i) for i in raw_indices]
+        task = batch_rederive_practice_task.delay(batch_id, str(user.id), indices)
+        return {
+            "batch_id": batch_id,
+            "action": "rederive_practice",
+            "status": "queued",
+            "celery_task_id": task.id,
+            "maintenance_url": f"/api/v1/units/batch-import/{batch_id}/maintenance",
+        }
     except UnitError as exc:
         raise _http(exc) from exc
 

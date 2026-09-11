@@ -300,7 +300,7 @@ def start_batch_import(
         "profile_id": payload.get("profile_id"),
         "profile_ids": payload.get("profile_ids"),
     }
-    update_batch_import_job(batch_id, payload=job["payload"])
+    update_batch_import_job(batch_id, payload=job["payload"], source_filename=filename or "batch.pdf")
 
     from app.tasks.batch_import import batch_import_task
 
@@ -316,12 +316,35 @@ def start_batch_import(
 
 
 def get_batch_import_status(db: Session, user: User, batch_id: str) -> dict[str, Any]:
-    job = get_batch_import_job(batch_id)
+    from app.services.batch_import_registry import load_batch_manifest, resolve_batch_job
+
+    job = resolve_batch_job(batch_id)
     if not job:
         raise UnitError("Batch-Job nicht gefunden", "not_found")
     if str(job.get("user_id")) != str(user.id) and not user.is_admin:
         raise UnitError("Kein Zugriff auf diesen Batch-Job", "forbidden")
+    manifest = load_batch_manifest(batch_id)
+    if manifest:
+        job.setdefault("label", manifest.get("label"))
+        job.setdefault("description", manifest.get("description"))
+        job.setdefault("source_filename", manifest.get("source_filename"))
+    elif job:
+        from app.services.batch_import_registry import persist_batch_manifest
+
+        persist_batch_manifest(job)
+        manifest = load_batch_manifest(batch_id)
+        if manifest:
+            job.setdefault("label", manifest.get("label"))
+            job.setdefault("description", manifest.get("description"))
+            job.setdefault("source_filename", manifest.get("source_filename"))
     return job
+
+
+def list_batch_import_jobs(db: Session, user: User) -> dict[str, Any]:
+    from app.services.batch_import_registry import list_batch_manifests
+
+    batches = list_batch_manifests(user_id=str(user.id), include_all=bool(user.is_admin))
+    return {"batches": batches, "total": len(batches)}
 
 
 def cancel_batch_import(db: Session, user: User, batch_id: str) -> dict[str, Any]:

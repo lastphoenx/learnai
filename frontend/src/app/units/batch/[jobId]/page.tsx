@@ -13,13 +13,16 @@ import {
   cancelBatchImport,
   fetchBatchImportQuality,
   fetchBatchImportStatus,
+  fetchBatchMaintenanceStatus,
   fetchMe,
   linkBatchImportDrafts,
+  rederiveBatchPractice,
   repairBatchImportUnits,
   resumeBatchImport,
   retryBatchImportUnits,
   type BatchImportJob,
   type BatchImportQualitySummary,
+  type BatchMaintenanceStatus,
   type User,
 } from "@/lib/api";
 
@@ -88,6 +91,9 @@ export default function BatchImportProgressPage() {
   const [pollRev, setPollRev] = useState(0);
   const [selected, setSelected] = useState<Set<number>>(() => new Set());
   const [quality, setQuality] = useState<BatchImportQualitySummary | null>(null);
+  const [maintenance, setMaintenance] = useState<BatchMaintenanceStatus | null>(null);
+  const [rederiving, setRederiving] = useState(false);
+  const [maintSelected, setMaintSelected] = useState<Set<number>>(() => new Set());
 
   useEffect(() => {
     fetchMe()
@@ -138,6 +144,64 @@ export default function BatchImportProgressPage() {
       cancelled = true;
     };
   }, [batchId, job]);
+
+  useEffect(() => {
+    if (!batchId) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    async function pollMaintenance() {
+      try {
+        const next = await fetchBatchMaintenanceStatus(batchId);
+        if (cancelled) return;
+        setMaintenance(next.status === "idle" ? null : next);
+        if (next.status === "running" || next.status === "queued") {
+          timer = setTimeout(pollMaintenance, 3000);
+        }
+      } catch {
+        if (!cancelled) setMaintenance(null);
+      }
+    }
+
+    void pollMaintenance();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
+  }, [batchId, pollRev, rederiving]);
+
+  function toggleMaintSelected(index: number) {
+    setMaintSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
+  }
+
+  async function onRederivePractice(indices?: number[]) {
+    if (!batchId || rederiving) return;
+    const count =
+      indices?.length ??
+      (job?.units || []).filter((row) => row.generate_status === "done" && row.unit_id).length;
+    if (
+      !window.confirm(
+        `Übungsaufgaben für ${count} Einheit(en) neu ableiten? Pro Modul wird Basiswissen aktualisiert (KI, einige Minuten).`,
+      )
+    ) {
+      return;
+    }
+    setRederiving(true);
+    setError(null);
+    try {
+      await rederiveBatchPractice(batchId, indices);
+      setPollRev((value) => value + 1);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Übungsaufgaben neu ableiten fehlgeschlagen");
+    } finally {
+      setRederiving(false);
+    }
+  }
 
   function toggleSelected(index: number) {
     setSelected((prev) => {
@@ -247,6 +311,11 @@ export default function BatchImportProgressPage() {
     const row = job?.units?.[index];
     return row && batchImportRowCanRepair(row);
   });
+  const doneMaintIndices = (job?.units || [])
+    .map((row, index) => ({ row, index }))
+    .filter(({ row }) => row.generate_status === "done" && row.unit_id)
+    .map(({ index }) => index);
+  const maintSelectedDone = [...maintSelected].filter((index) => doneMaintIndices.includes(index));
   const qualityByIndex = new Map((quality?.rows ?? []).map((row) => [row.index, row.quality]));
 
   const needsDraftLink = job && batchImportNeedsDraftLink(job);
@@ -262,10 +331,21 @@ export default function BatchImportProgressPage() {
 
   return (
     <main className="shell shell-wide">
-      <AppHeader user={user} title="Batch-Import" />
+      <AppHeader user={user} title="Batch-Hub" />
       <section className="card stack">
         <div className="section-head">
-          <h1 style={{ margin: 0, fontSize: "1.15rem" }}>Fortschritt</h1>
+          <div>
+            <h1 style={{ margin: 0, fontSize: "1.15rem" }}>{job?.label || "Batch-Import"}</h1>
+            {job?.description && (
+              <p className="muted" style={{ margin: "0.35rem 0 0" }}>
+                {job.description}
+              </p>
+            )}
+            <p className="muted" style={{ margin: "0.25rem 0 0", fontSize: "0.82rem" }}>
+              Batch-ID: <code>{batchId}</code>
+              {job?.from_manifest ? " · aus Archiv (Redis abgelaufen)" : ""}
+            </p>
+          </div>
           {badge && <span className={badge.className}>{badge.text}</span>}
         </div>
         {job ? (
@@ -308,6 +388,9 @@ export default function BatchImportProgressPage() {
           <p className="muted">Status wird geladen…</p>
         )}
         <div className="batch-wizard-actions">
+          <Link className="btn ghost" href="/units/batches">
+            Alle Batches
+          </Link>
           <Link className="btn ghost" href="/units">
             Zu den Einheiten
           </Link>
@@ -357,6 +440,73 @@ export default function BatchImportProgressPage() {
         </div>
       </section>
 
+      {job && doneMaintIndices.length > 0 && !active && (
+        <section className="card stack">
+          <h2 style={{ margin: 0, fontSize: "1.05rem" }}>Batch-Wartung</h2>
+          <p className="muted" style={{ margin: 0 }}>
+            Sammelaktionen für fertige Posten — ohne jeden Posten einzeln in der Einheit zu öffnen.
+          </p>
+          {maintenance && maintenance.status !== "idle" && (
+            <div className="generate-progress-compact">
+              <div className="generate-progress-bar" role="progressbar" aria-valuenow={maintenance.current ?? 0}>
+                <div
+                  className="generate-progress-fill"
+                  style={{
+                    width: `${
+                      maintenance.total && maintenance.current
+                        ? Math.min(100, Math.round((100 * maintenance.current) / maintenance.total))
+                        : maintenance.status === "running"
+                          ? 12
+                          : 100
+                    }%`,
+                  }}
+                />
+              </div>
+              <span className="muted generate-progress-label">
+                {maintenance.message ||
+                  (maintenance.status === "running"
+                    ? `${maintenance.current ?? 0}/${maintenance.total ?? "?"}`
+                    : maintenance.status)}
+              </span>
+            </div>
+          )}
+          {maintenance?.results && maintenance.results.length > 0 && maintenance.status !== "running" && (
+            <ul className="muted" style={{ margin: 0, paddingLeft: "1.1rem", fontSize: "0.9rem" }}>
+              {maintenance.results
+                .filter((row) => !row.ok)
+                .slice(0, 8)
+                .map((row) => (
+                  <li key={`${row.index}-${row.unit_id}`}>
+                    {row.title || row.unit_id}: {row.error || "Fehler"}
+                  </li>
+                ))}
+            </ul>
+          )}
+          <div className="batch-wizard-actions">
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={rederiving || maintenance?.status === "running"}
+              onClick={() => void onRederivePractice()}
+            >
+              {rederiving || maintenance?.status === "running"
+                ? "Läuft…"
+                : `Übungsaufgaben neu ableiten (${doneMaintIndices.length})`}
+            </button>
+            {maintSelectedDone.length > 0 && (
+              <button
+                type="button"
+                className="btn"
+                disabled={rederiving || maintenance?.status === "running"}
+                onClick={() => void onRederivePractice(maintSelectedDone)}
+              >
+                Auswahl ({maintSelectedDone.length})
+              </button>
+            )}
+          </div>
+        </section>
+      )}
+
       {job?.units && job.units.length > 0 && (
         <section className="card" style={{ padding: "0.75rem" }}>
           <ul className="unit-list batch-progress-list">
@@ -377,6 +527,16 @@ export default function BatchImportProgressPage() {
                             checked={selected.has(index)}
                             onChange={() => toggleSelected(index)}
                             aria-label={`Zeile ${index + 1} für Erneut-Start auswählen`}
+                          />
+                        </label>
+                      )}
+                      {row.generate_status === "done" && row.unit_id && !active && (
+                        <label style={{ display: "flex", alignItems: "center", marginRight: 8 }}>
+                          <input
+                            type="checkbox"
+                            checked={maintSelected.has(index)}
+                            onChange={() => toggleMaintSelected(index)}
+                            aria-label={`Posten ${index + 1} für Wartung auswählen`}
                           />
                         </label>
                       )}
