@@ -612,10 +612,12 @@ def submit_practice_answer(
     expected = str(item.get("answer") or "").strip()
     if not expected and answer_type != "drawing":
         raise UnitError("Übung ohne Lösung", "invalid_question")
+    label_score: dict[str, Any] | None = None
     if answer_type == "label_diagram":
-        from app.core.label_diagram import grade_label_diagram_answer
+        from app.core.label_diagram import score_label_diagram_answer
 
-        is_correct = grade_label_diagram_answer(expected, answer_text)
+        label_score = score_label_diagram_answer(expected, answer_text)
+        is_correct = bool(label_score["correct"])
     elif answer_type == "choice":
         options = item.get("options") if isinstance(item.get("options"), list) else []
         try:
@@ -664,7 +666,10 @@ def submit_practice_answer(
     options = item.get("options") if isinstance(item.get("options"), list) else []
     correct_index: int | None = None
     expected_label: str | None = None
-    if not is_correct:
+    label_slots: list[dict] | None = None
+    if answer_type == "label_diagram":
+        label_slots = (label_score or {}).get("slots") if isinstance((label_score or {}).get("slots"), list) else []
+    elif not is_correct:
         if answer_type == "choice" and str(expected).isdigit():
             correct_index = int(expected)
             if 0 <= correct_index < len(options):
@@ -677,6 +682,7 @@ def submit_practice_answer(
         "hint": item.get("hint"),
         "expected": expected_label,
         "correct_index": correct_index,
+        "label_slots": label_slots,
         "progress": learn,
         "summary": _progress_summary(stats, len(unit.modules)),
         "practice_done": len(practice_answers) >= len(items)

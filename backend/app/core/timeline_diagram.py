@@ -156,8 +156,8 @@ def build_timeline_diagram_from_pedagogy(
     count = len(selected)
     placements: list[dict[str, Any]] = []
     for index, row in enumerate(selected):
-        x = round(0.12 + (0.76 * index / max(1, count - 1)), 3)
-        y = 0.54 if index % 2 == 0 else 0.66
+        x = round(0.1 + (0.8 * index / max(1, count - 1)), 3)
+        y = 0.4 if index % 2 == 0 else 0.72
         placements.append({"term": row["term"], "x": x, "y": y})
 
     hints = dict(term_hints or {})

@@ -88,6 +88,20 @@ def test_grade_label_diagram_answer():
     assert not grade_label_diagram_answer(expected, user_bad)
 
 
+def test_score_label_diagram_answer_partial_feedback():
+    from app.core.label_diagram import score_label_diagram_answer
+
+    expected = json.dumps({"a": "Altsteinzeit", "b": "Antike", "c": "Neuzeit"})
+    user = json.dumps({"a": "Altsteinzeit", "b": "Neuzeit", "c": "Neuzeit"})
+    score = score_label_diagram_answer(expected, user)
+    assert not score["correct"]
+    by_id = {row["id"]: row for row in score["slots"]}
+    assert by_id["a"]["correct"] is True
+    assert by_id["b"]["correct"] is False
+    assert by_id["b"]["expected_term"] == "Antike"
+    assert by_id["b"]["user_term"] == "Neuzeit"
+
+
 def test_derive_practice_uses_knowledge_choice_not_generic_schema():
     bw = parse_basiswissen_payload(CASTLE_BASISWISSEN, focus_group="nmg")
     items = derive_practice_items(

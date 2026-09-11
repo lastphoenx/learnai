@@ -8,6 +8,8 @@ from app.core.timeline_diagram import (
     summarize_timeline,
 )
 
+
+def test_parse_epoch_year_range():
     assert parse_epoch_year_range("450 bis 1050") == (450, 1050)
     assert parse_epoch_year_range("9500 bis 5500 v. Chr.") == (-9500, -5500)
     assert parse_epoch_year_range("Anfänge der Menschheit bis 9500 v. Chr.")[1] == -9500
@@ -39,6 +41,8 @@ def test_build_timeline_diagram_from_pedagogy():
     assert len(diagram["hotspots"]) >= 8
     xs = [hs["x"] for hs in diagram["hotspots"]]
     assert xs == sorted(xs)
+    ys = {round(hs["y"], 2) for hs in diagram["hotspots"]}
+    assert ys == {0.4, 0.72}
 
 
 def test_summarize_timeline():

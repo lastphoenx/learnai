@@ -185,6 +185,12 @@ export function InteractiveTrainer({
     hint?: string | null;
     expected?: string | null;
     correct_index?: number | null;
+    label_slots?: Array<{
+      id: string;
+      correct: boolean;
+      expected_term?: string | null;
+      user_term?: string | null;
+    }> | null;
   } | null>(null);
   const [autoTrainerId, setAutoTrainerId] = useState<string | null>(null);
   const [selected, setSelected] = useState<number | null>(null);
@@ -1263,6 +1269,7 @@ export function InteractiveTrainer({
                         correct: res.correct,
                         hint: res.hint,
                         expected: res.expected,
+                        label_slots: res.label_slots,
                       });
                     } catch (err) {
                       setError(err instanceof Error ? err.message : "Antwort fehlgeschlagen");

@@ -1490,6 +1490,12 @@ export const submitPracticeAnswer = (
     hint?: string | null;
     expected?: string | null;
     correct_index?: number | null;
+    label_slots?: Array<{
+      id: string;
+      correct: boolean;
+      expected_term?: string | null;
+      user_term?: string | null;
+    }> | null;
     progress: LearnProgress;
     summary: LearnSummary;
     practice_done: boolean;

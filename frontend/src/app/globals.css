@@ -3864,6 +3864,70 @@ button.trainer-flashcard.flipped {
   background: #e8f0fa;
 }
 
+.label-diagram-stage[data-layout="timeline"] {
+  min-height: 13.5rem;
+  aspect-ratio: 16 / 9;
+}
+
+.label-diagram-stage[data-layout="timeline"] .label-diagram-hotspot {
+  min-width: 1.5rem;
+  max-width: 6.75rem;
+  padding: 0.12rem 0.3rem;
+  font-size: 0.65rem;
+  line-height: 1.15;
+  white-space: normal;
+  text-align: center;
+}
+
+.label-diagram-stage[data-layout="timeline"] .label-diagram-hotspot[data-row="upper"] .label-diagram-hotspot-tooltip {
+  top: auto;
+  bottom: 0;
+  transform: translate(-50%, 115%);
+}
+
+.label-diagram-stage[data-layout="timeline"] .label-diagram-hotspot[data-row="upper"].has-hint:hover .label-diagram-hotspot-tooltip,
+.label-diagram-stage[data-layout="timeline"] .label-diagram-hotspot[data-row="upper"].has-hint:focus-visible .label-diagram-hotspot-tooltip {
+  transform: translate(-50%, 125%);
+}
+
+.label-diagram-stage[data-layout="timeline"] .label-diagram-hotspot[data-row="lower"] .label-diagram-hotspot-tooltip {
+  top: 0;
+  bottom: auto;
+  transform: translate(-50%, -115%);
+}
+
+.label-diagram-stage[data-layout="timeline"] .label-diagram-hotspot[data-row="lower"].has-hint:hover .label-diagram-hotspot-tooltip,
+.label-diagram-stage[data-layout="timeline"] .label-diagram-hotspot[data-row="lower"].has-hint:focus-visible .label-diagram-hotspot-tooltip {
+  transform: translate(-50%, -125%);
+}
+
+.label-diagram-hotspot.slot-ok {
+  border-color: #16a34a;
+  border-style: solid;
+  background: #dcfce7;
+}
+
+.label-diagram-hotspot.slot-bad {
+  border-color: #dc2626;
+  border-style: solid;
+  background: #fee2e2;
+}
+
+.label-diagram-slot-summary {
+  margin: 0.35rem 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.label-diagram-slot-summary .slot-summary-ok {
+  color: #166534;
+}
+
+.label-diagram-slot-summary .slot-summary-bad {
+  color: #991b1b;
+}
+
 .label-diagram-svg {
   display: block;
   width: 100%;

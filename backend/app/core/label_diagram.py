@@ -68,8 +68,9 @@ def _layout_coords(index: int, count: int, *, layout: str) -> tuple[float, float
     if layout == "timeline":
         if count <= 1:
             return 0.5, 0.5
-        x = 0.12 + (0.76 * index / max(1, count - 1))
-        return round(x, 3), 0.58
+        x = 0.1 + (0.8 * index / max(1, count - 1))
+        y = 0.4 if index % 2 == 0 else 0.72
+        return round(x, 3), round(y, 3)
     if layout == "pyramid":
         rows = max(1, int(math.ceil(math.sqrt(count))))
         row = index // rows
@@ -160,22 +161,39 @@ def build_label_diagram_from_terms(
 
 
 def grade_label_diagram_answer(expected: str, user_answer: str) -> bool:
+    return bool(score_label_diagram_answer(expected, user_answer)["correct"])
+
+
+def score_label_diagram_answer(expected: str, user_answer: str) -> dict[str, Any]:
+    """Bewertet Zuordnungen pro Hotspot — für partielles Lern-Feedback."""
+    empty: dict[str, Any] = {"correct": False, "slots": []}
     try:
         expected_map = json.loads(expected)
         user_map = json.loads(user_answer)
     except (json.JSONDecodeError, TypeError):
-        return False
+        return empty
     if not isinstance(expected_map, dict) or not isinstance(user_map, dict):
-        return False
-    if set(expected_map.keys()) != set(user_map.keys()):
-        return False
+        return empty
+
+    slots: list[dict[str, Any]] = []
+    all_correct = True
     for key, expected_term in expected_map.items():
         user_term = str(user_map.get(key) or "").strip()
         accepted = expected_term if isinstance(expected_term, list) else [expected_term]
         accepted_norm = {_norm(str(item)) for item in accepted if str(item).strip()}
-        if _norm(user_term) not in accepted_norm:
-            return False
-    return True
+        expected_label = str(accepted[0] if accepted else expected_term).strip()
+        slot_ok = bool(user_term) and _norm(user_term) in accepted_norm
+        if not slot_ok:
+            all_correct = False
+        slots.append(
+            {
+                "id": str(key),
+                "correct": slot_ok,
+                "expected_term": expected_label,
+                "user_term": user_term or None,
+            }
+        )
+    return {"correct": all_correct, "slots": slots}
 
 
 def normalize_task_format(raw: str | None) -> str:
