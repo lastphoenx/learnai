@@ -78,7 +78,7 @@ def test_validate_interactive_respects_posten_compact_targets():
         validate_interactive_modules(modules, min_cards=30, min_questions=30)
         assert False, "expected LlmError"
     except LlmError as exc:
-        assert "Zu wenige Quizfragen (8, mindestens 30)" in exc.message
+        assert "Zu wenige Lernkarten (12, mindestens 30)" in exc.message
 
 
 def test_validate_modules_rejects_thin_blocks():

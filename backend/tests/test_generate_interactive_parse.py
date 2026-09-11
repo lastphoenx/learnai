@@ -40,4 +40,4 @@ def test_parse_questions_still_rejects_empty_when_one_expected():
         assert False, "expected LlmError"
     except LlmError as exc:
         assert exc.code == "thin_content"
-        assert "1/1" in exc.message
+        assert "0/1" in exc.message

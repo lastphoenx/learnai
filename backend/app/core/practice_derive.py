@@ -5,7 +5,6 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from app.core.basiswissen import derive_concept_quiz_questions
 from app.core.focus_groups import normalize_focus_group
 from app.core.label_diagram import (
     build_label_diagram_from_terms,
@@ -156,6 +155,8 @@ def _derive_knowledge_choice_items(
     practice_state: dict[str, Any] | None,
     max_count: int = 3,
 ) -> list[dict[str, Any]]:
+    from app.core.basiswissen import derive_concept_quiz_questions
+
     items: list[dict[str, Any]] = []
     label = category_label[:120] or "Thema"
 
