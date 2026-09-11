@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from app.core.grammar_verify import (
     collect_grammar_warnings_for_module,
     finalize_german_cards,
@@ -138,15 +140,9 @@ def test_verify_card_case_label_with_nesting():
     assert outcome == "teilrichtig_falsche_ebene"
 
 
-def test_finalize_drops_nested_case_cards_at_low_difficulty():
-    import pytest
-
-    if not pytest.importorskip("spacy"):
-        return
-    from app.core.german_case_analysis import spacy_available
-
-    if not spacy_available():
-        pytest.skip("de_core_news_sm nicht installiert")
+@patch("app.core.grammar_verify._nested_case_metadata")
+def test_finalize_drops_nested_case_cards_at_low_difficulty(mock_nested):
+    mock_nested.return_value = [{"text": "des Blutes", "case": "Genitiv"}]
     card = {
         "kind": "input",
         "question": "Welchen Fall hat «die Farbe des Blutes»?",
@@ -164,4 +160,4 @@ def test_finalize_drops_nested_case_cards_at_low_difficulty():
     kept_high, _ = finalize_german_cards_with_drops([card], focus_group="german", difficulty=4)
     assert len(kept_high) == 1
     nested = kept_high[0].get("grammar", {}).get("case_check", {}).get("nested")
-    assert isinstance(nested, list) and len(nested) >= 1
+    assert nested == [{"text": "des Blutes", "case": "Genitiv"}]

@@ -56,7 +56,11 @@ def test_parse_payload_and_unit_specs():
 
 @patch("app.tasks.batch_import.batch_import_task")
 @patch("app.services.batch_import_service.acquire_batch_generate_rate_slot")
-def test_start_batch_import_queues_job(mock_rate, mock_task, tmp_path):
+@patch("app.services.batch_import_service._batch_storage_dir")
+def test_start_batch_import_queues_job(mock_storage_dir, mock_rate, mock_task, tmp_path):
+    storage = tmp_path / "batch-store"
+    storage.mkdir()
+    mock_storage_dir.return_value = storage
     mock_task.delay.return_value = MagicMock(id="celery-1")
     pdf = _sample_pdf(tmp_path)
     payload = json.dumps(
