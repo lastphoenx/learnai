@@ -61,6 +61,13 @@ _MIN_CARDS = 30
 _MIN_QUESTIONS = 30
 
 
+def _min_accept_count(expected: int, *, ratio: float = 0.6) -> int:
+    """Minimum parsed items before thin_content — scales down for small per-category targets."""
+    if expected <= 0:
+        return 0
+    return max(min(2, expected), int(expected * ratio))
+
+
 def _distribute(total: int, buckets: int) -> list[int]:
     base = total // buckets
     rest = total % buckets
@@ -149,6 +156,8 @@ def _normalize_plan_counts(
 
 
 def _parse_cards(text: str, expected: int) -> list[dict]:
+    if expected <= 0:
+        return []
     parsed = parse_json_object(text)
     cards = parsed.get("cards")
     if not isinstance(cards, list):
@@ -168,7 +177,7 @@ def _parse_cards(text: str, expected: int) -> list[dict]:
                 "tip": str(raw.get("tip") or "")[:240],
             }
         )
-    min_accept = max(2, int(expected * 0.6))
+    min_accept = _min_accept_count(expected)
     if len(out) < min_accept:
         raise LlmError(f"Lernkarten unvollständig ({len(out)}/{expected})", "thin_content")
     if len(out) < expected:
@@ -239,7 +248,7 @@ def _parse_typed_cards(
     input_cards = _parse_card_list(parsed.get("input_cards"), kind="input", expected=input_expected)
     total_expected = merk_expected + mental_expected + input_expected
     total_got = len(merk) + len(mental) + len(input_cards)
-    min_accept = max(2, int(total_expected * 0.55))
+    min_accept = _min_accept_count(total_expected, ratio=0.55)
     if total_got < min_accept:
         raise LlmError(f"Lernkarten unvollständig ({total_got}/{total_expected})", "thin_content")
     if len(merk) < merk_expected and merk_expected > 0:
@@ -369,6 +378,8 @@ def _generate_basiswissen(
 
 
 def _parse_questions(text: str, expected: int) -> list[dict]:
+    if expected <= 0:
+        return []
     parsed = parse_json_object(text)
     questions = parsed.get("questions")
     if not isinstance(questions, list):
@@ -406,7 +417,7 @@ def _parse_questions(text: str, expected: int) -> list[dict]:
             out.append(item)
         except LlmError:
             continue
-    min_accept = max(2, int(expected * 0.6))
+    min_accept = _min_accept_count(expected)
     if len(out) < min_accept:
         raise LlmError(f"Quizfragen unvollständig ({len(out)}/{expected})", "thin_content")
     if len(out) < expected:
@@ -524,7 +535,7 @@ def _generate_category_cards(
                 before_case_filter - len(cards),
                 len(cards),
             )
-        min_accept = max(2, int(expected_total * 0.5))
+        min_accept = _min_accept_count(expected_total, ratio=0.5)
         if attempt == 2 or focus_group != "german" or len(cards) >= min_accept:
             break
         _log.warning(
