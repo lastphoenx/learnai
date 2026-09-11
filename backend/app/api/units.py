@@ -69,6 +69,7 @@ from app.services.unit_release_service import set_unit_learner_release
 from app.services.pedagogy_service import extract_unit_pedagogy, get_unit_pedagogy
 from app.services.pdf_export_service import unit_worksheet_pdf
 from app.services.trainer_export_service import export_trainer_json, import_trainer_json
+from app.services.batch_import_service import cancel_batch_import, get_batch_import_status, start_batch_import
 from app.core.trainer_presets import trainer_presets_public
 from app.ai.task_types import math_focus_public, task_types_public
 from app.ai.subject_focus import focus_groups_public
@@ -87,6 +88,9 @@ def _http(exc: UnitError) -> HTTPException:
         "invalid_title": status.HTTP_400_BAD_REQUEST,
         "invalid_task_type": status.HTTP_400_BAD_REQUEST,
         "invalid_trainer_preset": status.HTTP_400_BAD_REQUEST,
+        "invalid_batch_payload": status.HTTP_400_BAD_REQUEST,
+        "invalid_page_range": status.HTTP_400_BAD_REQUEST,
+        "empty_pdf": status.HTTP_400_BAD_REQUEST,
         "no_modules": status.HTTP_400_BAD_REQUEST,
         "invalid_index": status.HTTP_400_BAD_REQUEST,
         "invalid_phase": status.HTTP_400_BAD_REQUEST,
@@ -125,6 +129,57 @@ def units_task_types():
 @router.get("/trainer-presets")
 def units_trainer_presets():
     return {"presets": trainer_presets_public()}
+
+
+@router.post("/batch-import", status_code=status.HTTP_202_ACCEPTED)
+async def units_batch_import(
+    file: UploadFile = File(...),
+    payload: str = Form(...),
+    user: User = Depends(get_app_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        data = await file.read()
+        result = start_batch_import(
+            db,
+            user,
+            pdf_bytes=data,
+            filename=file.filename or "batch.pdf",
+            payload_raw=payload,
+        )
+        db.commit()
+        return result
+    except UnitError as exc:
+        db.rollback()
+        raise _http(exc) from exc
+    except Exception as exc:
+        db.rollback()
+        _log.exception("batch_import start failed")
+        raise HTTPException(status_code=500, detail="Batch-Import fehlgeschlagen") from exc
+
+
+@router.get("/batch-import/{batch_id}")
+def units_batch_import_status(
+    batch_id: str,
+    user: User = Depends(get_app_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        return get_batch_import_status(db, user, batch_id)
+    except UnitError as exc:
+        raise _http(exc) from exc
+
+
+@router.post("/batch-import/{batch_id}/cancel")
+def units_batch_import_cancel(
+    batch_id: str,
+    user: User = Depends(get_app_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        return cancel_batch_import(db, user, batch_id)
+    except UnitError as exc:
+        raise _http(exc) from exc
 
 
 @router.post("/{unit_id}/review", status_code=status.HTTP_201_CREATED)
