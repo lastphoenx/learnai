@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, Suspense, useEffect, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { fetchMe, fetchUnitQualityReport, type UnitQualityReport, type User } from "@/lib/api";
 
-export default function AdminUnitReportPage() {
+function AdminUnitReportContent() {
   const searchParams = useSearchParams();
   const [user, setUser] = useState<User | null>(null);
   const [ref, setRef] = useState("");
@@ -153,5 +153,19 @@ export default function AdminUnitReportPage() {
         <Link href="/admin/users">Benutzer</Link>
       </p>
     </main>
+  );
+}
+
+export default function AdminUnitReportPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="shell shell-wide admin-page">
+          <p className="muted">Qualitätsreport wird geladen…</p>
+        </main>
+      }
+    >
+      <AdminUnitReportContent />
+    </Suspense>
   );
 }
