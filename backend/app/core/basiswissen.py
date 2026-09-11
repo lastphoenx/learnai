@@ -583,7 +583,11 @@ def _mental_term_question(term: str, part: dict[str, Any], concept: dict[str, An
     for raw in (str(part.get("hint") or "").strip(), str(concept.get("hint") or "").strip()):
         clue = _scrub_term_clue(raw, term)
         if clue:
-            topic = label[:48] if label and label.lower() != term.lower() else "Thema"
+            topic = (
+                label[:48]
+                if label and label.lower() not in {term.lower(), "thema"}
+                else "diesem Abschnitt"
+            )
             return f"Was ist «{term}»? (Hinweis: {clue}; Thema: {topic})"
     if role_label and role_label.lower() not in {term.lower(), "", "begriff", "term", "part", "whole"}:
         return f"Welche Rolle hat «{term}» — {role_label}?"

@@ -105,6 +105,26 @@ def test_derive_practice_uses_knowledge_choice_not_generic_schema():
     assert str(first.get("answer")).isdigit()
 
 
+def test_derive_practice_builds_timeline_from_epoch_key_terms():
+    from tests.fixtures.timeline_epochs import POSTEN_14_EPOCH_TERMS
+
+    pedagogy = {
+        "key_terms": POSTEN_14_EPOCH_TERMS,
+        "exercise_patterns": ["Zeitstrahl-Beschreibung"],
+        "assignments": [],
+        "visual_tasks": [],
+    }
+    items = derive_practice_items(
+        pedagogy=pedagogy,
+        basiswissen={},
+        category_label="Geschichte der Schweiz",
+        focus_group="nmg",
+    )
+    diagram_items = [i for i in items if i.get("answer_type") == "label_diagram"]
+    assert diagram_items
+    assert diagram_items[0]["diagram"]["layout"] == "timeline"
+
+
 def test_derive_practice_skips_personal_mindmap_without_placements():
     bw = parse_basiswissen_payload(CASTLE_BASISWISSEN, focus_group="nmg")
     items = derive_practice_items(

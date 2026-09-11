@@ -26,6 +26,7 @@ from app.services.batch_import_registry import resolve_batch_job  # noqa: E402
 from app.services.pedagogy_service import extract_unit_pedagogy, get_unit_pedagogy  # noqa: E402
 from app.services.unit_reference_service import find_units_by_reference, UnitReferenceError  # noqa: E402
 from app.services.unit_service import _get_unit_or_404  # noqa: E402
+from app.core.timeline_diagram import summarize_timeline  # noqa: E402
 
 
 def _resolve_unit_id(*, db, admin, ref: str | None, unit_id: str | None, batch_id: str | None, posten: int | None) -> uuid.UUID:
@@ -101,6 +102,9 @@ def main() -> int:
                 if isinstance(task, dict) and task.get("placements")
             ),
         }
+        timeline = summarize_timeline(profile)
+        if timeline:
+            summary["timeline"] = timeline
         print(json.dumps(summary, ensure_ascii=False, indent=2))
         print("\n--- profile ---\n")
         body = json.dumps(profile, ensure_ascii=False, indent=2)

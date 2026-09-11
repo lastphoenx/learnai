@@ -10,6 +10,11 @@ from app.core.label_diagram import (
     build_label_diagram_from_terms,
     is_label_format,
 )
+from app.core.timeline_diagram import build_timeline_diagram_from_pedagogy, summarize_timeline
+from app.core.visual_task_filters import (
+    has_degenerate_placements,
+    is_unusable_visual_instruction,
+)
 
 _PERSONAL_TERM = re.compile(
     r"gefallt|wünsche|wuerde ich|würde ich|deine|dein |meine|mein |gedanken|beobachtest|"
@@ -17,7 +22,10 @@ _PERSONAL_TERM = re.compile(
     re.I,
 )
 _UNUSABLE_VISUAL = re.compile(
-    r"bild der|abbildung|foto|altstadt.*beschrif|landmark|zeichne.*landschaft|nach deiner fantasie",
+    r"bild der|abbildung|foto|altstadt.*beschrif|landmark|"
+    r"zeichne.*landschaft|nach deiner fantasie|"
+    r"symbol.*gegenwart|zeichne.*symbol|typisch.*21|"
+    r"leeres feld|deiner meinung|gegenstand.*typisch",
     re.I,
 )
 _WEAK_ROLES = frozenset({"begriff", "part", "whole", "term", "definition", "concept", "element", "item"})
@@ -645,15 +653,31 @@ def derive_practice_items(
         items.append(item)
 
     title = category_label[:120] or "Thema"
+    has_timeline = summarize_timeline(pedagogy) is not None
+    choice_cap = 2 if has_timeline else 3
 
     for item in _derive_knowledge_choice_items(
         basiswissen=basiswissen,
         pedagogy=pedagogy,
         category_label=title,
         practice_state=practice_state,
-        max_count=3,
+        max_count=choice_cap,
     ):
         add_item(item)
+
+    timeline_diagram = build_timeline_diagram_from_pedagogy(
+        pedagogy,
+        title=f"{title} — Zeitstrahl",
+        term_hints=term_hints,
+    )
+    if timeline_diagram:
+        timeline_item = _label_practice_item(
+            diagram=timeline_diagram,
+            hint="Ordne die Epochen von früh nach spät auf dem Zeitstrahl.",
+            source="pedagogy",
+        )
+        items.insert(0, timeline_item)
+        seen_prompts.add(str(timeline_item.get("prompt") or "").strip().lower())
 
     if _visual_tasks_have_label_placements(pedagogy):
         for task in pedagogy.get("visual_tasks") or []:
@@ -662,10 +686,15 @@ def derive_practice_items(
             if not is_label_format(str(task.get("kind") or "")):
                 continue
             instruction = str(task.get("instruction") or "").strip()
-            if instruction and _UNUSABLE_VISUAL.search(instruction):
+            if instruction and (
+                _UNUSABLE_VISUAL.search(instruction)
+                or is_unusable_visual_instruction(instruction)
+            ):
                 continue
             placements = task.get("placements")
             if not isinstance(placements, list) or len(placements) < 3:
+                continue
+            if has_degenerate_placements(placements):
                 continue
             task_terms = [str(t).strip() for t in (task.get("terms") or []) if str(t).strip()]
             use_terms = [t for t in (task_terms or _module_terms(pedagogy=pedagogy, basiswissen=basiswissen)) if t]

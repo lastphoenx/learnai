@@ -12,6 +12,7 @@ from typing import Any
 from app.ai.providers import parse_json_object
 from app.core.german_pedagogy_verify import finalize_german_pedagogy_digest
 from app.core.method_taxonomy import normalize_method_id
+from app.core.visual_task_filters import filter_visual_task_entry
 from app.core.pedagogy_labels import (
     guess_method_id,
     is_competency_heading,
@@ -454,7 +455,10 @@ def _normalize_visual_tasks(raw: object) -> list[dict[str, Any]]:
             placements.append({"term": term[:80], "x": x, "y": y})
         if placements:
             entry["placements"] = placements[:12]
-        out.append(entry)
+        filtered = filter_visual_task_entry(entry)
+        if filtered is None:
+            continue
+        out.append(filtered)
     return out[:8]
 
 

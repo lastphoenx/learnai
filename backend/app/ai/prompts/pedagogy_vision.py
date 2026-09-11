@@ -57,7 +57,12 @@ _PROFILE_OVERLAYS: dict[str, str] = {
         "NMG-Zusatz (Natur, Mensch, Gesellschaft):\n"
         "- key_terms und assignments haben Priorität — mindestens alle Fachbegriffe und Aufträge aus dem Heft.\n"
         "- exercise_formats typisch: Lesen, Zeichnen, Beschriften, Zuordnen, Karte bearbeiten.\n"
-        "- visual_tasks bei Zeichen-/Beschriftungsaufgaben (kind draw oder label).\n"
+        "- Tabellen/Zeitstrahls mit historischen Epochen und Jahreszahlen: Epochen in key_terms "
+        "(term, definition mit Datumsbereich, role «historische Epoche»/«Zeitperiode») — "
+        "NICHT als kreative Zeichenaufgabe (kein «Symbol für die Gegenwart zeichnen» als visual_task).\n"
+        "- visual_tasks nur bei echten Beschriftungsdiagrammen (kind label) mit unterscheidbaren "
+        "placements (x,y 0–1, nicht alle identisch).\n"
+        "- Fantasie-/Meinungs-Zeichenaufgaben nicht als visual_task — assignments reicht.\n"
         "- methods nur wenn explizite Strategien genannt — sonst leer lassen.\n"
     ),
     "german": (

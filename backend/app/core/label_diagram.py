@@ -95,6 +95,7 @@ def build_label_diagram_from_terms(
     term_hints: dict[str, str] | None = None,
     layout: str = "radial",
     shuffle_terms: bool = True,
+    max_terms: int = 8,
 ) -> dict[str, Any] | None:
     unique: list[str] = []
     seen: set[str] = set()
@@ -123,7 +124,7 @@ def build_label_diagram_from_terms(
                 continue
             placement_map[_norm(term)] = (max(0.08, min(0.92, x)), max(0.08, min(0.92, y)))
 
-    working = unique[:8]
+    working = unique[: max(3, max_terms)]
     count = len(working)
     hotspots: list[dict[str, Any]] = []
     for index, term in enumerate(working):
