@@ -14,6 +14,7 @@ from app.services.unit_reference_service import (
     _family_order,
     _family_order_from_groups,
     parse_reference_code,
+    reference_codes_from_recon,
 )
 
 
@@ -32,6 +33,22 @@ def test_parse_reference_instance():
 def test_parse_reference_invalid():
     with pytest.raises(UnitReferenceError):
         parse_reference_code("abc")
+
+
+def test_reference_codes_from_recon_parses_code_only():
+    family, instance, code = reference_codes_from_recon({"reference_code": "0016.0001"})
+    assert family == "0016"
+    assert instance == "0001"
+    assert code == "0016.0001"
+
+
+def test_reference_codes_from_recon_builds_code_from_parts():
+    family, instance, code = reference_codes_from_recon(
+        {"reference_family": "0016", "reference_instance": "0001"}
+    )
+    assert family == "0016"
+    assert instance == "0001"
+    assert code == "0016.0001"
 
 
 def _unit(created: datetime):

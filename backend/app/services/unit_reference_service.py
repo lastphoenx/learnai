@@ -50,6 +50,13 @@ def reference_codes_from_recon(recon: dict | None) -> tuple[str | None, str | No
     family = str(recon.get("reference_family") or "").strip() or None
     instance = str(recon.get("reference_instance") or "").strip() or None
     code = str(recon.get("reference_code") or "").strip() or None
+    if code and (not family or ("." in code and not instance)):
+        try:
+            parsed_family, parsed_instance = parse_reference_code(code)
+            family = family or parsed_family
+            instance = instance or parsed_instance
+        except UnitReferenceError:
+            pass
     if not code and family and instance:
         code = f"{family}.{instance}"
     return family, instance, code
@@ -146,16 +153,23 @@ def ensure_unit_reference_codes(
         return {"reference_family": None, "reference_instance": None, "reference_code": None}
 
     recon = _recon_from_blob(record.reconstruction_encrypted)
+    computed_family, computed_instance, computed_code = _compute_codes_for_unit(
+        db, unit.tenant_id, unit, record
+    )
+    stored_family, stored_instance, stored_code = reference_codes_from_recon(recon)
 
-    family, instance, code = reference_codes_from_recon(recon)
-    if code:
+    if (
+        stored_code == computed_code
+        and stored_family == computed_family
+        and stored_instance == computed_instance
+    ):
         return {
-            "reference_family": family,
-            "reference_instance": instance,
-            "reference_code": code,
+            "reference_family": computed_family,
+            "reference_instance": computed_instance,
+            "reference_code": computed_code,
         }
 
-    family, instance, code = _compute_codes_for_unit(db, unit.tenant_id, unit, record)
+    family, instance, code = computed_family, computed_instance, computed_code
     if persist:
         recon["reference_family"] = family
         recon["reference_instance"] = instance
