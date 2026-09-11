@@ -8,6 +8,17 @@ import re
 import unicodedata
 from typing import Any
 
+_POSITION_HINTS = (
+    "oben",
+    "rechts oben",
+    "rechts",
+    "rechts unten",
+    "unten",
+    "links unten",
+    "links",
+    "links oben",
+)
+
 _LABEL_FORMATS = frozenset(
     {"label", "beschriften", "beschriftung", "zuordnen", "benennen", "markieren"}
 )
@@ -76,6 +87,8 @@ def build_label_diagram_from_terms(
                 "x": round(x, 3),
                 "y": round(y, 3),
                 "accept": [term],
+                "label": str(index + 1),
+                "hint": None if placed else _POSITION_HINTS[index % len(_POSITION_HINTS)],
             }
         )
 
@@ -83,7 +96,7 @@ def build_label_diagram_from_terms(
         "template": "generic",
         "title": title[:120],
         "instruction": (
-            instruction or "Tippe einen Begriff an, dann die passende Stelle auf dem Schema."
+            instruction or "Ordne jeden nummerierten Begriff der gleichen Nummer auf dem Schema zu."
         )[:300],
         "hotspots": hotspots,
         "terms": unique[:8],

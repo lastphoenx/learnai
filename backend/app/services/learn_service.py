@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.core.crypto import decrypt_text_master
 from app.core.card_answer import grade_input_card
-from app.core.content_analysis import analyze_interactive_modules
+from app.core.trainer_cards import count_trainer_card_kinds
 from app.core.quiz_explanation import enrich_quiz_explanation
 from app.core.solution_repair import enrich_card, enrich_knowledge_item
 from app.core.quiz_numeric import is_quiz_selection_correct, resolve_quiz_correct_index
@@ -1112,12 +1112,7 @@ def _interactive_trainer_payload(
             }
         )
     content_analysis = analyze_interactive_modules(module_payloads)
-    card_kind_counts = {
-        "merk": sum(1 for c in cards if c.get("kind") == "merk"),
-        "mental": sum(1 for c in cards if c.get("kind") in (None, "mental")),
-        "input": sum(1 for c in cards if c.get("kind") == "input"),
-        "term": sum(1 for c in cards if c.get("card_role") in ("term", "cloze")),
-    }
+    card_kind_counts = count_trainer_card_kinds(cards)
     stats_blob = _get_stats(record)
     learn_modules = (stats_blob.get("learn") or {}).get("modules") or {}
     quiz_done = count_quiz_answered(learn_modules, modules)

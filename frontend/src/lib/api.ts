@@ -296,6 +296,8 @@ export type TrainerLabelDiagramHotspot = {
   x: number;
   y: number;
   accept?: string[];
+  label?: string;
+  hint?: string | null;
 };
 
 export type TrainerLabelDiagram = {

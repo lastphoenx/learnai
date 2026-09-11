@@ -132,3 +132,10 @@ def test_enrich_module_adds_generic_practice():
         diagram = item.get("diagram")
         if isinstance(diagram, dict):
             assert diagram.get("template") == "generic"
+
+
+def test_build_label_diagram_numbers_hotspots():
+    diagram = build_label_diagram_from_terms(["Feuer", "Fleisch", "Faustkeil"])
+    assert diagram is not None
+    assert diagram["hotspots"][0]["label"] == "1"
+    assert diagram["hotspots"][0].get("hint")

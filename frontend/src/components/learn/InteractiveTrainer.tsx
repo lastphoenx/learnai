@@ -55,18 +55,14 @@ import {
   quizQuestionKey,
 } from "@/lib/quizNav";
 
-type CardFilter = "due" | "all" | "merk" | "mental" | "input" | "terms" | "practice";
-
-function isTermCard(card: { card_role?: string; answer_type?: string; source?: string; kind?: string }): boolean {
-  if (card.kind === "input") return false;
-  if (card.card_role === "term" || card.card_role === "cloze") return true;
-  if (card.source === "basiswissen") return true;
-  return card.answer_type === "cloze";
-}
-
-function cardKind(card: { kind?: string }): string {
-  return card.kind || "mental";
-}
+import {
+  cardDeckTypeLabel,
+  cardJumpKind,
+  cardKind,
+  countTrainerCardFilters,
+  filterTrainerCards,
+  type CardFilter,
+} from "@/lib/trainerCardFilters";
 
 function GoalsBlock({ title, block }: { title: string; block: GoalsProgressBlock }) {
   if (!block.active_count) return null;
@@ -219,21 +215,10 @@ export function InteractiveTrainer({
       }
     }
   }
-  const filteredCards = useMemo(() => {
-    if (cardFilter === "practice") return [];
-    let list = cards;
-    if (cardFilter === "due") {
-      list = list.filter(
-        (card) =>
-          progress[card.card_key]?.due !== false || dueSessionKeys.current.has(card.card_key),
-      );
-    } else if (cardFilter === "merk" || cardFilter === "mental" || cardFilter === "input") {
-      list = list.filter((card) => cardKind(card) === cardFilter);
-    } else if (cardFilter === "terms") {
-      list = list.filter((card) => isTermCard(card));
-    }
-    return list;
-  }, [cards, cardFilter, progress]);
+  const filteredCards = useMemo(
+    () => filterTrainerCards(cards, cardFilter, progress, dueSessionKeys.current),
+    [cards, cardFilter, progress],
+  );
   const orderedCards = useMemo(
     () => orderCardsWithDeferred(filteredCards, deferredCardKeys),
     [filteredCards, deferredCardKeys],
@@ -262,12 +247,20 @@ export function InteractiveTrainer({
       .catch(() => setSttProvider("browser"));
   }, [state.unit.profile_id]);
 
-  useEffect(() => {
+  const stats = trainer?.stats;
+  const filterCounts = useMemo(() => countTrainerCardFilters(cards, progress), [cards, progress]);
+  const newCards = Math.max(
+    0,
+    filterCounts.all - (stats?.known_cards ?? 0) - (stats?.review_cards ?? 0),
+  );
+
+  function selectCardFilter(next: CardFilter) {
+    setCardFilter(next);
     setCardIndex(0);
     setFlipped(false);
     setCardInputResult(null);
     setDeferredCardKeys([]);
-  }, [cardFilter]);
+  }
 
   useEffect(() => {
     if (orderedCards.length === 0) return;
@@ -343,10 +336,7 @@ export function InteractiveTrainer({
       quizQuestionKey(currentQuestion) !== lastSubmittedKey,
   );
 
-  const stats = trainer?.stats;
-  const newCards = stats?.new_cards ?? Math.max(0, (stats?.card_count ?? 0) - (stats?.known_cards ?? 0) - (stats?.review_cards ?? 0));
-  const reviewDueCards = Math.max(0, (stats?.due_cards ?? 0) - newCards);
-  const dueCards = stats?.due_cards ?? filteredCards.length;
+  const dueCards = filterCounts.due;
   const quizAnsweredCount = useMemo(
     () => countAnsweredInDeck(allQuestions, learnProgress),
     [allQuestions, learnProgress],
@@ -398,8 +388,8 @@ export function InteractiveTrainer({
     return "review";
   })();
 
-  const cardPercent = stats?.card_count
-    ? Math.round((100 * stats.known_cards) / stats.card_count)
+  const cardPercent = filterCounts.all
+    ? Math.round((100 * (stats?.known_cards ?? 0)) / filterCounts.all)
     : 0;
   const quizPercent =
     state.summary.quiz_total > 0
@@ -917,15 +907,15 @@ export function InteractiveTrainer({
             <h3 className="trainer-stat-heading">Lernkarten</h3>
             <div className="trainer-stat-grid">
               <div className="trainer-stat">
-                <strong>{stats.merk_cards ?? 0}</strong>
+                <strong>{filterCounts.merk}</strong>
                 <span> Merk</span>
               </div>
               <div className="trainer-stat">
-                <strong>{stats.mental_cards ?? stats.card_count}</strong>
+                <strong>{filterCounts.mental}</strong>
                 <span> Kopf</span>
               </div>
               <div className="trainer-stat">
-                <strong>{stats.input_cards ?? 0}</strong>
+                <strong>{filterCounts.input}</strong>
                 <span> Eingabe</span>
               </div>
               <div className="trainer-stat">
@@ -938,7 +928,7 @@ export function InteractiveTrainer({
                 <div className="trainer-progress-fill" style={{ width: `${cardPercent}%` }} />
               </div>
               <p className="trainer-progress-label muted">
-                {stats.known_cards}/{stats.card_count} Karten sicher ({cardPercent}%)
+                {stats.known_cards}/{filterCounts.all} Karten sicher ({cardPercent}%)
                 {newCards > 0 ? ` · ${newCards} noch nicht geübt` : ""}
               </p>
             </div>
@@ -1099,54 +1089,54 @@ export function InteractiveTrainer({
             <button
               type="button"
               className={cardFilter === "due" ? "trainer-tab active" : "trainer-tab"}
-              onClick={() => setCardFilter("due")}
+              onClick={() => selectCardFilter("due")}
             >
-              Fällig ({reviewDueCards > 0 ? reviewDueCards : newCards})
+              Fällig ({dueCards})
             </button>
             <button
               type="button"
               className={cardFilter === "merk" ? "trainer-tab active" : "trainer-tab"}
-              onClick={() => setCardFilter("merk")}
+              onClick={() => selectCardFilter("merk")}
             >
-              Merk ({stats.merk_cards ?? 0})
+              Merk ({filterCounts.merk})
             </button>
             <button
               type="button"
               className={cardFilter === "mental" ? "trainer-tab active" : "trainer-tab"}
-              onClick={() => setCardFilter("mental")}
+              onClick={() => selectCardFilter("mental")}
             >
-              Kurz ({stats.mental_cards ?? stats.card_count})
+              Kurz ({filterCounts.mental})
             </button>
             <button
               type="button"
               className={cardFilter === "terms" ? "trainer-tab active" : "trainer-tab"}
               onClick={() => {
-                setCardFilter("terms");
+                selectCardFilter("terms");
                 setTab("cards");
               }}
             >
-              Fachbegriffe ({stats?.term_cards ?? 0})
+              Fachbegriffe ({filterCounts.terms})
             </button>
             <button
               type="button"
               className={cardFilter === "input" ? "trainer-tab active" : "trainer-tab"}
-              onClick={() => setCardFilter("input")}
+              onClick={() => selectCardFilter("input")}
             >
-              Eingabe ({stats.input_cards ?? 0})
+              Eingabe ({filterCounts.input})
             </button>
             <button
               type="button"
               className={cardFilter === "all" ? "trainer-tab active" : "trainer-tab"}
-              onClick={() => setCardFilter("all")}
+              onClick={() => selectCardFilter("all")}
             >
-              Alle ({stats.card_count})
+              Alle ({filterCounts.all})
             </button>
             {practiceExercises.length > 0 && (
               <button
                 type="button"
                 className={cardFilter === "practice" ? "trainer-tab active" : "trainer-tab"}
                 onClick={() => {
-                  setCardFilter("practice");
+                  selectCardFilter("practice");
                   setPracticeIndex(0);
                   setPracticeResult(null);
                 }}
@@ -1155,6 +1145,12 @@ export function InteractiveTrainer({
               </button>
             )}
           </div>
+          {cardFilter === "terms" && (
+            <p className="muted" style={{ margin: "0.35rem 0 0", fontSize: "0.88rem" }}>
+              Fachbegriffe sind oft auch unter «Kurz» — hier nur Begriffs-Karten. Merk + Kurz + Eingabe = Alle (
+              {filterCounts.all}).
+            </p>
+          )}
 
           {cardFilter === "practice" && currentPractice && (
             <div className="trainer-cards">
@@ -1226,6 +1222,7 @@ export function InteractiveTrainer({
                 <DrawingCanvas
                   key={`${currentPractice.module_id}:${currentPractice.exercise_index}`}
                   config={currentPractice.drawing}
+                  prompt={currentPractice.prompt}
                   busy={busy}
                   completed={Boolean(practiceResult?.correct)}
                   onComplete={async () => {
@@ -1306,13 +1303,7 @@ export function InteractiveTrainer({
                 </div>
                 <p className="learn-quiz-meta muted">
                   {[
-                    `${
-                      cardKind(currentCard) === "merk"
-                        ? "Merkkarte"
-                        : cardKind(currentCard) === "input"
-                          ? "Eingabe-Karte"
-                          : "Kurzfrage"
-                    } ${cardIndex + 1} von ${orderedCards.length}`,
+                    `${cardDeckTypeLabel(cardFilter, currentCard)} ${cardIndex + 1} von ${orderedCards.length}`,
                     currentCard.domain || null,
                     progress[currentCard.card_key]?.status === "known"
                       ? cardKind(currentCard) === "input"
@@ -1338,7 +1329,7 @@ export function InteractiveTrainer({
                 itemKey={(i) => orderedCards[i].card_key}
                 itemClassName={(i) => {
                   const card = orderedCards[i];
-                  const jumpKind = cardKind(card) === "input" ? "input" : "merk";
+                  const jumpKind = cardJumpKind(cardFilter, card);
                   return cardJumpClassName(i, cardIndex, {
                     kind: jumpKind,
                     status: progress[card.card_key]?.status,
@@ -1347,7 +1338,7 @@ export function InteractiveTrainer({
                 }}
                 itemTitle={(i) => {
                   const card = orderedCards[i];
-                  const jumpKind = cardKind(card) === "input" ? "input" : "merk";
+                  const jumpKind = cardJumpKind(cardFilter, card);
                   return cardJumpTitle(i, {
                     kind: jumpKind,
                     status: progress[card.card_key]?.status,

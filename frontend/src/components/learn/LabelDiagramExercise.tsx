@@ -14,6 +14,7 @@ type Props = {
 export function LabelDiagramExercise({ diagram, busy, result, onSubmit }: Props) {
   const hotspots = diagram.hotspots || [];
   const terms = diagram.terms || [];
+  const numbered = diagram.template === "generic" || hotspots.some((hs) => hs.label);
   const [selectedTerm, setSelectedTerm] = useState<string | null>(null);
   const [assignments, setAssignments] = useState<Record<string, string>>({});
 
@@ -50,17 +51,30 @@ export function LabelDiagramExercise({ diagram, busy, result, onSubmit }: Props)
   return (
     <div className="label-diagram-exercise stack">
       {diagram.title && <h4 className="label-diagram-title">{diagram.title}</h4>}
+      {diagram.instruction && (
+        <p className="label-diagram-instruction">{diagram.instruction}</p>
+      )}
       <p className="muted label-diagram-hint">
         {selectedTerm
-          ? `«${selectedTerm}» — tippe die passende Stelle auf dem Bild.`
-          : "Tippe zuerst einen Begriff, dann die Stelle auf dem Bild."}
+          ? numbered
+            ? `«${selectedTerm}» — tippe die passende Nummer auf dem Schema.`
+            : `«${selectedTerm}» — tippe die passende Stelle auf dem Bild.`
+          : numbered
+            ? "Tippe einen Begriff, dann die gleiche Nummer auf dem Schema."
+            : "Tippe zuerst einen Begriff, dann die Stelle auf dem Bild."}
       </p>
       <div className="label-diagram-stage">
-        <GenericDiagramSvg className="label-diagram-svg" />
-        {hotspots.map((hs) => {
+        <GenericDiagramSvg className="label-diagram-svg" numbered={numbered} slotCount={hotspots.length} />
+        {hotspots.map((hs, index) => {
           const placed = assignments[hs.id];
+          const slotLabel = hs.label || String(index + 1);
           const left = `${Math.round(hs.x * 100)}%`;
           const top = `${Math.round(hs.y * 100)}%`;
+          const title = placed
+            ? `${placed} (${slotLabel})`
+            : hs.hint
+              ? `Platz ${slotLabel} (${hs.hint})`
+              : `Platz ${slotLabel}`;
           return (
             <button
               key={hs.id}
@@ -68,18 +82,20 @@ export function LabelDiagramExercise({ diagram, busy, result, onSubmit }: Props)
               className={`label-diagram-hotspot${placed ? " filled" : ""}${selectedTerm && !placed ? " ready" : ""}`}
               style={{ left, top }}
               disabled={busy || Boolean(result)}
-              title={placed || "Stelle beschriften"}
+              title={title}
               onClick={() => (placed ? clearHotspot(hs.id) : placeOnHotspot(hs.id))}
             >
-              {placed || "?"}
+              {placed ? (placed.length > 10 ? `${placed.slice(0, 9)}…` : placed) : slotLabel}
             </button>
           );
         })}
       </div>
       <div className="label-diagram-terms" role="listbox" aria-label="Fachbegriffe">
-        {terms.map((term) => {
+        {terms.map((term, index) => {
           const isUsed = usedTerms.has(term);
           const isSelected = selectedTerm === term;
+          const hs = hotspots[index];
+          const prefix = numbered && hs?.label ? `${hs.label} · ` : numbered ? `${index + 1} · ` : "";
           return (
             <button
               key={term}
@@ -90,6 +106,7 @@ export function LabelDiagramExercise({ diagram, busy, result, onSubmit }: Props)
               disabled={busy || Boolean(result) || isUsed}
               onClick={() => setSelectedTerm(isSelected ? null : term)}
             >
+              {prefix}
               {term}
             </button>
           );

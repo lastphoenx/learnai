@@ -8,12 +8,61 @@ type TextLabel = { x: number; y: number; text: string };
 
 type Props = {
   config: TrainerDrawingConfig;
+  prompt?: string;
   busy: boolean;
   completed: boolean;
   onComplete: () => void;
 };
 
-function drawLandscape(ctx: CanvasRenderingContext2D, width: number, height: number) {
+function drawExampleSketch(ctx: CanvasRenderingContext2D, width: number, height: number) {
+  ctx.save();
+  ctx.globalAlpha = 0.28;
+  ctx.strokeStyle = "#475569";
+  ctx.fillStyle = "#64748b";
+  ctx.lineWidth = 2;
+  const baseY = height * 0.72;
+  ctx.beginPath();
+  ctx.arc(width * 0.28, baseY - 36, 10, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(width * 0.28, baseY - 26);
+  ctx.lineTo(width * 0.28, baseY);
+  ctx.moveTo(width * 0.28, baseY - 18);
+  ctx.lineTo(width * 0.18, baseY - 4);
+  ctx.moveTo(width * 0.28, baseY - 18);
+  ctx.lineTo(width * 0.38, baseY - 4);
+  ctx.moveTo(width * 0.28, baseY);
+  ctx.lineTo(width * 0.2, baseY + 18);
+  ctx.moveTo(width * 0.28, baseY);
+  ctx.lineTo(width * 0.36, baseY + 18);
+  ctx.stroke();
+  const fireX = width * 0.58;
+  const fireY = baseY - 8;
+  ctx.fillStyle = "#f97316";
+  ctx.beginPath();
+  ctx.moveTo(fireX, fireY - 42);
+  ctx.lineTo(fireX + 18, fireY);
+  ctx.lineTo(fireX - 18, fireY);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(fireX + 28, fireY - 28);
+  ctx.lineTo(fireX + 40, fireY + 4);
+  ctx.lineTo(fireX + 16, fireY + 4);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = "#78350f";
+  ctx.beginPath();
+  ctx.moveTo(fireX - 8, fireY + 4);
+  ctx.lineTo(fireX + 8, fireY + 4);
+  ctx.lineTo(fireX + 6, fireY + 22);
+  ctx.lineTo(fireX - 6, fireY + 22);
+  ctx.closePath();
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawLandscape(ctx: CanvasRenderingContext2D, width: number, height: number, showExample: boolean) {
   const sky = ctx.createLinearGradient(0, 0, 0, height);
   sky.addColorStop(0, "#b8d4f0");
   sky.addColorStop(1, "#e8f0fa");
@@ -32,9 +81,12 @@ function drawLandscape(ctx: CanvasRenderingContext2D, width: number, height: num
 
   ctx.fillStyle = "rgba(74, 144, 226, 0.45)";
   ctx.fillRect(0, height * 0.82, width, height * 0.18);
+  if (showExample) {
+    drawExampleSketch(ctx, width, height);
+  }
 }
 
-export function DrawingCanvas({ config, busy, completed, onComplete }: Props) {
+export function DrawingCanvas({ config, prompt, busy, completed, onComplete }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const inkRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -45,6 +97,11 @@ export function DrawingCanvas({ config, busy, completed, onComplete }: Props) {
   const [labels, setLabels] = useState<TextLabel[]>([]);
   const [size, setSize] = useState({ width: 640, height: 420 });
 
+  const terms = config.terms || [];
+  const showExample = /feuer|nahrung|koch|zubereit|braten|grill|flamm/i.test(
+    `${prompt || ""} ${config.title || ""}`,
+  );
+
   const composite = useCallback(() => {
     const canvas = canvasRef.current;
     const ink = inkRef.current;
@@ -52,7 +109,7 @@ export function DrawingCanvas({ config, busy, completed, onComplete }: Props) {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    drawLandscape(ctx, canvas.width, canvas.height);
+    drawLandscape(ctx, canvas.width, canvas.height, showExample);
     ctx.drawImage(ink, 0, 0);
     ctx.font = "bold 14px system-ui, sans-serif";
     ctx.textBaseline = "middle";
@@ -71,7 +128,7 @@ export function DrawingCanvas({ config, busy, completed, onComplete }: Props) {
       ctx.fillStyle = "#1a365d";
       ctx.fillText(label.text, label.x + padding, label.y);
     }
-  }, [labels]);
+  }, [labels, showExample]);
 
   useEffect(() => {
     const node = containerRef.current;
@@ -201,11 +258,15 @@ export function DrawingCanvas({ config, busy, completed, onComplete }: Props) {
     win.document.close();
   }
 
-  const terms = config.terms || [];
-
   return (
     <div className="drawing-canvas-exercise stack">
       {config.title && <h4 className="drawing-canvas-title">{config.title}</h4>}
+      {showExample && (
+        <p className="muted drawing-example-hint">
+          Die graue Skizze ist nur ein Beispiel — zeichne und beschrifte deine eigene Szene (Feuer, Nahrung,
+          Menschen …).
+        </p>
+      )}
       <p className="muted">
         Mit dem Stift zeichnen. Optional: Begriff antippen, dann auf die Zeichnung tippen zum Beschriften.
       </p>

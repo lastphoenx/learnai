@@ -3839,6 +3839,15 @@ button.trainer-flashcard.flipped {
   vertical-align: baseline;
 }
 
+.label-diagram-instruction {
+  margin: 0;
+  font-weight: 600;
+}
+
+.drawing-example-hint {
+  margin: 0;
+}
+
 .label-diagram-exercise,
 .drawing-canvas-exercise {
   gap: 0.75rem;

@@ -165,7 +165,7 @@ export function orderCardsWithDeferred<T extends { card_key: string }>(
 export function cardJumpClassName(
   index: number,
   currentIndex: number,
-  opts: { kind: "input" | "merk"; status?: string; deferred?: boolean },
+  opts: { kind: "input" | "merk" | "term"; status?: string; deferred?: boolean },
 ): string {
   let cls = "quiz-nav-jump";
   if (index === currentIndex) cls += " active";
@@ -180,16 +180,18 @@ export function cardJumpClassName(
 
 export function cardJumpTitle(
   index: number,
-  opts: { kind: "input" | "merk"; status?: string; deferred?: boolean },
+  opts: { kind: "input" | "merk" | "term"; status?: string; deferred?: boolean },
 ): string {
   const n = index + 1;
+  const label =
+    opts.kind === "input" ? "Eingabe" : opts.kind === "term" ? "Fachbegriff" : "Karte";
   if (opts.kind === "input") {
-    if (opts.status === "known") return `Karte ${n} (richtig)`;
-    if (opts.status === "review") return `Karte ${n} (falsch)`;
+    if (opts.status === "known") return `${label} ${n} (richtig)`;
+    if (opts.status === "review") return `${label} ${n} (falsch)`;
   } else {
-    if (opts.status === "known") return `Karte ${n} (gewusst)`;
-    if (opts.status === "review") return `Karte ${n} (wiederholen)`;
+    if (opts.status === "known") return `${label} ${n} (gewusst)`;
+    if (opts.status === "review") return `${label} ${n} (wiederholen)`;
   }
-  if (opts.deferred) return `Karte ${n} (später)`;
-  return `Karte ${n}`;
+  if (opts.deferred) return `${label} ${n} (später)`;
+  return `${label} ${n}`;
 }
