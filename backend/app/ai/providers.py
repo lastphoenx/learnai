@@ -80,11 +80,39 @@ def complete(
     model: str | None = None,
     num_predict: int | None = None,
     json_mode: bool = False,
+    images: list[tuple[bytes, str]] | None = None,
 ) -> LlmResult:
     name = resolve_provider(provider)
     text = prompt.strip()
-    if not text:
+    if not text and not images:
         raise LlmError("Leerer Prompt", "empty")
+    image_list = list(images or [])
+    if image_list:
+        if name == "ollama":
+            return _ollama_multimodal_chat(
+                text,
+                image_list,
+                system=system,
+                model=model,
+                num_predict=num_predict,
+                json_mode=json_mode,
+            )
+        if name == "openai":
+            return _openai_multimodal_chat(
+                text,
+                image_list,
+                system=system,
+                model=model,
+                max_tokens=num_predict,
+                json_mode=json_mode,
+            )
+        return _anthropic_multimodal_chat(
+            text,
+            image_list,
+            system=system,
+            model=model,
+            max_tokens=num_predict,
+        )
     if name == "ollama":
         return _ollama_chat(
             text, system=system, model=model, num_predict=num_predict, json_mode=json_mode
@@ -233,6 +261,46 @@ def _ollama_chat(
     return LlmResult(provider="ollama", model=model, text=text.strip())
 
 
+def _ollama_multimodal_chat(
+    prompt: str,
+    images: list[tuple[bytes, str]],
+    *,
+    system: str | None = None,
+    model: str | None = None,
+    num_predict: int | None = None,
+    json_mode: bool = False,
+) -> LlmResult:
+    model = _ollama_chat_model(model) or _ollama_vision_model(model)
+    if not model:
+        raise LlmError(
+            "Kein Ollama-Modell für Multimodal. OLLAMA_MODEL oder OLLAMA_VISION_MODEL setzen.",
+            "no_chat_model",
+        )
+    b64_images = [
+        base64.b64encode(image_bytes).decode("ascii") for image_bytes, _mime in images
+    ]
+    messages = []
+    if system:
+        messages.append({"role": "system", "content": system})
+    messages.append({"role": "user", "content": prompt.strip(), "images": b64_images})
+    payload: dict = {"model": model, "messages": messages, "stream": False}
+    if json_mode:
+        payload["format"] = "json"
+    if num_predict:
+        payload["options"] = {"num_predict": num_predict, "temperature": 0.35}
+    _log.info(
+        "ollama_multimodal start model=%s images=%d timeout_s=%d",
+        model,
+        len(b64_images),
+        settings.ollama_chat_timeout_sec,
+    )
+    data = _ollama_post("/api/chat", payload, timeout=float(settings.ollama_chat_timeout_sec))
+    text = (data.get("message") or {}).get("content") or ""
+    if not text.strip():
+        raise LlmError("Ollama lieferte keinen Text", "empty_response")
+    return LlmResult(provider="ollama", model=model, text=text.strip())
+
+
 def _ollama_vision_model(explicit: str | None = None) -> str:
     name = (explicit or settings.ollama_vision_model or "").strip()
     if name:
@@ -362,23 +430,49 @@ def _openai_chat(
 
 
 def _openai_vision(b64: str, mime: str, prompt: str, model: str | None = None) -> LlmResult:
+    return _openai_multimodal_chat(
+        prompt,
+        [(base64.b64decode(b64), mime)],
+        model=model,
+        temperature=0.2,
+    )
+
+
+def _openai_multimodal_chat(
+    prompt: str,
+    images: list[tuple[bytes, str]],
+    *,
+    system: str | None = None,
+    model: str | None = None,
+    max_tokens: int | None = None,
+    json_mode: bool = False,
+    temperature: float = 0.3,
+) -> LlmResult:
     if not settings.openai_api_key:
         raise LlmError("OPENAI_API_KEY fehlt", "missing_key")
     model = (model or settings.openai_model).strip()
-    messages = [
-        {
-            "role": "user",
-            "content": [
-                {"type": "text", "text": prompt},
-                {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64}"}},
-            ],
-        }
-    ]
-    body = _openai_chat_body(model, messages, temperature=0.2)
+    user_content: list[dict] = []
+    if prompt.strip():
+        user_content.append({"type": "text", "text": prompt.strip()})
+    for image_bytes, mime in images:
+        media = mime if str(mime).startswith("image/") else "image/jpeg"
+        b64 = base64.b64encode(image_bytes).decode("ascii")
+        user_content.append(
+            {"type": "image_url", "image_url": {"url": f"data:{media};base64,{b64}"}}
+        )
+    if not user_content:
+        raise LlmError("Leerer Multimodal-Prompt", "empty")
+    messages: list[dict] = []
+    if system:
+        messages.append({"role": "system", "content": system})
+    messages.append({"role": "user", "content": user_content})
+    body = _openai_chat_body(model, messages, temperature=temperature, max_tokens=max_tokens)
+    if json_mode and not _is_reasoning_family(model):
+        body["response_format"] = {"type": "json_object"}
     data = _openai_post(body, timeout=180.0)
     text = (((data.get("choices") or [{}])[0].get("message") or {}).get("content")) or ""
     if not text.strip():
-        raise LlmError("OpenAI-Vision lieferte keinen Text", "empty_response")
+        raise LlmError("OpenAI lieferte keinen Text", "empty_response")
     return LlmResult(provider="openai", model=model, text=text.strip())
 
 
@@ -428,28 +522,46 @@ def _anthropic_chat(
 
 
 def _anthropic_vision(b64: str, mime: str, prompt: str, model: str | None = None) -> LlmResult:
+    return _anthropic_multimodal_chat(
+        prompt,
+        [(base64.b64decode(b64), mime)],
+        model=model,
+    )
+
+
+def _anthropic_multimodal_chat(
+    prompt: str,
+    images: list[tuple[bytes, str]],
+    *,
+    system: str | None = None,
+    model: str | None = None,
+    max_tokens: int | None = None,
+) -> LlmResult:
     if not settings.anthropic_api_key:
         raise LlmError("ANTHROPIC_API_KEY fehlt", "missing_key")
     model = (model or settings.anthropic_model).strip()
-    data = _anthropic_post(
-        {
-            "model": model,
-            "max_tokens": 4096,
-            "messages": [
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "image",
-                            "source": {"type": "base64", "media_type": mime, "data": b64},
-                        },
-                        {"type": "text", "text": prompt},
-                    ],
-                }
-            ],
-        },
-        timeout=180.0,
-    )
+    content: list[dict] = []
+    for image_bytes, mime in images:
+        media = mime if str(mime).startswith("image/") else "image/jpeg"
+        b64 = base64.b64encode(image_bytes).decode("ascii")
+        content.append(
+            {
+                "type": "image",
+                "source": {"type": "base64", "media_type": media, "data": b64},
+            }
+        )
+    if prompt.strip():
+        content.append({"type": "text", "text": prompt.strip()})
+    if not content:
+        raise LlmError("Leerer Multimodal-Prompt", "empty")
+    body: dict = {
+        "model": model,
+        "max_tokens": max_tokens or 4096,
+        "messages": [{"role": "user", "content": content}],
+    }
+    if system:
+        body["system"] = system
+    data = _anthropic_post(body, timeout=180.0)
     text = _anthropic_text(data)
     return LlmResult(provider="anthropic", model=model, text=text)
 

@@ -461,6 +461,7 @@ def _complete_with_retry(
     model: str | None,
     num_predict: int,
     label: str,
+    images: list[tuple[bytes, str]] | None = None,
 ) -> dict:
     last_exc: LlmError | None = None
     for attempt in (1, 2, 3):
@@ -472,6 +473,7 @@ def _complete_with_retry(
                 model=model,
                 num_predict=num_predict,
                 json_mode=True,
+                images=images,
             )
             parse_json_object(result["text"])
             return result
@@ -635,10 +637,6 @@ def generate_interactive_modules(
         len(unit.sources or []),
     )
     t0 = time.monotonic()
-    if progress:
-        progress("extracting_sources", ai_tasks=ai_tasks)
-    notes = _collect_source_notes(db, unit, target_prefs, fallback_prefs)
-    db.commit()
     from app.ai.subject_focus import detect_focus_group
 
     focus_group = (
@@ -646,12 +644,20 @@ def generate_interactive_modules(
         or "general"
     )
     math_focus = (recon or {}).get("math_focus") if isinstance(recon, dict) else None
+    from app.core.trainer_presets import detect_trainer_preset
+
+    trainer_preset = str(recon.get("trainer_preset") or "").strip() or detect_trainer_preset(options)
+
     from app.ai.generate_german_compact import generate_german_grammar_compact, should_use_german_compact
 
     if should_use_german_compact(
         focus_group=focus_group,
         math_focus=str(math_focus) if math_focus else None,
     ):
+        if progress:
+            progress("extracting_sources", ai_tasks=ai_tasks)
+        notes = _collect_source_notes(db, unit, target_prefs, fallback_prefs)
+        db.commit()
         _log.info("generate_interactive route=german_compact unit_id=%s math_focus=%s", unit_id, math_focus)
         return generate_german_grammar_compact(
             db,
@@ -666,6 +672,38 @@ def generate_interactive_modules(
             progress=progress,
             provider_override=effective_provider,
         )
+
+    from app.ai.generate_posten_compact import generate_posten_compact, should_use_posten_compact
+
+    if should_use_posten_compact(
+        trainer_preset=trainer_preset,
+        focus_group=focus_group,
+        math_focus=str(math_focus) if math_focus else None,
+    ):
+        _log.info(
+            "generate_interactive route=posten_compact unit_id=%s preset=%s",
+            unit_id,
+            trainer_preset,
+        )
+        return generate_posten_compact(
+            db,
+            user,
+            unit_id,
+            provider=name,
+            model=model,
+            title=title,
+            brief=brief,
+            options=options,
+            progress=progress,
+            provider_override=effective_provider,
+            target_prefs=target_prefs,
+            fallback_prefs=fallback_prefs,
+        )
+
+    if progress:
+        progress("extracting_sources", ai_tasks=ai_tasks)
+    notes = _collect_source_notes(db, unit, target_prefs, fallback_prefs)
+    db.commit()
     if focus_group == "german":
         difficulty = int(unit.difficulty or 3)
         if difficulty <= 2:

@@ -800,3 +800,30 @@ def _collect_source_notes(
             else:
                 parts.append(f"### {label}\n(Audio-Datei nicht gefunden)")
     return "\n\n".join(parts)
+
+
+_MAX_SOURCE_IMAGE_BYTES = 8 * 1024 * 1024
+
+
+def load_unit_source_images(unit: LearningUnit) -> list[tuple[bytes, str]]:
+    """PNG/JPG-Quellen einer Einheit für multimodale Generierung (ohne Vision-Digest)."""
+    out: list[tuple[bytes, str]] = []
+    for source in unit.sources or []:
+        if source.kind != "image" or source.purged_at is not None or not source.storage_path:
+            continue
+        path = Path(settings.upload_dir) / source.storage_path
+        if not path.is_file():
+            path = upload_dir() / source.storage_path
+        if not path.is_file():
+            continue
+        data = path.read_bytes()
+        if len(data) > _MAX_SOURCE_IMAGE_BYTES:
+            _log.warning(
+                "load_unit_source_images skip label=%s bytes=%d",
+                source.storage_path,
+                len(data),
+            )
+            continue
+        mime = source.content_type or "image/jpeg"
+        out.append((data, mime))
+    return out

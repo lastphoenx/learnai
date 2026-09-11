@@ -1,0 +1,131 @@
+{
+  "goal": "Du kannst wichtige Epochen der Schweizer Geschichte zeitlich einordnen und weisst, wie Archäologie und schriftliche Quellen zur Geschichtsforschung beitragen.",
+  "facts": [
+    {
+      "title": "Archäologie",
+      "text": "Archäologinnen und Archäologen bergen und untersuchen Fundstücke aus vergangenen Zeiten. Ab der Römerzeit helfen zusätzlich Schriftstücke den Historikerinnen und Historikern."
+    },
+    {
+      "title": "Grosse Epochen",
+      "text": "Steinzeit → Römerzeit (Antike) → Mittelalter → Neuzeit. Das Heft unterteilt diese nochmals genauer."
+    },
+    {
+      "title": "Zeitliche Orientierung",
+      "text": "Altsteinzeit bis 9500 v. Chr.; Mittelsteinzeit 9500–5500 v. Chr.; Jungsteinzeit 5500–2200 v. Chr.; Bronzezeit 2200–800 v. Chr.; Eisenzeit 800–30 v. Chr."
+    }
+  ],
+  "cards": [
+    {
+      "question": "Wer untersucht ausgegrabene Fundstücke?",
+      "answer": "Archäologinnen und Archäologen."
+    },
+    {
+      "question": "Welche vier grossen Epochen verlangt das Lernziel?",
+      "answer": "Steinzeit, Römerzeit (Antike), Mittelalter und Neuzeit."
+    },
+    {
+      "question": "Wann beginnt die Frühe Neuzeit im Heft?",
+      "answer": "1500."
+    },
+    {
+      "question": "Welche Epoche beginnt 1914?",
+      "answer": "Die Neueste Geschichte."
+    },
+    {
+      "question": "Was untersuchen Archäologinnen und Archäologen?",
+      "answer": "Fundstücke aus vergangenen Zeiten."
+    },
+    {
+      "question": "Welche Zeitspanne gehört zur Jungsteinzeit?",
+      "answer": "5500–2200 v. Chr."
+    },
+    {
+      "question": "Ab wann helfen Schriftstücke der Geschichtsforschung?",
+      "answer": "Ab der Römerzeit."
+    },
+    {
+      "question": "Welche Epoche folgt auf die Steinzeit?",
+      "answer": "Römerzeit (Antike)."
+    },
+    {
+      "question": "Wann endet die Bronzezeit?",
+      "answer": "800 v. Chr."
+    },
+    {
+      "question": "Welche Epoche umfasst 1291?",
+      "answer": "Spätmittelalter (1250–1500)."
+    },
+    {
+      "question": "Was ist der Zeitstrahl?",
+      "answer": "Eine Darstellung, die Epochen chronologisch ordnet."
+    },
+    {
+      "question": "Welche Zeitspanne gehört zur Bronzezeit?",
+      "answer": "2200–800 v. Chr."
+    }
+  ],
+  "quiz": [
+    {
+      "q": "Was kommt zeitlich zuerst?",
+      "options": ["Römerzeit", "Jungsteinzeit", "Hochmittelalter", "Frühe Neuzeit"],
+      "answer": 1,
+      "explanation": "Die Jungsteinzeit liegt vor Römerzeit, Mittelalter und Neuzeit."
+    },
+    {
+      "q": "Welche Zeitspanne gehört zur Bronzezeit?",
+      "options": ["2200–800 v. Chr.", "800–30 v. Chr.", "450–1050", "1500–1789"],
+      "answer": 0,
+      "explanation": "Im Zeitstrahl steht die Bronzezeit bei 2200–800 v. Chr."
+    },
+    {
+      "q": "Welche Zeitspanne gehört zum Hochmittelalter?",
+      "options": ["450–1050", "1050–1250", "1250–1500", "1789–1914"],
+      "answer": 1,
+      "explanation": "Das Hochmittelalter wird im Heft mit 1050–1250 angegeben."
+    },
+    {
+      "q": "Was untersuchen Archäologinnen und Archäologen?",
+      "options": ["Nur Königslisten", "Fundstücke aus vergangenen Zeiten", "Nur moderne Karten", "Nur mündliche Sagen"],
+      "answer": 1,
+      "explanation": "Sie bergen, reinigen, datieren und untersuchen Fundstücke."
+    },
+    {
+      "q": "Welche Reihenfolge ist richtig?",
+      "options": [
+        "Mittelalter → Steinzeit → Römerzeit → Neuzeit",
+        "Steinzeit → Römerzeit → Mittelalter → Neuzeit",
+        "Römerzeit → Steinzeit → Neuzeit → Mittelalter",
+        "Steinzeit → Neuzeit → Römerzeit → Mittelalter"
+      ],
+      "answer": 1,
+      "explanation": "Das ist die Grundreihenfolge des Lernziels."
+    },
+    {
+      "q": "In welche Epoche gehört 1291?",
+      "options": ["Spätmittelalter", "Römerzeit", "Frühe Neuzeit", "Neueste Geschichte"],
+      "answer": 0,
+      "explanation": "1291 liegt im Spätmittelalter (1250–1500)."
+    },
+    {
+      "q": "Wann beginnt die Mittelsteinzeit?",
+      "options": ["9500 v. Chr.", "5500 v. Chr.", "2200 v. Chr.", "800 v. Chr."],
+      "answer": 0,
+      "explanation": "Die Mittelsteinzeit beginnt 9500 v. Chr."
+    },
+    {
+      "q": "Welche Quelle ist ab der Römerzeit zusätzlich wichtig?",
+      "options": ["Nur Fundstücke", "Schriftstücke", "Nur Karten", "Nur Sagen"],
+      "answer": 1,
+      "explanation": "Ab der Römerzeit helfen Schriftstücke der Geschichtsforschung."
+    }
+  ],
+  "timeline": {
+    "title": "Epochen auf dem Zeitstrahl",
+    "slots": [
+      {"label": "Jungsteinzeit", "hint": "5500–2200 v. Chr."},
+      {"label": "Bronzezeit", "hint": "2200–800 v. Chr."},
+      {"label": "Eisenzeit", "hint": "800–30 v. Chr."},
+      {"label": "Römerzeit", "hint": "2. Jh. v. Chr. bis 6. Jh. n. Chr."}
+    ]
+  }
+}
