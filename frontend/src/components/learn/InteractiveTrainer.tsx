@@ -28,6 +28,16 @@ import { JumpStrip } from "@/components/learn/JumpStrip";
 import { QuizWeaknessPanel } from "@/components/QuizWeaknessPanel";
 import { PracticeExercise } from "@/components/learn/PracticeExercise";
 import { answerWithVisibleResult } from "@/lib/cardResult";
+
+function showPracticeHint(hint: string | null | undefined): boolean {
+  if (!hint?.trim()) return false;
+  const text = hint.trim();
+  if (/^begriffe(\s+zum\s+beschriften)?:/i.test(text)) return false;
+  if (/^ordne jeden begriff der passenden stelle/i.test(text)) return false;
+  if (/^nutze die fachbegriffe im wissens-hub/i.test(text)) return false;
+  if (/^lies die merks[aä]tze im wissens-hub/i.test(text)) return false;
+  return true;
+}
 import { inferCardChoices, shouldUseCardChoices } from "@/lib/cardChoices";
 import { formatQuizOption, quizOptionClassName, quizOptionStyle } from "@/lib/quizOption";
 import {
@@ -1187,7 +1197,7 @@ export function InteractiveTrainer({
                 onSelect={goToPractice}
               />
               <p className="learn-quiz-question">{currentPractice.prompt}</p>
-              {currentPractice.hint && !practiceResult && (
+              {showPracticeHint(currentPractice.hint) && !practiceResult && (
                 <p className="muted practice-hint">Tipp: {currentPractice.hint}</p>
               )}
               {currentPractice.answer_type === "label_diagram" && currentPractice.diagram ? (

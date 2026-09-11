@@ -2,7 +2,7 @@ import json
 
 from app.core.basiswissen import enrich_module_with_basiswissen, parse_basiswissen_payload
 from app.core.label_diagram import build_label_diagram_from_terms, grade_label_diagram_answer
-from app.core.practice_derive import derive_practice_items
+from app.core.practice_derive import collect_term_hints, derive_practice_items
 
 CASTLE_BASISWISSEN = {
     "basiswissen": {
@@ -14,11 +14,11 @@ CASTLE_BASISWISSEN = {
                 "kind": "vocabulary",
                 "label": "Burg im Hochmittelalter",
                 "parts": [
-                    {"role": "bergfried", "term": "Bergfried"},
-                    {"role": "wehrgang", "term": "Wehrgang"},
-                    {"role": "fallgatter", "term": "Fallgatter"},
-                    {"role": "burggraben", "term": "Burggraben"},
-                    {"role": "palas", "term": "Palas"},
+                    {"role": "bergfried", "term": "Bergfried", "hint": "Höchster Turm"},
+                    {"role": "wehrgang", "term": "Wehrgang", "hint": "Gang auf der Mauer"},
+                    {"role": "fallgatter", "term": "Fallgatter", "hint": "Gittern am Tor"},
+                    {"role": "burggraben", "term": "Burggraben", "hint": "Wassergraben"},
+                    {"role": "palas", "term": "Palas", "hint": "Wohngebäude"},
                 ],
                 "hint": "Die Begriffe beschreiben Teile einer mittelalterlichen Burg.",
             }
@@ -55,11 +55,14 @@ def test_build_label_diagram_from_terms_generic():
     diagram = build_label_diagram_from_terms(
         ["Bergfried", "Wehrgang", "Fallgatter", "Burggraben"],
         title="Fachbegriffe zuordnen",
+        term_hints={"Bergfried": "Höchster Turm"},
     )
     assert diagram is not None
     assert diagram["template"] == "generic"
     assert len(diagram["hotspots"]) == 4
     assert diagram["hotspots"][0]["x"] == round(diagram["hotspots"][0]["x"], 3)
+    assert "label" not in diagram["hotspots"][0]
+    assert diagram["hotspots"][0]["hint"] == "Höchster Turm"
 
 
 def test_grade_label_diagram_answer():
@@ -134,8 +137,39 @@ def test_enrich_module_adds_generic_practice():
             assert diagram.get("template") == "generic"
 
 
-def test_build_label_diagram_numbers_hotspots():
-    diagram = build_label_diagram_from_terms(["Feuer", "Fleisch", "Faustkeil"])
+def test_build_label_diagram_semantic_hints_and_shuffle():
+    hints = {
+        "Feuer": "Wärme und Licht",
+        "Fleisch": "Nahrung",
+        "Faustkeil": "Steinwerkzeug",
+    }
+    diagram = build_label_diagram_from_terms(["Feuer", "Fleisch", "Faustkeil"], term_hints=hints)
     assert diagram is not None
-    assert diagram["hotspots"][0]["label"] == "1"
-    assert diagram["hotspots"][0].get("hint")
+    assert diagram["terms"] != ["Feuer", "Fleisch", "Faustkeil"]
+    assert all(hs.get("hint") for hs in diagram["hotspots"])
+
+
+def test_derive_practice_dedupes_same_term_set_across_modules():
+    bw = parse_basiswissen_payload(CASTLE_BASISWISSEN, focus_group="nmg")
+    state: dict = {}
+    first = derive_practice_items(
+        pedagogy=NMG_PEDAGOGY,
+        basiswissen=bw,
+        category_label="Bereich 1",
+        focus_group="nmg",
+        practice_state=state,
+    )
+    second = derive_practice_items(
+        pedagogy=NMG_PEDAGOGY,
+        basiswissen=bw,
+        category_label="Bereich 2",
+        focus_group="nmg",
+        practice_state=state,
+    )
+    assert any(i.get("answer_type") == "label_diagram" for i in first)
+    assert not any(i.get("answer_type") == "label_diagram" for i in second)
+
+
+def test_collect_term_hints_from_pedagogy():
+    hints = collect_term_hints(pedagogy=NMG_PEDAGOGY, basiswissen={})
+    assert hints["Bergfried"] == "Höchster Turm der Burg"

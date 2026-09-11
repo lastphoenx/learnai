@@ -302,6 +302,7 @@ export type TrainerLabelDiagramHotspot = {
 
 export type TrainerLabelDiagram = {
   template: string;
+  layout?: string;
   title?: string;
   instruction?: string;
   hotspots: TrainerLabelDiagramHotspot[];

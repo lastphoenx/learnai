@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import re
@@ -26,6 +27,8 @@ _DRAW_FORMATS = frozenset(
     {"draw", "zeichnen", "zeichne", "male", "malen", "skizzieren", "skizze"}
 )
 
+_LAYOUTS = frozenset({"radial", "timeline", "pyramid"})
+
 
 def _norm(text: str) -> str:
     raw = unicodedata.normalize("NFKC", str(text or "")).strip().lower()
@@ -38,12 +41,60 @@ def _slug_term(term: str, index: int) -> str:
     return slug or f"term_{index}"
 
 
+def _stable_shuffle(items: list[str], *, salt: str) -> list[str]:
+    return sorted(items, key=lambda item: hashlib.sha256(f"{salt}:{item}".encode()).hexdigest())
+
+
+def _looks_like_position_hint(text: str) -> bool:
+    normalized = _norm(text)
+    if not normalized:
+        return True
+    return normalized in {_norm(h) for h in _POSITION_HINTS}
+
+
+def _semantic_hint(term: str, term_hints: dict[str, str] | None) -> str | None:
+    if not term_hints:
+        return None
+    direct = term_hints.get(term)
+    if direct and not _looks_like_position_hint(direct):
+        return direct.strip()[:160]
+    for key, value in term_hints.items():
+        if _norm(key) == _norm(term) and value and not _looks_like_position_hint(value):
+            return str(value).strip()[:160]
+    return None
+
+
+def _layout_coords(index: int, count: int, *, layout: str) -> tuple[float, float]:
+    if layout == "timeline":
+        if count <= 1:
+            return 0.5, 0.5
+        x = 0.12 + (0.76 * index / max(1, count - 1))
+        return round(x, 3), 0.58
+    if layout == "pyramid":
+        rows = max(1, int(math.ceil(math.sqrt(count))))
+        row = index // rows
+        col = index % rows
+        row_count = min(rows, count - row * rows)
+        if row_count <= 0:
+            row_count = 1
+        x = 0.5 + (col - (row_count - 1) / 2) * 0.22
+        y = 0.22 + row * 0.2
+        return round(max(0.1, min(0.9, x)), 3), round(max(0.12, min(0.88, y)), 3)
+    angle = (2 * math.pi * index / max(1, count)) - math.pi / 2
+    x = 0.5 + 0.34 * math.cos(angle)
+    y = 0.5 + 0.34 * math.sin(angle)
+    return round(x, 3), round(y, 3)
+
+
 def build_label_diagram_from_terms(
     terms: list[str],
     *,
     title: str = "Fachbegriffe zuordnen",
     instruction: str | None = None,
     placements: list[dict[str, Any]] | None = None,
+    term_hints: dict[str, str] | None = None,
+    layout: str = "radial",
+    shuffle_terms: bool = True,
 ) -> dict[str, Any] | None:
     unique: list[str] = []
     seen: set[str] = set()
@@ -56,6 +107,7 @@ def build_label_diagram_from_terms(
     if len(unique) < 3:
         return None
 
+    layout_name = layout if layout in _LAYOUTS else "radial"
     placement_map: dict[str, tuple[float, float]] = {}
     if placements:
         for item in placements:
@@ -71,35 +123,38 @@ def build_label_diagram_from_terms(
                 continue
             placement_map[_norm(term)] = (max(0.08, min(0.92, x)), max(0.08, min(0.92, y)))
 
+    working = unique[:8]
+    count = len(working)
     hotspots: list[dict[str, Any]] = []
-    count = min(len(unique), 8)
-    for index, term in enumerate(unique[:8]):
+    for index, term in enumerate(working):
         placed = placement_map.get(_norm(term))
         if placed:
             x, y = placed
         else:
-            angle = (2 * math.pi * index / count) - math.pi / 2
-            x = 0.5 + 0.34 * math.cos(angle)
-            y = 0.5 + 0.34 * math.sin(angle)
+            x, y = _layout_coords(index, count, layout=layout_name)
+        hint = _semantic_hint(term, term_hints)
         hotspots.append(
             {
                 "id": _slug_term(term, index),
-                "x": round(x, 3),
-                "y": round(y, 3),
+                "x": x,
+                "y": y,
                 "accept": [term],
-                "label": str(index + 1),
-                "hint": None if placed else _POSITION_HINTS[index % len(_POSITION_HINTS)],
+                "hint": hint,
             }
         )
 
+    display_terms = _stable_shuffle(working, salt=title) if shuffle_terms else list(working)
+
     return {
         "template": "generic",
+        "layout": layout_name,
         "title": title[:120],
         "instruction": (
-            instruction or "Ordne jeden nummerierten Begriff der gleichen Nummer auf dem Schema zu."
+            instruction
+            or "Ordne jeden Begriff der passenden Stelle zu. Fahre mit der Maus über ein Fragezeichen für einen Hinweis."
         )[:300],
         "hotspots": hotspots,
-        "terms": unique[:8],
+        "terms": display_terms,
     }
 
 

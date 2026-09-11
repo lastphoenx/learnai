@@ -6,6 +6,7 @@ import logging
 import time
 import uuid
 from collections.abc import Callable
+from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -713,6 +714,7 @@ def generate_interactive_modules(
     modules: list[dict] = []
     all_card_questions: list[str] = []
     all_quiz_questions: list[str] = []
+    practice_state: dict[str, Any] = {}
 
     for index, cat in enumerate(categories):
         if progress:
@@ -796,6 +798,7 @@ def generate_interactive_modules(
             question_count=cat["questions"],
             category_label=cat["name"],
             pedagogy=pedagogy_profile,
+            practice_state=practice_state,
         )
 
         modules.append(
@@ -947,6 +950,7 @@ def backfill_basiswissen_for_unit(
 
     updated = 0
     skipped = 0
+    practice_state: dict[str, Any] = {}
     for module in sorted(unit.modules, key=lambda m: m.order_index):
         content = decrypt_json(module.content_encrypted) or {}
         quiz = decrypt_json(module.quiz_encrypted) or {}
@@ -987,6 +991,7 @@ def backfill_basiswissen_for_unit(
             question_count=max(question_count, 3),
             category_label=domain,
             pedagogy=pedagogy_profile,
+            practice_state=practice_state,
         )
         repaired = repair_generated_module({"content": content, "quiz": quiz_dict})
         content = repaired.get("content") if isinstance(repaired.get("content"), dict) else content

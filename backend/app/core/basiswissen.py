@@ -785,6 +785,7 @@ def enrich_module_with_basiswissen(
     question_count: int,
     category_label: str = "",
     pedagogy: dict[str, Any] | None = None,
+    practice_state: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     bw = basiswissen if isinstance(basiswissen, dict) else empty_basiswissen()
     content = dict(content)
@@ -813,6 +814,7 @@ def enrich_module_with_basiswissen(
         basiswissen=bw,
         category_label=category_label,
         focus_group=bw.get("focus_group"),
+        practice_state=practice_state,
     )
     if derived_practice:
         seen_prompts = {str(p.get("prompt") or "").strip().lower() for p in practice if isinstance(p, dict)}

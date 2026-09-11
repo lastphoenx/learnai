@@ -3873,7 +3873,7 @@ button.trainer-flashcard.flipped {
 .label-diagram-hotspot {
   position: absolute;
   transform: translate(-50%, -50%);
-  min-width: 4.5rem;
+  min-width: 2.2rem;
   max-width: 7rem;
   padding: 0.2rem 0.45rem;
   border: 2px dashed var(--accent);
@@ -3883,6 +3883,33 @@ button.trainer-flashcard.flipped {
   font-size: 0.78rem;
   font-weight: 600;
   cursor: pointer;
+}
+
+.label-diagram-hotspot.has-hint:hover .label-diagram-hotspot-tooltip,
+.label-diagram-hotspot.has-hint:focus-visible .label-diagram-hotspot-tooltip {
+  opacity: 1;
+  transform: translate(-50%, -120%);
+  pointer-events: none;
+}
+
+.label-diagram-hotspot-tooltip {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  transform: translate(-50%, -110%);
+  min-width: 8rem;
+  max-width: 12rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 0.45rem;
+  background: rgba(15, 23, 42, 0.92);
+  color: #f8fafc;
+  font-size: 0.72rem;
+  font-weight: 500;
+  line-height: 1.35;
+  text-align: center;
+  opacity: 0;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  z-index: 2;
 }
 
 .label-diagram-hotspot.ready {

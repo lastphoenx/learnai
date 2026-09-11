@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { GenericDiagramSvg } from "@/components/learn/GenericDiagramSvg";
 import type { TrainerLabelDiagram } from "@/lib/api";
 
@@ -11,15 +11,35 @@ type Props = {
   onSubmit: (answer: string) => void;
 };
 
+const POSITION_HINTS = /^(oben|unten|links|rechts)/i;
+
+function stableShuffle(items: string[], salt: string): string[] {
+  return [...items].sort((a, b) => {
+    const hash = (value: string) =>
+      Array.from(`${salt}:${value}`).reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
+    return hash(a) - hash(b);
+  });
+}
+
+function displayHint(raw: string | null | undefined): string | null {
+  const text = raw?.trim();
+  if (!text || POSITION_HINTS.test(text)) return null;
+  return text;
+}
+
 export function LabelDiagramExercise({ diagram, busy, result, onSubmit }: Props) {
   const hotspots = diagram.hotspots || [];
-  const terms = diagram.terms || [];
-  const numbered = diagram.template === "generic" || hotspots.some((hs) => hs.label);
+  const terms = useMemo(
+    () => stableShuffle(diagram.terms || [], diagram.title || "diagram"),
+    [diagram.terms, diagram.title],
+  );
+  const layout = diagram.layout || "radial";
   const [selectedTerm, setSelectedTerm] = useState<string | null>(null);
   const [assignments, setAssignments] = useState<Record<string, string>>({});
 
   const usedTerms = new Set(Object.values(assignments));
   const allPlaced = hotspots.length > 0 && hotspots.every((hs) => assignments[hs.id]);
+  const hasSemanticHints = hotspots.some((hs) => Boolean(displayHint(hs.hint)));
 
   function placeOnHotspot(hotspotId: string) {
     if (result || !selectedTerm) return;
@@ -56,46 +76,46 @@ export function LabelDiagramExercise({ diagram, busy, result, onSubmit }: Props)
       )}
       <p className="muted label-diagram-hint">
         {selectedTerm
-          ? numbered
-            ? `«${selectedTerm}» — tippe die passende Nummer auf dem Schema.`
-            : `«${selectedTerm}» — tippe die passende Stelle auf dem Bild.`
-          : numbered
-            ? "Tippe einen Begriff, dann die gleiche Nummer auf dem Schema."
-            : "Tippe zuerst einen Begriff, dann die Stelle auf dem Bild."}
+          ? `«${selectedTerm}» — tippe die passende Stelle auf dem Schema.`
+          : hasSemanticHints
+            ? "Tippe einen Begriff, dann die passende Stelle. Über die Fragezeichen fährst du für Hinweise."
+            : "Tippe einen Begriff, dann die passende Stelle auf dem Schema."}
       </p>
       <div className="label-diagram-stage">
-        <GenericDiagramSvg className="label-diagram-svg" numbered={numbered} slotCount={hotspots.length} />
-        {hotspots.map((hs, index) => {
+        <GenericDiagramSvg
+          className="label-diagram-svg"
+          layout={layout}
+          slotCount={hotspots.length}
+        />
+        {hotspots.map((hs) => {
           const placed = assignments[hs.id];
-          const slotLabel = hs.label || String(index + 1);
           const left = `${Math.round(hs.x * 100)}%`;
           const top = `${Math.round(hs.y * 100)}%`;
-          const title = placed
-            ? `${placed} (${slotLabel})`
-            : hs.hint
-              ? `Platz ${slotLabel} (${hs.hint})`
-              : `Platz ${slotLabel}`;
+          const hoverHint = displayHint(hs.hint) || "Was gehört hierhin?";
           return (
             <button
               key={hs.id}
               type="button"
-              className={`label-diagram-hotspot${placed ? " filled" : ""}${selectedTerm && !placed ? " ready" : ""}`}
+              className={`label-diagram-hotspot${placed ? " filled" : ""}${selectedTerm && !placed ? " ready" : ""}${displayHint(hs.hint) ? " has-hint" : ""}`}
               style={{ left, top }}
               disabled={busy || Boolean(result)}
-              title={title}
+              aria-label={placed ? `${placed} zugeordnet` : hoverHint}
               onClick={() => (placed ? clearHotspot(hs.id) : placeOnHotspot(hs.id))}
             >
-              {placed ? (placed.length > 10 ? `${placed.slice(0, 9)}…` : placed) : slotLabel}
+              {placed ? (placed.length > 10 ? `${placed.slice(0, 9)}…` : placed) : "?"}
+              {!placed && displayHint(hs.hint) && (
+                <span className="label-diagram-hotspot-tooltip" role="tooltip">
+                  {displayHint(hs.hint)}
+                </span>
+              )}
             </button>
           );
         })}
       </div>
       <div className="label-diagram-terms" role="listbox" aria-label="Fachbegriffe">
-        {terms.map((term, index) => {
+        {terms.map((term) => {
           const isUsed = usedTerms.has(term);
           const isSelected = selectedTerm === term;
-          const hs = hotspots[index];
-          const prefix = numbered && hs?.label ? `${hs.label} · ` : numbered ? `${index + 1} · ` : "";
           return (
             <button
               key={term}
@@ -106,7 +126,6 @@ export function LabelDiagramExercise({ diagram, busy, result, onSubmit }: Props)
               disabled={busy || Boolean(result) || isUsed}
               onClick={() => setSelectedTerm(isSelected ? null : term)}
             >
-              {prefix}
               {term}
             </button>
           );
