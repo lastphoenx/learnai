@@ -99,6 +99,7 @@ export default function BatchImportWizardPage() {
   const [reviewTo, setReviewTo] = useState(5);
 
   const [error, setError] = useState<string | null>(null);
+  const [presetNotice, setPresetNotice] = useState<string | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
 
@@ -174,6 +175,9 @@ export default function BatchImportWizardPage() {
     setReviewTitle(NMG_PILOT_META.reviewTitle);
     setReviewFrom(NMG_PILOT_META.reviewFrom);
     setReviewTo(NMG_PILOT_META.reviewTo);
+    setPresetNotice(
+      `${NMG_PILOT_ROWS.length} Posten-Zeilen + Review geladen — Titel und Seitenbereiche unten prüfen.`,
+    );
     setError(null);
   }
 
@@ -367,14 +371,6 @@ export default function BatchImportWizardPage() {
               onChange={(e) => onPdfSelected(e.target.files?.[0] ?? null)}
             />
           </label>
-          <p style={{ margin: 0 }}>
-            <button type="button" className="btn-sm" onClick={loadNmgPilotPreset}>
-              NMG Pilot (Posten 14–26) vorbefüllen
-            </button>
-            <span className="muted" style={{ marginLeft: "0.5rem", fontSize: "0.9rem" }}>
-              Mapping + Meta — PDF separat wählen, Titel an Thumbnails prüfen.
-            </span>
-          </p>
           {pdfFile && (
             <p className="muted" style={{ margin: 0 }}>
               {pdfFile.name} ({Math.round(pdfFile.size / 1024 / 1024)} MB)
@@ -497,6 +493,20 @@ export default function BatchImportWizardPage() {
               >
                 Zeile hinzufügen
               </button>
+            </div>
+            <div className="batch-assist card stack" style={{ background: "var(--bg-2)" }}>
+              <p className="muted" style={{ margin: 0 }}>
+                <strong>Beispiel-Vorlage (optional)</strong> — festes Mapping für ein konkretes Heft, nicht für
+                jedes PDF. Meta-Felder aus Schritt 1 werden mitgesetzt.
+              </p>
+              <button type="button" className="btn-sm" onClick={loadNmgPilotPreset}>
+                Vorlage: NMG Geschichte, Posten 14–26
+              </button>
+              {presetNotice && (
+                <p className="muted" style={{ margin: 0 }} role="status">
+                  {presetNotice}
+                </p>
+              )}
             </div>
             <div className="batch-assist card stack" style={{ background: "var(--bg-2)" }}>
               <p className="muted" style={{ margin: 0 }}>
