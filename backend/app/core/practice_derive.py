@@ -671,13 +671,18 @@ def derive_practice_items(
         term_hints=term_hints,
     )
     if timeline_diagram:
-        timeline_item = _label_practice_item(
-            diagram=timeline_diagram,
-            hint="Ordne die Epochen von früh nach spät auf dem Zeitstrahl.",
-            source="pedagogy",
-        )
-        items.insert(0, timeline_item)
-        seen_prompts.add(str(timeline_item.get("prompt") or "").strip().lower())
+        if practice_state is not None and practice_state.get("unit_timeline_diagram"):
+            timeline_diagram = None
+        else:
+            if practice_state is not None:
+                practice_state["unit_timeline_diagram"] = True
+            timeline_item = _label_practice_item(
+                diagram=timeline_diagram,
+                hint="Ordne die Epochen von früh nach spät auf dem Zeitstrahl.",
+                source="pedagogy",
+            )
+            items.insert(0, timeline_item)
+            seen_prompts.add(str(timeline_item.get("prompt") or "").strip().lower())
 
     if _visual_tasks_have_label_placements(pedagogy):
         for task in pedagogy.get("visual_tasks") or []:

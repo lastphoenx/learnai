@@ -99,6 +99,31 @@ def test_trim_interactive_modules_to_budget():
     assert total_quiz <= 8
 
 
+def test_trim_interactive_modules_keeps_min_cards_per_module():
+    modules = []
+    for i in range(5):
+        modules.append(
+            {
+                "title": f"Bereich {i}",
+                "content": {
+                    "cards": [
+                        {"question": f"Frage {i}-{j}?", "answer": f"A {i}-{j}."}
+                        for j in range(6)
+                    ],
+                },
+                "quiz": {"questions": []},
+            }
+        )
+    trimmed = trim_interactive_modules_to_budget(
+        modules, max_cards=12, min_cards_per_module=1
+    )
+    for raw in trimmed:
+        content = raw.get("content") if isinstance(raw.get("content"), dict) else {}
+        assert len(content.get("cards") or []) >= 1
+    total = sum(len(m["content"]["cards"]) for m in trimmed)
+    assert total <= 12
+
+
 def test_sanitize_interactive_modules_removes_weak_mental_cards():
     modules = [
         {

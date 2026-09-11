@@ -179,6 +179,26 @@ export default function BatchImportProgressPage() {
     });
   }
 
+  function selectAllMaint() {
+    setMaintSelected(new Set(doneMaintIndices));
+  }
+
+  function deselectAllMaint() {
+    setMaintSelected(new Set());
+  }
+
+  function selectAllRetry() {
+    const indices = (job?.units || [])
+      .map((row, index) => ({ row, index }))
+      .filter(({ row }) => row && job && batchImportRowCanRetry(job, row))
+      .map(({ index }) => index);
+    setSelected(new Set(indices));
+  }
+
+  function deselectAllRetry() {
+    setSelected(new Set());
+  }
+
   async function onRederivePractice(indices?: number[]) {
     if (!batchId || rederiving) return;
     const count =
@@ -503,12 +523,46 @@ export default function BatchImportProgressPage() {
                 Auswahl ({maintSelectedDone.length})
               </button>
             )}
+            {doneMaintIndices.length > 0 && (
+              <>
+                <button type="button" className="btn ghost" onClick={selectAllMaint}>
+                  Alle auswählen
+                </button>
+                <button type="button" className="btn ghost" onClick={deselectAllMaint}>
+                  Alle abwählen
+                </button>
+              </>
+            )}
           </div>
         </section>
       )}
 
       {job?.units && job.units.length > 0 && (
         <section className="card" style={{ padding: "0.75rem" }}>
+          {!active && (
+            <div className="batch-wizard-actions" style={{ marginBottom: "0.75rem" }}>
+              {doneMaintIndices.length > 0 && (
+                <>
+                  <button type="button" className="btn ghost btn-sm" onClick={selectAllMaint}>
+                    Wartung: alle auswählen
+                  </button>
+                  <button type="button" className="btn ghost btn-sm" onClick={deselectAllMaint}>
+                    Wartung: alle abwählen
+                  </button>
+                </>
+              )}
+              {(job?.units || []).some((row) => job && batchImportRowCanRetry(job, row)) && (
+                <>
+                  <button type="button" className="btn ghost btn-sm" onClick={selectAllRetry}>
+                    Neu generieren: alle auswählen
+                  </button>
+                  <button type="button" className="btn ghost btn-sm" onClick={deselectAllRetry}>
+                    Neu generieren: alle abwählen
+                  </button>
+                </>
+              )}
+            </div>
+          )}
           <ul className="unit-list batch-progress-list">
             {job.units.map((row, index) => {
               const rowBadge = statusLabel(row.generate_status || "pending");

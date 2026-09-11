@@ -162,6 +162,12 @@ def test_derive_mental_term_cards_avoids_tautological_was_bedeutet_bei():
     assert not any("was bedeutet" in c["question"].lower() and " bei bergfried" in c["question"].lower() for c in cards)
 
 
+def test_scrub_term_clue_rejects_leading_term():
+    from app.core.basiswissen import _scrub_term_clue
+
+    assert _scrub_term_clue("Vindonissa ist wichtig, weil die Römer von dort aus regierten.", "Vindonissa") is None
+
+
 def test_is_weak_mental_card_entry_rejects_degenerate_and_tautology():
     from app.core.basiswissen import is_weak_mental_card_entry
 

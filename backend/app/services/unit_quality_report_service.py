@@ -269,6 +269,20 @@ def _progress_section(db: Session, unit: LearningUnit, record: LearningRecord) -
     return lines
 
 
+def _live_content_stats(unit: LearningUnit) -> tuple[int, int, int]:
+    modules = sorted(unit.modules or [], key=lambda m: m.order_index)
+    cards = 0
+    questions = 0
+    for module in modules:
+        content = decrypt_json(module.content_encrypted) or {}
+        quiz = decrypt_json(module.quiz_encrypted) or {}
+        if isinstance(content, dict):
+            cards += len(content.get("cards") or [])
+        if isinstance(quiz, dict):
+            questions += len(quiz.get("questions") or [])
+    return cards, questions, len(modules)
+
+
 def _ai_section(db: Session, user: User, unit: LearningUnit, record: LearningRecord) -> tuple[list[str], dict]:
     ctx = summarize_unit_ai_context(db, user, unit, record)
     lines = ["## KI-Konfiguration", ""]
@@ -297,7 +311,11 @@ def _ai_section(db: Session, user: User, unit: LearningUnit, record: LearningRec
         stats = last_run.get("stats")
         if isinstance(stats, dict) and stats:
             stat_bits = ", ".join(f"{k}={v}" for k, v in sorted(stats.items()))
-            lines.append(f"- Statistik: {stat_bits}")
+            lines.append(f"- Statistik (Generierung): {stat_bits}")
+        live_cards, live_questions, live_modules = _live_content_stats(unit)
+        lines.append(
+            f"- Aktuell in DB: cards={live_cards}, modules={live_modules}, questions={live_questions}"
+        )
         lines.append("")
 
     return lines, {"current": current or {}, "last_run": last_run}

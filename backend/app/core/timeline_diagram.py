@@ -153,15 +153,12 @@ def build_timeline_diagram_from_pedagogy(
         return None
 
     selected = epochs[:max_epochs]
-    min_year = min(row["start_year"] for row in selected)
-    max_year = max(row["end_year"] for row in selected)
-    span = max(max_year - min_year, 1)
-
+    count = len(selected)
     placements: list[dict[str, Any]] = []
-    for row in selected:
-        mid = (row["start_year"] + row["end_year"]) / 2
-        x = round(0.12 + 0.76 * (mid - min_year) / span, 3)
-        placements.append({"term": row["term"], "x": x, "y": 0.58})
+    for index, row in enumerate(selected):
+        x = round(0.12 + (0.76 * index / max(1, count - 1)), 3)
+        y = 0.54 if index % 2 == 0 else 0.66
+        placements.append({"term": row["term"], "x": x, "y": y})
 
     hints = dict(term_hints or {})
     for row in selected:

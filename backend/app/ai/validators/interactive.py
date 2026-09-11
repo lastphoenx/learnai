@@ -222,8 +222,10 @@ def trim_interactive_modules_to_budget(
     *,
     max_cards: int | None = None,
     max_questions: int | None = None,
+    min_cards_per_module: int = 1,
+    min_questions_per_module: int = 0,
 ) -> list:
-    """Kürzt Module auf Preset-Obergrenze — spätere Module zuerst."""
+    """Kürzt Module auf Preset-Obergrenze — bevorzugt reichere Module, Mindestanzahl pro Modul."""
     if not modules:
         return modules
     if max_cards is None and max_questions is None:
@@ -247,26 +249,58 @@ def trim_interactive_modules_to_budget(
     ):
         return modules
 
-    for index in range(len(modules) - 1, -1, -1):
-        raw = modules[index]
-        if not isinstance(raw, dict):
-            continue
-        content = raw.get("content") if isinstance(raw.get("content"), dict) else {}
-        quiz = raw.get("quiz") if isinstance(raw.get("quiz"), dict) else {}
-        cards = content.get("cards") if isinstance(content.get("cards"), list) else []
-        questions = quiz.get("questions") if isinstance(quiz.get("questions"), list) else []
-        while cards and max_cards is not None and total_cards > max_cards:
-            cards.pop()
-            total_cards -= 1
-        while questions and max_questions is not None and total_questions > max_questions:
-            questions.pop()
-            total_questions -= 1
-        content["cards"] = cards
-        quiz["questions"] = questions
+    while True:
         total_cards, total_questions = totals()
-        if (max_cards is None or total_cards <= max_cards) and (
+        if max_cards is not None and total_cards <= max_cards and (
             max_questions is None or total_questions <= max_questions
         ):
+            break
+        if max_questions is not None and total_questions <= max_questions and (
+            max_cards is None or total_cards <= max_cards
+        ):
+            break
+
+        trimmed = False
+        if max_cards is not None and total_cards > max_cards:
+            best_index: int | None = None
+            best_count = min_cards_per_module
+            for index, raw in enumerate(modules):
+                if not isinstance(raw, dict):
+                    continue
+                content = raw.get("content") if isinstance(raw.get("content"), dict) else {}
+                cards = content.get("cards") if isinstance(content.get("cards"), list) else []
+                if len(cards) > best_count:
+                    best_count = len(cards)
+                    best_index = index
+            if best_index is not None:
+                raw = modules[best_index]
+                content = raw.get("content") if isinstance(raw.get("content"), dict) else {}
+                cards = content.get("cards") if isinstance(content.get("cards"), list) else []
+                cards.pop()
+                content["cards"] = cards
+                trimmed = True
+
+        total_cards, total_questions = totals()
+        if max_questions is not None and total_questions > max_questions:
+            best_q_index: int | None = None
+            best_q_count = min_questions_per_module
+            for index, raw in enumerate(modules):
+                if not isinstance(raw, dict):
+                    continue
+                quiz = raw.get("quiz") if isinstance(raw.get("quiz"), dict) else {}
+                questions = quiz.get("questions") if isinstance(quiz.get("questions"), list) else []
+                if len(questions) > best_q_count:
+                    best_q_count = len(questions)
+                    best_q_index = index
+            if best_q_index is not None:
+                raw = modules[best_q_index]
+                quiz = raw.get("quiz") if isinstance(raw.get("quiz"), dict) else {}
+                questions = quiz.get("questions") if isinstance(quiz.get("questions"), list) else []
+                questions.pop()
+                quiz["questions"] = questions
+                trimmed = True
+
+        if not trimmed:
             break
     return modules
 

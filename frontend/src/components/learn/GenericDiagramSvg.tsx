@@ -35,7 +35,7 @@ function pyramidCoords(index: number, count: number): { x: number; y: number } {
 
 /** Neutrales Schema — Fragezeichen-Plätze zum Zuordnen von Begriffen. */
 export function GenericDiagramSvg({ className, layout = "radial", slotCount = 5 }: Props) {
-  const count = Math.max(3, Math.min(8, slotCount || 5));
+  const count = Math.max(3, Math.min(12, slotCount || 5));
   const layoutName: Layout =
     layout === "timeline" || layout === "pyramid" ? layout : "radial";
 

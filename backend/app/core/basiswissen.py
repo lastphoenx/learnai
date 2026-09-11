@@ -569,9 +569,13 @@ def _scrub_term_clue(text: str, term: str) -> str | None:
         return None
     if term.lower() not in raw.lower():
         return raw[:220]
-    clue = re.sub(re.escape(term), "…", raw, flags=re.I)
+    if re.match(rf"^{re.escape(term)}\b", raw, flags=re.I):
+        return None
+    clue = re.sub(re.escape(term), "…", raw, count=1, flags=re.I)
     clue = re.sub(r"\s+", " ", clue).strip(" .—–-")
     if len(clue) < 14 or clue in {"…", "….", "… …"}:
+        return None
+    if re.match(r"^…(\s|$)", clue):
         return None
     return clue[:220]
 
@@ -585,7 +589,7 @@ def _mental_term_question(term: str, part: dict[str, Any], concept: dict[str, An
         if clue:
             topic = (
                 label[:48]
-                if label and label.lower() not in {term.lower(), "thema"}
+                if label and label.lower() not in {term.lower(), "thema", "topic", "begriff"}
                 else "diesem Abschnitt"
             )
             return f"Was ist «{term}»? (Hinweis: {clue}; Thema: {topic})"
@@ -977,13 +981,17 @@ def enrich_module_with_basiswissen(
     concept_qs = derive_concept_quiz_questions(bw, max_count=concept_max)
     quiz["questions"] = merge_concept_questions(questions, concept_qs)
     practice = list(content.get("practice") or [])
-    derived_practice = derive_practice_items(
-        pedagogy=pedagogy if isinstance(pedagogy, dict) else {},
-        basiswissen=bw,
-        category_label=category_label,
-        focus_group=bw.get("focus_group"),
-        practice_state=practice_state,
-    )
+    derived_practice: list[dict[str, Any]] = []
+    if not (compact and practice_state is not None and practice_state.get("unit_practice_done")):
+        derived_practice = derive_practice_items(
+            pedagogy=pedagogy if isinstance(pedagogy, dict) else {},
+            basiswissen=bw,
+            category_label=category_label,
+            focus_group=bw.get("focus_group"),
+            practice_state=practice_state,
+        )
+        if derived_practice and compact and practice_state is not None:
+            practice_state["unit_practice_done"] = True
     if derived_practice:
         seen_prompts = {str(p.get("prompt") or "").strip().lower() for p in practice if isinstance(p, dict)}
         for item in derived_practice:
