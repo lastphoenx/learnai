@@ -43,6 +43,129 @@ class _HTMLTextExtractor(HTMLParser):
         return re.sub(r"\n{3,}", "\n\n", re.sub(r"[ \t]+", " ", raw)).strip()
 
 
+def _require_pymupdf():
+    try:
+        import pymupdf
+    except ImportError as exc:
+        raise LlmError("pymupdf nicht installiert", "pdf_missing") from exc
+    return pymupdf
+
+
+def pdf_page_count(path: Path) -> int:
+    pymupdf = _require_pymupdf()
+    doc = pymupdf.open(str(path))
+    try:
+        return len(doc)
+    finally:
+        doc.close()
+
+
+def _normalize_page_range(
+    *,
+    page_from: int,
+    page_to: int,
+    page_count: int,
+) -> tuple[int, int]:
+    if page_count <= 0:
+        raise LlmError("PDF enthält keine Seiten", "empty_pdf")
+    start = int(page_from)
+    end = int(page_to)
+    if start < 1 or end < 1:
+        raise LlmError("Seitenbereich muss ≥ 1 sein", "invalid_page_range")
+    if start > end:
+        raise LlmError("Seiten von darf nicht grösser sein als Seiten bis", "invalid_page_range")
+    if start > page_count or end > page_count:
+        raise LlmError(
+            f"Seitenbereich {start}–{end} ausserhalb des PDF (1–{page_count})",
+            "invalid_page_range",
+        )
+    return start, end
+
+
+def render_pdf_pages(
+    path: Path,
+    *,
+    page_from: int,
+    page_to: int,
+    dpi_scale: float = 1.5,
+) -> list[tuple[int, bytes]]:
+    """Rendert PDF-Seiten (1-basiert, inklusive) als PNG-Bytes."""
+    pymupdf = _require_pymupdf()
+    if dpi_scale <= 0:
+        raise LlmError("dpi_scale muss > 0 sein", "invalid_page_range")
+
+    doc = pymupdf.open(str(path))
+    try:
+        start, end = _normalize_page_range(
+            page_from=page_from,
+            page_to=page_to,
+            page_count=len(doc),
+        )
+        matrix = pymupdf.Matrix(dpi_scale, dpi_scale)
+        out: list[tuple[int, bytes]] = []
+        for page_num in range(start, end + 1):
+            page = doc[page_num - 1]
+            pix = page.get_pixmap(matrix=matrix)
+            out.append((page_num, pix.tobytes("png")))
+        return out
+    finally:
+        doc.close()
+
+
+def extract_pdf_pages_text(
+    path: Path,
+    *,
+    page_from: int,
+    page_to: int,
+    vision_fallback: bool = True,
+) -> str:
+    """Text aus einem Seitenbereich — pypdf zuerst, optional Vision pro Seite."""
+    try:
+        from pypdf import PdfReader
+    except ImportError as exc:
+        raise LlmError("pypdf nicht installiert", "pdf_missing") from exc
+
+    pymupdf = _require_pymupdf()
+    doc = pymupdf.open(str(path))
+    try:
+        start, end = _normalize_page_range(
+            page_from=page_from,
+            page_to=page_to,
+            page_count=len(doc),
+        )
+    finally:
+        doc.close()
+
+    reader = PdfReader(str(path))
+    parts: list[str] = []
+    for page_num in range(start, end + 1):
+        text = (reader.pages[page_num - 1].extract_text() or "").strip()
+        if text:
+            parts.append(f"--- Seite {page_num} ---\n{text}")
+
+    combined = "\n\n".join(parts).strip()
+    if len(combined) >= 40:
+        return combined
+
+    if not vision_fallback:
+        return combined
+
+    from app.ai.providers import describe_image
+
+    rendered = render_pdf_pages(path, page_from=start, page_to=end)
+    vision_parts: list[str] = []
+    for page_num, png_bytes in rendered:
+        described = describe_image(
+            image_bytes=png_bytes,
+            mime="image/png",
+            prompt="Extrahiere allen sichtbaren Text und beschreibe Aufgaben aus dieser PDF-Seite.",
+            provider="ollama",
+            model=None,
+        )
+        vision_parts.append(f"--- Seite {page_num} ---\n{described['text']}")
+    return "\n\n".join(vision_parts).strip() or combined or "(PDF konnte nicht gelesen werden)"
+
+
 def extract_pdf_text(path: Path, *, max_pages: int = 20) -> str:
     try:
         from pypdf import PdfReader
@@ -64,28 +187,12 @@ def extract_pdf_text(path: Path, *, max_pages: int = 20) -> str:
 def _pdf_vision_fallback(path: Path, *, max_pages: int = 5) -> str:
     """Gescannte PDFs: erste Seiten als Bild an Vision-Modell."""
     try:
-        import pymupdf
-    except ImportError:
+        page_count = pdf_page_count(path)
+    except LlmError:
         return "(PDF ohne Textschicht — für gescannte PDFs «pymupdf» installieren)"
 
-    from app.ai.providers import describe_image
-
-    doc = pymupdf.open(str(path))
-    parts: list[str] = []
-    for i in range(min(len(doc), max_pages)):
-        page = doc[i]
-        pix = page.get_pixmap(matrix=pymupdf.Matrix(1.5, 1.5))
-        data = pix.tobytes("png")
-        described = describe_image(
-            image_bytes=data,
-            mime="image/png",
-            prompt="Extrahiere allen sichtbaren Text und beschreibe Aufgaben aus dieser PDF-Seite.",
-            provider="ollama",
-            model=None,
-        )
-        parts.append(f"--- Seite {i + 1} ---\n{described['text']}")
-    doc.close()
-    return "\n\n".join(parts).strip() or "(PDF konnte nicht gelesen werden)"
+    end = min(page_count, max(1, max_pages))
+    return extract_pdf_pages_text(path, page_from=1, page_to=end, vision_fallback=True)
 
 
 STT_PROVIDERS = frozenset({"browser", "local", "openai", "anthropic"})
