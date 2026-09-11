@@ -239,5 +239,5 @@ def test_derive_practice_uses_definition_not_tautology():
         assert "was bezeichnet" not in prompt
         assert "«schweiz» bei solothurn" not in prompt
         assert "passt" in prompt or "fehlt" in prompt or "ist der" in prompt
-        assert len(item.get("options") or []) == 4
+        assert len(item.get("options") or []) >= 3
         assert not any(re.match(r"^(Antwort|Begriff)\s+\d+$", o, re.I) for o in item["options"])

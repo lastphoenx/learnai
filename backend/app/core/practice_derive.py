@@ -173,12 +173,12 @@ def _pick_distractors(*, pool: list[str], correct: str, siblings: list[str], cou
 
 
 def _shuffle_mc_options(correct: str, distractors: list[str]) -> tuple[list[str], int] | None:
-    if len(distractors) < 3:
+    if len(distractors) < 2:
         return None
-    options = [correct] + distractors[:3]
-    if len({o.lower() for o in options}) < 4:
+    options = [correct] + distractors[: min(3, len(distractors))]
+    if len({o.lower() for o in options}) < len(options):
         return None
-    order = sorted(range(4), key=lambda i: (options[i].lower(), i))
+    order = sorted(range(len(options)), key=lambda i: (options[i].lower(), i))
     shuffled = [options[i] for i in order]
     return shuffled, shuffled.index(correct)
 
