@@ -130,7 +130,8 @@ def main() -> int:
         from app.services.batch_import_job import get_batch_import_job, update_batch_import_job
 
         if get_batch_import_job(batch_id):
-            update_batch_import_job(batch_id, **{k: v for k, v in live.items() if k != "from_manifest"})
+            skip = frozenset({"batch_id", "from_manifest"})
+            update_batch_import_job(batch_id, **{k: v for k, v in live.items() if k not in skip})
         manifest = load_batch_manifest(batch_id)
         print(f"OK: manifest aus {'Redis' if not live.get('from_manifest') else 'Archiv'} geschrieben")
         print(f"  label: {manifest.get('label') if manifest else '—'}")
