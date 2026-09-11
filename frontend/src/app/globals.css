@@ -2684,6 +2684,135 @@ details[open].unit-effective-ai-row > summary .unit-effective-ai-row-chevron {
   gap: 0.75rem;
 }
 
+.batch-wizard-steps {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  padding: 0.75rem;
+}
+
+.batch-wizard-step {
+  flex: 1 1 8rem;
+  min-height: 2.75rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-2);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.batch-wizard-step.active {
+  background: color-mix(in srgb, var(--accent) 18%, var(--card));
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+}
+
+.batch-wizard-step.done {
+  opacity: 0.85;
+}
+
+.batch-wizard-actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.batch-page-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(6.5rem, 1fr));
+  gap: 0.5rem;
+}
+
+.batch-page-tile {
+  position: relative;
+  padding: 0;
+  border: 2px solid var(--border);
+  border-radius: 0.45rem;
+  overflow: hidden;
+  background: var(--bg-2);
+  min-height: 7rem;
+  cursor: pointer;
+}
+
+.batch-page-tile img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.batch-page-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 6.5rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.batch-page-num {
+  position: absolute;
+  right: 0.25rem;
+  bottom: 0.2rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: color-mix(in srgb, var(--card) 88%, transparent);
+  padding: 0.1rem 0.35rem;
+  border-radius: 0.25rem;
+}
+
+.batch-page-intro {
+  border-color: color-mix(in srgb, #0f766e 45%, var(--border));
+}
+
+.batch-page-active-row {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+.batch-page-other-row {
+  border-color: color-mix(in srgb, var(--warn) 35%, var(--border));
+}
+
+.batch-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.batch-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+  gap: 0.55rem;
+  align-items: end;
+  padding: 0.75rem;
+}
+
+.batch-row-active {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+}
+
+.batch-row-select {
+  grid-column: 1 / -1;
+  justify-self: start;
+  font-weight: 700;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: var(--accent);
+}
+
+.batch-summary-list {
+  margin: 0;
+  padding-left: 1.2rem;
+  line-height: 1.55;
+}
+
+.batch-progress-list .batch-progress-row {
+  cursor: default;
+}
+
 /* —— Responsive: Smartphone → Tablet → Desktop → grosser Monitor —— */
 
 /* Smartphone */

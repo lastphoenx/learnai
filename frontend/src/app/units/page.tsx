@@ -122,6 +122,9 @@ export default function UnitsPage() {
           >
             Neue Einheit
           </Link>
+          <Link className="btn" href="/units/batch">
+            Mehrere aus PDF
+          </Link>
           <label className="btn ghost" style={{ cursor: "pointer", margin: 0 }}>
             Trainer importieren (JSON)
             <input

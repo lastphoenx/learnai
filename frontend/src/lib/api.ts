@@ -929,6 +929,114 @@ export function isUnitCreateBatch(
 export const createUnit = (body: UnitCreateBody) =>
   apiFetch<LearningUnit | UnitCreateBatchResult>("/api/v1/units", { method: "POST", json: body });
 
+export type BatchImportUnitSpec = {
+  title: string;
+  page_from: number;
+  page_to: number;
+  posten?: number;
+  preset?: TrainerPresetId | string;
+  brief_suffix?: string;
+};
+
+export type BatchImportReviewSpec = {
+  title: string;
+  page_from: number;
+  page_to: number;
+  preset?: TrainerPresetId | string;
+  brief_suffix?: string;
+};
+
+export type BatchImportPayload = {
+  subject?: string;
+  math_focus?: string;
+  target_age?: string;
+  language?: string;
+  difficulty?: number;
+  task_type?: string;
+  default_preset?: TrainerPresetId | string;
+  profile_id?: string;
+  profile_ids?: string[];
+  shared_brief_pages?: number[];
+  shared_brief_text?: string;
+  units: BatchImportUnitSpec[];
+  review_unit?: BatchImportReviewSpec;
+};
+
+export type BatchImportUnitRow = {
+  title: string;
+  page_from: number;
+  page_to: number;
+  posten?: number | null;
+  preset?: string | null;
+  generate_status?: string;
+  unit_id?: string | null;
+  error?: string | null;
+  is_review?: boolean;
+};
+
+export type BatchImportJob = {
+  batch_id: string;
+  user_id: string;
+  tenant_id?: string;
+  status: "queued" | "running" | "done" | "partial" | "failed" | "cancelled" | "cancelling";
+  cancel_requested?: boolean;
+  total: number;
+  current_index?: number;
+  progress_pct?: number;
+  units?: BatchImportUnitRow[];
+  started_at?: string;
+  updated_at?: string;
+  error?: string | null;
+  message?: string | null;
+};
+
+export type BatchImportStartResponse = {
+  batch_job_id: string;
+  unit_count: number;
+  status_url: string;
+  job: BatchImportJob;
+};
+
+export async function startBatchImport(
+  file: File,
+  payload: BatchImportPayload,
+): Promise<BatchImportStartResponse> {
+  const form = new FormData();
+  form.append("file", file);
+  form.append("payload", JSON.stringify(payload));
+  const res = await fetch(`${API_URL}/api/v1/units/batch-import`, {
+    method: "POST",
+    credentials: "include",
+    body: form,
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(apiDetailMessage(body.detail ?? body, res.status));
+  }
+  return body as BatchImportStartResponse;
+}
+
+export const fetchBatchImportStatus = (batchId: string) =>
+  apiFetch<BatchImportJob>(`/api/v1/units/batch-import/${batchId}`);
+
+export const cancelBatchImport = (batchId: string) =>
+  apiFetch<BatchImportJob>(`/api/v1/units/batch-import/${batchId}/cancel`, { method: "POST" });
+
+export async function waitForBatchImportJob(
+  batchId: string,
+  onUpdate?: (job: BatchImportJob) => void,
+  intervalMs = 3000,
+): Promise<BatchImportJob> {
+  for (;;) {
+    const job = await fetchBatchImportStatus(batchId);
+    onUpdate?.(job);
+    if (job.status === "done" || job.status === "partial" || job.status === "failed" || job.status === "cancelled") {
+      return job;
+    }
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+}
+
 export const patchUnitProfile = (unitId: string, profileId: string | null) =>
   apiFetch<LearningUnit>(`/api/v1/units/${unitId}/profile`, {
     method: "PATCH",
