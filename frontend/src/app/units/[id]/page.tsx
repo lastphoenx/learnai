@@ -337,7 +337,8 @@ export default function UnitDetailPage() {
         result.updated_modules > 0
           ? `Übungsaufgaben in ${result.updated_modules} Block/Blöcken neu abgeleitet (${result.focus_group}).`
           : `Keine Blöcke aktualisiert (${result.skipped_modules} übersprungen).`;
-      window.alert(msg);
+      const warn = (result.errors || []).slice(0, 3).join("\n");
+      window.alert(warn ? `${msg}\n\nWarnungen:\n${warn}` : msg);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Übungsaufgaben konnten nicht neu abgeleitet werden");
     } finally {

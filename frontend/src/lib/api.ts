@@ -1334,6 +1334,7 @@ export type BasiswissenBackfillResult = {
   updated_modules: number;
   skipped_modules: number;
   focus_group: string;
+  errors?: string[];
 };
 
 export async function regenerateBasiswissen(

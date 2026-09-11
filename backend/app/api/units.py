@@ -537,6 +537,10 @@ def units_regenerate_basiswissen(
     except LlmError as exc:
         db.rollback()
         raise HTTPException(status_code=400, detail=exc.message) from exc
+    except Exception as exc:
+        db.rollback()
+        _log.exception("regenerate_basiswissen failed unit_id=%s", unit_id)
+        raise HTTPException(status_code=500, detail=str(exc) or "Basiswissen-Backfill fehlgeschlagen") from exc
 
 
 @router.patch("/{unit_id}")

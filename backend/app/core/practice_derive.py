@@ -201,7 +201,8 @@ def _derive_knowledge_choice_items(
         while len(distractors) < 3:
             distractors.append(f"Begriff {len(distractors) + 1}")
         options = [term] + distractors[:3]
-        order = sorted(range(4), key=lambda i: (options[i].lower(), i))
+        count = len(options)
+        order = sorted(range(count), key=lambda i: (options[i].lower(), i))
         shuffled = [options[i] for i in order]
         answer_index = shuffled.index(term)
         items.append(

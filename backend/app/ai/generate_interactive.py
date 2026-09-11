@@ -290,7 +290,11 @@ def _generate_knowledge(
     model: str | None,
     index: int,
 ) -> list[dict]:
-    card_summaries = [f"{c['question']} → {c['answer'][:80]}" for c in cards[:8]]
+    card_summaries = [
+        f"{str(c.get('question') or c.get('q') or '').strip()} → {str(c.get('answer') or '')[:80]}"
+        for c in cards[:8]
+        if isinstance(c, dict)
+    ]
     knowledge_prompt = build_interactive_knowledge_prompt(
         context=batch_context,
         category_name=cat["name"],
@@ -332,7 +336,11 @@ def _generate_basiswissen(
     index: int,
     focus_group: str,
 ) -> dict:
-    card_summaries = [f"{c['question']} → {c['answer'][:80]}" for c in cards[:8]]
+    card_summaries = [
+        f"{str(c.get('question') or c.get('q') or '').strip()} → {str(c.get('answer') or '')[:80]}"
+        for c in cards[:8]
+        if isinstance(c, dict)
+    ]
     prompt = build_basiswissen_prompt(
         context=batch_context,
         category_name=cat["name"],
@@ -950,6 +958,7 @@ def backfill_basiswissen_for_unit(
 
     updated = 0
     skipped = 0
+    errors: list[str] = []
     practice_state: dict[str, Any] = {}
     for module in sorted(unit.modules, key=lambda m: m.order_index):
         content = decrypt_json(module.content_encrypted) or {}
@@ -966,47 +975,64 @@ def backfill_basiswissen_for_unit(
             skipped += 1
             continue
 
-        quiz_dict = quiz if isinstance(quiz, dict) else {"questions": []}
-        content, quiz_dict = strip_basiswissen_derivatives(content, quiz_dict)
-        cards = [c for c in (content.get("cards") or []) if isinstance(c, dict)]
-        knowledge = [k for k in (content.get("knowledge") or []) if isinstance(k, dict)]
         domain = decrypt_text_master(module.title_encrypted)
-        cat = {"name": domain, "focus": str(content.get("intro") or "")[:300]}
-        question_count = len(quiz_dict.get("questions") or [])
+        try:
+            quiz_dict = quiz if isinstance(quiz, dict) else {"questions": []}
+            content, quiz_dict = strip_basiswissen_derivatives(content, quiz_dict)
+            cards = [c for c in (content.get("cards") or []) if isinstance(c, dict)]
+            knowledge = [k for k in (content.get("knowledge") or []) if isinstance(k, dict)]
+            cat = {"name": domain, "focus": str(content.get("intro") or "")[:300]}
+            question_count = len(quiz_dict.get("questions") or [])
 
-        basiswissen = _generate_basiswissen(
-            batch_context=batch_context,
-            cat=cat,
-            knowledge=knowledge,
-            cards=cards,
-            provider=name,
-            model=model,
-            index=module.order_index,
-            focus_group=focus_group,
-        )
-        content, quiz_dict = enrich_module_with_basiswissen(
-            content=content,
-            quiz=quiz_dict,
-            basiswissen=basiswissen,
-            question_count=max(question_count, 3),
-            category_label=domain,
-            pedagogy=pedagogy_profile,
-            practice_state=practice_state,
-        )
-        repaired = repair_generated_module({"content": content, "quiz": quiz_dict})
-        content = repaired.get("content") if isinstance(repaired.get("content"), dict) else content
-        quiz_dict = repair_quiz_block(repaired.get("quiz") if isinstance(repaired.get("quiz"), dict) else quiz_dict)
-        module.content_encrypted = encrypt_json(content)
-        module.quiz_encrypted = encrypt_json(quiz_dict)
-        updated += 1
+            basiswissen = _generate_basiswissen(
+                batch_context=batch_context,
+                cat=cat,
+                knowledge=knowledge,
+                cards=cards,
+                provider=name,
+                model=model,
+                index=module.order_index,
+                focus_group=focus_group,
+            )
+            content, quiz_dict = enrich_module_with_basiswissen(
+                content=content,
+                quiz=quiz_dict,
+                basiswissen=basiswissen,
+                question_count=max(question_count, 3),
+                category_label=domain,
+                pedagogy=pedagogy_profile,
+                practice_state=practice_state,
+            )
+            repaired = repair_generated_module({"content": content, "quiz": quiz_dict})
+            content = repaired.get("content") if isinstance(repaired.get("content"), dict) else content
+            quiz_dict = repair_quiz_block(
+                repaired.get("quiz") if isinstance(repaired.get("quiz"), dict) else quiz_dict
+            )
+            module.content_encrypted = encrypt_json(content)
+            module.quiz_encrypted = encrypt_json(quiz_dict)
+            updated += 1
+        except Exception as exc:
+            _log.exception(
+                "backfill_basiswissen module_failed unit_id=%s module=%s",
+                unit_id,
+                module.id,
+            )
+            errors.append(f"{domain}: {exc}")
+            skipped += 1
 
     if updated:
         db.flush()
     _log.info(
-        "backfill_basiswissen unit_id=%s updated=%d skipped=%d focus_group=%s",
+        "backfill_basiswissen unit_id=%s updated=%d skipped=%d focus_group=%s errors=%d",
         unit_id,
         updated,
         skipped,
         focus_group,
+        len(errors),
     )
-    return {"updated_modules": updated, "skipped_modules": skipped, "focus_group": focus_group}
+    return {
+        "updated_modules": updated,
+        "skipped_modules": skipped,
+        "focus_group": focus_group,
+        "errors": errors,
+    }
