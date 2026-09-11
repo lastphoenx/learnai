@@ -826,8 +826,8 @@ def generate_interactive_modules(
     try:
         validate_interactive_modules(
             modules,
-            min_cards=_MIN_CARDS,
-            min_questions=_MIN_QUESTIONS,
+            min_cards=max(5, card_target),
+            min_questions=max(5, question_target),
         )
     except LlmError:
         if len(modules) >= 4:

@@ -1,6 +1,7 @@
 from app.ai.errors import LlmError
 from app.ai.generate import _validate_modules
 from app.ai.providers import parse_json_object
+from app.ai.validators.interactive import validate_interactive_modules
 
 
 def test_parse_json_object_plain():
@@ -45,6 +46,39 @@ def test_parse_json_object_latex_escapes():
     data = parse_json_object(raw)
     assert len(data["modules"]) == 1
     assert "(0.5" in data["modules"][0]["content"]["text"]
+
+
+def test_validate_interactive_respects_posten_compact_targets():
+    modules = []
+    for i in range(4):
+        modules.append(
+            {
+                "title": f"Bereich {i}",
+                "content": {
+                    "cards": [
+                        {"question": f"Frage {i}-{j}?", "answer": f"Antwort {i}-{j}."}
+                        for j in range(3)
+                    ],
+                    "knowledge": [{"title": "T", "text": "Wissen"}],
+                },
+                "quiz": {
+                    "questions": [
+                        {
+                            "q": f"Quiz {i}-{j}?",
+                            "options": ["A", "B", "C", "D"],
+                            "answer": 0,
+                        }
+                        for j in range(2)
+                    ]
+                },
+            }
+        )
+    validate_interactive_modules(modules, min_cards=12, min_questions=8)
+    try:
+        validate_interactive_modules(modules, min_cards=30, min_questions=30)
+        assert False, "expected LlmError"
+    except LlmError as exc:
+        assert "Zu wenige Quizfragen (8, mindestens 30)" in exc.message
 
 
 def test_validate_modules_rejects_thin_blocks():
