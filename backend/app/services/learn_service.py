@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.core.crypto import decrypt_text_master
 from app.core.card_answer import grade_input_card
+from app.core.content_analysis import analyze_interactive_modules
 from app.core.trainer_cards import count_trainer_card_kinds
 from app.core.quiz_explanation import enrich_quiz_explanation
 from app.core.solution_repair import enrich_card, enrich_knowledge_item
