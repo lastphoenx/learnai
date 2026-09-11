@@ -176,7 +176,8 @@ def test_coalesce_plan_categories_merges_overflow():
     raw = [{"name": f"Bereich {i}", "focus": f"Fokus {i}"} for i in range(6)]
     merged = _coalesce_plan_categories(raw, max_categories=3)
     assert len(merged) == 3
-    assert merged[-1]["name"] == "Bereich 3"
+    assert merged[-1]["name"] == "Bereich 2"
+    assert "Fokus 2" in merged[-1]["focus"]
     assert "Fokus 5" in merged[-1]["focus"]
 
 

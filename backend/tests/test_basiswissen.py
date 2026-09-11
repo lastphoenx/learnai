@@ -88,7 +88,7 @@ def test_derive_cloze_cards_from_basiswissen():
 def test_derive_mental_term_cards_dedupes_repeated_terms():
     bw = parse_basiswissen_payload(SAMPLE_BASISWISSEN, focus_group="math")
     cards = derive_mental_term_cards(bw)
-    factor_cards = [c for c in cards if "Faktor" in c["question"]]
+    factor_cards = [c for c in cards if "«Faktor»" in c["question"]]
     assert len(factor_cards) == 1
 
 
