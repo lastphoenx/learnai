@@ -20,6 +20,15 @@ import {
 } from "@/lib/subjectFocus";
 import { FALLBACK_TASK_TYPES, type UnitTaskType } from "@/lib/taskTypes";
 import { getUnitFieldGuide } from "@/lib/unitFieldHints";
+import {
+  detectTrainerPresetId,
+  FALLBACK_TRAINER_PRESETS,
+  optionsForPreset,
+  presetById,
+  TRAINER_CUSTOM_LIMITS,
+  type TrainerPresetDefinition,
+  type TrainerPresetId,
+} from "@/lib/trainerPresets";
 
 type Props = {
   unit: LearningUnit;
@@ -43,6 +52,9 @@ export function UnitEditDialog({ unit, open, onClose, onSaved }: Props) {
     unit.trainer_options?.style ?? "playful",
   );
   const [trainerProvider, setTrainerProvider] = useState(unit.trainer_options?.llm_provider ?? "");
+  const [trainerPresets, setTrainerPresets] = useState<TrainerPresetDefinition[]>(FALLBACK_TRAINER_PRESETS);
+  const [trainerPreset, setTrainerPreset] = useState<TrainerPresetId>("standard");
+  const [posten, setPosten] = useState<string>(unit.posten ? String(unit.posten) : "");
   const [goalQuiz, setGoalQuiz] = useState<string>(String(unit.learn_goals?.quiz ?? ""));
   const [goalMerk, setGoalMerk] = useState<string>(
     unit.learn_goals?.cards?.merk === "all" ? "all" : String(unit.learn_goals?.cards?.merk ?? ""),
@@ -73,6 +85,10 @@ export function UnitEditDialog({ unit, open, onClose, onSaved }: Props) {
     setTrainerQuestions(unit.trainer_options?.questions ?? 50);
     setTrainerStyle(unit.trainer_options?.style ?? "playful");
     setTrainerProvider(unit.trainer_options?.llm_provider ?? "");
+    setPosten(unit.posten ? String(unit.posten) : "");
+    setTrainerPreset(
+      detectTrainerPresetId(trainerPresets, unit.trainer_options, unit.trainer_preset),
+    );
     setGoalQuiz(String(unit.learn_goals?.quiz ?? ""));
     setGoalMerk(
       unit.learn_goals?.cards?.merk === "all" ? "all" : String(unit.learn_goals?.cards?.merk ?? ""),
@@ -85,7 +101,7 @@ export function UnitEditDialog({ unit, open, onClose, onSaved }: Props) {
     );
     setGoalDeadline(unit.learn_goals?.deadline ?? "");
     setError(null);
-  }, [open, unit]);
+  }, [open, unit, trainerPresets]);
 
   useEffect(() => {
     fetchUnitTaskTypes()
@@ -94,6 +110,9 @@ export function UnitEditDialog({ unit, open, onClose, onSaved }: Props) {
         if (data.focus_groups?.length) setFocusGroups(data.focus_groups);
         else if (data.math_focus?.length) {
           setFocusGroups([{ id: "math", label: "Mathematik", options: data.math_focus.filter((o) => o.key) }]);
+        }
+        if (data.trainer_presets?.length) {
+          setTrainerPresets(data.trainer_presets as TrainerPresetDefinition[]);
         }
       })
       .catch(() => undefined);
@@ -121,6 +140,26 @@ export function UnitEditDialog({ unit, open, onClose, onSaved }: Props) {
   const briefGuide = useMemo(() => getUnitFieldGuide("brief", fieldCtx), [fieldCtx]);
   const subjectGuide = useMemo(() => getUnitFieldGuide("subject", fieldCtx), [fieldCtx]);
   const targetAgeGuide = useMemo(() => getUnitFieldGuide("targetAge", fieldCtx), [fieldCtx]);
+  const presetHint = useMemo(() => presetById(trainerPresets, trainerPreset).hint, [trainerPresets, trainerPreset]);
+  const customLimits = useMemo(
+    () => presetById(trainerPresets, "custom").limits ?? TRAINER_CUSTOM_LIMITS,
+    [trainerPresets],
+  );
+
+  const applyPresetSelection = (next: TrainerPresetId) => {
+    setTrainerPreset(next);
+    if (next === "custom") return;
+    const opts = optionsForPreset(trainerPresets, next, {
+      cards: trainerCards,
+      questions: trainerQuestions,
+      style: trainerStyle,
+      answer_length: "short",
+      llm_provider: trainerProvider.trim() || null,
+    });
+    setTrainerCards(opts.cards);
+    setTrainerQuestions(opts.questions);
+    setTrainerStyle(opts.style);
+  };
 
   const parseGoalField = (raw: string): number | "all" | null => {
     const v = raw.trim().toLowerCase();
@@ -146,6 +185,9 @@ export function UnitEditDialog({ unit, open, onClose, onSaved }: Props) {
         math_focus: mathFocusVisible && mathFocus ? mathFocus : null,
       };
       if (taskType === "interactive") {
+        const postenNum = posten.trim() ? Number(posten.trim()) : null;
+        body.trainer_preset = trainerPreset;
+        body.posten = postenNum && Number.isFinite(postenNum) && postenNum > 0 ? postenNum : null;
         body.trainer_options = {
           cards: trainerCards,
           questions: trainerQuestions,
@@ -293,38 +335,80 @@ export function UnitEditDialog({ unit, open, onClose, onSaved }: Props) {
           {taskType === "interactive" && (
             <div className="stack trainer-options-form">
               <p className="muted" style={{ margin: 0 }}>
-                Lerntrainer — Ziele für die KI-Generierung
+                Lerntrainer — Umfang für die KI-Generierung
+              </p>
+              <div className="form-row">
+                <label>
+                  Umfangs-Preset
+                  <select
+                    value={trainerPreset}
+                    onChange={(e) => applyPresetSelection(e.target.value as TrainerPresetId)}
+                  >
+                    {trainerPresets.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Posten-Nr. (optional)
+                  <input
+                    type="number"
+                    min={1}
+                    max={999}
+                    placeholder="z. B. 22"
+                    value={posten}
+                    onChange={(e) => setPosten(e.target.value)}
+                  />
+                </label>
+              </div>
+              <p className="muted" style={{ margin: 0, fontSize: "0.9rem" }}>
+                {presetHint}
               </p>
               <div className="form-row">
                 <label>
                   Lernkarten
                   <input
                     type="number"
-                    min={30}
-                    max={120}
+                    min={customLimits.cards_min}
+                    max={customLimits.cards_max}
                     value={trainerCards}
-                    onChange={(e) => setTrainerCards(Number(e.target.value))}
+                    disabled={trainerPreset !== "custom"}
+                    onChange={(e) => {
+                      setTrainerPreset("custom");
+                      setTrainerCards(Number(e.target.value));
+                    }}
                   />
                 </label>
                 <label>
                   Quizfragen
                   <input
                     type="number"
-                    min={30}
-                    max={120}
+                    min={customLimits.questions_min}
+                    max={customLimits.questions_max}
                     value={trainerQuestions}
-                    onChange={(e) => setTrainerQuestions(Number(e.target.value))}
+                    disabled={trainerPreset !== "custom"}
+                    onChange={(e) => {
+                      setTrainerPreset("custom");
+                      setTrainerQuestions(Number(e.target.value));
+                    }}
                   />
                 </label>
                 <label>
                   Stil
                   <select
                     value={trainerStyle}
-                    onChange={(e) => setTrainerStyle(e.target.value as TrainerOptions["style"])}
+                    disabled={trainerPreset !== "custom"}
+                    onChange={(e) => {
+                      setTrainerPreset("custom");
+                      setTrainerStyle(e.target.value as TrainerOptions["style"]);
+                    }}
                   >
                     <option value="playful">Spielerisch</option>
                     <option value="balanced">Ausgewogen</option>
                     <option value="factual">Sachlich</option>
+                    <option value="exam">Prüfungsnah</option>
                   </select>
                 </label>
                 <label>
@@ -342,8 +426,7 @@ export function UnitEditDialog({ unit, open, onClose, onSaved }: Props) {
                   Lernziele für das Kind (optional)
                 </p>
                 <p className="muted" style={{ margin: 0, fontSize: "0.9rem" }}>
-                  Der Pool bleibt gross — hier legst du fest, was mindestens geübt werden soll. «alle» = alle
-                  verfügbaren Karten dieser Art.
+                  Legt fest, was mindestens geübt werden soll — unabhängig vom generierten Pool.
                 </p>
                 <div className="form-row">
                   <label>

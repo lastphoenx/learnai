@@ -16,6 +16,12 @@ from app.models import LearningEvent, LearningProfile, LearningRecord, LearningU
 from app.services.audit import log_event
 from app.services.crypto_json import decrypt_json, encrypt_json
 from app.ai.task_types import UNIT_TASK_KEYS, augment_brief
+from app.core.trainer_presets import (
+    DEFAULT_PRESET_ID,
+    apply_trainer_preset,
+    detect_trainer_preset,
+    preset_options,
+)
 from app.schemas import LearnGoalsSchema, TrainerOptionsSchema
 from app.services.profile_service import ProfileError, child_user_ids, get_profile_for_actor
 from app.services.unit_reference_service import attach_reference_fields, ensure_unit_reference_codes
@@ -62,6 +68,8 @@ def reconstruction_payload(
     math_focus: str | None = None,
     trainer_options: dict | None = None,
     learn_goals: dict | None = None,
+    trainer_preset: str | None = None,
+    posten: int | None = None,
 ) -> dict:
     payload = {
         "title": title,
@@ -77,16 +85,14 @@ def reconstruction_payload(
         payload["trainer_options"] = trainer_options
     if learn_goals:
         payload["learn_goals"] = learn_goals
+    if trainer_preset:
+        payload["trainer_preset"] = trainer_preset
+    if posten is not None and posten > 0:
+        payload["posten"] = int(posten)
     return payload
 
 
-DEFAULT_TRAINER_OPTIONS: dict = {
-    "cards": 50,
-    "questions": 50,
-    "style": "playful",
-    "answer_length": "short",
-    "llm_provider": None,
-}
+DEFAULT_TRAINER_OPTIONS: dict = preset_options(DEFAULT_PRESET_ID)
 
 
 def get_trainer_options(recon: dict | None) -> dict:
@@ -100,6 +106,36 @@ def get_trainer_options(recon: dict | None) -> dict:
         if key in raw and raw[key] is not None:
             merged[key] = raw[key]
     return TrainerOptionsSchema.normalize_raw(merged).model_dump()
+
+
+def _attach_recon_meta(row: dict, recon: dict | None, *, task_type: str | None = None) -> None:
+    if not isinstance(recon, dict):
+        return
+    focus = (recon.get("math_focus") or "").strip()
+    if focus:
+        row["math_focus"] = focus
+    posten = recon.get("posten")
+    if isinstance(posten, int) and posten > 0:
+        row["posten"] = posten
+    if (task_type or row.get("task_type")) == "interactive":
+        preset = recon.get("trainer_preset")
+        if isinstance(preset, str) and preset.strip():
+            row["trainer_preset"] = preset.strip()
+        row["trainer_options"] = get_trainer_options(recon)
+        row["learn_goals"] = get_learn_goals(recon)
+
+
+def _validate_trainer_preset(preset_id: str | None) -> str | None:
+    if preset_id is None:
+        return None
+    cleaned = preset_id.strip().lower()
+    if not cleaned:
+        return None
+    try:
+        apply_trainer_preset(cleaned)
+    except ValueError as exc:
+        raise UnitError(str(exc), "invalid_trainer_preset") from exc
+    return cleaned
 
 
 def get_learn_goals(recon: dict | None) -> dict:
@@ -287,6 +323,11 @@ def list_units(db: Session, user: User) -> list[dict]:
         row = _dec_unit(u, sources=False, modules=False)
         record = records_by_unit.get(u.id)
         _attach_template_fields(row, record)
+        recon = None
+        if record and record.reconstruction_encrypted:
+            raw_recon = decrypt_json(record.reconstruction_encrypted)
+            recon = raw_recon if isinstance(raw_recon, dict) else None
+        _attach_recon_meta(row, recon, task_type=u.task_type)
         try:
             refs = ensure_unit_reference_codes(db, u, record)
             attach_reference_fields(row, refs)
@@ -327,9 +368,7 @@ def get_unit(db: Session, user: User, unit_id: uuid.UUID) -> dict:
         raw_recon = decrypt_json(record.reconstruction_encrypted)
         recon = raw_recon if isinstance(raw_recon, dict) else None
     if recon:
-        focus = (recon.get("math_focus") or "").strip()
-        if focus:
-            data["math_focus"] = focus
+        _attach_recon_meta(data, recon, task_type=unit.task_type)
         from app.services.generate_job import last_generate_from_recon
         from app.services.ai_run_snapshot import last_ai_run_from_recon
 
@@ -342,9 +381,6 @@ def get_unit(db: Session, user: User, unit_id: uuid.UUID) -> dict:
     prog = learn_progress_for_unit(db, unit.id)
     if prog:
         data["learn_progress"] = prog
-    if recon and unit.task_type == "interactive":
-        data["trainer_options"] = get_trainer_options(recon)
-        data["learn_goals"] = get_learn_goals(recon)
     return data
 
 
@@ -383,6 +419,9 @@ def create_unit(
     profile_id: uuid.UUID | None = None,
     math_focus: str | None = None,
     unassigned: bool = False,
+    trainer_preset: str | None = None,
+    posten: int | None = None,
+    trainer_options: dict | None = None,
 ) -> dict:
     if difficulty < 1 or difficulty > 5:
         raise UnitError("Schwierigkeit muss 1–5 sein", "invalid_difficulty")
@@ -392,6 +431,21 @@ def create_unit(
 
     focus = (math_focus or "").strip() or None
     effective_brief = augment_brief(brief, task_key=kind, math_focus=focus)
+    stored_preset: str | None = None
+    resolved_trainer_options: dict | None = None
+    if kind == "interactive":
+        preset_clean = _validate_trainer_preset(trainer_preset)
+        override_raw = trainer_options if isinstance(trainer_options, dict) else None
+        if preset_clean:
+            resolved_trainer_options, stored_preset = apply_trainer_preset(
+                preset_clean,
+                overrides=override_raw,
+            )
+        elif override_raw:
+            resolved_trainer_options = TrainerOptionsSchema.normalize_raw(override_raw).model_dump()
+            stored_preset = detect_trainer_preset(resolved_trainer_options)
+        else:
+            resolved_trainer_options, stored_preset = apply_trainer_preset(DEFAULT_PRESET_ID)
 
     learner_id = user.id
     chosen_profile_id: uuid.UUID | None = None
@@ -418,7 +472,9 @@ def create_unit(
         difficulty=difficulty,
         task_type=kind,
         math_focus=focus,
-        trainer_options=dict(DEFAULT_TRAINER_OPTIONS) if kind == "interactive" else None,
+        trainer_options=resolved_trainer_options,
+        trainer_preset=stored_preset,
+        posten=posten,
     )
     unit = LearningUnit(
         tenant_id=user.tenant_id,
@@ -517,6 +573,9 @@ def create_units(
     profile_id: uuid.UUID | None = None,
     profile_ids: list[uuid.UUID] | None = None,
     math_focus: str | None = None,
+    trainer_preset: str | None = None,
+    posten: int | None = None,
+    trainer_options: dict | None = None,
 ) -> list[dict]:
     targets = _resolve_profile_targets(db, user, profile_id=profile_id, profile_ids=profile_ids)
     return [
@@ -533,6 +592,9 @@ def create_units(
             auto_purge_sources=auto_purge_sources,
             profile_id=pid,
             math_focus=math_focus,
+            trainer_preset=trainer_preset,
+            posten=posten,
+            trainer_options=trainer_options,
         )
         for pid in targets
     ]
@@ -1050,6 +1112,8 @@ def update_unit(
     auto_purge_sources: bool | None = None,
     trainer_options: dict | None = None,
     learn_goals: dict | None = None,
+    trainer_preset: str | None = None,
+    posten: int | None = None,
 ) -> dict:
     unit = _get_unit_or_404(db, user, unit_id)
     record = db.query(LearningRecord).filter(LearningRecord.unit_id == unit.id).first()
@@ -1097,7 +1161,26 @@ def update_unit(
     if auto_purge_sources is not None:
         unit.auto_purge_sources = auto_purge_sources
 
-    if trainer_options is not None:
+    if posten is not None:
+        if posten <= 0:
+            recon.pop("posten", None)
+        else:
+            recon["posten"] = int(posten)
+
+    if trainer_preset is not None:
+        preset_clean = _validate_trainer_preset(trainer_preset)
+        if preset_clean:
+            override_raw = None
+            if isinstance(trainer_options, dict):
+                override_raw = trainer_options
+            elif trainer_options is not None:
+                override_raw = trainer_options.model_dump(exclude_unset=True)
+            opts, stored = apply_trainer_preset(preset_clean, overrides=override_raw)
+            recon["trainer_options"] = opts
+            recon["trainer_preset"] = stored
+        else:
+            recon.pop("trainer_preset", None)
+    elif trainer_options is not None:
         merged = get_trainer_options(recon)
         if isinstance(trainer_options, dict):
             for key, value in trainer_options.items():
@@ -1106,6 +1189,7 @@ def update_unit(
         else:
             merged.update(trainer_options.model_dump(exclude_unset=True))
         recon["trainer_options"] = TrainerOptionsSchema.normalize_raw(merged).model_dump()
+        recon["trainer_preset"] = detect_trainer_preset(recon["trainer_options"])
 
     if learn_goals is not None:
         raw = learn_goals if isinstance(learn_goals, dict) else learn_goals.model_dump(exclude_unset=True)
@@ -1136,6 +1220,8 @@ def update_unit(
             math_focus=focus,
             trainer_options=recon.get("trainer_options") if unit.task_type == "interactive" else None,
             learn_goals=recon.get("learn_goals") if unit.task_type == "interactive" else None,
+            trainer_preset=recon.get("trainer_preset") if unit.task_type == "interactive" else None,
+            posten=recon.get("posten") if isinstance(recon.get("posten"), int) else None,
         )
         if preserved_last_generate:
             recon["last_generate"] = preserved_last_generate

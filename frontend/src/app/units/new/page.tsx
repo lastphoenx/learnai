@@ -30,6 +30,12 @@ import {
 } from "@/lib/subjectFocus";
 import { FALLBACK_TASK_TYPES, type UnitTaskType } from "@/lib/taskTypes";
 import { getUnitFieldGuide } from "@/lib/unitFieldHints";
+import {
+  FALLBACK_TRAINER_PRESETS,
+  presetById,
+  type TrainerPresetDefinition,
+  type TrainerPresetId,
+} from "@/lib/trainerPresets";
 import { warmupSpeechInput } from "@/lib/speechWarmup";
 
 export default function NewUnitPage() {
@@ -49,6 +55,9 @@ export default function NewUnitPage() {
   const [profiles, setProfiles] = useState<LearnerProfile[]>([]);
   const [taskTypes, setTaskTypes] = useState<UnitTaskType[]>(FALLBACK_TASK_TYPES);
   const [focusGroups, setFocusGroups] = useState<FocusGroup[]>(FALLBACK_FOCUS_GROUPS);
+  const [trainerPresets, setTrainerPresets] = useState<TrainerPresetDefinition[]>(FALLBACK_TRAINER_PRESETS);
+  const [trainerPreset, setTrainerPreset] = useState<TrainerPresetId>("standard");
+  const [posten, setPosten] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -79,6 +88,10 @@ export default function NewUnitPage() {
   const briefGuide = useMemo(() => getUnitFieldGuide("brief", fieldCtx), [fieldCtx]);
   const subjectGuide = useMemo(() => getUnitFieldGuide("subject", fieldCtx), [fieldCtx]);
   const targetAgeGuide = useMemo(() => getUnitFieldGuide("targetAge", fieldCtx), [fieldCtx]);
+  const trainerPresetHint = useMemo(
+    () => presetById(trainerPresets, trainerPreset).hint,
+    [trainerPresets, trainerPreset],
+  );
 
   useEffect(() => {
     if (activeSpeechProfile) {
@@ -123,6 +136,9 @@ export default function NewUnitPage() {
         if (data.focus_groups?.length) setFocusGroups(data.focus_groups);
         else if (data.math_focus?.length) {
           setFocusGroups([{ id: "math", label: "Mathematik", options: data.math_focus.filter((o) => o.key) }]);
+        }
+        if (data.trainer_presets?.length) {
+          setTrainerPresets(data.trainer_presets as TrainerPresetDefinition[]);
         }
       })
       .catch(() => undefined);
@@ -172,6 +188,11 @@ export default function NewUnitPage() {
         profile_id: user?.is_child && user.profile_id ? user.profile_id : undefined,
         profile_ids:
           !user?.is_child && profileIds.length > 0 ? profileIds : undefined,
+        trainer_preset: taskType === "interactive" ? trainerPreset : undefined,
+        posten:
+          taskType === "interactive" && posten.trim() && Number(posten) > 0
+            ? Number(posten)
+            : undefined,
       });
       const nextId = isUnitCreateBatch(result) ? result.units[0]?.id : result.id;
       if (!nextId) {
@@ -322,6 +343,44 @@ export default function NewUnitPage() {
             <option value="en">Englisch</option>
           </select>
         </label>
+
+        {taskType === "interactive" && (
+          <div className="stack trainer-options-form">
+            <p className="muted" style={{ margin: 0 }}>
+              Lerntrainer — Umfang für die KI-Generierung
+            </p>
+            <div className="form-row">
+              <label>
+                Umfangs-Preset
+                <select
+                  value={trainerPreset}
+                  onChange={(e) => setTrainerPreset(e.target.value as TrainerPresetId)}
+                >
+                  {trainerPresets.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Posten-Nr. (optional)
+                <input
+                  type="number"
+                  min={1}
+                  max={999}
+                  placeholder="z. B. 22"
+                  value={posten}
+                  onChange={(e) => setPosten(e.target.value)}
+                />
+              </label>
+            </div>
+            <p className="muted" style={{ margin: 0, fontSize: "0.9rem" }}>
+              {trainerPresetHint}
+            </p>
+          </div>
+        )}
+
         <label className="unit-field-wrap">
           Zielalter
           <input

@@ -19,6 +19,24 @@ def test_reconstruction_payload_shape():
     assert "brief" in payload
 
 
+def test_reconstruction_payload_trainer_meta():
+    payload = reconstruction_payload(
+        title="Posten 22",
+        brief="Tell",
+        subject="NMG",
+        language="de",
+        target_age="11",
+        difficulty=2,
+        task_type="interactive",
+        trainer_options={"cards": 12, "questions": 8, "style": "exam", "answer_length": "short"},
+        trainer_preset="posten_compact",
+        posten=22,
+    )
+    assert payload["trainer_preset"] == "posten_compact"
+    assert payload["posten"] == 22
+    assert payload["trainer_options"]["cards"] == 12
+
+
 def test_merge_template_recon_keeps_trainer_options(monkeypatch):
     import base64
     import os

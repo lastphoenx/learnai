@@ -155,6 +155,8 @@ class UnitCreateRequest(BaseModel):
     auto_purge_sources: bool = False
     profile_id: str | None = None
     profile_ids: list[str] | None = None
+    trainer_preset: str | None = Field(default=None, max_length=32)
+    posten: int | None = Field(default=None, ge=1, le=999)
 
 
 class UnitAssignRequest(BaseModel):
@@ -170,8 +172,8 @@ class UnitLearnerReleaseRequest(BaseModel):
 
 
 class TrainerOptionsSchema(BaseModel):
-    cards: int = Field(default=50, ge=10, le=100)
-    questions: int = Field(default=50, ge=10, le=100)
+    cards: int = Field(default=50, ge=5, le=100)
+    questions: int = Field(default=50, ge=5, le=100)
     style: Literal["playful", "balanced", "factual", "exam"] = "playful"
     answer_length: Literal["short", "normal", "detailed"] = "short"
     llm_provider: Literal["ollama", "openai", "anthropic"] | None = None
@@ -219,6 +221,8 @@ class UnitUpdateRequest(BaseModel):
     auto_purge_sources: bool | None = None
     trainer_options: TrainerOptionsSchema | dict | None = None
     learn_goals: LearnGoalsSchema | dict | None = None
+    trainer_preset: str | None = Field(default=None, max_length=32)
+    posten: int | None = Field(default=None, ge=1, le=999)
 
 
 class UnitGenerateRequest(BaseModel):

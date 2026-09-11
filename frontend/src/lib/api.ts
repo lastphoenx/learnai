@@ -230,9 +230,19 @@ export type GoalsProgress = {
 export type TrainerOptions = {
   cards: number;
   questions: number;
-  style: "balanced" | "playful" | "factual";
-  answer_length: "short" | "medium" | "long";
+  style: "balanced" | "playful" | "factual" | "exam";
+  answer_length: "short" | "normal" | "detailed" | "medium" | "long";
   llm_provider?: string | null;
+};
+
+export type TrainerPresetId = "posten_compact" | "standard" | "exam_review" | "custom";
+
+export type TrainerPresetDefinition = {
+  id: TrainerPresetId;
+  label: string;
+  hint: string;
+  options: TrainerOptions | null;
+  limits?: { cards_min: number; cards_max: number; questions_min: number; questions_max: number };
 };
 
 export type TrainerKnowledgeItem = {
@@ -538,6 +548,8 @@ export type LearningUnit = {
   reference_instance?: string | null;
   reference_code?: string | null;
   trainer_options?: TrainerOptions;
+  trainer_preset?: TrainerPresetId | string | null;
+  posten?: number | null;
   learn_goals?: LearnGoals;
   sources?: UnitSource[];
   modules?: UnitModule[];
@@ -882,6 +894,7 @@ export type UnitTaskTypesResponse = {
   task_types: { key: string; label: string; select_label?: string; description: string; hint: string }[];
   math_focus: { key: string; label: string }[];
   focus_groups: { id: string; label: string; options: { key: string; label: string }[] }[];
+  trainer_presets?: TrainerPresetDefinition[];
 };
 
 export const fetchUnitTaskTypes = () => apiFetch<UnitTaskTypesResponse>("/api/v1/units/task-types");
@@ -901,6 +914,8 @@ export type UnitCreateBody = {
   auto_purge_sources?: boolean;
   profile_id?: string;
   profile_ids?: string[];
+  trainer_preset?: TrainerPresetId | string;
+  posten?: number;
 };
 
 export type UnitCreateBatchResult = { units: LearningUnit[]; created_count: number };
@@ -945,6 +960,8 @@ export type UnitPatchBody = {
   math_focus?: string | null;
   auto_purge_sources?: boolean;
   trainer_options?: Partial<TrainerOptions>;
+  trainer_preset?: TrainerPresetId | string | null;
+  posten?: number | null;
   learn_goals?: LearnGoals | null;
 };
 

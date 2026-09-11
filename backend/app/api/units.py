@@ -69,6 +69,7 @@ from app.services.unit_release_service import set_unit_learner_release
 from app.services.pedagogy_service import extract_unit_pedagogy, get_unit_pedagogy
 from app.services.pdf_export_service import unit_worksheet_pdf
 from app.services.trainer_export_service import export_trainer_json, import_trainer_json
+from app.core.trainer_presets import trainer_presets_public
 from app.ai.task_types import math_focus_public, task_types_public
 from app.ai.subject_focus import focus_groups_public
 
@@ -85,6 +86,7 @@ def _http(exc: UnitError) -> HTTPException:
         "invalid_difficulty": status.HTTP_400_BAD_REQUEST,
         "invalid_title": status.HTTP_400_BAD_REQUEST,
         "invalid_task_type": status.HTTP_400_BAD_REQUEST,
+        "invalid_trainer_preset": status.HTTP_400_BAD_REQUEST,
         "no_modules": status.HTTP_400_BAD_REQUEST,
         "invalid_index": status.HTTP_400_BAD_REQUEST,
         "invalid_phase": status.HTTP_400_BAD_REQUEST,
@@ -116,7 +118,13 @@ def units_task_types():
         "task_types": task_types_public(),
         "math_focus": math_focus_public(),
         "focus_groups": focus_groups_public(),
+        "trainer_presets": trainer_presets_public(),
     }
+
+
+@router.get("/trainer-presets")
+def units_trainer_presets():
+    return {"presets": trainer_presets_public()}
 
 
 @router.post("/{unit_id}/review", status_code=status.HTTP_201_CREATED)
@@ -163,6 +171,8 @@ def units_create(
             auto_purge_sources=body.auto_purge_sources,
             profile_id=profile_id,
             profile_ids=profile_ids,
+            trainer_preset=body.trainer_preset,
+            posten=body.posten,
         )
         db.commit()
         if len(results) == 1:
@@ -421,6 +431,8 @@ def units_patch(
             auto_purge_sources=body.auto_purge_sources,
             trainer_options=body.trainer_options,
             learn_goals=body.learn_goals,
+            trainer_preset=body.trainer_preset,
+            posten=body.posten,
         )
         db.commit()
         return result
