@@ -1,8 +1,9 @@
 import json
+import re
 
 from app.core.basiswissen import enrich_module_with_basiswissen, parse_basiswissen_payload
 from app.core.label_diagram import build_label_diagram_from_terms, grade_label_diagram_answer
-from app.core.practice_derive import collect_term_hints, derive_practice_items
+from app.core.practice_derive import collect_term_hints, derive_practice_items, derive_practice_choice_questions
 
 CASTLE_BASISWISSEN = {
     "basiswissen": {
@@ -188,3 +189,55 @@ def test_derive_practice_hint_does_not_leak_quiz_explanation():
     )
     assert items
     assert not any(str(i.get("hint") or "").startswith("Richtig:") for i in items)
+
+
+def test_derive_practice_uses_definition_not_tautology():
+    bw = parse_basiswissen_payload(
+        {
+            "basiswissen": {
+                "schema_version": 1,
+                "focus_group": "nmg",
+                "concepts": [
+                    {
+                        "id": "ch",
+                        "label": "Solothurn gehört zur Schweiz",
+                        "parts": [
+                            {
+                                "role": "whole",
+                                "term": "Schweiz",
+                                "hint": "Staat, in dem der Kanton Solothurn liegt.",
+                            },
+                            {
+                                "role": "part",
+                                "term": "Kanton Solothurn",
+                                "hint": "Kanton im Nordwesten der Schweiz.",
+                            },
+                        ],
+                        "hint": "Solothurn ist ein Kanton in der Schweiz.",
+                    },
+                    {
+                        "id": "hr",
+                        "label": "Helvetische Republik",
+                        "parts": [
+                            {
+                                "role": "begriff",
+                                "term": "Helvetische Republik",
+                                "hint": "Neue Staatsform in der Schweiz nach 1798.",
+                            }
+                        ],
+                    },
+                ],
+                "cloze_templates": [],
+            }
+        },
+        focus_group="nmg",
+    )
+    items = derive_practice_choice_questions(bw, category_label="Schweizer Geschichte", max_count=6)
+    assert items
+    for item in items:
+        prompt = item["q"].lower()
+        assert "was bezeichnet" not in prompt
+        assert "«schweiz» bei solothurn" not in prompt
+        assert "passt" in prompt or "fehlt" in prompt or "ist der" in prompt
+        assert len(item.get("options") or []) == 4
+        assert not any(re.match(r"^(Antwort|Begriff)\s+\d+$", o, re.I) for o in item["options"])

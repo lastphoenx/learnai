@@ -20,6 +20,8 @@ _UNUSABLE_VISUAL = re.compile(
     r"bild der|abbildung|foto|altstadt.*beschrif|landmark|zeichne.*landschaft|nach deiner fantasie",
     re.I,
 )
+_WEAK_ROLES = frozenset({"begriff", "part", "whole", "term", "definition", "concept", "element", "item"})
+_PLACEHOLDER_OPTION = re.compile(r"^(Antwort|Begriff)\s+\d+$", re.I)
 
 
 def _terms_from_key_terms(pedagogy: dict[str, Any]) -> list[str]:
@@ -91,12 +93,12 @@ def collect_term_hints(
             if not isinstance(part, dict):
                 continue
             term = str(part.get("term") or "").strip()
-            part_hint = str(part.get("hint") or part.get("role") or "").strip()
+            part_hint = str(part.get("hint") or "").strip()
             if term and _PERSONAL_TERM.search(term):
                 continue
-            if term and part_hint:
+            if term and part_hint and part_hint.lower() != str(part.get("role") or "").strip().lower():
                 hints[term] = part_hint[:160]
-            elif term and concept_hint:
+            elif term and concept_hint and concept_hint.lower() != term.lower():
                 hints[term] = concept_hint[:160]
     return hints
 
@@ -129,10 +131,249 @@ def _should_skip_prompt(*, prompt: str, practice_state: dict[str, Any] | None) -
     return False
 
 
+def _is_sentence_like(text: str) -> bool:
+    t = text.strip()
+    return len(t) > 64 or t.count(" ") >= 7 or t.endswith((".", "?", "!"))
+
+
+def _short_topic(text: str) -> str:
+    words = text.split()
+    if len(words) <= 5 and len(text) <= 48:
+        return text
+    return " ".join(words[:5])
+
+
+def _concept_term_pool(concepts: list[dict[str, Any]]) -> list[str]:
+    terms: list[str] = []
+    seen: set[str] = set()
+    for concept in concepts:
+        if not isinstance(concept, dict):
+            continue
+        for part in concept.get("parts") or []:
+            if not isinstance(part, dict):
+                continue
+            term = str(part.get("term") or "").strip()
+            key = term.lower()
+            if term and key not in seen and not _PERSONAL_TERM.search(term):
+                seen.add(key)
+                terms.append(term)
+    return terms
+
+
+def _pick_distractors(*, pool: list[str], correct: str, siblings: list[str], count: int = 3) -> list[str]:
+    out: list[str] = []
+    exclude = {correct.lower()}
+    for term in siblings + pool:
+        if term.lower() in exclude or term in out:
+            continue
+        out.append(term)
+        if len(out) >= count:
+            break
+    return out
+
+
+def _shuffle_mc_options(correct: str, distractors: list[str]) -> tuple[list[str], int] | None:
+    if len(distractors) < 3:
+        return None
+    options = [correct] + distractors[:3]
+    if len({o.lower() for o in options}) < 4:
+        return None
+    order = sorted(range(4), key=lambda i: (options[i].lower(), i))
+    shuffled = [options[i] for i in order]
+    return shuffled, shuffled.index(correct)
+
+
+def _scrub_clue(text: str, term: str) -> str | None:
+    raw = re.sub(r"\s+", " ", text.strip())
+    if len(raw) < 16:
+        return None
+    if term.lower() not in raw.lower():
+        return raw[:220]
+    clue = re.sub(re.escape(term), "…", raw, flags=re.I)
+    clue = re.sub(r"\s+", " ", clue).strip(" .—–-")
+    if len(clue) < 14 or clue in {"…", "….", "… …"}:
+        return None
+    return clue[:220]
+
+
+def _definition_clue(concept: dict[str, Any], part: dict[str, Any]) -> str | None:
+    term = str(part.get("term") or "").strip()
+    for raw in (
+        str(part.get("hint") or "").strip(),
+        str(concept.get("hint") or "").strip(),
+        str(concept.get("example") or "").strip(),
+    ):
+        if not raw or raw.lower() == term.lower():
+            continue
+        clue = _scrub_clue(raw, term)
+        if clue:
+            return clue
+    return None
+
+
+def _is_weak_practice_prompt(prompt: str, correct: str, options: list[str]) -> bool:
+    if len(prompt.strip()) < 12:
+        return True
+    if any(_PLACEHOLDER_OPTION.match(str(o).strip()) for o in options):
+        return True
+    if len({str(o).strip().lower() for o in options if str(o).strip()}) < len(options):
+        return True
+    lower = prompt.lower()
+    if f"«{correct}»" in prompt and "was bezeichnet" in lower:
+        return True
+    if lower.startswith("was bedeutet") and f"«{correct}»" in prompt:
+        if "gemeint" not in lower and "passt" not in lower:
+            return True
+    return False
+
+
+def derive_practice_choice_questions(
+    basiswissen: dict[str, Any],
+    *,
+    category_label: str = "",
+    max_count: int = 3,
+) -> list[dict[str, Any]]:
+    """Prüfbare MC-Aufgaben — Definition/Lücke statt «Was bezeichnet X bei X?»."""
+    from app.core.basiswissen import _pattern_lists_multiple_parts
+    from app.core.basiswissen_profiles import ROLE_LABELS_DE
+
+    concepts = [c for c in (basiswissen.get("concepts") or []) if isinstance(c, dict)]
+    if not concepts:
+        return []
+    pool = _concept_term_pool(concepts)
+    topic = _short_topic(category_label or "Thema")
+    questions: list[dict[str, Any]] = []
+
+    for template in basiswissen.get("cloze_templates") or []:
+        if len(questions) >= max_count:
+            break
+        if not isinstance(template, dict):
+            continue
+        answers = template.get("answers") or []
+        sentence = str(template.get("sentence") or "").strip()
+        if not answers or not sentence or "___" not in sentence:
+            continue
+        correct = str(answers[0]).strip()
+        if not correct:
+            continue
+        distractors = _pick_distractors(pool=pool, correct=correct, siblings=[])
+        shuffled = _shuffle_mc_options(correct, distractors)
+        if not shuffled:
+            continue
+        options, answer_idx = shuffled
+        prompt = f"Welcher Begriff fehlt?\n{sentence}"
+        if _is_weak_practice_prompt(prompt, correct, options):
+            continue
+        questions.append(
+            {
+                "q": prompt[:400],
+                "options": options,
+                "answer": answer_idx,
+                "concept_id": str(template.get("concept_id") or "")[:64],
+                "target_term": correct[:80],
+                "style": "cloze",
+            }
+        )
+
+    for concept in concepts:
+        if len(questions) >= max_count:
+            break
+        concept_topic = _short_topic(str(concept.get("label") or topic))
+        if _is_sentence_like(concept_topic):
+            concept_topic = topic
+        siblings = _concept_term_pool([concept])
+        for part in concept.get("parts") or []:
+            if len(questions) >= max_count:
+                break
+            if not isinstance(part, dict):
+                continue
+            correct = str(part.get("term") or "").strip()
+            clue = _definition_clue(concept, part)
+            if not correct or not clue:
+                continue
+            distractors = _pick_distractors(
+                pool=pool,
+                correct=correct,
+                siblings=[t for t in siblings if t.lower() != correct.lower()],
+            )
+            shuffled = _shuffle_mc_options(correct, distractors)
+            if not shuffled:
+                continue
+            options, answer_idx = shuffled
+            prompt = f"Welcher Fachbegriff passt? «{clue}» (Thema: {concept_topic})"
+            if _is_weak_practice_prompt(prompt, correct, options):
+                continue
+            questions.append(
+                {
+                    "q": prompt[:400],
+                    "options": options,
+                    "answer": answer_idx,
+                    "concept_id": str(concept.get("id") or "")[:64],
+                    "target_term": correct[:80],
+                    "style": "definition",
+                    "clue": clue[:220],
+                }
+            )
+
+    for concept in concepts:
+        if len(questions) >= max_count:
+            break
+        pattern = str(concept.get("pattern") or "").strip()
+        parts = [p for p in (concept.get("parts") or []) if isinstance(p, dict)]
+        if not parts or not (_pattern_lists_multiple_parts(pattern, parts) or len(parts) > 1):
+            continue
+        label = _short_topic(str(concept.get("label") or topic))
+        if _is_sentence_like(label):
+            label = topic
+        siblings = _concept_term_pool([concept])
+        for part in parts:
+            if len(questions) >= max_count:
+                break
+            role = str(part.get("role") or "").strip().lower()
+            if role in _WEAK_ROLES:
+                continue
+            role_label = ROLE_LABELS_DE.get(role, "")
+            if not role_label or role_label.lower() in _WEAK_ROLES:
+                continue
+            correct = str(part.get("term") or "").strip()
+            if not correct:
+                continue
+            distractors = _pick_distractors(
+                pool=pool,
+                correct=correct,
+                siblings=[t for t in siblings if t.lower() != correct.lower()],
+            )
+            shuffled = _shuffle_mc_options(correct, distractors)
+            if not shuffled:
+                continue
+            options, answer_idx = shuffled
+            if pattern:
+                prompt = f"Bei «{label}» ({pattern}): Welcher Begriff ist der {role_label}?"
+            else:
+                prompt = f"Bei «{label}»: Welcher Begriff ist der {role_label}?"
+            if _is_weak_practice_prompt(prompt, correct, options):
+                continue
+            questions.append(
+                {
+                    "q": prompt[:400],
+                    "options": options,
+                    "answer": answer_idx,
+                    "concept_id": str(concept.get("id") or "")[:64],
+                    "target_term": correct[:80],
+                    "style": "relation",
+                }
+            )
+
+    return questions[:max_count]
+
+
 def _practice_hint_from_question(
     question: dict[str, Any],
     basiswissen: dict[str, Any],
 ) -> str | None:
+    clue = str(question.get("clue") or "").strip()
+    if len(clue) >= 12:
+        return None
     concept_id = str(question.get("concept_id") or "").strip()
     for concept in basiswissen.get("concepts") or []:
         if not isinstance(concept, dict):
@@ -177,12 +418,11 @@ def _derive_knowledge_choice_items(
     practice_state: dict[str, Any] | None,
     max_count: int = 3,
 ) -> list[dict[str, Any]]:
-    from app.core.basiswissen import derive_concept_quiz_questions
-
     items: list[dict[str, Any]] = []
     label = category_label[:120] or "Thema"
+    pool = _module_terms(pedagogy=pedagogy, basiswissen=basiswissen)
 
-    for question in derive_concept_quiz_questions(basiswissen, max_count=max_count):
+    for question in derive_practice_choice_questions(basiswissen, category_label=label, max_count=max_count):
         prompt = str(question.get("q") or "").strip()
         options = [str(o).strip() for o in (question.get("options") or []) if str(o).strip()]
         if len(options) < 2:
@@ -210,30 +450,31 @@ def _derive_knowledge_choice_items(
         return items[:max_count]
 
     term_hints = collect_term_hints(pedagogy=pedagogy, basiswissen=basiswissen)
-    pool = _module_terms(pedagogy=pedagogy, basiswissen=basiswissen)
     for term in pool:
         if len(items) >= max_count:
             break
         hint = term_hints.get(term)
-        if not hint or len(hint) < 8:
+        if not hint or len(hint) < 12:
             continue
-        prompt = f"Welcher Fachbegriff passt zu «{hint}»? ({label})"
+        clue = _scrub_clue(hint, term)
+        if not clue:
+            continue
+        prompt = f"Welcher Fachbegriff passt? «{clue}» (Thema: {_short_topic(label)})"
         if _should_skip_prompt(prompt=prompt, practice_state=practice_state):
             continue
-        distractors = [t for t in pool if t.lower() != term.lower()][:3]
-        while len(distractors) < 3:
-            distractors.append(f"Begriff {len(distractors) + 1}")
-        options = [term] + distractors[:3]
-        count = len(options)
-        order = sorted(range(count), key=lambda i: (options[i].lower(), i))
-        shuffled = [options[i] for i in order]
-        answer_index = shuffled.index(term)
+        distractors = _pick_distractors(pool=pool, correct=term, siblings=[])
+        shuffled = _shuffle_mc_options(term, distractors)
+        if not shuffled:
+            continue
+        options, answer_index = shuffled
+        if _is_weak_practice_prompt(prompt, term, options):
+            continue
         items.append(
             _choice_practice_item(
                 prompt=prompt,
-                options=shuffled,
+                options=options,
                 answer_index=answer_index,
-                hint=f"Denk an das Thema «{label}».",
+                hint=None,
                 source="pedagogy",
             )
         )

@@ -25,7 +25,10 @@ FOCUS_GROUP_PROMPTS: dict[str, str] = {
     "nmg": (
         "NMG (Natur, Mensch, Gesellschaft): Fachbegriffe mit Kurzdefinition und Bezug zum Thema "
         "(Geschichte, Geografie, Gesellschaft, Umwelt …). "
-        "kind: definition, vocabulary oder relation."
+        "kind: definition, vocabulary oder relation. "
+        "label: kurzer Themename (2–5 Wörter), kein ganzer Satz. "
+        "parts[].hint: kurze Definition in eigenen Worten — ohne den Begriff selbst zu wiederholen; "
+        "keine generischen Rollen wie whole/part/begriff."
     ),
     "nature": (
         "Natur & Technik: Fachbegriffe, Prozesse, Einheiten. kind: definition oder relation."

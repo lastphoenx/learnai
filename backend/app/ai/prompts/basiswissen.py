@@ -26,6 +26,7 @@ BASISWISSEN_SYSTEM = (
     "part=ending wenn nur Endungen fehlen. Antworten dürfen Platzhalter sein — Server berechnet korrekte Form.\n"
     "- pattern zeigt die Relation verständlich (Wörter, nicht nur Symbole).\n"
     "- hint erklärt warum/wann der Begriff wichtig ist — nicht nur die Aufgabe wiederholen.\n"
+    "- label kurz und prägnant (Themenname); parts[].hint = Definition ohne den Begriff im Klartext zu verraten.\n"
     "- Keine Quiz-Spoiler aus dem Check; Fachbegriffe und Merksätze sind erlaubt.\n"
     "- Sprache: Deutsch, altersgerecht.\n"
 )
