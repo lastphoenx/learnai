@@ -1,16 +1,25 @@
-"""Ableitung von Übungsaufgaben aus Didaktik + Basiswissen — fachneutral."""
+"""Ableitung von Übungsaufgaben — Wissensabfrage statt generischer Schema-/Zeichenaufgaben."""
 
 from __future__ import annotations
 
-import json
 import re
 from typing import Any
 
-from app.core.focus_groups import is_nmg_focus, normalize_focus_group
+from app.core.basiswissen import derive_concept_quiz_questions
+from app.core.focus_groups import normalize_focus_group
 from app.core.label_diagram import (
     build_label_diagram_from_terms,
-    is_draw_format,
     is_label_format,
+)
+
+_PERSONAL_TERM = re.compile(
+    r"gefallt|wünsche|wuerde ich|würde ich|deine|dein |meine|mein |gedanken|beobachtest|"
+    r"erlebst|zukunft|mindmap.*schweiz heute",
+    re.I,
+)
+_UNUSABLE_VISUAL = re.compile(
+    r"bild der|abbildung|foto|altstadt.*beschrif|landmark|zeichne.*landschaft|nach deiner fantasie",
+    re.I,
 )
 
 
@@ -22,7 +31,7 @@ def _terms_from_key_terms(pedagogy: dict[str, Any]) -> list[str]:
             continue
         term = str(item.get("term") or "").strip()
         key = term.lower()
-        if term and key not in seen:
+        if term and key not in seen and not _PERSONAL_TERM.search(term):
             seen.add(key)
             terms.append(term)
     return terms
@@ -39,7 +48,7 @@ def _terms_from_basiswissen(basiswissen: dict[str, Any]) -> list[str]:
                 continue
             term = str(part.get("term") or "").strip()
             key = term.lower()
-            if term and key not in seen:
+            if term and key not in seen and not _PERSONAL_TERM.search(term):
                 seen.add(key)
                 terms.append(term)
     return terms
@@ -72,7 +81,7 @@ def collect_term_hints(
             continue
         term = str(item.get("term") or "").strip()
         definition = str(item.get("definition") or item.get("hint") or "").strip()
-        if term and definition:
+        if term and definition and not _PERSONAL_TERM.search(term):
             hints[term] = definition[:160]
 
     for concept in basiswissen.get("concepts") or []:
@@ -84,6 +93,8 @@ def collect_term_hints(
                 continue
             term = str(part.get("term") or "").strip()
             part_hint = str(part.get("hint") or part.get("role") or "").strip()
+            if term and _PERSONAL_TERM.search(term):
+                continue
             if term and part_hint:
                 hints[term] = part_hint[:160]
             elif term and concept_hint:
@@ -96,87 +107,114 @@ def _module_terms(
     pedagogy: dict[str, Any],
     basiswissen: dict[str, Any],
 ) -> list[str]:
-    """Modul-spezifische Begriffe bevorzugen — nicht jedes Mal die globale PDF-Liste."""
     local = _terms_from_basiswissen(basiswissen)
     if len(local) >= 3:
         return local
     return collect_terms(pedagogy=pedagogy, basiswissen=basiswissen)
 
 
-def _label_fingerprint(terms: list[str]) -> str:
-    return "|".join(sorted(t.lower() for t in terms))
-
-
-def _draw_fingerprint(prompt: str) -> str:
+def _prompt_fingerprint(prompt: str) -> str:
     return re.sub(r"\s+", " ", str(prompt or "").strip().lower())[:240]
 
 
-def _pick_layout(*, terms: list[str], term_hints: dict[str, str]) -> str:
-    joined = " ".join(term_hints.get(t, t) for t in terms).lower()
-    if re.search(r"\d{3,4}\s*[-–]\s*\d{3,4}|n\.?\s*chr|jahrhundert|epoche|zeit", joined):
-        return "timeline"
-    if len(terms) >= 5 and any(k in joined for k in ("pyramide", "hierarch", "stufe", "ebene")):
-        return "pyramid"
-    return "radial"
+def _should_skip_prompt(*, prompt: str, practice_state: dict[str, Any] | None) -> bool:
+    if not practice_state:
+        return False
+    fp = _prompt_fingerprint(prompt)
+    if not fp:
+        return False
+    seen = practice_state.setdefault("knowledge_prompts", set())
+    if fp in seen:
+        return True
+    seen.add(fp)
+    return False
 
 
-def _label_practice_item(
-    *,
-    diagram: dict[str, Any],
-    hint: str,
-    source: str,
-) -> dict[str, Any]:
-    expected = {str(hs["id"]): hs["accept"][0] for hs in diagram.get("hotspots") or []}
-    return {
-        "prompt": str(diagram.get("instruction") or "Beschrifte das Schema mit den Fachbegriffen."),
-        "hint": hint,
-        "answer_type": "label_diagram",
-        "answer": json.dumps(expected, ensure_ascii=False),
-        "diagram": diagram,
-        "source": source,
-    }
-
-
-def _drawing_practice_item(
+def _choice_practice_item(
     *,
     prompt: str,
-    terms: list[str],
-    title: str,
-    hint: str,
-    source: str,
+    options: list[str],
+    answer_index: int,
+    hint: str | None,
+    source: str = "basiswissen",
 ) -> dict[str, Any]:
     return {
         "prompt": prompt[:500],
-        "hint": hint[:300] if hint else None,
-        "answer_type": "drawing",
-        "answer": "complete",
-        "drawing": {
-            "background": "landscape",
-            "terms": terms[:12],
-            "title": title[:120],
-        },
+        "hint": (hint or "")[:300] or None,
+        "answer_type": "choice",
+        "options": [str(o).strip() for o in options if str(o).strip()],
+        "answer": str(answer_index),
         "source": source,
     }
 
 
-def _formats_imply_label(pedagogy: dict[str, Any]) -> bool:
-    for pattern in pedagogy.get("exercise_formats") or []:
-        if is_label_format(str(pattern)):
-            return True
-    for assignment in pedagogy.get("assignments") or []:
-        if isinstance(assignment, dict) and is_label_format(str(assignment.get("format") or "")):
-            return True
-    return False
+def _derive_knowledge_choice_items(
+    *,
+    basiswissen: dict[str, Any],
+    pedagogy: dict[str, Any],
+    category_label: str,
+    practice_state: dict[str, Any] | None,
+    max_count: int = 3,
+) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    label = category_label[:120] or "Thema"
 
+    for question in derive_concept_quiz_questions(basiswissen, max_count=max_count):
+        prompt = str(question.get("q") or "").strip()
+        options = [str(o).strip() for o in (question.get("options") or []) if str(o).strip()]
+        if len(options) < 2:
+            continue
+        if _should_skip_prompt(prompt=prompt, practice_state=practice_state):
+            continue
+        try:
+            answer_index = int(question.get("answer"))
+        except (TypeError, ValueError):
+            continue
+        if answer_index < 0 or answer_index >= len(options):
+            continue
+        hint = str(question.get("explanation") or "").strip() or None
+        items.append(
+            _choice_practice_item(
+                prompt=prompt,
+                options=options,
+                answer_index=answer_index,
+                hint=hint,
+                source="basiswissen",
+            )
+        )
 
-def _formats_imply_draw(pedagogy: dict[str, Any]) -> bool:
-    for pattern in pedagogy.get("exercise_formats") or []:
-        if is_draw_format(str(pattern)):
-            return True
-    for assignment in pedagogy.get("assignments") or []:
-        if isinstance(assignment, dict) and is_draw_format(str(assignment.get("format") or "")):
-            return True
-    return False
+    if len(items) >= max_count:
+        return items[:max_count]
+
+    term_hints = collect_term_hints(pedagogy=pedagogy, basiswissen=basiswissen)
+    pool = _module_terms(pedagogy=pedagogy, basiswissen=basiswissen)
+    for term in pool:
+        if len(items) >= max_count:
+            break
+        hint = term_hints.get(term)
+        if not hint or len(hint) < 8:
+            continue
+        prompt = f"Welcher Fachbegriff passt zu «{hint}»? ({label})"
+        if _should_skip_prompt(prompt=prompt, practice_state=practice_state):
+            continue
+        distractors = [t for t in pool if t.lower() != term.lower()][:3]
+        while len(distractors) < 3:
+            distractors.append(f"Begriff {len(distractors) + 1}")
+        options = [term] + distractors[:3]
+        order = sorted(range(4), key=lambda i: (options[i].lower(), i))
+        shuffled = [options[i] for i in order]
+        answer_index = shuffled.index(term)
+        items.append(
+            _choice_practice_item(
+                prompt=prompt,
+                options=shuffled,
+                answer_index=answer_index,
+                hint=f"Denk an das Thema «{label}».",
+                source="pedagogy",
+            )
+        )
+
+    return items[:max_count]
 
 
 def _visual_tasks_have_label_placements(pedagogy: dict[str, Any]) -> bool:
@@ -191,44 +229,18 @@ def _visual_tasks_have_label_placements(pedagogy: dict[str, Any]) -> bool:
     return False
 
 
-def _allow_generic_label_diagram(*, focus_group: str, pedagogy: dict[str, Any]) -> bool:
-    """Deutsch ohne echte Bild-Placements: kein generisches Rad (didaktisch wertlos)."""
-    group = normalize_focus_group(focus_group)
-    if group != "german":
-        return True
-    return _visual_tasks_have_label_placements(pedagogy)
+def _label_practice_item(*, diagram: dict[str, Any], hint: str, source: str) -> dict[str, Any]:
+    import json
 
-
-def _should_skip_label(*, terms: list[str], practice_state: dict[str, Any] | None) -> bool:
-    if not practice_state:
-        return False
-    fp = _label_fingerprint(terms)
-    seen = practice_state.setdefault("label_fingerprints", set())
-    if fp in seen:
-        return True
-    seen.add(fp)
-    return False
-
-
-def _should_skip_draw(*, prompt: str, practice_state: dict[str, Any] | None) -> bool:
-    if not practice_state:
-        return False
-    fp = _draw_fingerprint(prompt)
-    if not fp:
-        return False
-    seen = practice_state.setdefault("draw_fingerprints", set())
-    if fp in seen:
-        return True
-    seen.add(fp)
-    return False
-
-
-def _meaningful_draw_hint(*, prompt: str, terms: list[str], title: str) -> str:
-    if re.search(r"burg|schloss|festung", f"{prompt} {title}".lower()):
-        return "Skizziere Bergfried, Mauern und Tor — beschrifte die Teile, die du kennst."
-    if terms and len(terms) >= 3:
-        return "Zeichne die Situation aus dem Arbeitsblatt und beschrifte die wichtigsten Teile."
-    return ""
+    expected = {str(hs["id"]): hs["accept"][0] for hs in diagram.get("hotspots") or []}
+    return {
+        "prompt": str(diagram.get("instruction") or "Ordne die Fachbegriffe am Schema zu."),
+        "hint": hint,
+        "answer_type": "label_diagram",
+        "answer": json.dumps(expected, ensure_ascii=False),
+        "diagram": diagram,
+        "source": source,
+    }
 
 
 def derive_practice_items(
@@ -239,10 +251,10 @@ def derive_practice_items(
     focus_group: str | None = None,
     practice_state: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
+    """Erzeugt prüfbare Wissensaufgaben — keine generischen Mindmap-/Zeichen-Platzhalter."""
     pedagogy = pedagogy if isinstance(pedagogy, dict) else {}
     basiswissen = basiswissen if isinstance(basiswissen, dict) else {}
-    group = normalize_focus_group(focus_group or basiswissen.get("focus_group"))
-    terms = _module_terms(pedagogy=pedagogy, basiswissen=basiswissen)
+    normalize_focus_group(focus_group or basiswissen.get("focus_group"))
     term_hints = collect_term_hints(pedagogy=pedagogy, basiswissen=basiswissen)
     items: list[dict[str, Any]] = []
     seen_prompts: set[str] = set()
@@ -251,136 +263,51 @@ def derive_practice_items(
         key = str(item.get("prompt") or "").strip().lower()
         if not key or key in seen_prompts:
             return
+        if _UNUSABLE_VISUAL.search(key):
+            return
         seen_prompts.add(key)
         items.append(item)
 
     title = category_label[:120] or "Thema"
 
-    for task in pedagogy.get("visual_tasks") or []:
-        if not isinstance(task, dict):
-            continue
-        kind = str(task.get("kind") or "").strip().lower()
-        instruction = str(task.get("instruction") or "").strip()
-        task_terms = [str(t).strip() for t in (task.get("terms") or []) if str(t).strip()]
-        use_terms = task_terms or terms
-        placements = task.get("placements") if isinstance(task.get("placements"), list) else None
-        if is_label_format(kind) and use_terms:
-            if _should_skip_label(terms=use_terms, practice_state=practice_state):
+    for item in _derive_knowledge_choice_items(
+        basiswissen=basiswissen,
+        pedagogy=pedagogy,
+        category_label=title,
+        practice_state=practice_state,
+        max_count=3,
+    ):
+        add_item(item)
+
+    if _visual_tasks_have_label_placements(pedagogy):
+        for task in pedagogy.get("visual_tasks") or []:
+            if not isinstance(task, dict):
                 continue
-            if not _allow_generic_label_diagram(focus_group=group, pedagogy=pedagogy) and not placements:
+            if not is_label_format(str(task.get("kind") or "")):
                 continue
+            instruction = str(task.get("instruction") or "").strip()
+            if instruction and _UNUSABLE_VISUAL.search(instruction):
+                continue
+            placements = task.get("placements")
+            if not isinstance(placements, list) or len(placements) < 3:
+                continue
+            task_terms = [str(t).strip() for t in (task.get("terms") or []) if str(t).strip()]
+            use_terms = [t for t in (task_terms or _module_terms(pedagogy=pedagogy, basiswissen=basiswissen)) if t]
             diagram = build_label_diagram_from_terms(
                 use_terms,
                 title=f"{title} — Begriffe zuordnen",
                 instruction=instruction or None,
                 placements=placements,
                 term_hints=term_hints,
-                layout=_pick_layout(terms=use_terms, term_hints=term_hints),
+                layout="radial",
             )
             if diagram:
                 add_item(
                     _label_practice_item(
                         diagram=diagram,
-                        hint="Fahre über die Fragezeichen — dort steht, was an dieser Stelle gemeint ist.",
-                        source="pedagogy",
-                    )
-                )
-        elif is_draw_format(kind):
-            draw_prompt = instruction or "Zeichne die Aufgabe und beschrifte sie mit den Fachbegriffen."
-            if _should_skip_draw(prompt=draw_prompt, practice_state=practice_state):
-                continue
-            add_item(
-                _drawing_practice_item(
-                    prompt=draw_prompt,
-                    terms=use_terms,
-                    title=title,
-                    hint=_meaningful_draw_hint(prompt=draw_prompt, terms=use_terms, title=title),
-                    source="pedagogy",
-                )
-            )
-
-    for assignment in pedagogy.get("assignments") or []:
-        if not isinstance(assignment, dict):
-            continue
-        fmt = str(assignment.get("format") or "").strip()
-        instruction = str(assignment.get("instruction") or "").strip()
-        if not instruction:
-            continue
-        if is_draw_format(fmt):
-            if _should_skip_draw(prompt=instruction, practice_state=practice_state):
-                continue
-            add_item(
-                _drawing_practice_item(
-                    prompt=instruction,
-                    terms=terms,
-                    title=title,
-                    hint=_meaningful_draw_hint(prompt=instruction, terms=terms, title=title),
-                    source="pedagogy",
-                )
-            )
-        elif is_label_format(fmt) and terms:
-            if _should_skip_label(terms=terms, practice_state=practice_state):
-                continue
-            if not _allow_generic_label_diagram(focus_group=group, pedagogy=pedagogy):
-                continue
-            diagram = build_label_diagram_from_terms(
-                terms,
-                title=f"{title} — Begriffe zuordnen",
-                instruction=instruction,
-                term_hints=term_hints,
-                layout=_pick_layout(terms=terms, term_hints=term_hints),
-            )
-            if diagram:
-                add_item(
-                    _label_practice_item(
-                        diagram=diagram,
-                        hint="Fahre über die Fragezeichen — dort steht, was an dieser Stelle gemeint ist.",
+                        hint="Lies den Hinweis — welcher Begriff passt?",
                         source="pedagogy",
                     )
                 )
 
-    if not any(i.get("answer_type") == "label_diagram" for i in items):
-        if terms and (_formats_imply_label(pedagogy) or is_nmg_focus(group)):
-            if _should_skip_label(terms=terms, practice_state=practice_state):
-                pass
-            elif _allow_generic_label_diagram(focus_group=group, pedagogy=pedagogy):
-                diagram = build_label_diagram_from_terms(
-                    terms,
-                    title=f"{title} — Begriffe zuordnen",
-                    instruction="Ordne die Fachbegriffe anhand der Hinweise auf dem Schema zu.",
-                    term_hints=term_hints,
-                    layout=_pick_layout(terms=terms, term_hints=term_hints),
-                )
-                if diagram:
-                    add_item(
-                        _label_practice_item(
-                            diagram=diagram,
-                            hint="Fahre über die Fragezeichen — dort steht, was an dieser Stelle gemeint ist.",
-                            source="basiswissen",
-                        )
-                    )
-
-    if not any(i.get("answer_type") == "drawing" for i in items):
-        if _formats_imply_draw(pedagogy):
-            draw_prompt = ""
-            for assignment in pedagogy.get("assignments") or []:
-                if isinstance(assignment, dict) and is_draw_format(str(assignment.get("format") or "")):
-                    draw_prompt = str(assignment.get("instruction") or "").strip()
-                    break
-            draw_prompt = (
-                draw_prompt
-                or "Zeichne die Aufgabe wie im Heft und beschrifte sie mit den Fachbegriffen. "
-                "Du kannst das Bild ausdrucken oder als PNG speichern."
-            )
-            if not _should_skip_draw(prompt=draw_prompt, practice_state=practice_state):
-                add_item(
-                    _drawing_practice_item(
-                        prompt=draw_prompt,
-                        terms=terms,
-                        title=title,
-                        hint=_meaningful_draw_hint(prompt=draw_prompt, terms=terms, title=title),
-                        source="pedagogy",
-                    )
-                )
-
-    return items[:2]
+    return items[:3]

@@ -320,7 +320,7 @@ export default function UnitDetailPage() {
     if (!unit || unit.task_type !== "interactive" || modules.length < 1) return;
     if (
       !window.confirm(
-        "Abgeleitete Übungsaufgaben (Zuordnen, Zeichnen) werden ersetzt und mit der aktuellen Logik neu erzeugt — inkl. Hover-Hinweise und ohne Duplikate über alle Blöcke. Pro Block wird Basiswissen dabei aktualisiert (einige Minuten KI). Karten- und Quiz-Fortschritt bleibt erhalten; Antworten unter «Aufgaben» können zurückgesetzt werden. Fortfahren?",
+        "Abgeleitete Übungsaufgaben werden ersetzt: statt Schema-/Zeichen-Platzhaltern gibt es prüfbare Wissensfragen aus dem Modul-Inhalt. Pro Block wird Basiswissen dabei aktualisiert (einige Minuten KI). Karten- und Quiz-Fortschritt bleibt erhalten; Antworten unter «Aufgaben» können zurückgesetzt werden. Fortfahren?",
       )
     ) {
       return;
@@ -1121,7 +1121,7 @@ export default function UnitDetailPage() {
                     {basiswissenBusy ? "Übungsaufgaben werden neu abgeleitet…" : "Übungsaufgaben neu ableiten"}
                   </strong>
                   <span className="muted">
-                    Zuordnen/Zeichnen mit Hinweisen neu erstellen — für Posten mit alten 1-zu-1-Aufgaben
+                    Wissensfragen (Multiple Choice) neu erstellen — ersetzt alte Schema-/Zeichenaufgaben
                   </span>
                 </button>
               )}

@@ -319,6 +319,7 @@ export type TrainerPracticeItem = {
   prompt: string;
   hint?: string | null;
   answer_type?: string;
+  options?: string[];
   diagram?: TrainerLabelDiagram;
   drawing?: TrainerDrawingConfig;
 };
@@ -1426,6 +1427,7 @@ export const submitPracticeAnswer = (
     correct: boolean;
     hint?: string | null;
     expected?: string | null;
+    correct_index?: number | null;
     progress: LearnProgress;
     summary: LearnSummary;
     practice_done: boolean;

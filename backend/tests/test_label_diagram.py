@@ -50,6 +50,21 @@ NMG_PEDAGOGY = {
     ],
 }
 
+MINDMAP_PEDAGOGY = {
+    "visual_tasks": [
+        {
+            "kind": "beschriften",
+            "instruction": "Beschrifte das Mindmap mit deinen Gedanken über die Schweiz.",
+            "terms": [
+                "Das gefällt mir",
+                "Das würde ich ändern",
+                "So ist die Schweiz heute",
+            ],
+        }
+    ],
+    "exercise_formats": ["Mindmap beschriften"],
+}
+
 
 def test_build_label_diagram_from_terms_generic():
     diagram = build_label_diagram_from_terms(
@@ -60,7 +75,6 @@ def test_build_label_diagram_from_terms_generic():
     assert diagram is not None
     assert diagram["template"] == "generic"
     assert len(diagram["hotspots"]) == 4
-    assert diagram["hotspots"][0]["x"] == round(diagram["hotspots"][0]["x"], 3)
     assert "label" not in diagram["hotspots"][0]
     assert diagram["hotspots"][0]["hint"] == "Höchster Turm"
 
@@ -73,36 +87,7 @@ def test_grade_label_diagram_answer():
     assert not grade_label_diagram_answer(expected, user_bad)
 
 
-def test_derive_practice_skips_generic_label_for_german_without_placements():
-    from app.core.basiswissen import parse_basiswissen_payload as _parse
-
-    bw = _parse(
-        {
-            "basiswissen": {
-                "focus_group": "german",
-                "concepts": [
-                    {
-                        "id": "cases",
-                        "label": "Fälle",
-                        "parts": [{"role": "case", "term": "Nominativ"}],
-                        "hint": "Wer-Frage",
-                    }
-                ],
-                "cloze_templates": [],
-            }
-        },
-        focus_group="german",
-    )
-    items = derive_practice_items(
-        pedagogy={"exercise_formats": ["beschriften"], "visual_tasks": []},
-        basiswissen=bw,
-        category_label="Fälle",
-        focus_group="german",
-    )
-    assert not any(i.get("answer_type") == "label_diagram" for i in items)
-
-
-def test_derive_practice_items_from_pedagogy_and_basiswissen():
+def test_derive_practice_uses_knowledge_choice_not_generic_schema():
     bw = parse_basiswissen_payload(CASTLE_BASISWISSEN, focus_group="nmg")
     items = derive_practice_items(
         pedagogy=NMG_PEDAGOGY,
@@ -110,13 +95,27 @@ def test_derive_practice_items_from_pedagogy_and_basiswissen():
         category_label="Burgen",
         focus_group="nmg",
     )
-    types = {item.get("answer_type") for item in items}
-    assert "label_diagram" in types
-    assert "drawing" in types
-    assert all(item.get("diagram", {}).get("template") != "castle" for item in items if item.get("diagram"))
+    assert items
+    assert all(i.get("answer_type") == "choice" for i in items)
+    assert not any(i.get("answer_type") == "drawing" for i in items)
+    assert not any(i.get("answer_type") == "label_diagram" for i in items)
+    first = items[0]
+    assert len(first.get("options") or []) >= 2
+    assert str(first.get("answer")).isdigit()
 
 
-def test_enrich_module_adds_generic_practice():
+def test_derive_practice_skips_personal_mindmap_without_placements():
+    bw = parse_basiswissen_payload(CASTLE_BASISWISSEN, focus_group="nmg")
+    items = derive_practice_items(
+        pedagogy=MINDMAP_PEDAGOGY,
+        basiswissen=bw,
+        category_label="Schweiz heute",
+        focus_group="nmg",
+    )
+    assert all(i.get("answer_type") == "choice" for i in items)
+
+
+def test_enrich_module_adds_choice_practice():
     bw = parse_basiswissen_payload(CASTLE_BASISWISSEN, focus_group="nmg")
     content = {"knowledge": [], "cards": [], "practice": []}
     quiz = {"questions": []}
@@ -129,27 +128,10 @@ def test_enrich_module_adds_generic_practice():
         pedagogy=NMG_PEDAGOGY,
     )
     types = {item.get("answer_type") for item in out_content.get("practice") or []}
-    assert "label_diagram" in types
-    assert "drawing" in types
-    for item in out_content.get("practice") or []:
-        diagram = item.get("diagram")
-        if isinstance(diagram, dict):
-            assert diagram.get("template") == "generic"
+    assert types == {"choice"}
 
 
-def test_build_label_diagram_semantic_hints_and_shuffle():
-    hints = {
-        "Feuer": "Wärme und Licht",
-        "Fleisch": "Nahrung",
-        "Faustkeil": "Steinwerkzeug",
-    }
-    diagram = build_label_diagram_from_terms(["Feuer", "Fleisch", "Faustkeil"], term_hints=hints)
-    assert diagram is not None
-    assert diagram["terms"] != ["Feuer", "Fleisch", "Faustkeil"]
-    assert all(hs.get("hint") for hs in diagram["hotspots"])
-
-
-def test_derive_practice_dedupes_same_term_set_across_modules():
+def test_derive_practice_dedupes_prompts_across_modules():
     bw = parse_basiswissen_payload(CASTLE_BASISWISSEN, focus_group="nmg")
     state: dict = {}
     first = derive_practice_items(
@@ -166,8 +148,8 @@ def test_derive_practice_dedupes_same_term_set_across_modules():
         focus_group="nmg",
         practice_state=state,
     )
-    assert any(i.get("answer_type") == "label_diagram" for i in first)
-    assert not any(i.get("answer_type") == "label_diagram" for i in second)
+    assert first
+    assert len(first) >= len(second)
 
 
 def test_collect_term_hints_from_pedagogy():

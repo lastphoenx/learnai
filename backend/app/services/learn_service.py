@@ -614,6 +614,18 @@ def submit_practice_answer(
         from app.core.label_diagram import grade_label_diagram_answer
 
         is_correct = grade_label_diagram_answer(expected, answer_text)
+    elif answer_type == "choice":
+        options = item.get("options") if isinstance(item.get("options"), list) else []
+        try:
+            selected = int(str(answer_text).strip())
+            correct_idx = int(expected)
+            is_correct = (
+                0 <= selected < len(options)
+                and 0 <= correct_idx < len(options)
+                and selected == correct_idx
+            )
+        except (TypeError, ValueError):
+            is_correct = False
     elif answer_type == "drawing":
         is_correct = True
     else:
@@ -647,10 +659,22 @@ def submit_practice_answer(
             "correct": is_correct,
         },
     )
+    options = item.get("options") if isinstance(item.get("options"), list) else []
+    correct_index: int | None = None
+    expected_label: str | None = None
+    if not is_correct:
+        if answer_type == "choice" and str(expected).isdigit():
+            correct_index = int(expected)
+            if 0 <= correct_index < len(options):
+                expected_label = str(options[correct_index])
+        else:
+            expected_label = expected or None
+
     return {
         "correct": is_correct,
         "hint": item.get("hint"),
-        "expected": expected if not is_correct else None,
+        "expected": expected_label,
+        "correct_index": correct_index,
         "progress": learn,
         "summary": _progress_summary(stats, len(unit.modules)),
         "practice_done": len(practice_answers) >= len(items)

@@ -24,6 +24,7 @@ import { ClozeExercise } from "@/components/learn/ClozeExercise";
 import { DrawingCanvas } from "@/components/learn/DrawingCanvas";
 import { KnowledgeConceptPanel } from "@/components/learn/KnowledgeConceptPanel";
 import { LabelDiagramExercise } from "@/components/learn/LabelDiagramExercise";
+import { PracticeChoiceExercise } from "@/components/learn/PracticeChoiceExercise";
 import { JumpStrip } from "@/components/learn/JumpStrip";
 import { QuizWeaknessPanel } from "@/components/QuizWeaknessPanel";
 import { PracticeExercise } from "@/components/learn/PracticeExercise";
@@ -181,6 +182,7 @@ export function InteractiveTrainer({
     correct: boolean;
     hint?: string | null;
     expected?: string | null;
+    correct_index?: number | null;
   } | null>(null);
   const [autoTrainerId, setAutoTrainerId] = useState<string | null>(null);
   const [selected, setSelected] = useState<number | null>(null);
@@ -1200,7 +1202,46 @@ export function InteractiveTrainer({
               {showPracticeHint(currentPractice.hint) && !practiceResult && (
                 <p className="muted practice-hint">Tipp: {currentPractice.hint}</p>
               )}
-              {currentPractice.answer_type === "label_diagram" && currentPractice.diagram ? (
+              {currentPractice.answer_type === "choice" &&
+              currentPractice.options &&
+              currentPractice.options.length >= 2 ? (
+                <PracticeChoiceExercise
+                  key={`${currentPractice.module_id}:${currentPractice.exercise_index}`}
+                  prompt={currentPractice.prompt}
+                  hint={currentPractice.hint}
+                  options={currentPractice.options}
+                  busy={busy}
+                  result={practiceResult}
+                  onSubmit={async (index) => {
+                    setBusy(true);
+                    setError(null);
+                    try {
+                      const res = await submitPracticeAnswer(unitId, {
+                        module_id: currentPractice.module_id,
+                        exercise_index: currentPractice.exercise_index,
+                        answer: String(index),
+                      });
+                      onStateChange({ ...state, progress: res.progress, summary: res.summary });
+                      setPracticeResult({
+                        correct: res.correct,
+                        hint: res.hint,
+                        expected: res.expected,
+                        correct_index: res.correct_index,
+                      });
+                    } catch (err) {
+                      setError(err instanceof Error ? err.message : "Antwort fehlgeschlagen");
+                    } finally {
+                      setBusy(false);
+                    }
+                  }}
+                  onContinue={() => {
+                    setPracticeResult(null);
+                    if (practiceIndex + 1 < practiceExercises.length) {
+                      setPracticeIndex(practiceIndex + 1);
+                    }
+                  }}
+                />
+              ) : currentPractice.answer_type === "label_diagram" && currentPractice.diagram ? (
                 <LabelDiagramExercise
                   key={`${currentPractice.module_id}:${currentPractice.exercise_index}`}
                   diagram={currentPractice.diagram}
