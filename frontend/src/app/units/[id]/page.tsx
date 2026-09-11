@@ -315,6 +315,36 @@ export default function UnitDetailPage() {
     }
   }
 
+  async function onRederivePractice() {
+    const modules = unit?.modules || [];
+    if (!unit || unit.task_type !== "interactive" || modules.length < 1) return;
+    if (
+      !window.confirm(
+        "Abgeleitete Übungsaufgaben (Zuordnen, Zeichnen) werden ersetzt und mit der aktuellen Logik neu erzeugt — inkl. Hover-Hinweise und ohne Duplikate über alle Blöcke. Pro Block wird Basiswissen dabei aktualisiert (einige Minuten KI). Karten- und Quiz-Fortschritt bleibt erhalten; Antworten unter «Aufgaben» können zurückgesetzt werden. Fortfahren?",
+      )
+    ) {
+      return;
+    }
+    setBasiswissenBusy(true);
+    setError(null);
+    try {
+      const result = await regenerateBasiswissen(unitId, {
+        provider: unit.trainer_options?.llm_provider || undefined,
+        force: true,
+      });
+      await reload();
+      const msg =
+        result.updated_modules > 0
+          ? `Übungsaufgaben in ${result.updated_modules} Block/Blöcken neu abgeleitet (${result.focus_group}).`
+          : `Keine Blöcke aktualisiert (${result.skipped_modules} übersprungen).`;
+      window.alert(msg);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Übungsaufgaben konnten nicht neu abgeleitet werden");
+    } finally {
+      setBasiswissenBusy(false);
+    }
+  }
+
   async function onCancelGenerate() {
     if (cancelling) return;
     const progressHint =
@@ -1077,6 +1107,21 @@ export default function UnitDetailPage() {
                   <strong>{basiswissenBusy ? "Fachbegriffe werden ergänzt…" : "Fachbegriffe ergänzen"}</strong>
                   <span className="muted">
                     Strukturiertes Basiswissen, Lückentexte und Begriffs-Quiz — ohne Voll-Neuaufbereitung
+                  </span>
+                </button>
+              )}
+              {unit.task_type === "interactive" && moduleCount > 0 && (
+                <button
+                  type="button"
+                  className="action-tile"
+                  disabled={busy || basiswissenBusy}
+                  onClick={() => void onRederivePractice()}
+                >
+                  <strong>
+                    {basiswissenBusy ? "Übungsaufgaben werden neu abgeleitet…" : "Übungsaufgaben neu ableiten"}
+                  </strong>
+                  <span className="muted">
+                    Zuordnen/Zeichnen mit Hinweisen neu erstellen — für Posten mit alten 1-zu-1-Aufgaben
                   </span>
                 </button>
               )}
