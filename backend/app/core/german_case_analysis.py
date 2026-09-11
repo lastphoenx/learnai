@@ -607,7 +607,7 @@ def repair_case_check(item: dict[str, Any], *, answer: str | None = None) -> dic
     g = dict(grammar)
     cc: dict[str, Any] = {"sentence": sentence[:500], "span": span[:120]}
     nested = raw.get("nested")
-    if isinstance(nested, dict):
+    if isinstance(nested, (dict, list)):
         cc["nested"] = nested
     g["case_check"] = cc
     out["grammar"] = g
