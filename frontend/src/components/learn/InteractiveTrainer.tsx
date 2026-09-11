@@ -37,6 +37,8 @@ function showPracticeHint(hint: string | null | undefined): boolean {
   if (/^ordne jeden begriff der passenden stelle/i.test(text)) return false;
   if (/^nutze die fachbegriffe im wissens-hub/i.test(text)) return false;
   if (/^lies die merks[aä]tze im wissens-hub/i.test(text)) return false;
+  if (/^richtig:/i.test(text)) return false;
+  if (/^rolle:/i.test(text)) return false;
   return true;
 }
 import { inferCardChoices, shouldUseCardChoices } from "@/lib/cardChoices";

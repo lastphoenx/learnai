@@ -107,11 +107,13 @@ def _strip_practice_answers(content: dict | None) -> dict | None:
     for item in content.get("practice") or []:
         if not isinstance(item, dict):
             continue
+        options = item.get("options") if isinstance(item.get("options"), list) else []
         practice.append(
             {
                 "prompt": item.get("prompt", ""),
                 "hint": item.get("hint"),
                 "answer_type": item.get("answer_type") or "text",
+                "options": [str(o).strip() for o in options if str(o).strip()],
                 "diagram": item.get("diagram"),
                 "drawing": item.get("drawing"),
             }

@@ -41,13 +41,15 @@ export function PracticeExercise({
   return (
     <div className="practice-exercise stack">
       {!hideMeta && (
-      <p className="learn-quiz-meta muted">
-        Übung {exerciseIndex + 1} von {total}
-        {isNumber ? " · Zahl eingeben" : " · Antwort eingeben"}
-      </p>
+        <>
+          <p className="learn-quiz-meta muted">
+            Übung {exerciseIndex + 1} von {total}
+            {isNumber ? " · Zahl eingeben" : " · Antwort eingeben"}
+          </p>
+          <p className="learn-quiz-question">{exercise.prompt}</p>
+          {exercise.hint && !result && <p className="muted practice-hint">Tipp: {exercise.hint}</p>}
+        </>
       )}
-      <p className="learn-quiz-question">{exercise.prompt}</p>
-      {exercise.hint && !result && <p className="muted practice-hint">Tipp: {exercise.hint}</p>}
       <form onSubmit={onFormSubmit} className="practice-form">
         <input
           type={isNumber ? "text" : "text"}

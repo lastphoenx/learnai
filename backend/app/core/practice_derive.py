@@ -129,6 +129,28 @@ def _should_skip_prompt(*, prompt: str, practice_state: dict[str, Any] | None) -
     return False
 
 
+def _practice_hint_from_question(
+    question: dict[str, Any],
+    basiswissen: dict[str, Any],
+) -> str | None:
+    concept_id = str(question.get("concept_id") or "").strip()
+    for concept in basiswissen.get("concepts") or []:
+        if not isinstance(concept, dict):
+            continue
+        if concept_id and str(concept.get("id") or "").strip() != concept_id:
+            continue
+        hint = str(concept.get("hint") or "").strip()
+        if len(hint) >= 12:
+            return hint[:300]
+        example = str(concept.get("example") or "").strip()
+        if len(example) >= 12:
+            return example[:300]
+        pattern = str(concept.get("pattern") or "").strip()
+        if len(pattern) >= 12:
+            return f"Denk an: {pattern[:240]}"
+    return "Nutze den Wissens-Hub im Modul."
+
+
 def _choice_practice_item(
     *,
     prompt: str,
@@ -173,7 +195,7 @@ def _derive_knowledge_choice_items(
             continue
         if answer_index < 0 or answer_index >= len(options):
             continue
-        hint = str(question.get("explanation") or "").strip() or None
+        hint = _practice_hint_from_question(question, basiswissen)
         items.append(
             _choice_practice_item(
                 prompt=prompt,

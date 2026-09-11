@@ -143,6 +143,32 @@ def test_derive_concept_quiz_stores_plain_option_text():
             assert not re.match(r"^[a-d]\)\s", text, re.I), f"prefixed option: {text!r}"
 
 
+def test_derive_concept_quiz_avoids_tautological_label():
+    bw = parse_basiswissen_payload(
+        {
+            "basiswissen": {
+                "schema_version": 1,
+                "focus_group": "nmg",
+                "concepts": [
+                    {
+                        "id": "hr",
+                        "label": "Helvetische Republik",
+                        "parts": [{"role": "begriff", "term": "Helvetische Republik"}],
+                        "pattern": "Die Helvetische Republik war eine neue Staatsform.",
+                        "hint": "Staatsform nach der Französischen Revolution.",
+                    }
+                ],
+                "cloze_templates": [],
+            }
+        },
+        focus_group="nmg",
+    )
+    questions = derive_concept_quiz_questions(bw, max_count=2)
+    assert questions
+    assert "bei Helvetische Republik" not in questions[0]["q"]
+    assert "Was bedeutet" in questions[0]["q"]
+
+
 def test_derive_mental_term_cards_use_distinct_table_forms():
     import json
     from pathlib import Path

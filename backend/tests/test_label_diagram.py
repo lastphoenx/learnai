@@ -155,3 +155,36 @@ def test_derive_practice_dedupes_prompts_across_modules():
 def test_collect_term_hints_from_pedagogy():
     hints = collect_term_hints(pedagogy=NMG_PEDAGOGY, basiswissen={})
     assert hints["Bergfried"] == "Höchster Turm der Burg"
+
+
+def test_strip_practice_answers_keeps_choice_options():
+    from app.services.learn_service import _strip_practice_answers
+
+    out = _strip_practice_answers(
+        {
+            "practice": [
+                {
+                    "prompt": "Frage?",
+                    "hint": "Tipp",
+                    "answer_type": "choice",
+                    "answer": "2",
+                    "options": ["A", "B", "C", "D"],
+                }
+            ]
+        }
+    )
+    item = out["practice"][0]
+    assert item["options"] == ["A", "B", "C", "D"]
+    assert "answer" not in item
+
+
+def test_derive_practice_hint_does_not_leak_quiz_explanation():
+    bw = parse_basiswissen_payload(CASTLE_BASISWISSEN, focus_group="nmg")
+    items = derive_practice_items(
+        pedagogy=NMG_PEDAGOGY,
+        basiswissen=bw,
+        category_label="Burgen",
+        focus_group="nmg",
+    )
+    assert items
+    assert not any(str(i.get("hint") or "").startswith("Richtig:") for i in items)

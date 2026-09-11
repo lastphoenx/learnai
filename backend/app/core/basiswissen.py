@@ -617,6 +617,34 @@ def derive_mental_term_cards(basiswissen: dict[str, Any]) -> list[dict[str, Any]
     return cards[:16]
 
 
+def _concept_quiz_question_text(
+    *,
+    correct: str,
+    label: str,
+    multi_part: bool,
+    role_label: str,
+    has_pattern: bool,
+) -> str:
+    correct_l = correct.lower()
+    label_l = label.lower()
+    label_is_sentence = len(label) > 64 or label.count(" ") >= 7
+    if correct_l == label_l:
+        return f"Was bedeutet der Fachbegriff «{correct}»?"
+    if not multi_part and label_l.startswith(correct_l) and len(label) <= len(correct) + 4:
+        return f"Was bedeutet der Fachbegriff «{correct}»?"
+    if label_is_sentence:
+        if multi_part and role_label and role_label.lower() not in {correct_l, ""}:
+            return f"Welche Rolle hat «{correct}» in diesem Abschnitt?"
+        return f"Was bedeutet «{correct}» in diesem Zusammenhang?"
+    if multi_part:
+        if role_label and role_label.lower() not in {correct_l, ""}:
+            return f"Welche Rolle hat «{correct}» bei {label}?"
+        return f"Was bezeichnet «{correct}» bei {label}?"
+    if has_pattern:
+        return f"Was bezeichnet «{correct}» bei {label}?"
+    return f"Welcher Begriff gehört zu {label}?"
+
+
 def derive_concept_quiz_questions(
     basiswissen: dict[str, Any],
     *,
@@ -650,15 +678,13 @@ def derive_concept_quiz_questions(
             shuffled = [options[i] for i in order]
             answer_idx = shuffled.index(correct)
             role_label = ROLE_LABELS_DE.get(str(part.get("role") or "").strip(), "")
-            if multi_part:
-                if role_label and role_label.lower() not in {correct.lower(), ""}:
-                    q_text = f"Welche Rolle hat «{correct}» bei {label}?"
-                else:
-                    q_text = f"Was bezeichnet «{correct}» bei {label}?"
-            elif pattern:
-                q_text = f"Was bezeichnet «{correct}» bei {label}?"
-            else:
-                q_text = f"Welcher Begriff gehört zu {label}?"
+            q_text = _concept_quiz_question_text(
+                correct=correct,
+                label=label,
+                multi_part=multi_part,
+                role_label=role_label,
+                has_pattern=bool(pattern),
+            )
             explanation = _concept_quiz_explanation(concept, part, correct)
             questions.append(
                 {
