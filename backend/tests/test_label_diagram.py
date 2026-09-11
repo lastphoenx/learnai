@@ -3,7 +3,7 @@ import re
 
 from app.core.basiswissen import enrich_module_with_basiswissen, parse_basiswissen_payload
 from app.core.label_diagram import build_label_diagram_from_terms, grade_label_diagram_answer
-from app.core.practice_derive import collect_term_hints, derive_practice_items, derive_practice_choice_questions
+from app.core.practice_derive import collect_term_hints, derive_practice_choice_questions, derive_practice_items
 
 CASTLE_BASISWISSEN = {
     "basiswissen": {
@@ -241,3 +241,25 @@ def test_derive_practice_uses_definition_not_tautology():
         assert "passt" in prompt or "fehlt" in prompt or "ist der" in prompt
         assert len(item.get("options") or []) >= 3
         assert not any(re.match(r"^(Antwort|Begriff)\s+\d+$", o, re.I) for o in item["options"])
+
+
+def test_derive_practice_dedupes_option_sets_across_modules():
+    bw = parse_basiswissen_payload(CASTLE_BASISWISSEN, focus_group="nmg")
+    state: dict = {}
+    first = derive_practice_items(
+        pedagogy=NMG_PEDAGOGY,
+        basiswissen=bw,
+        category_label="Modul A",
+        focus_group="nmg",
+        practice_state=state,
+    )
+    second = derive_practice_items(
+        pedagogy=NMG_PEDAGOGY,
+        basiswissen=bw,
+        category_label="Modul B",
+        focus_group="nmg",
+        practice_state=state,
+    )
+    first_sets = {tuple(sorted(i["options"])) for i in first if i.get("options")}
+    second_sets = {tuple(sorted(i["options"])) for i in second if i.get("options")}
+    assert not first_sets.intersection(second_sets)

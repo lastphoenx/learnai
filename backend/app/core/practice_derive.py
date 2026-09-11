@@ -22,6 +22,7 @@ _UNUSABLE_VISUAL = re.compile(
 )
 _WEAK_ROLES = frozenset({"begriff", "part", "whole", "term", "definition", "concept", "element", "item"})
 _PLACEHOLDER_OPTION = re.compile(r"^(Antwort|Begriff)\s+\d+$", re.I)
+_DEFINITION_LIKE = re.compile(r"^(der|die|das|ein|eine|historische|politische)\s+", re.I)
 
 
 def _terms_from_key_terms(pedagogy: dict[str, Any]) -> list[str]:
@@ -160,16 +161,50 @@ def _concept_term_pool(concepts: list[dict[str, Any]]) -> list[str]:
     return terms
 
 
-def _pick_distractors(*, pool: list[str], correct: str, siblings: list[str], count: int = 3) -> list[str]:
-    out: list[str] = []
-    exclude = {correct.lower()}
-    for term in siblings + pool:
-        if term.lower() in exclude or term in out:
+def _should_skip_option_set(*, options: list[str], practice_state: dict[str, Any] | None) -> bool:
+    if not practice_state:
+        return False
+    normalized = tuple(sorted(str(o).strip().lower() for o in options if str(o).strip()))
+    if len(normalized) < 2:
+        return False
+    seen = practice_state.setdefault("knowledge_option_sets", set())
+    if normalized in seen:
+        return True
+    seen.add(normalized)
+    return False
+
+
+def _is_definition_like_term(text: str) -> bool:
+    cleaned = re.sub(r"\s+", " ", str(text or "").strip())
+    if len(cleaned) < 40:
+        return False
+    if cleaned.count(" ") < 5:
+        return False
+    return bool(_DEFINITION_LIKE.search(cleaned) or cleaned.endswith("."))
+
+
+def _pick_distractors(
+    *,
+    pool: list[str],
+    correct: str,
+    siblings: list[str],
+    count: int = 3,
+    seed: str = "",
+) -> list[str]:
+    candidates = [t for t in siblings + pool if t.lower() != correct.lower()]
+    deduped: list[str] = []
+    seen: set[str] = {correct.lower()}
+    for term in candidates:
+        key = term.lower()
+        if key in seen or _is_definition_like_term(term):
             continue
-        out.append(term)
-        if len(out) >= count:
-            break
-    return out
+        seen.add(key)
+        deduped.append(term)
+    if not deduped:
+        return []
+    offset = sum(ord(ch) for ch in seed) % len(deduped)
+    rotated = deduped[offset:] + deduped[:offset]
+    return rotated[:count]
 
 
 def _shuffle_mc_options(correct: str, distractors: list[str]) -> tuple[list[str], int] | None:
@@ -218,6 +253,10 @@ def _is_weak_practice_prompt(prompt: str, correct: str, options: list[str]) -> b
         return True
     if len({str(o).strip().lower() for o in options if str(o).strip()}) < len(options):
         return True
+    if _is_definition_like_term(correct):
+        return True
+    if any(_is_definition_like_term(str(o)) for o in options if str(o).strip().lower() != correct.lower()):
+        return True
     lower = prompt.lower()
     if f"«{correct}»" in prompt and "was bezeichnet" in lower:
         return True
@@ -256,7 +295,7 @@ def derive_practice_choice_questions(
         correct = str(answers[0]).strip()
         if not correct:
             continue
-        distractors = _pick_distractors(pool=pool, correct=correct, siblings=[])
+        distractors = _pick_distractors(pool=pool, correct=correct, siblings=[], seed=correct)
         shuffled = _shuffle_mc_options(correct, distractors)
         if not shuffled:
             continue
@@ -295,6 +334,7 @@ def derive_practice_choice_questions(
                 pool=pool,
                 correct=correct,
                 siblings=[t for t in siblings if t.lower() != correct.lower()],
+                seed=f"{concept.get('id')}:{correct}",
             )
             shuffled = _shuffle_mc_options(correct, distractors)
             if not shuffled:
@@ -342,6 +382,7 @@ def derive_practice_choice_questions(
                 pool=pool,
                 correct=correct,
                 siblings=[t for t in siblings if t.lower() != correct.lower()],
+                seed=f"{concept.get('id')}:{correct}",
             )
             shuffled = _shuffle_mc_options(correct, distractors)
             if not shuffled:
@@ -429,6 +470,8 @@ def _derive_knowledge_choice_items(
             continue
         if _should_skip_prompt(prompt=prompt, practice_state=practice_state):
             continue
+        if _should_skip_option_set(options=options, practice_state=practice_state):
+            continue
         try:
             answer_index = int(question.get("answer"))
         except (TypeError, ValueError):
@@ -462,12 +505,14 @@ def _derive_knowledge_choice_items(
         prompt = f"Welcher Fachbegriff passt? «{clue}» (Thema: {_short_topic(label)})"
         if _should_skip_prompt(prompt=prompt, practice_state=practice_state):
             continue
-        distractors = _pick_distractors(pool=pool, correct=term, siblings=[])
+        distractors = _pick_distractors(pool=pool, correct=term, siblings=[], seed=term)
         shuffled = _shuffle_mc_options(term, distractors)
         if not shuffled:
             continue
         options, answer_index = shuffled
         if _is_weak_practice_prompt(prompt, term, options):
+            continue
+        if _should_skip_option_set(options=options, practice_state=practice_state):
             continue
         items.append(
             _choice_practice_item(
