@@ -1039,6 +1039,20 @@ export function batchImportRowCanRetry(
   return row.generate_status === "failed" || row.generate_status === "pending";
 }
 
+const REPAIRABLE_ERRORS = [
+  /Lernkarte ohne Antwort \(Bereich \d+\)/,
+  /Zu wenige Quizfragen \(\d+, mindestens \d+\)/,
+];
+
+export function batchImportRowCanRepair(row: BatchImportUnitRow): boolean {
+  if (row.generate_status !== "failed" || !row.unit_id || !row.error) return false;
+  return REPAIRABLE_ERRORS.some((pattern) => pattern.test(row.error || ""));
+}
+
+export function batchImportRowHasDraft(row: BatchImportUnitRow): boolean {
+  return Boolean(row.unit_id && row.generate_status === "failed");
+}
+
 export type BatchImportUnitQuality = {
   unit_id: string;
   reference_code?: string | null;
@@ -1079,6 +1093,12 @@ export const fetchBatchImportQuality = (batchId: string) =>
 
 export const retryBatchImportUnits = (batchId: string, indices: number[]) =>
   apiFetch<BatchImportJob>(`/api/v1/units/batch-import/${batchId}/retry`, {
+    method: "POST",
+    json: { indices },
+  });
+
+export const repairBatchImportUnits = (batchId: string, indices: number[]) =>
+  apiFetch<BatchImportJob>(`/api/v1/units/batch-import/${batchId}/repair`, {
     method: "POST",
     json: { indices },
   });

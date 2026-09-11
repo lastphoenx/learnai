@@ -6,11 +6,14 @@ import { useEffect, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import {
   batchImportCanResume,
+  batchImportRowCanRepair,
   batchImportRowCanRetry,
+  batchImportRowHasDraft,
   cancelBatchImport,
   fetchBatchImportQuality,
   fetchBatchImportStatus,
   fetchMe,
+  repairBatchImportUnits,
   resumeBatchImport,
   retryBatchImportUnits,
   type BatchImportJob,
@@ -49,6 +52,8 @@ function unitStatusLabel(status?: string) {
       return "Fertig";
     case "failed":
       return "Fehler";
+    case "repair_pending":
+      return "Reparatur…";
     default:
       return status || "—";
   }
@@ -76,6 +81,7 @@ export default function BatchImportProgressPage() {
   const [cancelling, setCancelling] = useState(false);
   const [resuming, setResuming] = useState(false);
   const [retrying, setRetrying] = useState(false);
+  const [repairing, setRepairing] = useState(false);
   const [pollRev, setPollRev] = useState(0);
   const [selected, setSelected] = useState<Set<number>>(() => new Set());
   const [quality, setQuality] = useState<BatchImportQualitySummary | null>(null);
@@ -157,6 +163,24 @@ export default function BatchImportProgressPage() {
     }
   }
 
+  async function onRepair(indices: number[]) {
+    if (!batchId || repairing || indices.length === 0) return;
+    setRepairing(true);
+    setError(null);
+    try {
+      const next = await repairBatchImportUnits(batchId, indices);
+      setJob(next);
+      setSelected(new Set());
+      if (["queued", "running", "cancelling"].includes(next.status)) {
+        setPollRev((value) => value + 1);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Reparatur fehlgeschlagen");
+    } finally {
+      setRepairing(false);
+    }
+  }
+
   async function onCancel() {
     if (!batchId || cancelling) return;
     if (!window.confirm("Batch abbrechen? Fertige Einheiten bleiben erhalten.")) return;
@@ -198,6 +222,10 @@ export default function BatchImportProgressPage() {
   const retryableSelected = [...selected].filter((index) => {
     const row = job?.units?.[index];
     return row && job && batchImportRowCanRetry(job, row);
+  });
+  const repairableSelected = [...selected].filter((index) => {
+    const row = job?.units?.[index];
+    return row && batchImportRowCanRepair(row);
   });
   const qualityByIndex = new Map((quality?.rows ?? []).map((row) => [row.index, row.quality]));
 
@@ -275,10 +303,20 @@ export default function BatchImportProgressPage() {
             <button
               type="button"
               className="btn"
-              disabled={retrying}
+              disabled={retrying || repairing}
               onClick={() => void onRetry(retryableSelected)}
             >
-              {retrying ? "Startet…" : `Auswahl erneut (${retryableSelected.length})`}
+              {retrying ? "Startet…" : `Neu generieren (${retryableSelected.length})`}
+            </button>
+          )}
+          {!active && repairableSelected.length > 0 && (
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={repairing || retrying}
+              onClick={() => void onRepair(repairableSelected)}
+            >
+              {repairing ? "Repariert…" : `Reparieren (${repairableSelected.length})`}
             </button>
           )}
           <Link className="btn" href="/units/batch">
@@ -293,6 +331,8 @@ export default function BatchImportProgressPage() {
             {job.units.map((row, index) => {
               const rowBadge = statusLabel(row.generate_status || "pending");
               const canRetryRow = job && batchImportRowCanRetry(job, row);
+              const canRepairRow = batchImportRowCanRepair(row);
+              const hasDraft = batchImportRowHasDraft(row);
               const q = qualityByIndex.get(index);
               return (
                 <li key={`${index}-${row.title}`} className="unit-list-item card unit-list-card batch-progress-row">
@@ -326,14 +366,30 @@ export default function BatchImportProgressPage() {
                     {row.error && <p className="err" style={{ margin: "0.35rem 0 0" }}>{row.error}</p>}
                   </div>
                   <div className="unit-list-actions" style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem" }}>
+                    {hasDraft && (
+                      <Link className="btn ghost btn-sm" href={`/units/${row.unit_id}`}>
+                        Entwurf öffnen
+                      </Link>
+                    )}
+                    {canRepairRow && (
+                      <button
+                        type="button"
+                        className="btn btn-primary btn-sm"
+                        disabled={repairing || retrying}
+                        onClick={() => void onRepair([index])}
+                      >
+                        Reparieren
+                      </button>
+                    )}
                     {canRetryRow && (
                       <button
                         type="button"
                         className="btn ghost btn-sm"
-                        disabled={retrying}
+                        disabled={retrying || repairing}
                         onClick={() => void onRetry([index])}
+                        title="Vision und alle Bereiche neu generieren"
                       >
-                        Erneut
+                        Neu generieren
                       </button>
                     )}
                     {row.unit_id && row.generate_status === "done" && (

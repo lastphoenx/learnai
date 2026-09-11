@@ -341,8 +341,11 @@ def _reset_batch_unit_rows(
     units: list[Any],
     *,
     indices: set[int] | None = None,
+    mode: str = "full",
 ) -> tuple[list[dict[str, Any]], int]:
-    """Setzt ausgewählte (oder alle offenen) Zeilen auf pending. Returns (rows, reset_count)."""
+    """Setzt Zeilen für Voll-Retry (pending) oder Reparatur (repair_pending)."""
+    if mode not in {"full", "repair"}:
+        raise ValueError(f"unknown reset mode: {mode}")
     updated_units: list[dict[str, Any]] = []
     reset_count = 0
     for index, row in enumerate(units):
@@ -362,9 +365,17 @@ def _reset_batch_unit_rows(
                 f"Zeile {index + 1} kann nicht erneut gestartet werden (Status: {status})",
                 "invalid_state",
             )
-        next_row["generate_status"] = "pending"
-        next_row["error"] = None
-        next_row["unit_id"] = None
+        if mode == "repair":
+            if not next_row.get("unit_id"):
+                raise UnitError(
+                    f"Zeile {index + 1}: kein Entwurf — bitte «Neu generieren»",
+                    "invalid_state",
+                )
+            next_row["generate_status"] = "repair_pending"
+        else:
+            next_row["generate_status"] = "pending"
+            next_row["error"] = None
+            next_row["unit_id"] = None
         updated_units.append(next_row)
         reset_count += 1
     return updated_units, reset_count
@@ -449,6 +460,60 @@ def retry_batch_import_units(
     )
 
 
+def repair_batch_import_units(
+    db: Session,
+    user: User,
+    batch_id: str,
+    indices: list[int],
+) -> dict[str, Any]:
+    """Fehlgeschlagene Batch-Zeilen gezielt reparieren (Entwurf behalten, ohne Vision)."""
+    from app.services.batch_import_repair import is_repairable_error
+
+    if not indices:
+        raise UnitError("Keine Zeilen ausgewählt", "invalid_payload")
+
+    job = get_batch_import_status(db, user, batch_id)
+    if batch_is_active(job):
+        raise UnitError("Batch läuft bereits", "conflict")
+
+    status = str(job.get("status") or "")
+    if status in {"queued", "running", "cancelling"}:
+        raise UnitError("Batch kann nicht repariert werden", "invalid_state")
+
+    units = job.get("units") or []
+    index_set = {int(i) for i in indices}
+    for idx in index_set:
+        if idx < 0 or idx >= len(units):
+            raise UnitError(f"Ungültiger Index {idx + 1}", "invalid_payload")
+        row = units[idx]
+        if not isinstance(row, dict):
+            raise UnitError(f"Zeile {idx + 1} ungültig", "invalid_payload")
+        if str(row.get("generate_status") or "") != "failed":
+            raise UnitError(f"Zeile {idx + 1} ist kein Fehler — Reparatur nicht möglich", "invalid_state")
+        if not row.get("unit_id"):
+            raise UnitError(
+                f"Zeile {idx + 1}: kein Entwurf — bitte «Neu generieren»",
+                "invalid_state",
+            )
+        if not is_repairable_error(str(row.get("error") or "")):
+            raise UnitError(
+                f"Zeile {idx + 1}: Fehler nicht reparierbar — bitte «Neu generieren»",
+                "invalid_state",
+            )
+
+    updated_units, reset_count = _reset_batch_unit_rows(units, indices=index_set, mode="repair")
+    if reset_count <= 0:
+        raise UnitError("Keine passenden Zeilen zum Reparieren", "nothing_to_do")
+
+    update_batch_import_job(batch_id, units=updated_units)
+    label = reset_count == 1 and f"Zeile {sorted(index_set)[0] + 1}" or f"{reset_count} Zeilen"
+    return _queue_batch_import_job(
+        batch_id,
+        str(user.id),
+        message=f"Reparatur: {label}…",
+    )
+
+
 def _spec_from_job_row(row: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
     return {
         "title": row["title"],
@@ -472,7 +537,12 @@ def _fail_batch_job(batch_id: str, message: str) -> None:
 def run_batch_import(batch_id: str, user_id: str) -> None:
     """Celery-Einstieg: Einheiten anlegen, Quellen rendern, nacheinander generieren."""
     from app.core.db.session import SessionLocal
-    from app.services.batch_import_runner import process_batch_import_unit
+    from app.services.batch_import_runner import (
+        BatchImportUnitFailed,
+        process_batch_import_unit,
+        process_batch_repair_unit,
+        unit_exists_after_failure,
+    )
 
     db = SessionLocal()
     try:
@@ -519,6 +589,68 @@ def run_batch_import(batch_id: str, user_id: str) -> None:
                 continue
             if row.get("generate_status") == "done":
                 continue
+            row_status = str(row.get("generate_status") or "pending")
+            if row_status not in {"pending", "repair_pending"}:
+                continue
+
+            if row_status == "repair_pending":
+                unit_id_raw = row.get("unit_id")
+                if not unit_id_raw:
+                    failures += 1
+                    set_batch_unit_row(
+                        batch_id,
+                        index,
+                        generate_status="failed",
+                        error="Kein Entwurf für Reparatur",
+                    )
+                    continue
+                set_batch_unit_row(batch_id, index, generate_status="running")
+                error_hint = str(row.get("error") or "")
+                try:
+                    process_batch_repair_unit(
+                        db,
+                        user,
+                        uuid.UUID(str(unit_id_raw)),
+                        error_hint=error_hint or None,
+                    )
+                    db.commit()
+                    set_batch_unit_row(
+                        batch_id,
+                        index,
+                        unit_id=str(unit_id_raw),
+                        generate_status="done",
+                        error=None,
+                    )
+                except (UnitError, LlmError) as exc:
+                    db.rollback()
+                    failures += 1
+                    msg = getattr(exc, "message", str(exc))
+                    set_batch_unit_row(
+                        batch_id,
+                        index,
+                        unit_id=str(unit_id_raw),
+                        generate_status="failed",
+                        error=msg,
+                    )
+                    _log.warning(
+                        "batch_import repair failed batch=%s index=%s msg=%s",
+                        batch_id,
+                        index,
+                        msg,
+                    )
+                except Exception:
+                    db.rollback()
+                    failures += 1
+                    set_batch_unit_row(
+                        batch_id,
+                        index,
+                        unit_id=str(unit_id_raw),
+                        generate_status="failed",
+                        error="Reparatur fehlgeschlagen",
+                    )
+                    _log.exception("batch_import repair failed batch=%s index=%s", batch_id, index)
+                continue
+
             set_batch_unit_row(batch_id, index, generate_status="running")
             spec = _spec_from_job_row(row, payload)
             try:
@@ -539,6 +671,18 @@ def run_batch_import(batch_id: str, user_id: str) -> None:
                     generate_status="done",
                     error=None,
                 )
+            except BatchImportUnitFailed as exc:
+                db.rollback()
+                failures += 1
+                msg = getattr(exc.exc, "message", str(exc.exc))
+                fields: dict[str, Any] = {
+                    "generate_status": "failed",
+                    "error": msg,
+                }
+                if unit_exists_after_failure(db, exc.unit_id):
+                    fields["unit_id"] = str(exc.unit_id)
+                set_batch_unit_row(batch_id, index, **fields)
+                _log.warning("batch_import unit failed batch=%s index=%s msg=%s", batch_id, index, msg)
             except (UnitError, LlmError) as exc:
                 db.rollback()
                 failures += 1

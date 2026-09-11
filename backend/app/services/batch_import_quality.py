@@ -103,7 +103,7 @@ def build_batch_import_quality_summary(db: Session, user: User, batch_id: str) -
             "quality": None,
         }
         unit_id_raw = row.get("unit_id")
-        if unit_id_raw and status == "done":
+        if unit_id_raw and status in {"done", "failed"}:
             try:
                 entry["quality"] = summarize_batch_unit_quality(db, user, uuid.UUID(str(unit_id_raw)))
             except UnitError:

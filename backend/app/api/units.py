@@ -69,7 +69,7 @@ from app.services.unit_release_service import set_unit_learner_release
 from app.services.pedagogy_service import extract_unit_pedagogy, get_unit_pedagogy
 from app.services.pdf_export_service import unit_worksheet_pdf
 from app.services.trainer_export_service import export_trainer_json, import_trainer_json
-from app.services.batch_import_service import cancel_batch_import, get_batch_import_status, resume_batch_import, retry_batch_import_units, start_batch_import
+from app.services.batch_import_service import cancel_batch_import, get_batch_import_status, repair_batch_import_units, resume_batch_import, retry_batch_import_units, start_batch_import
 from app.services.batch_import_quality import build_batch_import_quality_summary
 from app.core.trainer_presets import trainer_presets_public
 from app.ai.task_types import math_focus_public, task_types_public
@@ -220,6 +220,25 @@ def units_batch_import_retry(
             raise UnitError("indices (Liste) erforderlich", "invalid_payload")
         indices = [int(x) for x in raw]
         return retry_batch_import_units(db, user, batch_id, indices)
+    except UnitError as exc:
+        raise _http(exc) from exc
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail="indices muss eine Liste von Zahlen sein") from exc
+
+
+@router.post("/batch-import/{batch_id}/repair", status_code=status.HTTP_202_ACCEPTED)
+def units_batch_import_repair(
+    batch_id: str,
+    body: dict,
+    user: User = Depends(get_app_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        raw = body.get("indices") if isinstance(body, dict) else None
+        if not isinstance(raw, list) or not raw:
+            raise UnitError("indices (Liste) erforderlich", "invalid_payload")
+        indices = [int(x) for x in raw]
+        return repair_batch_import_units(db, user, batch_id, indices)
     except UnitError as exc:
         raise _http(exc) from exc
     except (TypeError, ValueError) as exc:
