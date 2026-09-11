@@ -10,7 +10,7 @@ from app.ai.generate_posten_compact import (
     posten_compact_payload_to_modules,
     should_use_posten_compact,
 )
-from app.ai.validators.interactive import validate_interactive_modules
+from app.ai.validators.interactive import dedupe_interactive_modules, validate_interactive_modules
 
 
 def test_should_use_posten_compact_routing():
@@ -63,6 +63,7 @@ def test_posten_compact_module_mapping():
         question_target=8,
     )
     modules = posten_compact_payload_to_modules(payload, title="Posten 14", focus_group="nmg")
+    modules, _ = dedupe_interactive_modules(modules)
     assert len(modules) == 4
     total_cards = sum(len(m["content"]["cards"]) for m in modules)
     total_quiz = sum(len(m["quiz"]["questions"]) for m in modules)
