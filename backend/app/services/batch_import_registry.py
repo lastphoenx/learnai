@@ -17,6 +17,17 @@ def manifest_path(batch_id: str) -> Path:
     return batch_dir(batch_id) / "manifest.json"
 
 
+def manifest_path_for_job(job: dict[str, Any]) -> Path:
+    pdf_path = str(job.get("pdf_path") or "").strip()
+    if pdf_path:
+        return Path(pdf_path).parent / "manifest.json"
+    return manifest_path(batch_id_from_job(job))
+
+
+def batch_id_from_job(job: dict[str, Any]) -> str:
+    return str(job.get("batch_id") or "").strip()
+
+
 def build_batch_label(
     *,
     subject: str | None,
@@ -68,7 +79,7 @@ def build_batch_description(
 
 
 def persist_batch_manifest(job: dict[str, Any], *, source_filename: str | None = None) -> None:
-    batch_id = str(job.get("batch_id") or "").strip()
+    batch_id = batch_id_from_job(job)
     if not batch_id:
         return
     payload = job.get("payload") if isinstance(job.get("payload"), dict) else {}
@@ -96,7 +107,7 @@ def persist_batch_manifest(job: dict[str, Any], *, source_filename: str | None =
         "message": job.get("message"),
         "celery_task_id": job.get("celery_task_id"),
     }
-    path = manifest_path(batch_id)
+    path = manifest_path_for_job(job)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
 
