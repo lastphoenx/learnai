@@ -69,7 +69,7 @@ from app.services.unit_release_service import set_unit_learner_release
 from app.services.pedagogy_service import extract_unit_pedagogy, get_unit_pedagogy
 from app.services.pdf_export_service import unit_worksheet_pdf
 from app.services.trainer_export_service import export_trainer_json, import_trainer_json
-from app.services.batch_import_service import cancel_batch_import, get_batch_import_status, start_batch_import
+from app.services.batch_import_service import cancel_batch_import, get_batch_import_status, resume_batch_import, start_batch_import
 from app.core.trainer_presets import trainer_presets_public
 from app.ai.task_types import math_focus_public, task_types_public
 from app.ai.subject_focus import focus_groups_public
@@ -178,6 +178,18 @@ def units_batch_import_cancel(
 ):
     try:
         return cancel_batch_import(db, user, batch_id)
+    except UnitError as exc:
+        raise _http(exc) from exc
+
+
+@router.post("/batch-import/{batch_id}/resume", status_code=status.HTTP_202_ACCEPTED)
+def units_batch_import_resume(
+    batch_id: str,
+    user: User = Depends(get_app_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        return resume_batch_import(db, user, batch_id)
     except UnitError as exc:
         raise _http(exc) from exc
 

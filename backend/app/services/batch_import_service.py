@@ -16,6 +16,7 @@ from app.core.trainer_presets import DEFAULT_BATCH_PRESET_ID, DEFAULT_PRESET_ID
 from app.models import User
 from app.services.batch_import_job import (
     batch_cancel_requested,
+    batch_can_resume,
     batch_is_active,
     create_batch_import_job,
     get_batch_import_job,
@@ -333,6 +334,51 @@ def cancel_batch_import(db: Session, user: User, batch_id: str) -> dict[str, Any
     return updated
 
 
+def resume_batch_import(db: Session, user: User, batch_id: str) -> dict[str, Any]:
+    """Fehlgeschlagene/abgebrochene Batch-Jobs fortsetzen — fertige Einheiten werden übersprungen."""
+    job = get_batch_import_status(db, user, batch_id)
+    if batch_is_active(job):
+        raise UnitError("Batch läuft bereits", "conflict")
+    if not batch_can_resume(job):
+        raise UnitError("Batch kann nicht fortgesetzt werden", "invalid_state")
+
+    pdf_path = Path(str(job.get("pdf_path") or ""))
+    if not pdf_path.is_file():
+        raise UnitError("PDF-Datei nicht mehr vorhanden — neuer Batch nötig", "not_found")
+
+    updated_units: list[dict[str, Any]] = []
+    for row in job.get("units") or []:
+        if not isinstance(row, dict):
+            updated_units.append(row)
+            continue
+        next_row = dict(row)
+        if next_row.get("generate_status") == "done":
+            updated_units.append(next_row)
+            continue
+        next_row["generate_status"] = "pending"
+        next_row["error"] = None
+        next_row["unit_id"] = None
+        updated_units.append(next_row)
+
+    update_batch_import_job(
+        batch_id,
+        status="queued",
+        cancel_requested=False,
+        error=None,
+        message="Fortsetzung in Warteschlange…",
+        units=updated_units,
+    )
+
+    from app.tasks.batch_import import batch_import_task
+
+    task = batch_import_task.delay(batch_id, str(user.id))
+    update_batch_import_job(batch_id, celery_task_id=task.id)
+    resumed = get_batch_import_job(batch_id)
+    if not resumed:
+        raise UnitError("Batch-Job nicht gefunden", "not_found")
+    return resumed
+
+
 def _spec_from_job_row(row: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
     return {
         "title": row["title"],
@@ -400,6 +446,8 @@ def run_batch_import(batch_id: str, user_id: str) -> None:
                 )
                 break
             if not isinstance(row, dict):
+                continue
+            if row.get("generate_status") == "done":
                 continue
             set_batch_unit_row(batch_id, index, generate_status="running")
             spec = _spec_from_job_row(row, payload)

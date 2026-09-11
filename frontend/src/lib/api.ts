@@ -1022,6 +1022,15 @@ export const fetchBatchImportStatus = (batchId: string) =>
 export const cancelBatchImport = (batchId: string) =>
   apiFetch<BatchImportJob>(`/api/v1/units/batch-import/${batchId}/cancel`, { method: "POST" });
 
+export const resumeBatchImport = (batchId: string) =>
+  apiFetch<BatchImportJob>(`/api/v1/units/batch-import/${batchId}/resume`, { method: "POST" });
+
+export function batchImportCanResume(job: BatchImportJob | null | undefined): boolean {
+  if (!job || ["queued", "running", "cancelling"].includes(job.status)) return false;
+  if (!["cancelled", "partial", "failed"].includes(job.status)) return false;
+  return (job.units ?? []).some((row) => row.generate_status !== "done");
+}
+
 export async function waitForBatchImportJob(
   batchId: string,
   onUpdate?: (job: BatchImportJob) => void,

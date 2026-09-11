@@ -5,9 +5,11 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import {
+  batchImportCanResume,
   cancelBatchImport,
   fetchBatchImportStatus,
   fetchMe,
+  resumeBatchImport,
   type BatchImportJob,
   type User,
 } from "@/lib/api";
@@ -55,6 +57,8 @@ export default function BatchImportProgressPage() {
   const [job, setJob] = useState<BatchImportJob | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
+  const [resuming, setResuming] = useState(false);
+  const [pollRev, setPollRev] = useState(0);
 
   useEffect(() => {
     fetchMe()
@@ -89,7 +93,7 @@ export default function BatchImportProgressPage() {
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [batchId]);
+  }, [batchId, pollRev]);
 
   async function onCancel() {
     if (!batchId || cancelling) return;
@@ -106,11 +110,29 @@ export default function BatchImportProgressPage() {
     }
   }
 
+  async function onResume() {
+    if (!batchId || resuming) return;
+    setResuming(true);
+    setError(null);
+    try {
+      const next = await resumeBatchImport(batchId);
+      setJob(next);
+      if (["queued", "running", "cancelling"].includes(next.status)) {
+        setPollRev((value) => value + 1);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Fortsetzen fehlgeschlagen");
+    } finally {
+      setResuming(false);
+    }
+  }
+
   const badge = job ? statusLabel(job.status) : null;
   const doneCount =
     job?.units?.filter((u) => u.generate_status === "done").length ?? 0;
   const total = job?.total ?? job?.units?.length ?? 0;
   const active = job && ["queued", "running", "cancelling"].includes(job.status);
+  const canResume = job && batchImportCanResume(job);
 
   if (error && !user) {
     return (
@@ -158,6 +180,12 @@ export default function BatchImportProgressPage() {
                 Tab offen lassen — Generierung läuft seriell im Hintergrund.
               </p>
             )}
+            {canResume && (
+              <p className="muted" style={{ margin: 0 }}>
+                Fertige Einheiten bleiben erhalten — «Fortsetzen» startet nur fehlende und fehlerhafte Posten erneut
+                (gleiche PDF, kein Wizard).
+              </p>
+            )}
           </>
         ) : (
           <p className="muted">Status wird geladen…</p>
@@ -169,6 +197,11 @@ export default function BatchImportProgressPage() {
           {active && (
             <button type="button" className="btn ghost" disabled={cancelling} onClick={() => void onCancel()}>
               {cancelling ? "Abbruch…" : "Batch abbrechen"}
+            </button>
+          )}
+          {canResume && (
+            <button type="button" className="btn btn-primary" disabled={resuming} onClick={() => void onResume()}>
+              {resuming ? "Startet…" : "Fortsetzen"}
             </button>
           )}
           <Link className="btn" href="/units/batch">

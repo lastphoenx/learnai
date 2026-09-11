@@ -12,6 +12,7 @@ from app.services.batch_import_service import (
     _parse_payload,
     _unit_specs,
     _validate_intro_pages,
+    resume_batch_import,
     run_batch_import,
     start_batch_import,
 )
@@ -155,3 +156,127 @@ def test_run_batch_import_setup_failure_marks_failed(
     job = get_batch_import_job(batch_id)
     assert job is not None
     assert job["status"] == "failed"
+
+
+@patch("app.tasks.batch_import.batch_import_task")
+@patch("app.services.batch_import_job._redis_client")
+def test_resume_batch_import_requeues_pending_units(mock_redis_fn, mock_task, tmp_path):
+    store: dict[str, str] = {}
+    client = MagicMock()
+    client.setex = lambda key, _ttl, value: store.update({key: value})
+    client.get = lambda key: store.get(key)
+    mock_redis_fn.return_value = client
+    mock_task.delay.return_value = MagicMock(id="celery-resume-1")
+
+    batch_id = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+    pdf_path = tmp_path / "source.pdf"
+    pdf_path.write_bytes(_sample_pdf(tmp_path))
+    from app.services.batch_import_job import create_batch_import_job, get_batch_import_job
+
+    create_batch_import_job(
+        batch_id=batch_id,
+        user_id="11111111-1111-1111-1111-111111111111",
+        tenant_id="22222222-2222-2222-2222-222222222222",
+        total=2,
+        pdf_path=str(pdf_path),
+        units=[
+            {
+                "title": "A",
+                "page_from": 1,
+                "page_to": 2,
+                "generate_status": "done",
+                "unit_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+            },
+            {
+                "title": "B",
+                "page_from": 3,
+                "page_to": 4,
+                "generate_status": "failed",
+                "error": "Quizfragen unvollständig (1/1)",
+            },
+        ],
+    )
+    update = {
+        "status": "cancelled",
+        "message": "Batch abgebrochen",
+        "payload": {"default_preset": "posten_compact"},
+    }
+    from app.services.batch_import_job import update_batch_import_job
+
+    update_batch_import_job(batch_id, **update)
+
+    db = MagicMock()
+    user = MagicMock()
+    user.id = "11111111-1111-1111-1111-111111111111"
+    user.is_admin = False
+
+    job = resume_batch_import(db, user, batch_id)
+    assert job["status"] == "queued"
+    assert job["units"][0]["generate_status"] == "done"
+    assert job["units"][1]["generate_status"] == "pending"
+    assert job["units"][1]["error"] is None
+    mock_task.delay.assert_called_once_with(batch_id, str(user.id))
+
+
+@patch("app.services.batch_import_runner.process_batch_import_unit")
+@patch("app.services.batch_import_service._build_shared_brief")
+@patch("app.core.db.session.SessionLocal")
+@patch("app.services.batch_import_job._redis_client")
+def test_run_batch_import_skips_done_units(
+    mock_redis_fn,
+    mock_session_local,
+    mock_brief,
+    mock_process,
+    tmp_path,
+):
+    store: dict[str, str] = {}
+    client = MagicMock()
+    client.setex = lambda key, _ttl, value: store.update({key: value})
+    client.get = lambda key: store.get(key)
+    mock_redis_fn.return_value = client
+    mock_brief.return_value = "Intro"
+    mock_process.return_value = "33333333-3333-3333-3333-333333333333"
+
+    batch_id = "cccccccc-cccc-cccc-cccc-cccccccccccc"
+    pdf_path = tmp_path / "source.pdf"
+    pdf_path.write_bytes(_sample_pdf(tmp_path))
+    from app.services.batch_import_job import create_batch_import_job, update_batch_import_job
+
+    create_batch_import_job(
+        batch_id=batch_id,
+        user_id="11111111-1111-1111-1111-111111111111",
+        tenant_id="22222222-2222-2222-2222-222222222222",
+        total=2,
+        pdf_path=str(pdf_path),
+        units=[
+            {
+                "title": "A",
+                "page_from": 1,
+                "page_to": 2,
+                "generate_status": "done",
+                "unit_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+            },
+            {"title": "B", "page_from": 3, "page_to": 4, "generate_status": "pending"},
+        ],
+    )
+    update_batch_import_job(
+        batch_id,
+        status="queued",
+        payload={"default_preset": "posten_compact"},
+    )
+
+    user = MagicMock()
+    user.id = "11111111-1111-1111-1111-111111111111"
+    db = MagicMock()
+    db.query.return_value.filter.return_value.first.return_value = user
+    mock_session_local.return_value = db
+
+    run_batch_import(batch_id, str(user.id))
+
+    mock_process.assert_called_once()
+    from app.services.batch_import_job import get_batch_import_job
+
+    job = get_batch_import_job(batch_id)
+    assert job is not None
+    assert job["units"][0]["generate_status"] == "done"
+    assert job["units"][1]["generate_status"] == "done"

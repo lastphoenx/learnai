@@ -116,5 +116,26 @@ def batch_is_active(job: dict[str, Any] | None) -> bool:
     return bool(job and job.get("status") in {"queued", "running", "cancelling"})
 
 
+_RESUMABLE_STATUSES = frozenset({"cancelled", "partial", "failed"})
+
+
+def batch_has_pending_units(job: dict[str, Any] | None) -> bool:
+    if not job:
+        return False
+    units = job.get("units") or []
+    return any(
+        isinstance(row, dict) and row.get("generate_status") != "done"
+        for row in units
+    )
+
+
+def batch_can_resume(job: dict[str, Any] | None) -> bool:
+    if not job or batch_is_active(job):
+        return False
+    if job.get("status") not in _RESUMABLE_STATUSES:
+        return False
+    return batch_has_pending_units(job)
+
+
 def new_batch_id() -> str:
     return str(uuid.uuid4())
