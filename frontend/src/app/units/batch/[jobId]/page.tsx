@@ -7,6 +7,7 @@ import { AppHeader } from "@/components/AppHeader";
 import {
   batchImportCanResume,
   batchImportNeedsDraftLink,
+  batchImportRowCanRegenerate,
   batchImportRowCanRepair,
   batchImportRowCanRetry,
   batchImportRowHasDraft,
@@ -230,6 +231,31 @@ export default function BatchImportProgressPage() {
       else next.add(index);
       return next;
     });
+  }
+
+  async function onRegenerateContent(indices: number[]) {
+    if (!batchId || retrying || indices.length === 0) return;
+    if (
+      !window.confirm(
+        `Inhalt für ${indices.length} Einheit(en) neu generieren? Die Einheit bleibt (gleiche Fotos/Quellen), KI schreibt Karten und Quiz neu — einige Minuten pro Posten.`,
+      )
+    ) {
+      return;
+    }
+    setRetrying(true);
+    setError(null);
+    try {
+      const next = await retryBatchImportUnits(batchId, indices);
+      setJob(next);
+      setMaintSelected(new Set());
+      if (["queued", "running", "cancelling"].includes(next.status)) {
+        setPollRev((value) => value + 1);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Inhalt neu generieren fehlgeschlagen");
+    } finally {
+      setRetrying(false);
+    }
   }
 
   async function onRetry(indices: number[]) {
@@ -464,7 +490,8 @@ export default function BatchImportProgressPage() {
         <section className="card stack">
           <h2 style={{ margin: 0, fontSize: "1.05rem" }}>Batch-Wartung</h2>
           <p className="muted" style={{ margin: 0 }}>
-            Sammelaktionen für fertige Posten — ohne jeden Posten einzeln in der Einheit zu öffnen.
+            Sammelaktionen für fertige Posten — «Inhalt neu generieren» ersetzt Karten/Quiz (z. B. nach
+            Pipeline-Update). «Übungsaufgaben ableiten» nur für den Aufgaben-Tab.
           </p>
           {maintenance && maintenance.status !== "idle" && (
             <div className="generate-progress-compact">
@@ -506,7 +533,17 @@ export default function BatchImportProgressPage() {
             <button
               type="button"
               className="btn btn-primary"
-              disabled={rederiving || maintenance?.status === "running"}
+              disabled={retrying || rederiving || maintenance?.status === "running"}
+              onClick={() => void onRegenerateContent(maintSelectedDone.length > 0 ? maintSelectedDone : doneMaintIndices)}
+            >
+              {retrying
+                ? "Startet…"
+                : `Inhalt neu generieren (${maintSelectedDone.length > 0 ? maintSelectedDone.length : doneMaintIndices.length})`}
+            </button>
+            <button
+              type="button"
+              className="btn"
+              disabled={rederiving || retrying || maintenance?.status === "running"}
               onClick={() => void onRederivePractice()}
             >
               {rederiving || maintenance?.status === "running"
@@ -567,6 +604,7 @@ export default function BatchImportProgressPage() {
             {job.units.map((row, index) => {
               const rowBadge = statusLabel(row.generate_status || "pending");
               const canRetryRow = job && batchImportRowCanRetry(job, row);
+              const canRegenRow = job && batchImportRowCanRegenerate(job, row);
               const canRepairRow = batchImportRowCanRepair(row);
               const hasDraft = batchImportRowHasDraft(row);
               const q = qualityByIndex.get(index);
@@ -636,6 +674,17 @@ export default function BatchImportProgressPage() {
                         title="Vision und alle Bereiche neu generieren"
                       >
                         Neu generieren
+                      </button>
+                    )}
+                    {canRegenRow && (
+                      <button
+                        type="button"
+                        className="btn ghost btn-sm"
+                        disabled={retrying || repairing || rederiving}
+                        onClick={() => void onRegenerateContent([index])}
+                        title="Gleiche Einheit — KI schreibt Karten und Quiz neu"
+                      >
+                        Inhalt neu generieren
                       </button>
                     )}
                     {row.unit_id && row.generate_status === "done" && (

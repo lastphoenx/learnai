@@ -358,6 +358,7 @@ def cancel_batch_import(db: Session, user: User, batch_id: str) -> dict[str, Any
 
 
 _RETRYABLE_UNIT_STATUSES = frozenset({"failed", "pending"})
+_REGEN_UNIT_STATUSES = frozenset({"done"})
 
 
 def _reset_batch_unit_rows(
@@ -366,7 +367,7 @@ def _reset_batch_unit_rows(
     indices: set[int] | None = None,
     mode: str = "full",
 ) -> tuple[list[dict[str, Any]], int]:
-    """Setzt Zeilen für Voll-Retry (pending) oder Reparatur (repair_pending)."""
+    """Setzt Zeilen für Voll-Retry (pending/regen_pending) oder Reparatur (repair_pending)."""
     if mode not in {"full", "repair"}:
         raise ValueError(f"unknown reset mode: {mode}")
     updated_units: list[dict[str, Any]] = []
@@ -376,13 +377,27 @@ def _reset_batch_unit_rows(
             updated_units.append(row)
             continue
         next_row = dict(row)
-        if next_row.get("generate_status") == "done":
-            updated_units.append(next_row)
-            continue
+        status = str(next_row.get("generate_status") or "pending")
         if indices is not None and index not in indices:
             updated_units.append(next_row)
             continue
-        status = str(next_row.get("generate_status") or "pending")
+        if mode == "full" and status in _REGEN_UNIT_STATUSES:
+            if indices is None:
+                updated_units.append(next_row)
+                continue
+            if not next_row.get("unit_id"):
+                raise UnitError(
+                    f"Zeile {index + 1} kann nicht neu generiert werden (keine Einheit)",
+                    "invalid_state",
+                )
+            next_row["generate_status"] = "regen_pending"
+            next_row["error"] = None
+            updated_units.append(next_row)
+            reset_count += 1
+            continue
+        if status in _REGEN_UNIT_STATUSES:
+            updated_units.append(next_row)
+            continue
         if indices is not None and status not in _RETRYABLE_UNIT_STATUSES:
             raise UnitError(
                 f"Zeile {index + 1} kann nicht erneut gestartet werden (Status: {status})",
@@ -448,7 +463,7 @@ def retry_batch_import_units(
     batch_id: str,
     indices: list[int],
 ) -> dict[str, Any]:
-    """Einzelne fehlgeschlagene/wartende Batch-Zeilen erneut in die Queue stellen."""
+    """Batch-Zeilen erneut generieren: fehlgeschlagen/wartend (neu anlegen) oder fertig (Inhalt neu)."""
     if not indices:
         raise UnitError("Keine Zeilen ausgewählt", "invalid_payload")
 
@@ -563,6 +578,7 @@ def run_batch_import(batch_id: str, user_id: str) -> None:
     from app.services.batch_import_runner import (
         BatchImportUnitFailed,
         process_batch_import_unit,
+        process_batch_regen_unit,
         process_batch_repair_unit,
         unit_exists_after_failure,
     )
@@ -613,7 +629,59 @@ def run_batch_import(batch_id: str, user_id: str) -> None:
             if row.get("generate_status") == "done":
                 continue
             row_status = str(row.get("generate_status") or "pending")
-            if row_status not in {"pending", "repair_pending"}:
+            if row_status not in {"pending", "repair_pending", "regen_pending"}:
+                continue
+
+            if row_status == "regen_pending":
+                unit_id_raw = row.get("unit_id")
+                if not unit_id_raw:
+                    failures += 1
+                    set_batch_unit_row(
+                        batch_id,
+                        index,
+                        generate_status="failed",
+                        error="Keine Einheit für Neu-Generierung",
+                    )
+                    continue
+                set_batch_unit_row(batch_id, index, generate_status="running")
+                try:
+                    process_batch_regen_unit(db, user, uuid.UUID(str(unit_id_raw)))
+                    db.commit()
+                    set_batch_unit_row(
+                        batch_id,
+                        index,
+                        unit_id=str(unit_id_raw),
+                        generate_status="done",
+                        error=None,
+                    )
+                except (UnitError, LlmError) as exc:
+                    db.rollback()
+                    failures += 1
+                    msg = getattr(exc, "message", str(exc))
+                    set_batch_unit_row(
+                        batch_id,
+                        index,
+                        unit_id=str(unit_id_raw),
+                        generate_status="failed",
+                        error=msg,
+                    )
+                    _log.warning(
+                        "batch_import regen failed batch=%s index=%s msg=%s",
+                        batch_id,
+                        index,
+                        msg,
+                    )
+                except Exception:
+                    db.rollback()
+                    failures += 1
+                    set_batch_unit_row(
+                        batch_id,
+                        index,
+                        unit_id=str(unit_id_raw),
+                        generate_status="failed",
+                        error="Neu-Generierung fehlgeschlagen",
+                    )
+                    _log.exception("batch_import regen failed batch=%s index=%s", batch_id, index)
                 continue
 
             if row_status == "repair_pending":

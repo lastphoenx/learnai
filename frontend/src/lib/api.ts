@@ -1104,6 +1104,15 @@ export function batchImportRowCanRetry(
   return row.generate_status === "failed" || row.generate_status === "pending";
 }
 
+/** Fertige Batch-Zeile: gleiche Einheit, KI-Inhalt neu (posten_compact etc.). */
+export function batchImportRowCanRegenerate(
+  job: BatchImportJob | null | undefined,
+  row: BatchImportUnitRow,
+): boolean {
+  if (!job || ["queued", "running", "cancelling"].includes(job.status)) return false;
+  return row.generate_status === "done" && Boolean(row.unit_id);
+}
+
 const REPAIRABLE_ERRORS = [
   /Lernkarte ohne Antwort \(Bereich \d+\)/,
   /Zu wenige Quizfragen \(\d+, mindestens \d+\)/,

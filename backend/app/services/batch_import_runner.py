@@ -106,6 +106,40 @@ def process_batch_import_unit(
     return unit_id
 
 
+def process_batch_regen_unit(
+    db: Session,
+    user: User,
+    unit_id: uuid.UUID,
+) -> None:
+    """Bestehende Batch-Einheit neu generieren (Quellen bleiben, Module neu)."""
+    acquire_generate_slot(
+        user_id=str(user.id),
+        tenant_id=str(user.tenant_id),
+        unit_id=str(unit_id),
+        skip_rate_limit=True,
+    )
+    job_id = str(uuid.uuid4())
+    progress = make_progress_callback(str(unit_id), str(user.id), job_id=job_id)
+    set_generate_job(str(unit_id), user_id=str(user.id), status="running", stage="extracting_sources", job_id=job_id)
+    try:
+        from app.ai.generate import generate_modules
+        from app.core.ollama_coordination import ollama_lock_holder, ollama_wait_callback
+
+        def _ollama_wait_message(message: str) -> None:
+            progress("running", message=message)
+
+        with ollama_wait_callback(_ollama_wait_message):
+            with ollama_lock_holder(f"learnai:batch-regen:{unit_id}"):
+                generate_modules(db, user, unit_id, progress=progress)
+        progress("done", message="Lernblöcke wurden erstellt.")
+    except (UnitError, LlmError) as exc:
+        progress("failed", error="Generierung fehlgeschlagen")
+        raise BatchImportUnitFailed(unit_id, exc) from exc
+    finally:
+        persist_last_generate(db, str(unit_id))
+        release_generate_slot(user_id=str(user.id), tenant_id=str(user.tenant_id), unit_id=str(unit_id))
+
+
 def process_batch_repair_unit(
     db: Session,
     user: User,
