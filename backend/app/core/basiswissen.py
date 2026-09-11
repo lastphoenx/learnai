@@ -567,15 +567,23 @@ def _scrub_term_clue(text: str, term: str) -> str | None:
     raw = re.sub(r"\s+", " ", str(text or "").strip())
     if len(raw) < 12:
         return None
-    if term.lower() not in raw.lower():
+    prefix = str(term or "").strip()
+    if not prefix:
         return raw[:220]
-    if re.match(rf"^{re.escape(term)}\b", raw, flags=re.I):
+    word_pat = re.compile(rf"(?<![\wäöüß]){re.escape(prefix)}(?![\wäöüß])", re.I)
+    if not word_pat.search(raw):
+        return raw[:220]
+    if word_pat.match(raw):
         return None
-    clue = re.sub(re.escape(term), "…", raw, count=1, flags=re.I)
+    clue = word_pat.sub("…", raw, count=1)
     clue = re.sub(r"\s+", " ", clue).strip(" .—–-")
     if len(clue) < 14 or clue in {"…", "….", "… …"}:
         return None
     if re.match(r"^…(\s|$)", clue):
+        return None
+    if re.match(r"^…+[a-zäöüß]{1,4}$", clue, re.I):
+        return None
+    if re.search(r"…[a-zäöüß]{1,3}\b", clue, re.I) and len(clue) < 36:
         return None
     return clue[:220]
 
@@ -638,7 +646,9 @@ def _is_degenerate_mental_answer(term: str, answer: str) -> bool:
         return True
     if len(body.split()) <= 1 and body in t:
         return True
-    if t in body and len(body) < len(t) + 12:
+    if body == t or re.fullmatch(rf"{re.escape(t)}[\s.!?,—–-]*", body):
+        return True
+    if t in body.split()[:2] and len(body.split()) <= 3:
         return True
     return False
 
@@ -663,9 +673,11 @@ def _is_weak_mental_card(question: str, term: str, answer: str) -> bool:
             return True
     if _is_degenerate_mental_answer(term, answer):
         return True
-    if a.startswith(f"{t}:") and t in a and len(a.split()) <= 8:
-        return True
-    if a == t or a.startswith(f"{t} ") and len(a) < len(t) + 16:
+    if re.match(r"^(der|die|das|des|dem|den)\s+", term.strip(), re.I):
+        body = _answer_body_after_term_prefix(term, answer)
+        if any(token in body for token in ("nominativ", "genitiv", "dativ", "akkusativ", "wer?", "wessen?", "wem?", "wen?")):
+            return False
+    if a == t or (a.startswith(f"{t} ") and len(a) < len(t) + 16):
         return True
     return False
 

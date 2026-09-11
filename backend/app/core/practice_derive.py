@@ -654,7 +654,7 @@ def derive_practice_items(
 
     title = category_label[:120] or "Thema"
     has_timeline = summarize_timeline(pedagogy) is not None
-    choice_cap = 2 if has_timeline else 3
+    choice_cap = 4 if has_timeline else 5
 
     for item in _derive_knowledge_choice_items(
         basiswissen=basiswissen,
@@ -720,4 +720,4 @@ def derive_practice_items(
                     )
                 )
 
-    return items[:3]
+    return items[:5]

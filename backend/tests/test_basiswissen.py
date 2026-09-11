@@ -168,6 +168,31 @@ def test_scrub_term_clue_rejects_leading_term():
     assert _scrub_term_clue("Vindonissa ist wichtig, weil die Römer von dort aus regierten.", "Vindonissa") is None
 
 
+def test_scrub_term_clue_keeps_plural_hint_for_singular_term():
+    from app.core.basiswissen import _scrub_term_clue
+
+    epochen = _scrub_term_clue(
+        "Mit Epochen kann man die lange Geschichte übersichtlich einteilen.",
+        "Epoche",
+    )
+    assert epochen == "Mit Epochen kann man die lange Geschichte übersichtlich einteilen."
+    fundstuecke = _scrub_term_clue(
+        "An Fundstücken kann man erkennen, was Menschen früher hergestellt und benutzt haben.",
+        "Fundstücke",
+    )
+    assert "Fundstücken" in fundstuecke
+    assert "…n" not in fundstuecke
+
+
+def test_is_weak_mental_card_entry_keeps_substantive_definition_with_repeated_term():
+    from app.core.basiswissen import is_weak_mental_card_entry
+
+    assert not is_weak_mental_card_entry(
+        question="Was ist «Fundstücke»? (Hinweis: An Fundstücken kann man erkennen; Thema: Archäologie)",
+        answer="Fundstücke: Fundstücke geben Hinweise auf das Leben in der Vergangenheit.",
+    )
+
+
 def test_is_weak_mental_card_entry_rejects_degenerate_and_tautology():
     from app.core.basiswissen import is_weak_mental_card_entry
 
