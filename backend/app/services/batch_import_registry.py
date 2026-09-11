@@ -6,11 +6,15 @@ import json
 from pathlib import Path
 from typing import Any
 
-from app.services.unit_service import upload_dir
+from app.config import settings
+
+
+def _upload_root() -> Path:
+    return Path(settings.upload_dir)
 
 
 def batch_dir(batch_id: str) -> Path:
-    return upload_dir() / "_batch" / batch_id
+    return _upload_root() / "_batch" / batch_id
 
 
 def manifest_path(batch_id: str) -> Path:
@@ -145,7 +149,7 @@ def manifest_summary(manifest: dict[str, Any]) -> dict[str, Any]:
 
 
 def list_batch_manifests(*, user_id: str, include_all: bool = False) -> list[dict[str, Any]]:
-    root = upload_dir() / "_batch"
+    root = _upload_root() / "_batch"
     if not root.is_dir():
         return []
     rows: list[dict[str, Any]] = []

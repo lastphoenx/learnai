@@ -23,7 +23,7 @@ def test_build_batch_label_with_posten_range():
 
 
 def test_persist_and_list_batch_manifest(tmp_path, monkeypatch):
-    monkeypatch.setattr("app.services.batch_import_registry.upload_dir", lambda: tmp_path)
+    monkeypatch.setattr("app.services.batch_import_registry._upload_root", lambda: tmp_path)
     job = {
         "batch_id": "11111111-1111-1111-1111-111111111111",
         "user_id": "22222222-2222-2222-2222-222222222222",
