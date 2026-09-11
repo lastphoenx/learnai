@@ -188,9 +188,74 @@ def test_is_weak_mental_card_entry_keeps_substantive_definition_with_repeated_te
     from app.core.basiswissen import is_weak_mental_card_entry
 
     assert not is_weak_mental_card_entry(
-        question="Was ist «Fundstücke»? (Hinweis: An Fundstücken kann man erkennen; Thema: Archäologie)",
+        question="Was bedeutet «Fundstücke»? (Hinweis: An Fundstücken kann man erkennen; Thema: Archäologie)",
         answer="Fundstücke: Fundstücke geben Hinweise auf das Leben in der Vergangenheit.",
     )
+
+
+def test_is_weak_mental_card_entry_rejects_circular_fachbegriff_question():
+    from app.core.basiswissen import is_weak_mental_card_entry
+
+    assert is_weak_mental_card_entry(
+        question="Was ist der Fachbegriff «Fundstücke»?",
+        answer="Fundstücke: Fundstücke zeigen, wie Menschen früher lebten.",
+    )
+
+
+def test_derive_mental_term_cards_avoids_circular_fachbegriff_question():
+    bw = parse_basiswissen_payload(
+        {
+            "basiswissen": {
+                "schema_version": 1,
+                "focus_group": "nmg",
+                "concepts": [
+                    {
+                        "id": "fs",
+                        "label": "Fundstücke",
+                        "parts": [{"role": "begriff", "term": "Fundstücke"}],
+                        "pattern": "Fundstücke zeigen, wie Menschen früher lebten.",
+                        "example": "Ein Tongefäss, Schmuck oder ein Werkzeug kann ein Fundstück sein.",
+                        "hint": "Fundstücke geben Hinweise auf die Vergangenheit.",
+                    }
+                ],
+                "cloze_templates": [],
+            }
+        },
+        focus_group="nmg",
+    )
+    cards = derive_mental_term_cards(bw)
+    assert cards
+    assert not any(c["question"] == "Was ist der Fachbegriff «Fundstücke»?" for c in cards)
+    assert all("Hinweis:" in c["question"] for c in cards)
+
+
+def test_sanitize_removes_circular_fachbegriff_mental_card():
+    from app.ai.validators.interactive import sanitize_interactive_modules
+
+    modules = [
+        {
+            "title": "Archäologie",
+            "content": {
+                "cards": [
+                    {
+                        "kind": "mental",
+                        "question": "Was ist der Fachbegriff «Fundstücke»?",
+                        "answer": "Fundstücke: Fundstücke zeigen, wie Menschen früher lebten.",
+                    },
+                    {
+                        "kind": "input",
+                        "question": "Archäologen graben ___ aus.",
+                        "answer": "Fundstücke",
+                    },
+                ]
+            },
+            "quiz": {"questions": []},
+        }
+    ]
+    cleaned, warnings = sanitize_interactive_modules(modules)
+    assert len(cleaned[0]["content"]["cards"]) == 1
+    assert cleaned[0]["content"]["cards"][0]["kind"] == "input"
+    assert warnings
 
 
 def test_is_weak_mental_card_entry_rejects_degenerate_and_tautology():
@@ -211,6 +276,10 @@ def test_is_weak_mental_card_entry_rejects_degenerate_and_tautology():
     assert not is_weak_mental_card_entry(
         question="Was ist «Vindonissa»? (Hinweis: römisches Legionslager in Windisch; Thema: Römerzeit)",
         answer="Vindonissa: römisches Legionslager in Windisch.",
+    )
+    assert not is_weak_mental_card_entry(
+        question="Was bedeutet «Fundstücke»? (Hinweis: Ein Tongefäss kann ein Fundstück sein.; Thema: Archäologie)",
+        answer="Fundstücke: Fundstücke zeigen, wie Menschen früher lebten.",
     )
 
 

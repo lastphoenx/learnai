@@ -588,24 +588,62 @@ def _scrub_term_clue(text: str, term: str) -> str | None:
     return clue[:220]
 
 
+def _concept_clue_for_mental_question(term: str, concept: dict[str, Any]) -> str | None:
+    for raw in (
+        str(concept.get("example") or "").strip(),
+        str(concept.get("pattern") or "").strip(),
+        str(concept.get("hint") or "").strip(),
+    ):
+        if len(raw) < 16:
+            continue
+        clue = _scrub_term_clue(raw, term)
+        if clue:
+            return clue
+        lead = re.match(rf"^{re.escape(term)}\s*[:\—–-]\s*(.+)", raw, re.I | re.DOTALL)
+        if lead:
+            rest = lead.group(1).strip()
+            if len(rest) >= 12:
+                return rest[:220]
+        if term.lower() not in raw.lower():
+            return raw[:220]
+    return None
+
+
+def _is_circular_mental_question(question: str, term: str) -> bool:
+    q = str(question or "").strip()
+    t = str(term or "").strip()
+    if not q or not t:
+        return False
+    if re.fullmatch(rf"Was ist der Fachbegriff «{re.escape(t)}»\?", q, flags=re.I):
+        return True
+    if re.fullmatch(rf"Was ist «{re.escape(t)}»\?", q, flags=re.I):
+        return True
+    if re.fullmatch(rf"Was bezeichnet «{re.escape(t)}»\?", q, flags=re.I):
+        return True
+    return False
+
+
 def _mental_term_question(term: str, part: dict[str, Any], concept: dict[str, Any]) -> str:
     label = str(concept.get("label") or "").strip()
     role = str(part.get("role") or "").strip().lower()
     role_label = ROLE_LABELS_DE.get(role, "")
+    topic = (
+        label[:48]
+        if label and label.lower() not in {term.lower(), "thema", "topic", "begriff"}
+        else "diesem Abschnitt"
+    )
     for raw in (str(part.get("hint") or "").strip(), str(concept.get("hint") or "").strip()):
         clue = _scrub_term_clue(raw, term)
         if clue:
-            topic = (
-                label[:48]
-                if label and label.lower() not in {term.lower(), "thema", "topic", "begriff"}
-                else "diesem Abschnitt"
-            )
-            return f"Was ist «{term}»? (Hinweis: {clue}; Thema: {topic})"
+            return f"Was bedeutet «{term}»? (Hinweis: {clue}; Thema: {topic})"
+    concept_clue = _concept_clue_for_mental_question(term, concept)
+    if concept_clue:
+        return f"Was bedeutet «{term}»? (Hinweis: {concept_clue}; Thema: {topic})"
     if role_label and role_label.lower() not in {term.lower(), "", "begriff", "term", "part", "whole"}:
         return f"Welche Rolle hat «{term}» — {role_label}?"
     if label and term.lower() != label.lower() and len(label.split()) <= 6:
         return f"Was bezeichnet «{term}» im Zusammenhang «{label}»?"
-    return f"Was ist der Fachbegriff «{term}»?"
+    return ""
 
 
 def mental_term_from_question(question: str) -> str:
@@ -666,6 +704,8 @@ def _is_weak_mental_card(question: str, term: str, answer: str) -> bool:
     t = term.strip().lower()
     a = answer.strip().lower()
     if not t or not a:
+        return True
+    if _is_circular_mental_question(question, term):
         return True
     if "was bedeutet" in q and f"«{term}»".lower() in q and " bei " in q:
         tail = q.split(" bei ", 1)[-1].strip(" ?.")
@@ -738,6 +778,8 @@ def derive_mental_term_cards(
                 continue
             seen_terms.add(term_key)
             question = _mental_term_question(term, part, concept)
+            if not question.strip():
+                continue
             answer = _mental_term_answer(
                 part,
                 concept,

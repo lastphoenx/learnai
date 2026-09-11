@@ -8,6 +8,11 @@ from app.ai.errors import LlmError
 from app.core.basiswissen import is_weak_mental_card_entry, mental_term_from_question
 from app.core.quiz_numeric import parse_quiz_numeric, resolve_quiz_expected_value
 
+_MENTAL_LIKE_QUESTION = re.compile(
+    r"was\s+(?:ist|bedeutet)|welche\s+rolle|fachbegriff\s+«",
+    re.I,
+)
+
 _IMPORT_TERM = re.compile(r"«([^»]+)»")
 
 IMPORT_MAX_MODULES = 8
@@ -202,7 +207,10 @@ def sanitize_interactive_modules(modules: list) -> tuple[list, list[str]]:
             kind = str(card.get("kind") or "").strip().lower()
             question = str(card.get("question") or "").strip()
             answer = str(card.get("answer") or "").strip()
-            is_mental = kind == "mental" or "was bedeutet «" in question.lower()
+            is_mental = (
+                kind == "mental"
+                or _MENTAL_LIKE_QUESTION.search(question) is not None
+            )
             if not is_mental:
                 kept_cards.append(card)
                 continue
