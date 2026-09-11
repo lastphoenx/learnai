@@ -977,6 +977,13 @@ def backfill_basiswissen_for_unit(
 
         domain = decrypt_text_master(module.title_encrypted)
         try:
+            if force:
+                _log.info(
+                    "backfill_basiswissen module start unit_id=%s order=%s title=%s",
+                    unit_id,
+                    module.order_index,
+                    domain[:80],
+                )
             quiz_dict = quiz if isinstance(quiz, dict) else {"questions": []}
             content, quiz_dict = strip_basiswissen_derivatives(content, quiz_dict)
             cards = [c for c in (content.get("cards") or []) if isinstance(c, dict)]

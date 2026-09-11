@@ -17,6 +17,11 @@ def batch_rederive_practice_task(
     user_id: str,
     indices: list[int] | None = None,
 ) -> None:
-    _log.info("batch_rederive_practice start batch_id=%s", batch_id)
+    _log.info(
+        "batch_rederive_practice start batch_id=%s task_id=%s indices=%s",
+        batch_id,
+        getattr(self.request, "id", None),
+        indices,
+    )
     run_batch_rederive_practice(batch_id, user_id, indices=indices)
-    _log.info("batch_rederive_practice done batch_id=%s", batch_id)
+    _log.info("batch_rederive_practice done batch_id=%s task_id=%s", batch_id, getattr(self.request, "id", None))

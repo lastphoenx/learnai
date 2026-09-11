@@ -93,20 +93,49 @@ def rederive_practice_for_batch(
 
     results: list[dict[str, Any]] = []
     ok = 0
+    total = len(targets)
+    _log.info(
+        "batch_rederive_practice batch_id=%s units=%d indices=%s",
+        batch_id,
+        total,
+        indices,
+    )
     for step, (index, raw_id) in enumerate(targets, start=1):
         row = (job.get("units") or [None])[index] if index < len(job.get("units") or []) else {}
         title = str((row or {}).get("title") or raw_id)[:120]
+        ref = str((row or {}).get("reference_code") or "").strip()
+        progress_msg = f"[{step}/{total}] Übungsaufgaben: {title}"
+        _log.info(
+            "batch_rederive_practice [%s/%s] start index=%s ref=%s unit_id=%s title=%s",
+            step,
+            total,
+            index,
+            ref or "—",
+            raw_id,
+            title,
+        )
         if progress_cb:
             progress_cb(
                 step=step,
-                total=len(targets),
-                message=f"Übungsaufgaben: {title}",
+                total=total,
+                message=progress_msg,
             )
         try:
             unit_id = uuid.UUID(raw_id)
             result = backfill_basiswissen_for_unit(db, user, unit_id, force=True)
             db.commit()
             ok += 1
+            _log.info(
+                "batch_rederive_practice [%s/%s] done index=%s unit_id=%s "
+                "updated_modules=%s skipped_modules=%s errors=%s",
+                step,
+                total,
+                index,
+                raw_id,
+                result.get("updated_modules", 0),
+                result.get("skipped_modules", 0),
+                len(result.get("errors") or []),
+            )
             results.append(
                 {
                     "index": index,
@@ -134,9 +163,9 @@ def rederive_practice_for_batch(
     return {
         "batch_id": batch_id,
         "action": "rederive_practice",
-        "total": len(targets),
+        "total": total,
         "ok": ok,
-        "failed": len(targets) - ok,
+        "failed": total - ok,
         "results": results,
     }
 
@@ -199,6 +228,13 @@ def run_batch_rederive_practice(batch_id: str, user_id: str, indices: list[int] 
             batch_id,
             indices=indices,
             progress_cb=progress_cb,
+        )
+        _log.info(
+            "batch_rederive_practice finished batch_id=%s ok=%s/%s failed=%s",
+            batch_id,
+            summary["ok"],
+            summary["total"],
+            summary["failed"],
         )
         _set_batch_maintenance(
             batch_id,
