@@ -110,19 +110,37 @@ export function GenericDiagramSvg({
           <line x1="48" y1="130" x2="352" y2="130" stroke="#94a3b8" strokeWidth="2" />
           {nodes.slice(0, -1).map((node, index) => {
             const next = nodes[index + 1];
+            const span = next.x - node.x;
+            const inset = Math.min(14, Math.max(4, span * 0.22));
+            let x1 = node.x + inset;
+            let x2 = next.x - inset;
+            if (x2 <= x1) {
+              x1 = node.x + 2;
+              x2 = next.x - 2;
+            }
+            if (x2 <= x1) return null;
             return (
               <line
                 key={`timeline-arrow-${index}`}
-                x1={node.x + 18}
-                y1={node.y}
-                x2={next.x - 18}
-                y2={next.y}
+                x1={x1}
+                y1={130}
+                x2={x2}
+                y2={130}
                 stroke="#64748b"
                 strokeWidth="2"
                 markerEnd="url(#generic-diagram-arrow)"
               />
             );
           })}
+          <line
+            x1="352"
+            y1="130"
+            x2="368"
+            y2="130"
+            stroke="#64748b"
+            strokeWidth="2"
+            markerEnd="url(#generic-diagram-arrow)"
+          />
         </>
       )}
 

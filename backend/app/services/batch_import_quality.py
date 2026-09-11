@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import re
 import uuid
+from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy.orm import Session, joinedload
@@ -12,6 +14,7 @@ from app.models import LearningRecord, LearningUnit, User
 from app.services.batch_import_service import get_batch_import_status
 from app.services.crypto_json import decrypt_json
 from app.services.pedagogy_service import _pedagogy_quality
+from app.services.unit_quality_report_service import build_unit_quality_report_for_user
 from app.services.unit_reference_service import ensure_unit_reference_codes
 from app.services.unit_service import UnitError, get_trainer_options
 
@@ -118,4 +121,75 @@ def build_batch_import_quality_summary(db: Session, user: User, batch_id: str) -
         "failed": failed,
         "pending": pending,
         "rows": rows,
+    }
+
+
+def _batch_report_filename(job: dict[str, Any], batch_id: str) -> str:
+    label = str(job.get("label") or job.get("description") or "batch").strip()
+    slug = re.sub(r"[^\w\-]+", "_", label, flags=re.UNICODE).strip("_")[:60] or "batch"
+    short_id = str(batch_id).split("-", 1)[0]
+    return f"{slug}_{short_id}_quality.md"
+
+
+def build_batch_import_quality_report(db: Session, user: User, batch_id: str) -> dict[str, Any]:
+    """Vollständiger Markdown-Report für alle Batch-Zeilen mit Referenz."""
+    job = get_batch_import_status(db, user, batch_id)
+    summary = build_batch_import_quality_summary(db, user, batch_id)
+    generated_at = datetime.now(timezone.utc).isoformat()
+    label = str(job.get("label") or "").strip() or batch_id
+
+    header = [
+        "# LearnAI Batch — Qualitätsreports",
+        "",
+        f"**Batch:** {label}",
+        f"**Batch-ID:** `{batch_id}`",
+        f"**Status:** {summary.get('job_status') or job.get('status') or '—'}",
+        f"**Fortschritt:** {summary.get('done', 0)}/{summary.get('total', 0)} fertig",
+        f"**Erstellt:** {generated_at}",
+        "",
+    ]
+
+    body: list[str] = []
+    unit_count = 0
+    skipped = 0
+
+    for row in summary.get("rows") or []:
+        if not isinstance(row, dict):
+            continue
+        title = str(row.get("title") or f"Zeile {int(row.get('index', 0)) + 1}")
+        status = str(row.get("generate_status") or "pending")
+        quality = row.get("quality") if isinstance(row.get("quality"), dict) else None
+        ref = str((quality or {}).get("reference_code") or "").strip()
+        if not ref:
+            skipped += 1
+            continue
+        try:
+            unit_report = build_unit_quality_report_for_user(db, user, ref)
+        except UnitError:
+            skipped += 1
+            continue
+        unit_count += 1
+        body.append("---")
+        body.append("")
+        body.append(f"<!-- {title} · {status} · {ref} -->")
+        body.append("")
+        body.append(str(unit_report.get("report") or "").rstrip())
+        body.append("")
+
+    if unit_count <= 0:
+        raise UnitError("Keine Reports für diesen Batch — keine fertigen Einheiten mit Referenz", "nothing_to_do")
+
+    if skipped:
+        header.append(f"*Hinweis: {skipped} Zeile(n) ohne Report übersprungen.*")
+        header.append("")
+
+    report = "\n".join(header + body).strip() + "\n"
+    return {
+        "batch_id": batch_id,
+        "label": label,
+        "filename": _batch_report_filename(job, batch_id),
+        "unit_count": unit_count,
+        "skipped": skipped,
+        "generated_at": generated_at,
+        "report": report,
     }

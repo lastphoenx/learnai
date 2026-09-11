@@ -371,3 +371,78 @@ def test_run_batch_import_skips_done_units(
     assert job is not None
     assert job["units"][0]["generate_status"] == "done"
     assert job["units"][1]["generate_status"] == "done"
+
+
+@patch("app.services.batch_import_quality.build_unit_quality_report_for_user")
+@patch("app.services.batch_import_quality.summarize_batch_unit_quality")
+@patch("app.services.batch_import_job._redis_client")
+def test_build_batch_import_quality_report_merges_units(
+    mock_redis_fn,
+    mock_summarize,
+    mock_unit_report,
+    tmp_path,
+):
+    store: dict[str, str] = {}
+    client = MagicMock()
+    client.setex = lambda key, _ttl, value: store.update({key: value})
+    client.get = lambda key: store.get(key)
+    mock_redis_fn.return_value = client
+
+    batch_id = "ffffffff-ffff-ffff-ffff-ffffffffffff"
+    pdf_path = tmp_path / "source.pdf"
+    pdf_path.write_bytes(_sample_pdf(tmp_path))
+    from app.services.batch_import_job import create_batch_import_job, update_batch_import_job
+    from app.services.batch_import_quality import build_batch_import_quality_report
+
+    create_batch_import_job(
+        batch_id=batch_id,
+        user_id="11111111-1111-1111-1111-111111111111",
+        tenant_id="22222222-2222-2222-2222-222222222222",
+        total=2,
+        pdf_path=str(pdf_path),
+        units=[
+            {
+                "title": "Posten 14",
+                "page_from": 1,
+                "page_to": 2,
+                "generate_status": "done",
+                "unit_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+            },
+            {
+                "title": "Posten 15",
+                "page_from": 3,
+                "page_to": 4,
+                "generate_status": "done",
+                "unit_id": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+            },
+        ],
+    )
+    update_batch_import_job(
+        batch_id,
+        status="done",
+        label="NMG Pilot",
+        payload={"default_preset": "posten_compact"},
+    )
+
+    mock_summarize.side_effect = [
+        {"reference_code": "0010.0001", "card_count": 12, "question_count": 8},
+        {"reference_code": "0011.0001", "card_count": 12, "question_count": 8},
+    ]
+    mock_unit_report.side_effect = [
+        {"report": "# LearnAI Qualitätsreport — 0010.0001\n\nPosten 14 ok.\n"},
+        {"report": "# LearnAI Qualitätsreport — 0011.0001\n\nPosten 15 ok.\n"},
+    ]
+
+    db = MagicMock()
+    user = MagicMock()
+    user.id = "11111111-1111-1111-1111-111111111111"
+    user.tenant_id = "22222222-2222-2222-2222-222222222222"
+
+    result = build_batch_import_quality_report(db, user, batch_id)
+
+    assert result["unit_count"] == 2
+    assert result["filename"].endswith("_quality.md")
+    assert "NMG Pilot" in result["report"]
+    assert "0010.0001" in result["report"]
+    assert "0011.0001" in result["report"]
+    assert mock_unit_report.call_count == 2

@@ -12,6 +12,7 @@ import {
   batchImportRowCanRetry,
   batchImportRowHasDraft,
   cancelBatchImport,
+  downloadBatchImportQualityReport,
   fetchBatchImportQuality,
   fetchBatchImportStatus,
   fetchBatchMaintenanceStatus,
@@ -92,6 +93,7 @@ export default function BatchImportProgressPage() {
   const [pollRev, setPollRev] = useState(0);
   const [selected, setSelected] = useState<Set<number>>(() => new Set());
   const [quality, setQuality] = useState<BatchImportQualitySummary | null>(null);
+  const [reportDownloading, setReportDownloading] = useState(false);
   const [maintenance, setMaintenance] = useState<BatchMaintenanceStatus | null>(null);
   const [rederiving, setRederiving] = useState(false);
   const [maintSelected, setMaintSelected] = useState<Set<number>>(() => new Set());
@@ -231,6 +233,19 @@ export default function BatchImportProgressPage() {
       else next.add(index);
       return next;
     });
+  }
+
+  async function onDownloadQualityReport() {
+    if (!batchId || reportDownloading) return;
+    setReportDownloading(true);
+    setError(null);
+    try {
+      await downloadBatchImportQualityReport(batchId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Batch-Report Download fehlgeschlagen");
+    } finally {
+      setReportDownloading(false);
+    }
   }
 
   async function onRegenerateContent(indices: number[]) {
@@ -721,6 +736,16 @@ export default function BatchImportProgressPage() {
             {(quality.failed ?? 0) > 0 ? ` · ${quality.failed} Fehler` : ""}
             {(quality.pending ?? 0) > 0 ? ` · ${quality.pending} wartend` : ""}
           </p>
+          <div className="batch-wizard-actions">
+            <button
+              type="button"
+              className="btn"
+              disabled={reportDownloading}
+              onClick={() => void onDownloadQualityReport()}
+            >
+              {reportDownloading ? "Report wird erstellt…" : "Gesamt-Report herunterladen (.md)"}
+            </button>
+          </div>
           <div style={{ overflowX: "auto" }}>
             <table className="batch-quality-table">
               <thead>

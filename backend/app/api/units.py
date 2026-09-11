@@ -72,7 +72,7 @@ from app.services.trainer_export_service import export_trainer_json, import_trai
 from app.services.batch_import_service import cancel_batch_import, get_batch_import_status, list_batch_import_jobs, repair_batch_import_units, resume_batch_import, retry_batch_import_units, start_batch_import
 from app.services.batch_import_maintenance import get_batch_maintenance_status
 from app.services.batch_import_draft_link import link_batch_import_drafts
-from app.services.batch_import_quality import build_batch_import_quality_summary
+from app.services.batch_import_quality import build_batch_import_quality_report, build_batch_import_quality_summary
 from app.core.trainer_presets import trainer_presets_public
 from app.ai.task_types import math_focus_public, task_types_public
 from app.ai.subject_focus import focus_groups_public
@@ -217,6 +217,30 @@ def units_batch_import_quality(
     try:
         return build_batch_import_quality_summary(db, user, batch_id)
     except UnitError as exc:
+        raise _http(exc) from exc
+
+
+@router.get("/batch-import/{batch_id}/quality-report")
+def units_batch_import_quality_report(
+    batch_id: str,
+    user: User = Depends(get_app_user),
+    db: Session = Depends(get_db),
+    download: bool = Query(False, description="Als Markdown-Datei herunterladen"),
+):
+    try:
+        result = build_batch_import_quality_report(db, user, batch_id)
+        db.commit()
+        if download:
+            filename = str(result.get("filename") or "batch_quality.md")
+            body = str(result.get("report") or "")
+            return Response(
+                content=body.encode("utf-8"),
+                media_type="text/markdown; charset=utf-8",
+                headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+            )
+        return result
+    except UnitError as exc:
+        db.rollback()
         raise _http(exc) from exc
 
 

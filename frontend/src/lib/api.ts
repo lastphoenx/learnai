@@ -1172,6 +1172,40 @@ export type BatchImportQualitySummary = {
 export const fetchBatchImportQuality = (batchId: string) =>
   apiFetch<BatchImportQualitySummary>(`/api/v1/units/batch-import/${batchId}/quality`);
 
+export type BatchImportQualityReport = {
+  batch_id: string;
+  label?: string;
+  filename: string;
+  unit_count: number;
+  skipped?: number;
+  generated_at: string;
+  report: string;
+};
+
+export const fetchBatchImportQualityReport = (batchId: string) =>
+  apiFetch<BatchImportQualityReport>(`/api/v1/units/batch-import/${batchId}/quality-report`);
+
+export async function downloadBatchImportQualityReport(batchId: string): Promise<void> {
+  const res = await fetch(
+    `${API_URL}/api/v1/units/batch-import/${encodeURIComponent(batchId)}/quality-report?download=1`,
+    { credentials: "include" },
+  );
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(apiDetailMessage(err.detail ?? err, res.status));
+  }
+  const blob = await res.blob();
+  const disposition = res.headers.get("Content-Disposition") || "";
+  const match = disposition.match(/filename="([^"]+)"/);
+  const filename = match?.[1] || `batch_${batchId.slice(0, 8)}_quality.md`;
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
 export const retryBatchImportUnits = (batchId: string, indices: number[]) =>
   apiFetch<BatchImportJob>(`/api/v1/units/batch-import/${batchId}/retry`, {
     method: "POST",
