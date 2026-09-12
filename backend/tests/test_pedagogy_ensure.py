@@ -2,9 +2,23 @@
 
 from __future__ import annotations
 
+import base64
+import os
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from app.ai.source_pedagogy import encode_source_analysis
+
+
+@pytest.fixture
+def master_key_env(monkeypatch):
+    key = base64.b64encode(os.urandom(32)).decode()
+    monkeypatch.setenv("ENCRYPTION_MASTER_KEY", key)
+    from app.config import Settings
+
+    monkeypatch.setattr("app.config.settings", Settings())
+    monkeypatch.setattr("app.core.crypto.encryption.settings", Settings())
 
 
 def test_unit_sources_need_pedagogy_extract_empty_blob():
@@ -20,7 +34,7 @@ def test_unit_sources_need_pedagogy_extract_empty_blob():
     assert unit_sources_need_pedagogy_extract(unit) is True
 
 
-def test_unit_sources_need_pedagogy_extract_skips_structured():
+def test_unit_sources_need_pedagogy_extract_skips_structured(master_key_env):
     from app.services.pedagogy_service import unit_sources_need_pedagogy_extract
 
     blob = encode_source_analysis(
