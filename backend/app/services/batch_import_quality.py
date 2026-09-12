@@ -16,6 +16,7 @@ from app.services.crypto_json import decrypt_json
 from app.services.pedagogy_service import _pedagogy_quality
 from app.services.unit_quality_report_service import build_unit_quality_report_for_user
 from app.services.ai_run_snapshot import format_last_ai_run_compact, last_ai_run_from_recon
+from app.services.unit_reference_service import ensure_unit_reference_codes
 from app.services.unit_service import UnitError, get_trainer_options
 
 
