@@ -72,6 +72,57 @@ def _quiz_lines(quiz: dict, *, module_ref: str) -> list[str]:
     return lines
 
 
+def _practice_detail_lines(item: dict) -> list[str]:
+    answer_type = str(item.get("answer_type") or "text").strip().lower() or "text"
+    lines = [f"- Typ: {answer_type}"]
+    prompt = str(item.get("prompt") or "").strip()
+    if prompt:
+        lines.append(f"- Aufgabe: {prompt[:400]}")
+    if answer_type == "label_diagram":
+        diagram = item.get("diagram") if isinstance(item.get("diagram"), dict) else {}
+        hotspots = diagram.get("hotspots") or []
+        layout = str(diagram.get("layout") or "—").strip()
+        title = str(diagram.get("title") or "").strip()
+        count = len(hotspots) if isinstance(hotspots, list) else 0
+        if count == 0 and isinstance(diagram.get("terms"), list):
+            count = len(diagram.get("terms") or [])
+        detail = f"- Diagramm: {count} Begriffe, Layout: {layout}"
+        if title:
+            detail += f", Titel: {title[:80]}"
+        lines.append(detail)
+    elif answer_type == "choice":
+        options = item.get("options") or []
+        if isinstance(options, list) and options:
+            try:
+                answer_idx = int(item.get("answer", -1))
+            except (TypeError, ValueError):
+                answer_idx = -1
+            for oi, opt in enumerate(options[:4]):
+                mark = " ✓" if answer_idx == oi else ""
+                label = strip_option_label(str(opt))
+                lines.append(f"  - [{chr(65 + oi)}]{mark} {label}")
+    elif answer_type != "drawing" and item.get("answer") not in (None, ""):
+        lines.append(f"- Erwartete Antwort: {str(item.get('answer'))[:200]}")
+    hint = str(item.get("hint") or "").strip()
+    if hint:
+        lines.append(f"- Hinweis: {hint[:300]}")
+    return lines
+
+
+def _practice_lines(content: dict, *, module_ref: str) -> list[str]:
+    lines: list[str] = []
+    practice = content.get("practice") if isinstance(content, dict) else []
+    if not isinstance(practice, list):
+        return lines
+    for pi, item in enumerate(practice, start=1):
+        if not isinstance(item, dict):
+            continue
+        lines.append(f"#### Übung {module_ref}.P{pi:02d}")
+        lines.extend(_practice_detail_lines(item))
+        lines.append("")
+    return lines
+
+
 def _card_lines(content: dict, *, module_ref: str) -> list[str]:
     lines: list[str] = []
     cards = content.get("cards") if isinstance(content, dict) else []
@@ -116,6 +167,7 @@ def _module_section(unit: LearningUnit, *, family: str, instance: str) -> list[s
             lines.append(f"- Wissenspunkte: {len(content.get('knowledge') or [])}")
         lines.extend(_card_lines(content if isinstance(content, dict) else {}, module_ref=module_ref))
         lines.extend(_quiz_lines(quiz if isinstance(quiz, dict) else {}, module_ref=module_ref))
+        lines.extend(_practice_lines(content if isinstance(content, dict) else {}, module_ref=module_ref))
     return lines
 
 

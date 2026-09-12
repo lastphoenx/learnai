@@ -1195,7 +1195,7 @@ export const fetchBatchImportQualityReport = (batchId: string) =>
 export async function downloadBatchImportQualityReport(batchId: string): Promise<void> {
   const res = await fetch(
     `${API_URL}/api/v1/units/batch-import/${encodeURIComponent(batchId)}/quality-report?download=1`,
-    { credentials: "include" },
+    { credentials: "include", cache: "no-store" },
   );
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));

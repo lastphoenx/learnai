@@ -236,7 +236,10 @@ def units_batch_import_quality_report(
             return Response(
                 content=body.encode("utf-8"),
                 media_type="text/markdown; charset=utf-8",
-                headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+                headers={
+                    "Content-Disposition": f'attachment; filename="{filename}"',
+                    "Cache-Control": "no-store",
+                },
             )
         return result
     except UnitError as exc:
