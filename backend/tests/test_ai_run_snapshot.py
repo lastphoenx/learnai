@@ -77,7 +77,25 @@ def test_build_ai_run_snapshot_pipeline():
     assert snap["pipeline"] == "multimodal"
 
 
-def test_format_last_ai_run_compact():
+def test_normalize_last_ai_run_strips_leaked_vision_on_compact():
+    from app.services.ai_run_snapshot import format_last_ai_run_compact, normalize_last_ai_run_snapshot
+
+    raw = {
+        "tasks": {
+            "mixed": {"provider": "openai", "model": "gpt-5.6-terra"},
+            "vision": {"provider": "ollama", "model": "qwen2.5vl:32b"},
+        },
+        "stats": {"modules": 3, "cards": 12, "questions": 8},
+        "finished_at": "2026-09-12T00:00:04+00:00",
+    }
+    normalized = normalize_last_ai_run_snapshot(raw)
+    assert normalized is not None
+    assert "vision" not in (normalized.get("tasks") or {})
+    assert normalized.get("pipeline") == "multimodal"
+    line = format_last_ai_run_compact(normalized)
+    assert line
+    assert "ollama" not in line.lower()
+    assert "openai" in line
     from app.services.ai_run_snapshot import format_last_ai_run_compact
 
     line = format_last_ai_run_compact(

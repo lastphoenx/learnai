@@ -556,6 +556,7 @@ def generate_posten_compact(
             stats={"modules": len(modules), "cards": total_cards, "questions": total_questions},
             triggered_by=str(user.id),
             pipeline=pipeline,
+            vision_used=vision_used,
         ),
     )
     _log.info(

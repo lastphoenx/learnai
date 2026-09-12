@@ -15,7 +15,7 @@ from app.services.batch_import_service import get_batch_import_status
 from app.services.crypto_json import decrypt_json
 from app.services.pedagogy_service import _pedagogy_quality
 from app.services.unit_quality_report_service import build_unit_quality_report_for_user
-from app.services.ai_run_snapshot import format_last_ai_run_compact, last_ai_run_from_recon
+from app.services.ai_run_snapshot import format_last_ai_run_compact, last_ai_run_from_recon, normalize_last_ai_run_snapshot
 from app.services.unit_reference_service import ensure_unit_reference_codes
 from app.services.unit_service import UnitError, get_trainer_options
 
@@ -79,12 +79,14 @@ def summarize_batch_unit_quality(db: Session, user: User, unit_id: uuid.UUID) ->
         "report_ref": refs.get("reference_code"),
     }
     if last_ai_run:
+        display_run = normalize_last_ai_run_snapshot(last_run) or last_ai_run
         payload["last_ai_run"] = {
-            "finished_at": last_ai_run.get("finished_at"),
-            "pipeline": last_ai_run.get("pipeline"),
-            "tasks": last_ai_run.get("tasks"),
-            "stats": last_ai_run.get("stats"),
-            "summary": format_last_ai_run_compact(last_ai_run),
+            "finished_at": display_run.get("finished_at"),
+            "pipeline": display_run.get("pipeline"),
+            "tasks": display_run.get("tasks"),
+            "stats": display_run.get("stats"),
+            "vision_used": display_run.get("vision_used"),
+            "summary": format_last_ai_run_compact(display_run),
         }
     return payload
 

@@ -16,6 +16,7 @@ def build_ai_run_snapshot(
     triggered_by: str | None = None,
     status: str = "done",
     pipeline: str | None = None,
+    vision_used: bool | None = None,
 ) -> dict[str, Any]:
     clean_tasks: dict[str, dict[str, str]] = {}
     for key, row in (tasks or {}).items():
@@ -34,7 +35,44 @@ def build_ai_run_snapshot(
     }
     if pipeline:
         snapshot["pipeline"] = str(pipeline).strip()
+    if vision_used is not None:
+        snapshot["vision_used"] = bool(vision_used)
     return snapshot
+
+
+def normalize_last_ai_run_snapshot(last_run: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Entfernt fälschlich gespeichertes Profil-Vision aus Multimodal-Läufen (Anzeige + Reports)."""
+    if not isinstance(last_run, dict) or not last_run.get("tasks"):
+        return last_run
+    out = dict(last_run)
+    tasks = dict(out.get("tasks") or {})
+    pipeline = str(out.get("pipeline") or "").strip().lower()
+    vision_flag = out.get("vision_used")
+
+    drop_vision = pipeline == "multimodal" or vision_flag is False
+    if not drop_vision and not pipeline and isinstance(out.get("stats"), dict):
+        stats = out["stats"]
+        modules = int(stats.get("modules") or 0)
+        cards = int(stats.get("cards") or 0)
+        questions = int(stats.get("questions") or 0)
+        mixed = tasks.get("mixed") if isinstance(tasks.get("mixed"), dict) else {}
+        mixed_provider = str(mixed.get("provider") or "").strip().lower()
+        if (
+            "vision" in tasks
+            and mixed_provider in {"openai", "anthropic"}
+            and modules <= 4
+            and cards <= 15
+            and questions <= 28
+        ):
+            drop_vision = True
+            out["pipeline"] = "multimodal"
+
+    if drop_vision:
+        tasks.pop("vision", None)
+        if vision_flag is not False:
+            out["vision_used"] = False
+    out["tasks"] = tasks
+    return out
 
 
 def last_ai_run_from_recon(recon: dict | None) -> dict[str, Any] | None:
@@ -143,20 +181,21 @@ def format_finished_at_zurich(iso: str | None) -> str:
 
 def format_last_ai_run_compact(last_run: dict[str, Any] | None) -> str | None:
     """Kompakte Zeile für Batch-Karten: Pipeline · Modell · Zeit."""
-    if not isinstance(last_run, dict) or not last_run.get("tasks"):
+    normalized = normalize_last_ai_run_snapshot(last_run if isinstance(last_run, dict) else None)
+    if not isinstance(normalized, dict) or not normalized.get("tasks"):
         return None
     parts: list[str] = []
-    pipeline = format_pipeline_label(str(last_run.get("pipeline") or ""))
+    pipeline = format_pipeline_label(str(normalized.get("pipeline") or ""))
     if pipeline:
         parts.append(pipeline)
     task_bits: list[str] = []
     for key in ("mixed", "vision"):
-        row = last_run.get("tasks", {}).get(key)
+        row = normalized.get("tasks", {}).get(key)
         if isinstance(row, dict) and row.get("provider"):
             task_bits.append(f"{row['provider']}/{row.get('model') or '(auto)'}")
     if task_bits:
         parts.append(" · ".join(task_bits))
-    finished = format_finished_at_zurich(str(last_run.get("finished_at") or "") or None)
+    finished = format_finished_at_zurich(str(normalized.get("finished_at") or "") or None)
     if finished:
         parts.append(finished)
     return " · ".join(parts) if parts else None
@@ -290,6 +329,6 @@ def summarize_unit_ai_context(
 
     return {
         "current": current,
-        "last_run": last_run,
+        "last_run": normalize_last_ai_run_snapshot(last_run),
         "last_pipeline": last_pipeline or None,
     }
