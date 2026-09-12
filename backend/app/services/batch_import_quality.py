@@ -79,7 +79,7 @@ def summarize_batch_unit_quality(db: Session, user: User, unit_id: uuid.UUID) ->
         "report_ref": refs.get("reference_code"),
     }
     if last_ai_run:
-        display_run = normalize_last_ai_run_snapshot(last_run) or last_ai_run
+        display_run = normalize_last_ai_run_snapshot(last_ai_run) or last_ai_run
         payload["last_ai_run"] = {
             "finished_at": display_run.get("finished_at"),
             "pipeline": display_run.get("pipeline"),
