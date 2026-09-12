@@ -288,7 +288,11 @@ def _ai_section(db: Session, user: User, unit: LearningUnit, record: LearningRec
     lines = ["## KI-Konfiguration", ""]
     current = ctx.get("current") if isinstance(ctx, dict) else {}
     if isinstance(current, dict) and current:
-        lines.append("### Aktuell (effektiv für Generierung)")
+        lines.append("### Profil (nächster Text-Digest / Basiswissen-Ableiten)")
+        lines.append("")
+        lines.append(
+            "_Nicht automatisch der letzte Generierungslauf — bei Multimodal-Posten siehe «Zuletzt generiert»._"
+        )
         lines.append("")
         for key in sorted(current.keys()):
             row = current.get(key)
@@ -305,10 +309,15 @@ def _ai_section(db: Session, user: User, unit: LearningUnit, record: LearningRec
 
     last_run = ctx.get("last_run") if isinstance(ctx, dict) else None
     last_tasks = last_run.get("tasks") if isinstance(last_run, dict) else None
+    last_pipeline = str((last_run or {}).get("pipeline") or "").strip() if isinstance(last_run, dict) else ""
     if isinstance(last_run, dict) and last_run.get("pipeline"):
         from app.services.ai_run_snapshot import format_pipeline_label
 
         lines.append(f"- Pipeline (letzter Lauf): {format_pipeline_label(str(last_run.get('pipeline')))}")
+        if last_pipeline == "multimodal" and isinstance(current, dict) and "vision" in current:
+            lines.append(
+                "- _Letzter Lauf: nur Generierung (openai) — Profil-Vision (ollama) wurde **nicht** aufgerufen._"
+            )
         lines.append("")
     lines.extend(format_ai_tasks_report_section(last_tasks, heading="Zuletzt generiert"))
     if isinstance(last_run, dict) and last_run.get("finished_at"):

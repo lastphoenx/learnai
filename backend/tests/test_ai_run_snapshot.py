@@ -90,6 +90,7 @@ def test_format_last_ai_run_compact():
     assert line
     assert "openai" in line
     assert "Multimodal" in line
+    assert "Generierung" in line or "1×" in line
     assert "02:55" in line
 
 

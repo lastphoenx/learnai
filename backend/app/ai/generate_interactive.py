@@ -1106,7 +1106,11 @@ def backfill_basiswissen_for_unit(
 
     record = db.query(LearningRecord).filter(LearningRecord.unit_id == unit.id).first()
     recon = decrypt_json(record.reconstruction_encrypted) if record and record.reconstruction_encrypted else {}
-    notes = _collect_source_notes(db, unit, target_prefs, fallback_prefs)
+    from app.ai.generate import collect_cached_source_notes
+
+    notes = collect_cached_source_notes(unit)
+    if not notes.strip():
+        notes = _collect_source_notes(db, unit, target_prefs, fallback_prefs)
     pedagogy_profile = collect_pedagogy_from_unit_sources(unit.sources, focus_group=focus_group)
     pedagogy_digest = build_pedagogy_digest(pedagogy_profile)
     title = decrypt_text_master(unit.title_encrypted)

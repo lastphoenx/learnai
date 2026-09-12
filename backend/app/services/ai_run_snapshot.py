@@ -110,8 +110,8 @@ def resolve_generation_ai_tasks(
 
 
 _PIPELINE_LABELS: dict[str, str] = {
-    "multimodal": "Multimodal (1 Call, Gemischt-Modell + Bilder)",
-    "text_digest": "Text-Digest (Vision → Text, dann Gemischt)",
+    "multimodal": "Multimodal (1× Generierung, Bilder im Call — kein separates Vision-Modell)",
+    "text_digest": "Text-Digest (Ollama/Vision extrahiert, dann Generierung)",
     "multi_call": "Multi-Call (Vision-Digest + Plan/Kategorien)",
 }
 
@@ -273,8 +273,11 @@ def summarize_unit_ai_context(
     gen_keys = [main_key]
     if unit.sources:
         gen_keys.append("vision")
+    last_run = last_ai_run_from_recon(recon)
+    last_pipeline = str((last_run or {}).get("pipeline") or "").strip()
+    profile_keys = list(gen_keys)
     current: dict[str, dict[str, Any]] = {}
-    for key in gen_keys:
+    for key in profile_keys:
         task_row = eff.get("tasks", {}).get(key)
         if not isinstance(task_row, dict):
             continue
@@ -285,8 +288,8 @@ def summarize_unit_ai_context(
             "source_label": task_row.get("source_label"),
         }
 
-    last_run = last_ai_run_from_recon(recon)
     return {
         "current": current,
         "last_run": last_run,
+        "last_pipeline": last_pipeline or None,
     }

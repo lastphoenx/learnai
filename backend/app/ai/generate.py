@@ -93,6 +93,22 @@ def _format_source_section(label: str, text: str) -> str:
         return f"### {label}\n(leer)"
     return f"### {label}\n<<<SOURCE_TEXT>>>\n{body}\n<<<END_SOURCE_TEXT>>>"
 
+
+def collect_cached_source_notes(unit: LearningUnit) -> str:
+    """Quelltext aus Cache — ohne Ollama/Vision (für Basiswissen-Backfill)."""
+    parts: list[str] = []
+    for source in unit.sources or []:
+        if not source.extracted_text_encrypted:
+            continue
+        label = (
+            decrypt_text_master(source.original_name_encrypted)
+            if source.original_name_encrypted
+            else source.kind
+        )
+        text = decrypt_text_master(source.extracted_text_encrypted)
+        parts.append(_format_source_section(label, text))
+    return "\n\n".join(parts)
+
 _GENERATE_NUM_PREDICT = 16384
 _MODULE_NUM_PREDICT = 8192
 
