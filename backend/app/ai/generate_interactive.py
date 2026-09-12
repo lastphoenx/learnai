@@ -1106,16 +1106,31 @@ def backfill_basiswissen_for_unit(
 
     record = db.query(LearningRecord).filter(LearningRecord.unit_id == unit.id).first()
     recon = decrypt_json(record.reconstruction_encrypted) if record and record.reconstruction_encrypted else {}
+    trainer_opts = get_trainer_options(recon if isinstance(recon, dict) else {})
+    preset_id = str(recon.get("trainer_preset") or "").strip() if isinstance(recon, dict) else ""
+    if not preset_id:
+        from app.core.trainer_presets import detect_trainer_preset
+
+        preset_id = detect_trainer_preset(trainer_opts)
+    compact = int(trainer_opts.get("cards") or 50) <= 15
+    compact_preset = preset_id in {"posten_compact", "exam_review"}
     from app.ai.generate import collect_cached_source_notes
 
     notes = collect_cached_source_notes(unit)
-    if not notes.strip():
+    if not notes.strip() and not compact_preset:
         notes = _collect_source_notes(db, unit, target_prefs, fallback_prefs)
+    elif not notes.strip() and compact_preset:
+        _log.info(
+            "backfill_basiswissen compact_skip_vision unit_id=%s preset=%s "
+            "(multimodal unit — no cached OCR; basiswissen from modules + didactic digest)",
+            unit_id,
+            preset_id,
+        )
     pedagogy_profile = collect_pedagogy_from_unit_sources(unit.sources, focus_group=focus_group)
     pedagogy_digest = build_pedagogy_digest(pedagogy_profile)
     title = decrypt_text_master(unit.title_encrypted)
     brief = decrypt_text_master(unit.brief_encrypted) if unit.brief_encrypted else ""
-    trainer_opts = get_trainer_options(recon if isinstance(recon, dict) else {})
+    quiz_source = preset_id if preset_id in {"posten_compact", "exam_review"} else "posten_compact"
     context_prompt = build_interactive_plan_prompt(
         title=title,
         brief=brief,
@@ -1138,13 +1153,6 @@ def backfill_basiswissen_for_unit(
     errors: list[str] = []
     practice_state: dict[str, Any] = {}
     card_state: dict[str, Any] = {}
-    compact = int(trainer_opts.get("cards") or 50) <= 15
-    preset_id = str(recon.get("trainer_preset") or "").strip() if isinstance(recon, dict) else ""
-    if not preset_id:
-        from app.core.trainer_presets import detect_trainer_preset
-
-        preset_id = detect_trainer_preset(trainer_opts)
-    quiz_source = preset_id if preset_id in {"posten_compact", "exam_review"} else "posten_compact"
     for module in sorted(unit.modules, key=lambda m: m.order_index):
         content = decrypt_json(module.content_encrypted) or {}
         quiz = decrypt_json(module.quiz_encrypted) or {}
