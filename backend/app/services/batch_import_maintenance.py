@@ -13,7 +13,8 @@ from sqlalchemy.orm import Session
 from app.ai.generate_interactive import backfill_basiswissen_for_unit
 from app.models import User
 from app.services.batch_import_registry import resolve_batch_job
-from app.services.generate_job import _redis_client
+from app.config import settings
+from app.services.generate_job import _parse_iso, _redis_client
 from app.services.unit_service import UnitError
 
 _log = logging.getLogger(__name__)
@@ -38,9 +39,82 @@ def get_batch_maintenance_status(batch_id: str) -> dict[str, Any] | None:
         return None
     try:
         data = json.loads(raw)
-        return data if isinstance(data, dict) else None
+        if not isinstance(data, dict):
+            return None
+        return reconcile_batch_maintenance_status(batch_id, data)
     except json.JSONDecodeError:
         return None
+
+
+def maintenance_is_stale(payload: dict[str, Any] | None, *, now: datetime | None = None) -> bool:
+    if not isinstance(payload, dict) or payload.get("status") != "running":
+        return False
+    stamp = _parse_iso(str(payload.get("updated_at") or "") or None)
+    if stamp is None:
+        return True
+    age = ((now or datetime.now(timezone.utc)) - stamp).total_seconds()
+    return age > settings.generate_stale_after_sec
+
+
+def fail_running_batch_maintenance(*, reason: str) -> int:
+    """Alle laufenden Wartungs-Jobs beenden (z. B. nach Worker-Neustart)."""
+    client = _redis_client()
+    if not client:
+        return 0
+    count = 0
+    for key in client.scan_iter("batch_maintenance:*"):
+        batch_id = str(key).split(":", 1)[-1]
+        raw = client.get(key)
+        if not raw:
+            continue
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(data, dict) or data.get("status") != "running":
+            continue
+        _set_batch_maintenance(
+            batch_id,
+            {
+                **data,
+                "status": "failed",
+                "message": reason,
+                "error": "maintenance_interrupted",
+            },
+        )
+        count += 1
+    return count
+
+
+def reconcile_batch_maintenance_status(
+    batch_id: str,
+    payload: dict[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    """Hängende Wartungs-Jobs nach Worker-Neustart als fehlgeschlagen markieren."""
+    data = payload
+    if data is None:
+        client = _redis_client()
+        if not client:
+            return None
+        raw = client.get(_maintenance_key(batch_id))
+        if not raw:
+            return None
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError:
+            return None
+    if not isinstance(data, dict):
+        return None
+    if data.get("status") != "running" or not maintenance_is_stale(data):
+        return data
+    failed = {
+        **data,
+        "status": "failed",
+        "message": "Wartung unterbrochen (Worker-Neustart oder Timeout) — bitte erneut starten",
+        "error": "maintenance_stale",
+    }
+    _set_batch_maintenance(batch_id, failed)
+    return failed
 
 
 def _set_batch_maintenance(batch_id: str, payload: dict[str, Any]) -> None:

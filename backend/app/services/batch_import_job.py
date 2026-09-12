@@ -7,9 +7,11 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from app.services.generate_job import _redis_client
+from app.config import settings
+from app.services.generate_job import _parse_iso, _redis_client
 
 _JOB_TTL_SEC = 86400 * 2
+_ACTIVE_STATUSES = frozenset({"queued", "running", "cancelling"})
 
 
 def _persist(job: dict[str, Any]) -> None:
@@ -132,7 +134,126 @@ def batch_cancel_requested(batch_id: str) -> bool:
 
 
 def batch_is_active(job: dict[str, Any] | None) -> bool:
-    return bool(job and job.get("status") in {"queued", "running", "cancelling"})
+    return bool(job and job.get("status") in _ACTIVE_STATUSES)
+
+
+def _unit_generate_statuses(job: dict[str, Any]) -> list[str]:
+    units = job.get("units") if isinstance(job.get("units"), list) else []
+    return [
+        str(row.get("generate_status") or "pending")
+        for row in units
+        if isinstance(row, dict)
+    ]
+
+
+def infer_batch_terminal_status(job: dict[str, Any]) -> str | None:
+    """Leitet einen End-Status aus den Zeilen ab — wenn nichts mehr läuft/wartet."""
+    statuses = _unit_generate_statuses(job)
+    if not statuses:
+        return None
+    if any(status in {"running", "pending", "repair_pending", "regen_pending"} for status in statuses):
+        return None
+    if all(status == "done" for status in statuses):
+        return "done"
+    failed = sum(1 for status in statuses if status == "failed")
+    done = sum(1 for status in statuses if status == "done")
+    if failed and done:
+        return "partial"
+    if failed:
+        return "failed"
+    return "done"
+
+
+def batch_job_is_stale(job: dict[str, Any] | None, *, now: datetime | None = None) -> bool:
+    if not batch_is_active(job) or job is None:
+        return False
+    stamp = _parse_iso(str(job.get("updated_at") or "") or None) or _parse_iso(
+        str(job.get("started_at") or "") or None
+    )
+    if stamp is None:
+        return True
+    age = ((now or datetime.now(timezone.utc)) - stamp).total_seconds()
+    if job.get("status") == "queued":
+        return age > 180
+    return age > settings.generate_stale_after_sec
+
+
+def _batch_terminal_message(status: str, job: dict[str, Any]) -> str:
+    if status == "done":
+        return "Batch-Import abgeschlossen"
+    if status == "partial":
+        failures = sum(1 for s in _unit_generate_statuses(job) if s == "failed")
+        return f"Teilweise fertig ({failures} Fehler)"
+    if status == "failed":
+        return "Batch fehlgeschlagen"
+    if status == "cancelled":
+        return "Batch abgebrochen"
+    return str(job.get("message") or status)
+
+
+def reconcile_batch_import_job(batch_id: str) -> dict[str, Any] | None:
+    """Redis/Manifest: aktiven Batch-Job bereinigen wenn alle Zeilen fertig oder hängen geblieben."""
+    from app.services.batch_import_registry import load_batch_manifest
+
+    job = get_batch_import_job(batch_id) or load_batch_manifest(batch_id)
+    if not job:
+        return None
+
+    if batch_is_active(job):
+        terminal = infer_batch_terminal_status(job)
+        if terminal:
+            return update_batch_import_job(
+                batch_id,
+                status=terminal,
+                message=_batch_terminal_message(terminal, job),
+                progress_pct=100 if terminal == "done" else job.get("progress_pct"),
+                cancel_requested=False if terminal == "done" else job.get("cancel_requested"),
+            )
+
+        if batch_job_is_stale(job):
+            units = job.get("units") if isinstance(job.get("units"), list) else []
+            patched_units: list[Any] = []
+            changed = False
+            for row in units:
+                if isinstance(row, dict) and row.get("generate_status") == "running":
+                    patched_units.append(
+                        {
+                            **row,
+                            "generate_status": "failed",
+                            "error": "Generierung unterbrochen (Timeout oder Worker-Neustart)",
+                        }
+                    )
+                    changed = True
+                else:
+                    patched_units.append(row)
+            if changed:
+                update_batch_import_job(batch_id, units=patched_units)
+                job = get_batch_import_job(batch_id) or load_batch_manifest(batch_id) or job
+            terminal = infer_batch_terminal_status(job) if isinstance(job, dict) else None
+            if terminal:
+                return update_batch_import_job(
+                    batch_id,
+                    status=terminal,
+                    message=_batch_terminal_message(terminal, job),
+                    progress_pct=100 if terminal == "done" else job.get("progress_pct"),
+                )
+
+    return get_batch_import_job(batch_id) or load_batch_manifest(batch_id)
+
+
+def reconcile_all_active_batch_import_jobs() -> int:
+    """Alle aktiven Batch-Jobs prüfen (Worker-Neustart / Recovery)."""
+    client = _redis_client()
+    if not client:
+        return 0
+    count = 0
+    for key in client.scan_iter("batch_import:*"):
+        batch_id = str(key).split(":", 1)[-1]
+        before = get_batch_import_job(batch_id) or {}
+        after = reconcile_batch_import_job(batch_id) or {}
+        if before.get("status") != after.get("status"):
+            count += 1
+    return count
 
 
 _RESUMABLE_STATUSES = frozenset({"cancelled", "partial", "failed"})

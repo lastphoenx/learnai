@@ -317,7 +317,9 @@ def start_batch_import(
 
 def get_batch_import_status(db: Session, user: User, batch_id: str) -> dict[str, Any]:
     from app.services.batch_import_registry import load_batch_manifest, resolve_batch_job
+    from app.services.batch_import_job import reconcile_batch_import_job
 
+    reconcile_batch_import_job(batch_id)
     job = resolve_batch_job(batch_id)
     if not job:
         raise UnitError("Batch-Job nicht gefunden", "not_found")

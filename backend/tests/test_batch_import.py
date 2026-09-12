@@ -446,3 +446,78 @@ def test_build_batch_import_quality_report_merges_units(
     assert "0010.0001" in result["report"]
     assert "0011.0001" in result["report"]
     assert mock_unit_report.call_count == 2
+
+
+@patch("app.services.batch_import_job._redis_client")
+def test_reconcile_batch_import_job_marks_done_when_all_units_finished(mock_redis_fn):
+    from app.services.batch_import_job import create_batch_import_job, get_batch_import_job, reconcile_batch_import_job
+
+    client = MagicMock()
+    store: dict[str, str] = {}
+
+    def setex(key, _ttl, value):
+        store[key] = value
+
+    def get(key):
+        return store.get(key)
+
+    client.setex.side_effect = setex
+    client.get.side_effect = get
+    mock_redis_fn.return_value = client
+
+    batch_id = "batch-reconcile-test"
+    units = [
+        {"title": "Posten 20", "generate_status": "done", "unit_id": "u1"},
+        {"title": "Posten 21", "generate_status": "done", "unit_id": "u2"},
+    ]
+    create_batch_import_job(
+        batch_id=batch_id,
+        user_id="user-1",
+        tenant_id="tenant-1",
+        total=2,
+        pdf_path="/tmp/heft.pdf",
+        units=units,
+    )
+    from app.services.batch_import_job import update_batch_import_job
+
+    update_batch_import_job(batch_id, status="running", message="Batch-Import läuft…")
+
+    reconciled = reconcile_batch_import_job(batch_id)
+    assert reconciled is not None
+    assert reconciled.get("status") == "done"
+    assert get_batch_import_job(batch_id)["status"] == "done"
+
+
+@patch("app.services.batch_import_maintenance._redis_client")
+def test_fail_running_batch_maintenance_on_worker_restart(mock_redis_fn):
+    from app.services.batch_import_maintenance import fail_running_batch_maintenance, get_batch_maintenance_status
+
+    client = MagicMock()
+    store: dict[str, str] = {}
+
+    def setex(key, _ttl, value):
+        store[key] = value
+
+    def get(key):
+        return store.get(key)
+
+    client.setex.side_effect = setex
+    client.get.side_effect = get
+    client.scan_iter.return_value = ["batch_maintenance:abc"]
+    mock_redis_fn.return_value = client
+
+    store["batch_maintenance:abc"] = json.dumps(
+        {
+            "batch_id": "abc",
+            "action": "rederive_practice",
+            "status": "running",
+            "message": "3 Einheiten…",
+        }
+    )
+
+    count = fail_running_batch_maintenance(reason="Worker-Neustart")
+    assert count == 1
+    status = get_batch_maintenance_status("abc")
+    assert status is not None
+    assert status.get("status") == "failed"
+    assert "Neustart" in str(status.get("message") or "")
