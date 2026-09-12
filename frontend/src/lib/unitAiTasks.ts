@@ -62,3 +62,15 @@ export function formatAiTasksCompact(
   }
   return parts.length ? parts.join(" · ") : null;
 }
+
+const PIPELINE_LABELS: Record<string, string> = {
+  multimodal: "Multimodal",
+  text_digest: "Text-Digest",
+  multi_call: "Multi-Call",
+};
+
+export function formatPipelineLabel(pipeline?: string | null): string {
+  const key = String(pipeline || "").trim();
+  if (!key) return "";
+  return PIPELINE_LABELS[key] || key;
+}

@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { fetchAiEffective, type LastAiRun, type TaskCatalogItem } from "@/lib/api";
 import {
   aiSourceBadgeClass,
+  formatAiTasksCompact,
+  formatPipelineLabel,
   providerLabel,
   unitAiTaskKeys,
 } from "@/lib/unitAiTasks";
@@ -97,6 +99,7 @@ export function UnitEffectiveAiPanel({
     : [];
   const lastRunWhen = formatWhen?.(lastAiRun?.finished_at) || null;
   const lastRunStats = formatRunStats(lastAiRun?.stats);
+  const lastPipeline = formatPipelineLabel(lastAiRun?.pipeline);
 
   return (
     <div className="unit-ai-config stack">
@@ -111,6 +114,9 @@ export function UnitEffectiveAiPanel({
               {providerLabel(lastRunRows[0].run.provider)} · {lastRunRows[0].run.model}
             </span>
             {lastRunWhen ? <span className="unit-effective-ai-more">{lastRunWhen}</span> : null}
+            {lastPipeline ? (
+              <span className="unit-effective-ai-more muted">{lastPipeline}</span>
+            ) : null}
           </summary>
           <ul className="unit-effective-ai-list">
             {lastRunRows.map(({ key, run, cat }) => (

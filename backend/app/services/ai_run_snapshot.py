@@ -15,6 +15,7 @@ def build_ai_run_snapshot(
     stats: dict[str, Any] | None = None,
     triggered_by: str | None = None,
     status: str = "done",
+    pipeline: str | None = None,
 ) -> dict[str, Any]:
     clean_tasks: dict[str, dict[str, str]] = {}
     for key, row in (tasks or {}).items():
@@ -24,13 +25,16 @@ def build_ai_run_snapshot(
         model = str(row.get("model") or "").strip() or "(auto)"
         if provider:
             clean_tasks[str(key)] = {"provider": provider, "model": model}
-    return {
+    snapshot: dict[str, Any] = {
         "finished_at": datetime.now(timezone.utc).isoformat(),
         "status": status,
         "tasks": clean_tasks,
         "stats": dict(stats or {}),
         "triggered_by": triggered_by,
     }
+    if pipeline:
+        snapshot["pipeline"] = str(pipeline).strip()
+    return snapshot
 
 
 def last_ai_run_from_recon(recon: dict | None) -> dict[str, Any] | None:
@@ -67,8 +71,10 @@ def resolve_generation_ai_tasks(
     provider_override: str | None = None,
     source_count: int = 0,
     mixed_result: dict | None = None,
+    vision_used: bool | None = None,
+    vision_result: dict | None = None,
 ) -> dict[str, dict[str, str]]:
-    """Welche Provider/Modelle für einen Generierungslauf vorgesehen bzw. genutzt wurden."""
+    """Welche Provider/Modelle in diesem Lauf tatsächlich genutzt wurden (nicht nur Profil)."""
     from app.ai.catalog import resolve_task_ai_for_unit
     from app.ai.task_types import AI_TASK_FOR_UNIT
 
@@ -89,11 +95,53 @@ def resolve_generation_ai_tasks(
         )
         tasks[main_key] = {"provider": provider, "model": model or "(auto)"}
 
-    if source_count > 0:
-        vp, vm = resolve_task_ai_for_unit(target_prefs, fallback_prefs, "vision")
-        tasks["vision"] = {"provider": vp, "model": vm or "(auto)"}
+    include_vision = vision_used if vision_used is not None else source_count > 0
+    if include_vision:
+        if vision_result and str(vision_result.get("provider") or "").strip():
+            tasks["vision"] = {
+                "provider": str(vision_result["provider"]).strip().lower(),
+                "model": str(vision_result.get("model") or "").strip() or "(auto)",
+            }
+        else:
+            vp, vm = resolve_task_ai_for_unit(target_prefs, fallback_prefs, "vision")
+            tasks["vision"] = {"provider": vp, "model": vm or "(auto)"}
 
     return tasks
+
+
+_PIPELINE_LABELS: dict[str, str] = {
+    "multimodal": "Multimodal (1 Call, Gemischt-Modell + Bilder)",
+    "text_digest": "Text-Digest (Vision → Text, dann Gemischt)",
+    "multi_call": "Multi-Call (Vision-Digest + Plan/Kategorien)",
+}
+
+
+def format_pipeline_label(pipeline: str | None) -> str:
+    key = str(pipeline or "").strip()
+    if not key:
+        return ""
+    return _PIPELINE_LABELS.get(key, key)
+
+
+def format_last_ai_run_compact(last_run: dict[str, Any] | None) -> str | None:
+    """Kompakte Zeile für Batch-Karten: Pipeline · Modell · Zeit."""
+    if not isinstance(last_run, dict) or not last_run.get("tasks"):
+        return None
+    parts: list[str] = []
+    pipeline = format_pipeline_label(str(last_run.get("pipeline") or ""))
+    if pipeline:
+        parts.append(pipeline)
+    task_bits: list[str] = []
+    for key in ("mixed", "vision"):
+        row = last_run.get("tasks", {}).get(key)
+        if isinstance(row, dict) and row.get("provider"):
+            task_bits.append(f"{row['provider']}/{row.get('model') or '(auto)'}")
+    if task_bits:
+        parts.append(" · ".join(task_bits))
+    finished = last_run.get("finished_at")
+    if finished:
+        parts.append(str(finished).replace("T", " ").replace("+00:00", " UTC")[:19])
+    return " · ".join(parts) if parts else None
 
 
 _TASK_LABELS: dict[str, str] = {

@@ -211,3 +211,36 @@ def resolve_task_ai(
         model = str(recommended.get("model") or "").strip()
 
     return provider, (model or None)
+
+
+_VISION_CAPABLE_PATTERNS = (
+    r"qwen2\.5vl",
+    r"qwen3-vl",
+    r"llava",
+    r"minicpm-v",
+    r"gemma.*vl",
+    r"pixtral",
+    r"vision",
+    r"gpt-4o",
+    r"gpt-4\.1",
+    r"gpt-5",
+    r"claude-3",
+    r"claude-sonnet",
+    r"claude-opus",
+    r"claude-haiku",
+)
+
+
+def model_supports_vision_input(provider: str, model: str | None) -> bool:
+    """Ob complete(..., images=...) für dieses Gemischt-Modell sinnvoll ist."""
+    import re
+
+    name = str(provider or "").strip().lower()
+    slug = str(model or "").strip().lower()
+    if name in {"openai", "anthropic"}:
+        return True
+    if name != "ollama":
+        return False
+    if not slug:
+        return False
+    return any(re.search(pattern, slug) for pattern in _VISION_CAPABLE_PATTERNS)

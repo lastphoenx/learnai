@@ -662,6 +662,11 @@ export default function BatchImportProgressPage() {
                         : ""}
                       {q?.pedagogy_level ? ` · Didaktik ${pedagogyLevelLabel(q.pedagogy_level)}` : ""}
                     </p>
+                    {q?.last_ai_run?.summary ? (
+                      <p className="muted" style={{ margin: "0.2rem 0 0", fontSize: "0.82rem" }}>
+                        KI: {q.last_ai_run.summary}
+                      </p>
+                    ) : null}
                     {row.error && <p className="err" style={{ margin: "0.35rem 0 0" }}>{row.error}</p>}
                   </div>
                   <div className="unit-list-actions" style={{ display: "flex", flexWrap: "wrap", gap: "0.35rem" }}>

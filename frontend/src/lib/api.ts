@@ -1149,6 +1149,13 @@ export type BatchImportUnitQuality = {
   pedagogy_key_terms?: number | null;
   unit_url?: string;
   report_ref?: string | null;
+  last_ai_run?: {
+    finished_at?: string;
+    pipeline?: string;
+    tasks?: Record<string, { provider: string; model: string }>;
+    stats?: { modules?: number; cards?: number; questions?: number };
+    summary?: string | null;
+  } | null;
 };
 
 export type BatchImportQualitySummary = {
@@ -1729,6 +1736,7 @@ export type EffectiveAiTask = {
 export type LastAiRun = {
   finished_at?: string;
   status?: string;
+  pipeline?: string;
   tasks?: Record<string, { provider: string; model: string }>;
   stats?: { modules?: number; cards?: number; questions?: number };
   triggered_by?: string | null;

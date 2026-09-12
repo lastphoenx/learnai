@@ -15,7 +15,7 @@ from app.services.batch_import_service import get_batch_import_status
 from app.services.crypto_json import decrypt_json
 from app.services.pedagogy_service import _pedagogy_quality
 from app.services.unit_quality_report_service import build_unit_quality_report_for_user
-from app.services.unit_reference_service import ensure_unit_reference_codes
+from app.services.ai_run_snapshot import format_last_ai_run_compact, last_ai_run_from_recon
 from app.services.unit_service import UnitError, get_trainer_options
 
 
@@ -59,8 +59,9 @@ def summarize_batch_unit_quality(db: Session, user: User, unit_id: uuid.UUID) ->
     focus_group = detect_focus_group(subject=unit.subject, task_type=str(unit.task_type or "interactive"))
     pedagogy_profile = collect_pedagogy_from_unit_sources(unit.sources, focus_group=focus_group)
     quality = _pedagogy_quality(pedagogy_profile, focus_group=focus_group)
+    last_ai_run = last_ai_run_from_recon(recon if isinstance(recon, dict) else None)
 
-    return {
+    payload: dict[str, Any] = {
         "unit_id": str(unit.id),
         "reference_code": refs.get("reference_code"),
         "title": decrypt_text_master(unit.title_encrypted),
@@ -76,6 +77,15 @@ def summarize_batch_unit_quality(db: Session, user: User, unit_id: uuid.UUID) ->
         "unit_url": f"/units/{unit.id}",
         "report_ref": refs.get("reference_code"),
     }
+    if last_ai_run:
+        payload["last_ai_run"] = {
+            "finished_at": last_ai_run.get("finished_at"),
+            "pipeline": last_ai_run.get("pipeline"),
+            "tasks": last_ai_run.get("tasks"),
+            "stats": last_ai_run.get("stats"),
+            "summary": format_last_ai_run_compact(last_ai_run),
+        }
+    return payload
 
 
 def build_batch_import_quality_summary(db: Session, user: User, batch_id: str) -> dict[str, Any]:

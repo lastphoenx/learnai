@@ -305,6 +305,11 @@ def _ai_section(db: Session, user: User, unit: LearningUnit, record: LearningRec
 
     last_run = ctx.get("last_run") if isinstance(ctx, dict) else None
     last_tasks = last_run.get("tasks") if isinstance(last_run, dict) else None
+    if isinstance(last_run, dict) and last_run.get("pipeline"):
+        from app.services.ai_run_snapshot import format_pipeline_label
+
+        lines.append(f"- Pipeline (letzter Lauf): {format_pipeline_label(str(last_run.get('pipeline')))}")
+        lines.append("")
     lines.extend(format_ai_tasks_report_section(last_tasks, heading="Zuletzt generiert"))
     if isinstance(last_run, dict) and last_run.get("finished_at"):
         lines.append(f"- Zeitpunkt: {last_run.get('finished_at')}")

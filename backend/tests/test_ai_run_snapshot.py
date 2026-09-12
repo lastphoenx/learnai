@@ -63,6 +63,35 @@ def test_resolve_generation_ai_tasks_includes_vision_with_sources():
     assert "vision" in tasks
 
 
+def test_resolve_generation_ai_tasks_omits_vision_when_not_used():
+    tasks = resolve_generation_ai_tasks({}, None, "interactive", source_count=3, vision_used=False)
+    assert "mixed" in tasks
+    assert "vision" not in tasks
+
+
+def test_build_ai_run_snapshot_pipeline():
+    snap = build_ai_run_snapshot(
+        tasks={"mixed": {"provider": "openai", "model": "gpt-5.6-terra"}},
+        pipeline="multimodal",
+    )
+    assert snap["pipeline"] == "multimodal"
+
+
+def test_format_last_ai_run_compact():
+    from app.services.ai_run_snapshot import format_last_ai_run_compact
+
+    line = format_last_ai_run_compact(
+        {
+            "pipeline": "multimodal",
+            "tasks": {"mixed": {"provider": "openai", "model": "gpt-5.6-terra"}},
+            "finished_at": "2026-09-11T23:48:57+00:00",
+        }
+    )
+    assert line
+    assert "openai" in line
+    assert "Multimodal" in line
+
+
 def test_adult_label_for_user_without_display_name_attribute():
     from types import SimpleNamespace
 

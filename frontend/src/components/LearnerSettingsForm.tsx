@@ -79,12 +79,20 @@ export function LearnerSettingsForm({
                 const row = byTask[item.key] || { provider: "", model: "" };
                 const provider = row.provider || "";
                 const isTts = item.key === "tts";
+                const isMixed = item.key === "mixed";
                 const effectiveProvider = provider || item.default_provider;
                 return (
                   <tr key={item.key}>
                     <td>
                       <strong>{item.label}</strong>
                       <p className="why">{item.why}</p>
+                      {isMixed ? (
+                        <p className="why muted" style={{ marginTop: "0.35rem" }}>
+                          Posten-Einheiten mit Fotos (Preset «posten_compact»): dieses Modell sieht die
+                          Originalbilder direkt in einem Call — «Fotos / OCR» wird dafür nicht
+                          verwendet. Vision-fähiges Gemischt-Modell nötig (z. B. gpt-4o, qwen2.5vl).
+                        </p>
+                      ) : null}
                     </td>
                     <td>
                       {readOnly ? (

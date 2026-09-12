@@ -345,6 +345,7 @@ def generate_posten_compact(
     target_prefs: dict | None = None,
     fallback_prefs: dict | None = None,
 ) -> dict:
+    from app.ai.catalog import model_supports_vision_input
     from app.ai.subject_focus import detect_focus_group
     from app.services.ai_run_snapshot import build_ai_run_snapshot, persist_last_ai_run, resolve_generation_ai_tasks
     from app.services.profile_service import resolve_unit_ai_prefs
@@ -365,23 +366,48 @@ def generate_posten_compact(
     images = load_unit_source_images(unit)
     multimodal = len(images) > 0
     notes = ""
+    pipeline = "text_digest"
+    vision_used = False
+
+    if multimodal and not model_supports_vision_input(provider, model):
+        _log.warning(
+            "generate_posten_compact vision_fallback unit_id=%s provider=%s model=%s",
+            unit_id,
+            provider,
+            model or "(auto)",
+        )
+        multimodal = False
+
     if not multimodal:
         if progress:
             progress("extracting_sources")
         notes = _collect_source_notes(db, unit, target_prefs, fallback_prefs)
         db.commit()
+        vision_used = bool(unit.sources)
         _log.info(
             "generate_posten_compact text_path unit_id=%s notes_chars=%d",
             unit_id,
             len(notes),
         )
     else:
+        pipeline = "multimodal"
         _log.info(
             "generate_posten_compact multimodal unit_id=%s images=%d provider=%s",
             unit_id,
             len(images),
             provider,
         )
+
+    ai_tasks = resolve_generation_ai_tasks(
+        target_prefs,
+        fallback_prefs,
+        "interactive",
+        provider_override=provider_override or provider,
+        source_count=len(unit.sources or []),
+        vision_used=vision_used,
+    )
+    if progress:
+        progress("generating_posten_compact", ai_tasks=ai_tasks, multimodal=multimodal)
 
     prompt = build_posten_compact_prompt(
         title=title,
@@ -466,9 +492,9 @@ def generate_posten_compact(
     meta = dict(result)
     meta["generation_mode"] = "posten_compact"
     meta["multimodal"] = multimodal
-    meta["pipeline"] = "multimodal" if multimodal else "text_digest"
+    meta["pipeline"] = pipeline
     if progress:
-        progress("saving", cards=total_cards, questions=total_questions)
+        progress("saving", cards=total_cards, questions=total_questions, ai_tasks=ai_tasks)
     _save_generated_modules(
         db,
         unit,
@@ -489,9 +515,11 @@ def generate_posten_compact(
                 provider_override=provider_override or provider,
                 source_count=len(unit.sources or []),
                 mixed_result=meta,
+                vision_used=vision_used,
             ),
             stats={"modules": len(modules), "cards": total_cards, "questions": total_questions},
             triggered_by=str(user.id),
+            pipeline=pipeline,
         ),
     )
     _log.info(

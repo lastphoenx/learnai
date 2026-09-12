@@ -63,6 +63,24 @@ _BATCH_NUM_PREDICT = 8192
 _MIN_CARDS = 30
 _MIN_QUESTIONS = 30
 
+_QUIZ_VALIDATION_RETRY_HINT = (
+    "\n\nWICHTIG: Der answer-Index (0–3) muss exakt zur Erklärung passen. "
+    "Bei Jahreszahlen muss die gewählte Option numerisch mit der Erklärung übereinstimmen."
+)
+
+
+def _unit_will_use_vision_extract(unit) -> bool:
+    from app.ai.source_pedagogy import blob_needs_pedagogy_refresh
+
+    for source in unit.sources or []:
+        if source.kind != "image" or source.purged_at or not source.storage_path:
+            continue
+        if not source.extracted_text_encrypted:
+            return True
+        if blob_needs_pedagogy_refresh(source.analysis_encrypted):
+            return True
+    return False
+
 
 def _min_accept_count(expected: int, *, ratio: float = 0.6) -> int:
     """Minimum parsed items before thin_content — scales down for small per-category targets."""
@@ -75,6 +93,43 @@ def _distribute(total: int, buckets: int) -> list[int]:
     base = total // buckets
     rest = total % buckets
     return [base + (1 if i < rest else 0) for i in range(buckets)]
+
+
+def _regenerate_category_quizzes(
+    *,
+    modules: list[dict],
+    categories: list[dict],
+    batch_context: str,
+    all_card_questions: list[str],
+    name: str,
+    model: str | None,
+    quiz_hint: str = "",
+) -> list[str]:
+    all_quiz_questions: list[str] = []
+    for index, (module, cat) in enumerate(zip(modules, categories, strict=False)):
+        cards = module.get("content", {}).get("cards") if isinstance(module.get("content"), dict) else []
+        if not isinstance(cards, list):
+            cards = []
+        quiz_prompt = build_interactive_quiz_prompt(
+            context=batch_context,
+            category_name=cat["name"],
+            category_focus=cat["focus"],
+            count=cat["questions"],
+            card_summaries=[f"{c['question']} → {c['answer'][:80]}" for c in cards[:6] if isinstance(c, dict)],
+            existing_questions=all_card_questions + all_quiz_questions,
+        )
+        quiz_result = _complete_with_retry(
+            prompt=quiz_prompt + quiz_hint,
+            provider=name,
+            system=QUIZ_SYSTEM,
+            model=model,
+            num_predict=_BATCH_NUM_PREDICT,
+            label=f"quiz_retry_{index + 1}",
+        )
+        questions = _parse_questions(quiz_result["text"], cat["questions"])
+        all_quiz_questions.extend(q["q"] for q in questions)
+        module["quiz"] = repair_quiz_block({"questions": questions})
+    return all_quiz_questions
 
 
 def _parse_plan(text: str, *, compact: bool = False) -> list[dict]:
@@ -608,6 +663,7 @@ def generate_interactive_modules(
     )
     name = resolve_provider(name)
 
+    vision_will_run = _unit_will_use_vision_extract(unit)
     from app.services.ai_run_snapshot import resolve_generation_ai_tasks
 
     ai_tasks = resolve_generation_ai_tasks(
@@ -616,6 +672,7 @@ def generate_interactive_modules(
         "interactive",
         provider_override=effective_provider,
         source_count=len(unit.sources or []),
+        vision_used=vision_will_run if unit.sources else False,
     )
 
     title = decrypt_text_master(unit.title_encrypted)
@@ -923,14 +980,38 @@ def generate_interactive_modules(
         if isinstance(module, dict) and isinstance(quiz, dict):
             module["quiz"] = repair_quiz_block(quiz)
 
-    try:
-        validate_interactive_modules(
-            modules,
-            min_cards=max(5, card_target),
-            min_questions=max(5, question_target),
-            min_modules=2 if compact else 4,
-        )
-    except LlmError:
+    validation_exc: LlmError | None = None
+    for validate_attempt in (1, 2):
+        try:
+            validate_interactive_modules(
+                modules,
+                min_cards=max(5, card_target),
+                min_questions=max(5, question_target),
+                min_modules=2 if compact else 4,
+            )
+            validation_exc = None
+            break
+        except LlmError as exc:
+            validation_exc = exc
+            if validate_attempt >= 2 or exc.code != "bad_json":
+                break
+            _log.warning(
+                "generate_interactive validate_retry unit_id=%s attempt=%d msg=%s",
+                unit_id,
+                validate_attempt,
+                exc.message,
+            )
+            _regenerate_category_quizzes(
+                modules=modules,
+                categories=categories,
+                batch_context=batch_context,
+                all_card_questions=all_card_questions,
+                name=name,
+                model=model,
+                quiz_hint=_QUIZ_VALIDATION_RETRY_HINT,
+            )
+
+    if validation_exc is not None:
         min_modules_for_partial = 2 if compact else 4
         if len(modules) >= min_modules_for_partial:
             total_cards = sum(len(m["content"]["cards"]) for m in modules)
@@ -946,7 +1027,7 @@ def generate_interactive_modules(
                 final=False,
             )
             db.commit()
-        raise
+        raise validation_exc
 
     total_cards = sum(len(m["content"]["cards"]) for m in modules)
     total_questions = sum(len(m["quiz"]["questions"]) for m in modules)
@@ -984,9 +1065,11 @@ def generate_interactive_modules(
                 provider_override=effective_provider or provider,
                 source_count=len(unit.sources or []),
                 mixed_result=plan_result,
+                vision_used=vision_will_run if unit.sources else False,
             ),
             stats={"modules": len(modules), "cards": total_cards, "questions": total_questions},
             triggered_by=str(user.id),
+            pipeline="multi_call",
         ),
     )
     return _dec_unit(unit)
