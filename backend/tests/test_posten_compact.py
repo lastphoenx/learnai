@@ -93,7 +93,8 @@ def test_posten_compact_module_mapping():
     total_quiz = sum(len(m["quiz"]["questions"]) for m in modules)
     assert total_cards == 12
     assert total_quiz == 8
-    practice = modules[-1]["content"].get("practice") or []
+    aufgaben = next(m for m in modules if m["title"] == "Aufgaben")
+    practice = aufgaben["content"].get("practice") or []
     assert any(p.get("answer_type") == "label_diagram" for p in practice)
     validate_interactive_modules(
         modules,
@@ -101,6 +102,42 @@ def test_posten_compact_module_mapping():
         min_questions=8,
         min_modules=4,
     )
+
+
+def test_posten_compact_without_timeline_builds_aufgaben_from_quiz():
+    raw = {
+        "goal": "Du kennst den Faustkeil.",
+        "facts": [
+            {"title": "Faustkeil", "text": "Werkzeug aus Feuerstein."},
+            {"title": "Feuer", "text": "Wärme und Licht."},
+            {"title": "Leben", "text": "Jäger und Sammler."},
+        ],
+        "cards": [
+            {"question": f"Frage {i}?", "answer": f"Antwort {i}."} for i in range(12)
+        ],
+        "quiz": [
+            {
+                "q": f"Quiz {i}?",
+                "options": ["A", "B", "C", "D"],
+                "answer": i % 4,
+                "explanation": "Weil.",
+            }
+            for i in range(8)
+        ],
+    }
+    payload = _parse_posten_compact_payload(
+        json.dumps(raw, ensure_ascii=False),
+        card_target=12,
+        question_target=8,
+    )
+    assert payload["timeline"] is None
+    modules = posten_compact_payload_to_modules(payload, title="Posten 15", focus_group="nmg")
+    assert len(modules) == 4
+    aufgaben = next(m for m in modules if m["title"] == "Aufgaben")
+    practice = aufgaben["content"].get("practice") or []
+    assert len(practice) == 4
+    assert all(p.get("answer_type") == "choice" for p in practice)
+    assert all(m["content"].get("practice") == [] for m in modules if m["title"] != "Aufgaben")
 
 
 def test_posten_compact_rejects_instruction_terms_in_parse():

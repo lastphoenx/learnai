@@ -1135,6 +1135,12 @@ def backfill_basiswissen_for_unit(
     practice_state: dict[str, Any] = {}
     card_state: dict[str, Any] = {}
     compact = int(trainer_opts.get("cards") or 50) <= 15
+    preset_id = str(recon.get("trainer_preset") or "").strip() if isinstance(recon, dict) else ""
+    if not preset_id:
+        from app.core.trainer_presets import detect_trainer_preset
+
+        preset_id = detect_trainer_preset(trainer_opts)
+    quiz_source = preset_id if preset_id in {"posten_compact", "exam_review"} else "posten_compact"
     for module in sorted(unit.modules, key=lambda m: m.order_index):
         content = decrypt_json(module.content_encrypted) or {}
         quiz = decrypt_json(module.quiz_encrypted) or {}
@@ -1230,6 +1236,13 @@ def backfill_basiswissen_for_unit(
                 payload,
                 max_cards=max_cards,
                 max_questions=max_questions,
+            )
+            from app.ai.compact_practice import ensure_compact_aufgaben_module
+
+            payload = ensure_compact_aufgaben_module(
+                payload,
+                focus_group=focus_group,
+                quiz_source=quiz_source,
             )
         for module, row in zip(module_rows, payload):
             if not isinstance(row, dict):

@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.ai.errors import LlmError
 from app.ai.generate import _collect_source_notes, _save_generated_modules, load_unit_source_images
+from app.ai.compact_practice import ensure_compact_aufgaben_module
 from app.ai.generate_german_compact import should_use_german_compact
 from app.ai.generate_interactive import _parse_questions
 from app.ai.prompts.posten_compact import (
@@ -258,11 +259,11 @@ def posten_compact_payload_to_modules(
     cards = list(payload.get("cards") or [])
     quiz_questions = list(payload.get("quiz_questions") or [])
     timeline = payload.get("timeline")
-    practice: list[dict] = []
+    extra_practice: list[dict] = []
     if isinstance(timeline, dict):
         item = _timeline_practice_item(timeline, quiz_source=quiz_source)
         if item:
-            practice.append(item)
+            extra_practice.append(item)
 
     modules: list[dict] = [
         {
@@ -299,21 +300,12 @@ def posten_compact_payload_to_modules(
             "quiz": {"questions": quiz_questions},
         },
     ]
-    if practice:
-        modules.append(
-            {
-                "title": "Aufgaben",
-                "content": {
-                    "intro": "Ordne Begriffe am Zeitstrahl zu.",
-                    "knowledge": [],
-                    "cards": [],
-                    "practice": practice,
-                    "basiswissen": empty_basiswissen(focus_group=focus_group),
-                },
-                "quiz": {"questions": []},
-            }
-        )
-    return modules
+    return ensure_compact_aufgaben_module(
+        modules,
+        focus_group=focus_group,
+        quiz_source=quiz_source,
+        extra_practice=extra_practice,
+    )
 
 
 def _complete_posten_compact(
