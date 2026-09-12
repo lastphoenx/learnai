@@ -27,6 +27,7 @@ import {
   type BatchMaintenanceStatus,
   type User,
 } from "@/lib/api";
+import { formatLastAiRunLine } from "@/lib/formatWhen";
 
 function statusLabel(status: string) {
   switch (status) {
@@ -623,6 +624,7 @@ export default function BatchImportProgressPage() {
               const canRepairRow = batchImportRowCanRepair(row);
               const hasDraft = batchImportRowHasDraft(row);
               const q = qualityByIndex.get(index);
+              const aiLine = formatLastAiRunLine(q?.last_ai_run);
               return (
                 <li key={`${index}-${row.title}`} className="unit-list-item card unit-list-card batch-progress-row">
                   <div className="unit-list-link">
@@ -662,9 +664,9 @@ export default function BatchImportProgressPage() {
                         : ""}
                       {q?.pedagogy_level ? ` · Didaktik ${pedagogyLevelLabel(q.pedagogy_level)}` : ""}
                     </p>
-                    {q?.last_ai_run?.summary ? (
+                    {aiLine ? (
                       <p className="muted" style={{ margin: "0.2rem 0 0", fontSize: "0.82rem" }}>
-                        KI: {q.last_ai_run.summary}
+                        KI: {aiLine}
                       </p>
                     ) : null}
                     {row.error && <p className="err" style={{ margin: "0.35rem 0 0" }}>{row.error}</p>}

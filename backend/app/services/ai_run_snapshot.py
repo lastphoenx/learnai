@@ -123,6 +123,24 @@ def format_pipeline_label(pipeline: str | None) -> str:
     return _PIPELINE_LABELS.get(key, key)
 
 
+def format_finished_at_zurich(iso: str | None) -> str:
+    """ISO-Zeitstempel für UI in Europe/Zurich (de-CH)."""
+    if not iso:
+        return ""
+    from zoneinfo import ZoneInfo
+
+    try:
+        raw = str(iso).strip()
+        if raw.endswith("Z"):
+            raw = raw[:-1] + "+00:00"
+        dt = datetime.fromisoformat(raw)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(ZoneInfo("Europe/Zurich")).strftime("%Y-%m-%d %H:%M")
+    except (ValueError, TypeError):
+        return ""
+
+
 def format_last_ai_run_compact(last_run: dict[str, Any] | None) -> str | None:
     """Kompakte Zeile für Batch-Karten: Pipeline · Modell · Zeit."""
     if not isinstance(last_run, dict) or not last_run.get("tasks"):
@@ -138,9 +156,9 @@ def format_last_ai_run_compact(last_run: dict[str, Any] | None) -> str | None:
             task_bits.append(f"{row['provider']}/{row.get('model') or '(auto)'}")
     if task_bits:
         parts.append(" · ".join(task_bits))
-    finished = last_run.get("finished_at")
+    finished = format_finished_at_zurich(str(last_run.get("finished_at") or "") or None)
     if finished:
-        parts.append(str(finished).replace("T", " ").replace("+00:00", " UTC")[:19])
+        parts.append(finished)
     return " · ".join(parts) if parts else None
 
 

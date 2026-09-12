@@ -84,12 +84,13 @@ def test_format_last_ai_run_compact():
         {
             "pipeline": "multimodal",
             "tasks": {"mixed": {"provider": "openai", "model": "gpt-5.6-terra"}},
-            "finished_at": "2026-09-11T23:48:57+00:00",
+            "finished_at": "2026-09-12T00:55:04+00:00",
         }
     )
     assert line
     assert "openai" in line
     assert "Multimodal" in line
+    assert "02:55" in line
 
 
 def test_adult_label_for_user_without_display_name_attribute():
