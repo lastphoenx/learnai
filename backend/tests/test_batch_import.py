@@ -442,6 +442,7 @@ def test_build_batch_import_quality_report_merges_units(
 
     assert result["unit_count"] == 2
     assert result["filename"].endswith("_quality.md")
+    assert "(Europe/Zurich)" in result["report"]
     assert "NMG Pilot" in result["report"]
     assert "0010.0001" in result["report"]
     assert "0011.0001" in result["report"]

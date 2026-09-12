@@ -15,7 +15,7 @@ from app.services.batch_import_service import get_batch_import_status
 from app.services.crypto_json import decrypt_json
 from app.services.pedagogy_service import _pedagogy_quality
 from app.services.unit_quality_report_service import build_unit_quality_report_for_user
-from app.services.ai_run_snapshot import format_last_ai_run_compact, last_ai_run_from_recon, normalize_last_ai_run_snapshot
+from app.services.ai_run_snapshot import format_finished_at_zurich, format_last_ai_run_compact, last_ai_run_from_recon, normalize_last_ai_run_snapshot
 from app.services.unit_reference_service import ensure_unit_reference_codes
 from app.services.unit_service import UnitError, get_trainer_options
 
@@ -149,6 +149,7 @@ def build_batch_import_quality_report(db: Session, user: User, batch_id: str) ->
     job = get_batch_import_status(db, user, batch_id)
     summary = build_batch_import_quality_summary(db, user, batch_id)
     generated_at = datetime.now(timezone.utc).isoformat()
+    generated_at_display = format_finished_at_zurich(generated_at) or generated_at
     label = str(job.get("label") or "").strip() or batch_id
 
     header = [
@@ -158,7 +159,7 @@ def build_batch_import_quality_report(db: Session, user: User, batch_id: str) ->
         f"**Batch-ID:** `{batch_id}`",
         f"**Status:** {summary.get('job_status') or job.get('status') or '—'}",
         f"**Fortschritt:** {summary.get('done', 0)}/{summary.get('total', 0)} fertig",
-        f"**Erstellt:** {generated_at}",
+        f"**Erstellt:** {generated_at_display} (Europe/Zurich)",
         "",
     ]
 

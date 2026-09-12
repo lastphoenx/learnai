@@ -23,6 +23,7 @@ from app.core.solution_repair import enrich_card_answer
 from app.models import LearningRecord, LearningUnit, User
 from app.services.ai_run_snapshot import (
     format_ai_tasks_report_section,
+    format_finished_at_zurich,
     summarize_unit_ai_context,
 )
 from app.services.crypto_json import decrypt_json
@@ -373,7 +374,10 @@ def _ai_section(db: Session, user: User, unit: LearningUnit, record: LearningRec
         lines.append("")
     lines.extend(format_ai_tasks_report_section(last_tasks, heading="Zuletzt generiert"))
     if isinstance(last_run, dict) and last_run.get("finished_at"):
-        lines.append(f"- Zeitpunkt: {last_run.get('finished_at')}")
+        finished_display = format_finished_at_zurich(str(last_run.get("finished_at")))
+        lines.append(
+            f"- Zeitpunkt: {finished_display or last_run.get('finished_at')} (Europe/Zurich)"
+        )
         stats = last_run.get("stats")
         if isinstance(stats, dict) and stats:
             stat_bits = ", ".join(f"{k}={v}" for k, v in sorted(stats.items()))

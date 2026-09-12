@@ -1,4 +1,4 @@
-"""Qualitätsreport — Practice-Items im Modul-Abschnitt."""
+"""Qualitätsreport — Practice-Items und Zeitstempel Europe/Zurich."""
 
 from __future__ import annotations
 
@@ -9,8 +9,14 @@ from unittest.mock import MagicMock
 import pytest
 
 from app.core.crypto import encrypt_text_master
+from app.services.ai_run_snapshot import format_finished_at_zurich
 from app.services.crypto_json import encrypt_json
 from app.services.unit_quality_report_service import _module_section, _practice_lines
+
+
+def test_format_finished_at_zurich_converts_utc_to_local():
+    # 02:45 UTC = 04:45 CEST (September)
+    assert format_finished_at_zurich("2026-09-12T02:45:00+00:00") == "2026-09-12 04:45"
 
 
 @pytest.fixture
