@@ -959,7 +959,7 @@ def prepend_unique_cards(existing: list[dict], derived: list[dict]) -> list[dict
 
 _OVERVIEW_TITLE = "fachbegriffe im überblick"
 
-_COMPACT_QUIZ_SOURCES = frozenset({"posten_compact", "german_compact"})
+_COMPACT_QUIZ_SOURCES = frozenset({"posten_compact", "exam_review", "german_compact"})
 
 
 def _is_basiswissen_derived_quiz_question(question: dict[str, Any]) -> bool:

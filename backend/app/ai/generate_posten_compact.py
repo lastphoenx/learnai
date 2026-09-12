@@ -18,8 +18,9 @@ from app.ai.generate_german_compact import should_use_german_compact
 from app.ai.generate_interactive import _parse_questions
 from app.ai.prompts.posten_compact import (
     POSTEN_COMPACT_COUNTS,
-    POSTEN_COMPACT_SYSTEM,
+    build_compact_system_prompt,
     build_posten_compact_prompt,
+    compact_preset_counts,
 )
 from app.ai.providers import complete, parse_json_object
 from app.ai.validators.interactive import dedupe_interactive_modules, validate_interactive_modules
@@ -32,6 +33,8 @@ from app.services.unit_service import _dec_unit, _get_unit_or_404
 _log = logging.getLogger(__name__)
 
 _COMPACT_NUM_PREDICT = 8192
+_EXAM_REVIEW_NUM_PREDICT = 12288
+_COMPACT_SINGLE_SHOT_PRESETS = frozenset({"posten_compact", "exam_review"})
 _INSTRUCTION_TERM = re.compile(
     r"^(einleitung\s+lesen|lineal|unterstreichen|form,\s*material|form\s+und\s+material|"
     r"lösungsweg|lese\s+die|markiere|kreise\s+an|trage\s+ein)",
@@ -57,11 +60,18 @@ def should_use_posten_compact(
     focus_group: str,
     math_focus: str | None,
 ) -> bool:
-    if str(trainer_preset or "").strip() != "posten_compact":
+    preset = str(trainer_preset or "").strip()
+    if preset not in _COMPACT_SINGLE_SHOT_PRESETS:
         return False
     if should_use_german_compact(focus_group=focus_group, math_focus=math_focus):
         return False
     return True
+
+
+def _compact_num_predict(preset_id: str) -> int:
+    if (preset_id or "").strip() == "exam_review":
+        return _EXAM_REVIEW_NUM_PREDICT
+    return _COMPACT_NUM_PREDICT
 
 
 def _is_weak_card(question: str, answer: str) -> bool:
@@ -149,7 +159,11 @@ def _parse_timeline(raw: object) -> dict[str, Any] | None:
     }
 
 
-def _timeline_practice_item(timeline: dict[str, Any]) -> dict[str, Any] | None:
+def _timeline_practice_item(
+    timeline: dict[str, Any],
+    *,
+    quiz_source: str = "posten_compact",
+) -> dict[str, Any] | None:
     slots = timeline.get("slots") or []
     terms = [str(s.get("label") or "").strip() for s in slots if isinstance(s, dict)]
     terms = [t for t in terms if t]
@@ -185,7 +199,7 @@ def _timeline_practice_item(timeline: dict[str, Any]) -> dict[str, Any] | None:
         "answer_type": "label_diagram",
         "answer": json.dumps(expected, ensure_ascii=False),
         "diagram": diagram,
-        "source": "posten_compact",
+        "source": quiz_source,
     }
 
 
@@ -194,6 +208,8 @@ def _parse_posten_compact_payload(
     *,
     card_target: int,
     question_target: int,
+    quiz_source: str = "posten_compact",
+    facts_min: int | None = None,
 ) -> dict[str, Any]:
     parsed = parse_json_object(text)
     if not isinstance(parsed, dict):
@@ -209,10 +225,10 @@ def _parse_posten_compact_payload(
     )
     for q in questions:
         q["question_type"] = "concept"
-        q["source"] = "posten_compact"
+        q["source"] = quiz_source
     timeline = _parse_timeline(parsed.get("timeline"))
 
-    min_facts = POSTEN_COMPACT_COUNTS["facts_min"]
+    min_facts = facts_min if facts_min is not None else POSTEN_COMPACT_COUNTS["facts_min"]
     min_cards = max(6, int(card_target * 0.6))
     min_questions = max(4, int(question_target * 0.6))
     if len(facts) < min_facts:
@@ -230,7 +246,13 @@ def _parse_posten_compact_payload(
     }
 
 
-def posten_compact_payload_to_modules(payload: dict[str, Any], *, title: str, focus_group: str) -> list[dict]:
+def posten_compact_payload_to_modules(
+    payload: dict[str, Any],
+    *,
+    title: str,
+    focus_group: str,
+    quiz_source: str = "posten_compact",
+) -> list[dict]:
     goal = str(payload.get("goal") or "").strip()
     facts = list(payload.get("facts") or [])
     cards = list(payload.get("cards") or [])
@@ -238,7 +260,7 @@ def posten_compact_payload_to_modules(payload: dict[str, Any], *, title: str, fo
     timeline = payload.get("timeline")
     practice: list[dict] = []
     if isinstance(timeline, dict):
-        item = _timeline_practice_item(timeline)
+        item = _timeline_practice_item(timeline, quiz_source=quiz_source)
         if item:
             practice.append(item)
 
@@ -301,6 +323,7 @@ def _complete_posten_compact(
     model: str | None,
     num_predict: int,
     label: str,
+    system: str,
     images: list[tuple[bytes, str]] | None = None,
 ) -> dict:
     last_exc: LlmError | None = None
@@ -309,7 +332,7 @@ def _complete_posten_compact(
             result = complete(
                 prompt=prompt,
                 provider=provider,
-                system=POSTEN_COMPACT_SYSTEM,
+                system=system,
                 model=model,
                 num_predict=num_predict,
                 json_mode=True,
@@ -344,6 +367,7 @@ def generate_posten_compact(
     provider_override: str | None = None,
     target_prefs: dict | None = None,
     fallback_prefs: dict | None = None,
+    trainer_preset: str | None = None,
 ) -> dict:
     from app.ai.catalog import model_supports_vision_input
     from app.ai.subject_focus import detect_focus_group
@@ -357,11 +381,21 @@ def generate_posten_compact(
         detect_focus_group(subject=unit.subject, task_type=str(unit.task_type or "interactive"))
         or "general"
     )
+    from app.core.trainer_presets import detect_trainer_preset
+
+    preset_id = str(trainer_preset or "").strip() or detect_trainer_preset(options)
+    if preset_id not in _COMPACT_SINGLE_SHOT_PRESETS:
+        preset_id = "posten_compact"
+    preset_counts = compact_preset_counts(preset_id)
     difficulty = int(unit.difficulty or 3)
-    card_target = int(options.get("cards") or POSTEN_COMPACT_COUNTS["cards"])
-    question_target = int(options.get("questions") or POSTEN_COMPACT_COUNTS["quiz"])
+    card_target = int(options.get("cards") or preset_counts["cards"])
+    question_target = int(options.get("questions") or preset_counts["quiz"])
     style = str(options.get("style") or "exam")
     answer_length = str(options.get("answer_length") or "short")
+    quiz_source = preset_id
+    system_prompt = build_compact_system_prompt(preset_id)
+    num_predict = _compact_num_predict(preset_id)
+    facts_min = int(preset_counts["facts_min"])
 
     images = load_unit_source_images(unit)
     multimodal = len(images) > 0
@@ -392,8 +426,9 @@ def generate_posten_compact(
     else:
         pipeline = "multimodal"
         _log.info(
-            "generate_posten_compact multimodal unit_id=%s images=%d provider=%s",
+            "generate_posten_compact multimodal unit_id=%s preset=%s images=%d provider=%s",
             unit_id,
+            preset_id,
             len(images),
             provider,
         )
@@ -407,7 +442,7 @@ def generate_posten_compact(
         vision_used=vision_used,
     )
     if progress:
-        progress("generating_posten_compact", ai_tasks=ai_tasks, multimodal=multimodal)
+        progress("generating_posten_compact", ai_tasks=ai_tasks, multimodal=multimodal, preset=preset_id)
 
     prompt = build_posten_compact_prompt(
         title=title,
@@ -422,6 +457,7 @@ def generate_posten_compact(
         multimodal=multimodal,
         card_target=card_target,
         question_target=question_target,
+        preset_id=preset_id,
     )
 
     t0 = time.monotonic()
@@ -433,13 +469,14 @@ def generate_posten_compact(
 
     for attempt in (1, 2):
         if progress:
-            progress("generating_posten_compact", attempt=attempt, multimodal=multimodal)
+            progress("generating_posten_compact", attempt=attempt, multimodal=multimodal, preset=preset_id)
         result = _complete_posten_compact(
             prompt=prompt + retry_hint,
             provider=provider,
             model=model,
-            num_predict=_COMPACT_NUM_PREDICT,
-            label=f"posten_compact_{attempt}",
+            num_predict=num_predict,
+            label=f"{preset_id}_{attempt}",
+            system=system_prompt,
             images=images if multimodal else None,
         )
         try:
@@ -447,8 +484,15 @@ def generate_posten_compact(
                 result["text"],
                 card_target=card_target,
                 question_target=question_target,
+                quiz_source=quiz_source,
+                facts_min=facts_min,
             )
-            modules = posten_compact_payload_to_modules(payload, title=title, focus_group=focus_group)
+            modules = posten_compact_payload_to_modules(
+                payload,
+                title=title,
+                focus_group=focus_group,
+                quiz_source=quiz_source,
+            )
             min_modules = 4 if len(modules) >= 4 else 3
             modules, dedupe_warnings = dedupe_interactive_modules(modules)
             for warning in dedupe_warnings:
@@ -477,7 +521,7 @@ def generate_posten_compact(
             if attempt == 1 and exc.code == "thin_content":
                 retry_hint = (
                     "\n\nWICHTIG — vorheriger Versuch zu dünn. "
-                    f"Liefere mindestens {POSTEN_COMPACT_COUNTS['facts_min']} facts, "
+                    f"Liefere mindestens {facts_min} facts, "
                     f"{card_target} cards und {question_target} quiz — keine Auslassungen.\n"
                 )
                 continue
@@ -490,7 +534,7 @@ def generate_posten_compact(
     total_cards = sum(len(m["content"]["cards"]) for m in modules)
     total_questions = sum(len(m["quiz"]["questions"]) for m in modules)
     meta = dict(result)
-    meta["generation_mode"] = "posten_compact"
+    meta["generation_mode"] = preset_id
     meta["multimodal"] = multimodal
     meta["pipeline"] = pipeline
     if progress:
@@ -523,8 +567,9 @@ def generate_posten_compact(
         ),
     )
     _log.info(
-        "generate_posten_compact done unit_id=%s multimodal=%s cards=%d questions=%d ms=%d",
+        "generate_posten_compact done unit_id=%s preset=%s multimodal=%s cards=%d questions=%d ms=%d",
         unit_id,
+        preset_id,
         multimodal,
         total_cards,
         total_questions,

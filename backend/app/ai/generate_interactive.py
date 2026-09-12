@@ -738,7 +738,7 @@ def generate_interactive_modules(
         math_focus=str(math_focus) if math_focus else None,
     ):
         _log.info(
-            "generate_interactive route=posten_compact unit_id=%s preset=%s",
+            "generate_interactive route=compact_single_shot unit_id=%s preset=%s",
             unit_id,
             trainer_preset,
         )
@@ -755,6 +755,7 @@ def generate_interactive_modules(
             provider_override=effective_provider,
             target_prefs=target_prefs,
             fallback_prefs=fallback_prefs,
+            trainer_preset=trainer_preset,
         )
 
     if progress:

@@ -19,6 +19,11 @@ def test_should_use_posten_compact_routing():
         focus_group="nmg",
         math_focus=None,
     )
+    assert should_use_posten_compact(
+        trainer_preset="exam_review",
+        focus_group="nmg",
+        math_focus=None,
+    )
     assert not should_use_posten_compact(
         trainer_preset="standard",
         focus_group="nmg",
@@ -29,7 +34,21 @@ def test_should_use_posten_compact_routing():
         focus_group="german",
         math_focus="de_grammar",
     )
+    assert not should_use_posten_compact(
+        trainer_preset="exam_review",
+        focus_group="german",
+        math_focus="de_grammar",
+    )
     assert should_use_german_compact(focus_group="german", math_focus="de_grammar")
+
+
+def test_exam_review_system_prompt_and_counts():
+    from app.ai.prompts.posten_compact import EXAM_REVIEW_COUNTS, build_compact_system_prompt
+
+    system = build_compact_system_prompt("exam_review")
+    assert "Lernzielkontrolle" in system
+    assert str(EXAM_REVIEW_COUNTS["quiz"]) in system
+    assert str(EXAM_REVIEW_COUNTS["cards"]) in system
 
 
 def test_is_weak_card_rejects_tautology_and_dates():
