@@ -26,6 +26,7 @@ STAGE_MESSAGES: dict[str, str] = {
     "planning": "Gliederung wird erstellt…",
     "category": "Lernkarten und Quiz werden erzeugt…",
     "saving": "Lernblöcke werden gespeichert…",
+    "extracting_pedagogy": "Didaktik aus Quellen (Vision)…",
     "done": "Fertig",
     "partial": "Entwurf gespeichert",
     "failed": "Fehlgeschlagen",

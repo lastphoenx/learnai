@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, timezone
+from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -247,22 +248,58 @@ def get_unit_pedagogy(db: Session, user: User, unit_id: uuid.UUID) -> dict:
     return payload
 
 
-def extract_unit_pedagogy(db: Session, user: User, unit_id: uuid.UUID) -> dict:
-    """Vision für alle Bildquellen erneut ausführen (ignoriert den Didaktik-Cache)."""
-    unit = _get_unit_or_404(db, user, unit_id)
+def unit_sources_need_pedagogy_extract(unit) -> bool:
+    """True wenn mindestens eine Bildquelle ohne aktuelles strukturiertes Didaktik-JSON."""
+    from app.ai.source_pedagogy import blob_needs_pedagogy_refresh
+
+    for source in unit.sources or []:
+        if source.kind != "image":
+            continue
+        if not source.storage_path or source.purged_at is not None:
+            continue
+        if blob_needs_pedagogy_refresh(source.analysis_encrypted):
+            return True
+    return False
+
+
+def _run_vision_pedagogy_extract(
+    db: Session,
+    user: User,
+    unit,
+    *,
+    only_missing: bool,
+    progress: Any | None = None,
+) -> dict[str, int]:
+    """Vision-Didaktik auf Bildquellen — Profil-Task «vision» (z. B. ollama/qwen)."""
+    from app.core.crypto import decrypt_text_master
+
     target_prefs, fallback_prefs = resolve_unit_ai_prefs(db, user, unit.profile_id)
+    from app.ai.source_pedagogy import blob_needs_pedagogy_refresh
+
     refreshed = 0
     structured_count = 0
     raw_only_count = 0
     skipped_no_file = 0
+    skipped_cached = 0
+    pending: list = []
     for source in unit.sources or []:
         if source.kind != "image":
             continue
         if not source.storage_path or source.purged_at is not None:
             skipped_no_file += 1
             continue
-        from app.core.crypto import decrypt_text_master
+        if only_missing and not blob_needs_pedagogy_refresh(source.analysis_encrypted):
+            skipped_cached += 1
+            continue
+        pending.append(source)
 
+    total = len(pending)
+    for step, source in enumerate(pending, start=1):
+        if progress:
+            progress(
+                "extracting_pedagogy",
+                message=f"Didaktik aus Quellen ({step}/{total})…",
+            )
         name = (
             decrypt_text_master(source.original_name_encrypted)
             if source.original_name_encrypted
@@ -282,18 +319,31 @@ def extract_unit_pedagogy(db: Session, user: User, unit_id: uuid.UUID) -> dict:
                 structured_count += 1
             else:
                 raw_only_count += 1
-    db.flush()
+    return {
+        "refreshed_sources": refreshed,
+        "structured_sources": structured_count,
+        "raw_only_sources": raw_only_count,
+        "skipped_no_file": skipped_no_file,
+        "skipped_cached": skipped_cached,
+    }
+
+
+def _finalize_pedagogy_extract(
+    db: Session,
+    user: User,
+    unit_id: uuid.UUID,
+    *,
+    counts: dict[str, int],
+) -> dict:
+    unit = _get_unit_or_404(db, user, unit_id)
     payload = get_unit_pedagogy(db, user, unit_id)
-    payload["refreshed_sources"] = refreshed
-    payload["structured_sources"] = structured_count
-    payload["raw_only_sources"] = raw_only_count
-    payload["skipped_no_file"] = skipped_no_file
+    payload.update(counts)
     quality_level = (payload.get("quality") or {}).get("level")
     snapshot = pedagogy_extract_snapshot(
-        refreshed=refreshed,
-        skipped_no_file=skipped_no_file,
-        structured_count=structured_count,
-        raw_only_count=raw_only_count,
+        refreshed=int(counts.get("refreshed_sources") or 0),
+        skipped_no_file=int(counts.get("skipped_no_file") or 0),
+        structured_count=int(counts.get("structured_sources") or 0),
+        raw_only_count=int(counts.get("raw_only_sources") or 0),
         quality_level=str(quality_level) if quality_level else None,
     )
     persist_last_pedagogy(db, unit_id, snapshot)
@@ -306,4 +356,31 @@ def extract_unit_pedagogy(db: Session, user: User, unit_id: uuid.UUID) -> dict:
         analysis_current=bool(payload.get("analysis_current")),
         has_pedagogy=bool(payload.get("has_pedagogy")),
     ) or snapshot
+    return payload
+
+
+def ensure_unit_source_pedagogy(
+    db: Session,
+    user: User,
+    unit_id: uuid.UUID,
+    *,
+    progress: Any | None = None,
+) -> dict | None:
+    """Nach Multimodal-Compact: fehlende Didaktik-JSON in Quellen nach Vision-Profil."""
+    unit = _get_unit_or_404(db, user, unit_id)
+    if not unit_sources_need_pedagogy_extract(unit):
+        return None
+    if progress:
+        progress("extracting_pedagogy", message="Didaktik aus Quellen (Vision)…")
+    counts = _run_vision_pedagogy_extract(db, user, unit, only_missing=True, progress=progress)
+    db.flush()
+    return _finalize_pedagogy_extract(db, user, unit_id, counts=counts)
+
+
+def extract_unit_pedagogy(db: Session, user: User, unit_id: uuid.UUID) -> dict:
+    """Vision für alle Bildquellen erneut ausführen (ignoriert den Didaktik-Cache)."""
+    unit = _get_unit_or_404(db, user, unit_id)
+    counts = _run_vision_pedagogy_extract(db, user, unit, only_missing=False)
+    db.flush()
+    payload = _finalize_pedagogy_extract(db, user, unit_id, counts=counts)
     return payload

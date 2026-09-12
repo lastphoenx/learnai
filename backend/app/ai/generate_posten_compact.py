@@ -559,6 +559,27 @@ def generate_posten_compact(
             vision_used=vision_used,
         ),
     )
+    if multimodal:
+        from app.services.pedagogy_service import ensure_unit_source_pedagogy
+
+        try:
+            pedagogy_result = ensure_unit_source_pedagogy(db, user, unit_id, progress=progress)
+            db.commit()
+            if pedagogy_result:
+                level = (pedagogy_result.get("quality") or {}).get("level")
+                _log.info(
+                    "generate_posten_compact pedagogy_followup unit_id=%s preset=%s quality=%s refreshed=%s",
+                    unit_id,
+                    preset_id,
+                    level,
+                    pedagogy_result.get("refreshed_sources"),
+                )
+        except Exception:
+            _log.exception(
+                "generate_posten_compact pedagogy_followup failed unit_id=%s preset=%s",
+                unit_id,
+                preset_id,
+            )
     _log.info(
         "generate_posten_compact done unit_id=%s preset=%s multimodal=%s cards=%d questions=%d ms=%d",
         unit_id,
