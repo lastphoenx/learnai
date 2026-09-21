@@ -315,6 +315,32 @@ export type TrainerDrawingConfig = {
   title?: string;
 };
 
+export type TrainerImageBbox = { x: number; y: number; w: number; h: number };
+
+export type TrainerImageRef = {
+  source_id: string;
+  bbox?: TrainerImageBbox | null;
+};
+
+export type TrainerImageChoiceConfig = {
+  options: { id: string; source_id: string; bbox: TrainerImageBbox }[];
+  reference?: TrainerImageRef;
+};
+
+export type TrainerPointOnImageConfig = {
+  background: TrainerImageRef & { bbox: TrainerImageBbox };
+  reference?: TrainerImageRef;
+  candidates: { id: string; x: number; y: number }[];
+  selection_mode?: string;
+};
+
+export type TrainerGridFillConfig = {
+  rows: number;
+  cols: number;
+  cell_type: "number" | "color";
+  palette?: string[];
+};
+
 export type TrainerPracticeItem = {
   prompt: string;
   hint?: string | null;
@@ -322,6 +348,9 @@ export type TrainerPracticeItem = {
   options?: string[];
   diagram?: TrainerLabelDiagram;
   drawing?: TrainerDrawingConfig;
+  image_choice?: TrainerImageChoiceConfig;
+  point_on_image?: TrainerPointOnImageConfig;
+  grid_fill?: TrainerGridFillConfig;
 };
 
 export type TrainerContentAnalysis = {

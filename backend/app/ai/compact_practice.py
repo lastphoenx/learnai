@@ -105,12 +105,13 @@ def ensure_compact_aufgaben_module(
     if not collected:
         return modules
 
-    has_timeline = any(str(i.get("answer_type") or "") == "label_diagram" for i in collected)
-    intro = (
-        "Ordne Begriffe am Zeitstrahl zu."
-        if has_timeline
-        else "Prüfbare Wissensaufgaben — wähle die passende Antwort."
-    )
+    types = {str(i.get("answer_type") or "") for i in collected}
+    if "label_diagram" in types:
+        intro = "Ordne Begriffe am Zeitstrahl zu."
+    elif types & {"image_choice", "point_on_image", "grid_fill"}:
+        intro = "Raumaufgaben aus dem Heft — Bilder, Karte oder Raster bearbeiten."
+    else:
+        intro = "Prüfbare Wissensaufgaben — wähle die passende Antwort."
 
     aufgaben_mod = {
         "title": _COMPACT_AUFGABEN_TITLE,

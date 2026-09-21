@@ -23,7 +23,10 @@ import { CardInputExercise } from "@/components/learn/CardInputExercise";
 import { ClozeExercise } from "@/components/learn/ClozeExercise";
 import { DrawingCanvas } from "@/components/learn/DrawingCanvas";
 import { KnowledgeConceptPanel } from "@/components/learn/KnowledgeConceptPanel";
+import { GridFillExercise } from "@/components/learn/GridFillExercise";
+import { ImageChoiceExercise } from "@/components/learn/ImageChoiceExercise";
 import { LabelDiagramExercise } from "@/components/learn/LabelDiagramExercise";
+import { PointOnImageExercise } from "@/components/learn/PointOnImageExercise";
 import { PracticeChoiceExercise } from "@/components/learn/PracticeChoiceExercise";
 import { JumpStrip } from "@/components/learn/JumpStrip";
 import { QuizWeaknessPanel } from "@/components/QuizWeaknessPanel";
@@ -1235,6 +1238,111 @@ export function InteractiveTrainer({
                         hint: res.hint,
                         expected: res.expected,
                         correct_index: res.correct_index,
+                      });
+                    } catch (err) {
+                      setError(err instanceof Error ? err.message : "Antwort fehlgeschlagen");
+                    } finally {
+                      setBusy(false);
+                    }
+                  }}
+                  onContinue={() => {
+                    setPracticeResult(null);
+                    if (practiceIndex + 1 < practiceExercises.length) {
+                      setPracticeIndex(practiceIndex + 1);
+                    }
+                  }}
+                />
+              ) : currentPractice.answer_type === "image_choice" && currentPractice.image_choice ? (
+                <ImageChoiceExercise
+                  key={`${currentPractice.module_id}:${currentPractice.exercise_index}`}
+                  unitId={unitId}
+                  config={currentPractice.image_choice}
+                  busy={busy}
+                  result={practiceResult}
+                  onSubmit={async (optionId) => {
+                    setBusy(true);
+                    setError(null);
+                    try {
+                      const res = await submitPracticeAnswer(unitId, {
+                        module_id: currentPractice.module_id,
+                        exercise_index: currentPractice.exercise_index,
+                        answer: optionId,
+                      });
+                      onStateChange({ ...state, progress: res.progress, summary: res.summary });
+                      setPracticeResult({
+                        correct: res.correct,
+                        hint: res.hint,
+                        expected: res.expected,
+                      });
+                    } catch (err) {
+                      setError(err instanceof Error ? err.message : "Antwort fehlgeschlagen");
+                    } finally {
+                      setBusy(false);
+                    }
+                  }}
+                  onContinue={() => {
+                    setPracticeResult(null);
+                    if (practiceIndex + 1 < practiceExercises.length) {
+                      setPracticeIndex(practiceIndex + 1);
+                    }
+                  }}
+                />
+              ) : currentPractice.answer_type === "point_on_image" && currentPractice.point_on_image ? (
+                <PointOnImageExercise
+                  key={`${currentPractice.module_id}:${currentPractice.exercise_index}`}
+                  unitId={unitId}
+                  config={currentPractice.point_on_image}
+                  busy={busy}
+                  result={practiceResult}
+                  onSubmit={async (answer) => {
+                    setBusy(true);
+                    setError(null);
+                    try {
+                      const res = await submitPracticeAnswer(unitId, {
+                        module_id: currentPractice.module_id,
+                        exercise_index: currentPractice.exercise_index,
+                        answer,
+                      });
+                      onStateChange({ ...state, progress: res.progress, summary: res.summary });
+                      setPracticeResult({
+                        correct: res.correct,
+                        hint: res.hint,
+                        expected: res.expected,
+                      });
+                    } catch (err) {
+                      setError(err instanceof Error ? err.message : "Antwort fehlgeschlagen");
+                    } finally {
+                      setBusy(false);
+                    }
+                  }}
+                  onContinue={() => {
+                    setPracticeResult(null);
+                    if (practiceIndex + 1 < practiceExercises.length) {
+                      setPracticeIndex(practiceIndex + 1);
+                    }
+                  }}
+                />
+              ) : currentPractice.answer_type === "grid_fill" && currentPractice.grid_fill ? (
+                <GridFillExercise
+                  key={`${currentPractice.module_id}:${currentPractice.exercise_index}`}
+                  config={currentPractice.grid_fill}
+                  busy={busy}
+                  result={practiceResult}
+                  onSubmit={async (answer) => {
+                    setBusy(true);
+                    setError(null);
+                    try {
+                      const res = await submitPracticeAnswer(unitId, {
+                        module_id: currentPractice.module_id,
+                        exercise_index: currentPractice.exercise_index,
+                        answer,
+                      });
+                      onStateChange({ ...state, progress: res.progress, summary: res.summary });
+                      setPracticeResult({
+                        correct: res.correct,
+                        hint: res.hint,
+                        expected: res.expected,
+                        label_slots: res.label_slots,
                       });
                     } catch (err) {
                       setError(err instanceof Error ? err.message : "Antwort fehlgeschlagen");

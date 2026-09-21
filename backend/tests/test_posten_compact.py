@@ -51,6 +51,55 @@ def test_exam_review_system_prompt_and_counts():
     assert str(EXAM_REVIEW_COUNTS["cards"]) in system
 
 
+def test_spatial_system_prompt_extension():
+    from app.ai.prompts.posten_compact import build_compact_system_prompt
+
+    base = build_compact_system_prompt("posten_compact", spatial_geometry=False)
+    spatial = build_compact_system_prompt("posten_compact", spatial_geometry=True)
+    assert "image_choice_items" not in base
+    assert "image_choice_items" in spatial
+
+
+def test_posten_compact_spatial_payload_to_practice():
+    raw = {
+        "goal": "Du kennst Ansichten.",
+        "facts": [
+            {"title": "Aufsicht", "text": "Von oben."},
+            {"title": "Vorderansicht", "text": "Von vorne."},
+            {"title": "Bauplan", "text": "Zahlen im Raster."},
+        ],
+        "cards": [{"question": f"Frage {i}?", "answer": f"A{i}."} for i in range(12)],
+        "quiz": [
+            {"q": f"Q{i}?", "options": ["A", "B", "C", "D"], "answer": 0, "explanation": "x"}
+            for i in range(8)
+        ],
+        "grid_fill_items": [
+            {
+                "prompt": "Trage Höhen ein.",
+                "rows": 2,
+                "cols": 2,
+                "cell_type": "number",
+                "answer": [[1, 2], [3, None]],
+            }
+        ],
+    }
+    payload = _parse_posten_compact_payload(
+        json.dumps(raw, ensure_ascii=False),
+        card_target=12,
+        question_target=8,
+    )
+    assert len(payload["grid_fill_items"]) == 1
+    modules = posten_compact_payload_to_modules(
+        payload,
+        title="Geo",
+        focus_group="math",
+        source_ids=["00000000-0000-0000-0000-000000000001"],
+    )
+    aufgaben = next(m for m in modules if m["title"] == "Aufgaben")
+    practice = aufgaben["content"].get("practice") or []
+    assert any(p.get("answer_type") == "grid_fill" for p in practice)
+
+
 def test_is_weak_card_rejects_tautology_and_dates():
     assert _is_weak_card("Was ist der Fachbegriff «Fundstücke»?", "Fundstücke")
     assert _is_weak_card("Was bedeutet «9500 bis 5500 v. Chr.»?", "9500 bis 5500 v. Chr.")

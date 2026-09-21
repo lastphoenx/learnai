@@ -630,6 +630,20 @@ def submit_practice_answer(
             )
         except (TypeError, ValueError):
             is_correct = False
+    elif answer_type == "image_choice":
+        from app.core.spatial_compact import grade_image_choice
+
+        is_correct = grade_image_choice(expected, answer_text)
+    elif answer_type == "point_on_image":
+        from app.core.spatial_compact import grade_point_on_image
+
+        is_correct = grade_point_on_image(expected, answer_text, item=item)
+    elif answer_type == "grid_fill":
+        from app.core.spatial_compact import score_grid_fill_answer
+
+        grid_score = score_grid_fill_answer(expected, answer_text)
+        is_correct = bool(grid_score.get("correct"))
+        label_score = grid_score
     elif answer_type == "drawing":
         is_correct = True
     else:
@@ -669,8 +683,22 @@ def submit_practice_answer(
     label_slots: list[dict] | None = None
     if answer_type == "label_diagram":
         label_slots = (label_score or {}).get("slots") if isinstance((label_score or {}).get("slots"), list) else []
+    elif answer_type == "grid_fill":
+        raw_slots = (label_score or {}).get("slots") if isinstance((label_score or {}).get("slots"), list) else []
+        label_slots = [
+            {
+                "id": f"{s.get('row')}-{s.get('col')}",
+                "correct": bool(s.get("correct")),
+                "expected_term": str(s.get("expected") if s.get("expected") is not None else ""),
+                "user_term": str(s.get("user") if s.get("user") is not None else ""),
+            }
+            for s in raw_slots
+            if isinstance(s, dict)
+        ]
     elif not is_correct:
-        if answer_type == "choice" and str(expected).isdigit():
+        if answer_type in ("image_choice", "point_on_image"):
+            expected_label = expected or None
+        elif answer_type == "choice" and str(expected).isdigit():
             correct_index = int(expected)
             if 0 <= correct_index < len(options):
                 expected_label = str(options[correct_index])

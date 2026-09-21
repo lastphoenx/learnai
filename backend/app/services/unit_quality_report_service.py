@@ -91,6 +91,19 @@ def _practice_detail_lines(item: dict) -> list[str]:
         if title:
             detail += f", Titel: {title[:80]}"
         lines.append(detail)
+    elif answer_type == "image_choice":
+        ic = item.get("image_choice") if isinstance(item.get("image_choice"), dict) else {}
+        opts = ic.get("options") if isinstance(ic.get("options"), list) else []
+        lines.append(f"- Bildwahl: {len(opts)} Optionen, Lösung {item.get('answer')}")
+    elif answer_type == "point_on_image":
+        poi = item.get("point_on_image") if isinstance(item.get("point_on_image"), dict) else {}
+        cand = poi.get("candidates") if isinstance(poi.get("candidates"), list) else []
+        lines.append(f"- Karte: {len(cand)} Standorte, Lösung {item.get('answer')}")
+    elif answer_type == "grid_fill":
+        gf = item.get("grid_fill") if isinstance(item.get("grid_fill"), dict) else {}
+        lines.append(
+            f"- Raster: {gf.get('rows')}×{gf.get('cols')}, Typ {gf.get('cell_type') or 'number'}"
+        )
     elif answer_type == "choice":
         options = item.get("options") or []
         if isinstance(options, list) and options:

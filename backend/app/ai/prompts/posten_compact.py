@@ -63,11 +63,35 @@ EXAM_REVIEW_SYSTEM_EXTRA = (
 )
 
 
-def build_compact_system_prompt(preset_id: str = "posten_compact") -> str:
+POSTEN_COMPACT_SPATIAL_EXTRA = (
+    "Zusatz für Raumgeometrie (nur wenn Bildmaterial Ansichten, Baupläne, Netze oder Karten enthält):\n"
+    "- Reine Zeichenaufgaben («zeichne», «male») nicht als Quiz — stattdessen prüfbare Varianten unten.\n"
+    "- image_choice_items: 1-4 Aufgaben mit Bild-Optionen. "
+    'Jede Option: {"id":"A","image_ref":{"source_index":0,"x":0.1,"y":0.2,"w":0.15,"h":0.12}} '
+    "(x,y,w,h relativ 0-1 zum Quellbild). answer = id der richtigen Option.\n"
+    "- point_on_image_items: 1-4 Aufgaben «Fotograf-Standort». "
+    'background_image_ref wie oben (bbox optional, sonst ganzes Bild). '
+    'candidates: [{"id":"A","x":0.26,"y":0.44}, ...], answer = id. selection_mode: "candidate".\n'
+    "- grid_fill_items: 1-3 Bauplan- oder Einfärb-Raster. "
+    'rows, cols, cell_type "number" oder "color", answer als 2D-Array (null = leer). '
+    "Farben nur: yellow, green, purple, blue, orange, empty.\n"
+    "- Wenn mindestens ein spatial-Item gesetzt ist: quiz um 2-4 Fragen kürzer (Regelwissen reicht).\n"
+)
+
+
+def build_compact_system_prompt(preset_id: str = "posten_compact", *, spatial_geometry: bool = False) -> str:
     pid = (preset_id or "posten_compact").strip()
+    base = POSTEN_COMPACT_SYSTEM
     if pid == "exam_review":
-        return POSTEN_COMPACT_SYSTEM + "\n" + EXAM_REVIEW_SYSTEM_EXTRA
-    return POSTEN_COMPACT_SYSTEM
+        base = base + "\n" + EXAM_REVIEW_SYSTEM_EXTRA
+    if spatial_geometry:
+        base = (
+            base
+            + '\nErweitertes Schema (zusätzliche optionale Felder): '
+            + '"image_choice_items":[],"point_on_image_items":[],"grid_fill_items":[]\n'
+            + POSTEN_COMPACT_SPATIAL_EXTRA
+        )
+    return base
 
 
 def build_posten_compact_prompt(
@@ -85,6 +109,7 @@ def build_posten_compact_prompt(
     card_target: int | None = None,
     question_target: int | None = None,
     preset_id: str = "posten_compact",
+    spatial_geometry: bool = False,
 ) -> str:
     counts = compact_preset_counts(preset_id)
     cards = card_target if card_target is not None else counts["cards"]
@@ -115,7 +140,7 @@ def build_posten_compact_prompt(
         if (preset_id or "").strip() == "exam_review"
         else "Erstelle einen kompakten Lerntrainer für diese Doppelseite."
     )
-    return (
+    prompt = (
         f"Thema/Titel: {title}\n"
         f"Auftrag: {brief or default_brief}\n"
         f"Fach: {subject or 'Schulfach'}\n"
@@ -127,3 +152,9 @@ def build_posten_compact_prompt(
         f"{SOURCE_RULES}\n\n"
         f"{material_block}"
     )
+    if spatial_geometry:
+        prompt += (
+            "\nRaumgeometrie: Nutze image_choice_items, point_on_image_items und grid_fill_items "
+            "für Aufgaben direkt aus den Bildern (Netze, Baupläne, Kartenstandorte).\n"
+        )
+    return prompt

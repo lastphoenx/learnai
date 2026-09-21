@@ -1,0 +1,33 @@
+{
+  "_meta": {
+    "subject_group": "math",
+    "subject_hint": "Körper, Ansichten und Pläne",
+    "min_method_labels": 2
+  },
+  "summary": "Ansichten, Baupläne und Standorte auf Karten — Raumvorstellung Klasse 6.",
+  "is_metadata_only": false,
+  "methods": [
+    {
+      "label": "Höchste Zahl pro Spalte = Ansicht von vorne",
+      "when": "Bauplan in Seitenansicht übertragen",
+      "example": "Spalte mit 4,2,1 → Höhe 4"
+    },
+    {
+      "label": "Aufsicht: belegte Felder von oben",
+      "when": "Grundriss aus Bauplan lesen",
+      "example": "Zahl > 0 bedeutet Würfel an dieser Stelle"
+    }
+  ],
+  "worked_examples": [
+    {
+      "problem": "Bauplan A/B/C zu drei Ansichten",
+      "method_label": "Höchste Zahl pro Spalte = Ansicht von vorne",
+      "steps": ["Vergleiche Spaltenhöhen mit Vorderansicht", "Prüfe Aufsicht auf belegte Zellen"]
+    }
+  ],
+  "exercises": [
+    {"ref": "2a", "text": "Welcher Bauplan passt zu allen drei Ansichten?", "suggested_method": "Höchste Zahl pro Spalte = Ansicht von vorne"}
+  ],
+  "exercise_patterns": ["Bauplan zu Ansichten", "Fotograf-Standort auf Karte"],
+  "teaching_notes": ["Reine Zeichenaufgaben im Heft; digital Bildwahl und Raster"]
+}

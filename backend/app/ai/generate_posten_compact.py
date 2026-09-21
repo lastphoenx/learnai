@@ -27,6 +27,13 @@ from app.ai.providers import complete, parse_json_object
 from app.ai.validators.interactive import dedupe_interactive_modules, validate_interactive_modules
 from app.core.basiswissen import empty_basiswissen
 from app.core.label_diagram import build_label_diagram_from_terms
+from app.core.spatial_compact import (
+    parse_grid_fill_items,
+    parse_image_choice_items,
+    parse_point_on_image_items,
+    should_enable_spatial_compact_exercises,
+    spatial_raw_to_practice_items,
+)
 from app.core.quiz_numeric import repair_quiz_block
 from app.models import User
 from app.services.unit_service import _dec_unit, _get_unit_or_404
@@ -228,6 +235,9 @@ def _parse_posten_compact_payload(
         q["question_type"] = "concept"
         q["source"] = quiz_source
     timeline = _parse_timeline(parsed.get("timeline"))
+    image_choice_items = parse_image_choice_items(parsed.get("image_choice_items"))
+    point_on_image_items = parse_point_on_image_items(parsed.get("point_on_image_items"))
+    grid_fill_items = parse_grid_fill_items(parsed.get("grid_fill_items"))
 
     min_facts = facts_min if facts_min is not None else POSTEN_COMPACT_COUNTS["facts_min"]
     min_cards = max(6, int(card_target * 0.6))
@@ -244,7 +254,19 @@ def _parse_posten_compact_payload(
         "cards": cards,
         "quiz_questions": questions,
         "timeline": timeline,
+        "image_choice_items": image_choice_items,
+        "point_on_image_items": point_on_image_items,
+        "grid_fill_items": grid_fill_items,
     }
+
+
+def _source_ids_from_unit(unit: Any) -> list[str]:
+    ids: list[str] = []
+    for src in unit.sources or []:
+        sid = str(getattr(src, "id", "") or "")
+        if sid:
+            ids.append(sid)
+    return ids
 
 
 def posten_compact_payload_to_modules(
@@ -253,6 +275,7 @@ def posten_compact_payload_to_modules(
     title: str,
     focus_group: str,
     quiz_source: str = "posten_compact",
+    source_ids: list[str] | None = None,
 ) -> list[dict]:
     goal = str(payload.get("goal") or "").strip()
     facts = list(payload.get("facts") or [])
@@ -264,6 +287,15 @@ def posten_compact_payload_to_modules(
         item = _timeline_practice_item(timeline, quiz_source=quiz_source)
         if item:
             extra_practice.append(item)
+
+    spatial_items = spatial_raw_to_practice_items(
+        image_choice=list(payload.get("image_choice_items") or []),
+        point_on_image=list(payload.get("point_on_image_items") or []),
+        grid_fill=list(payload.get("grid_fill_items") or []),
+        source_ids=source_ids or [],
+        quiz_source=quiz_source,
+    )
+    extra_practice.extend(spatial_items)
 
     modules: list[dict] = [
         {
@@ -366,7 +398,15 @@ def generate_posten_compact(
     from app.services.ai_run_snapshot import build_ai_run_snapshot, persist_last_ai_run, resolve_generation_ai_tasks
     from app.services.profile_service import resolve_unit_ai_prefs
 
+    from app.models import LearningRecord
+    from app.services.crypto_json import decrypt_json
+
     unit = _get_unit_or_404(db, user, unit_id)
+    record = db.query(LearningRecord).filter(LearningRecord.unit_id == unit.id).first()
+    recon = decrypt_json(record.reconstruction_encrypted) if record and record.reconstruction_encrypted else {}
+    if not isinstance(recon, dict):
+        recon = {}
+    math_focus = recon.get("math_focus")
     if target_prefs is None or fallback_prefs is None:
         target_prefs, fallback_prefs = resolve_unit_ai_prefs(db, user, unit.profile_id)
     focus_group = (
@@ -385,12 +425,17 @@ def generate_posten_compact(
     style = str(options.get("style") or "exam")
     answer_length = str(options.get("answer_length") or "short")
     quiz_source = preset_id
-    system_prompt = build_compact_system_prompt(preset_id)
-    num_predict = _compact_num_predict(preset_id)
-    facts_min = int(preset_counts["facts_min"])
-
     images = load_unit_source_images(unit)
     multimodal = len(images) > 0
+    spatial_geometry = should_enable_spatial_compact_exercises(
+        focus_group=focus_group,
+        math_focus=str(math_focus) if math_focus else None,
+        multimodal=multimodal,
+    )
+    system_prompt = build_compact_system_prompt(preset_id, spatial_geometry=spatial_geometry)
+    num_predict = _compact_num_predict(preset_id)
+    facts_min = int(preset_counts["facts_min"])
+    source_ids = _source_ids_from_unit(unit)
     notes = ""
     pipeline = "text_digest"
     vision_used = False
@@ -450,6 +495,7 @@ def generate_posten_compact(
         card_target=card_target,
         question_target=question_target,
         preset_id=preset_id,
+        spatial_geometry=spatial_geometry,
     )
 
     t0 = time.monotonic()
@@ -484,6 +530,7 @@ def generate_posten_compact(
                 title=title,
                 focus_group=focus_group,
                 quiz_source=quiz_source,
+                source_ids=source_ids,
             )
             min_modules = 4 if len(modules) >= 4 else 3
             modules, dedupe_warnings = dedupe_interactive_modules(modules)
