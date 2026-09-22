@@ -51,11 +51,12 @@ def spatial_report_lines(unit: LearningUnit, recon: dict | None) -> list[str]:
         f"(image_choice={counts.get('image_choice', 0)}, "
         f"point_on_image={counts.get('point_on_image', 0)}, "
         f"grid_fill={counts.get('grid_fill', 0)}, "
-        f"region_paint={counts.get('region_paint', 0)})"
+        f"region_paint={counts.get('region_paint', 0)}, "
+        f"building_paint={counts.get('building_paint', 0)})"
     )
     if preset not in ("posten_compact", "exam_review"):
         lines.append(
-            "- Hinweis: `image_choice` / `point_on_image` / `grid_fill` / `region_paint` "
+            "- Hinweis: `image_choice` / `point_on_image` / `grid_fill` / `region_paint` / `building_paint` "
             "laufen nur über Preset **posten_compact** oder **exam_review**."
         )
     elif focus_group == "math" and _math_focus_geometry(str(math_focus) if math_focus else None):

@@ -339,6 +339,7 @@ export type TrainerGridFillConfig = {
   cols: number;
   cell_type: "number" | "color";
   palette?: string[];
+  validation?: "exact_match" | "derived_projection";
 };
 
 export type TrainerRegionPaintRegion = {
@@ -348,11 +349,12 @@ export type TrainerRegionPaintRegion = {
 };
 
 export type TrainerRegionPaintConfig = {
-  template: string;
+  template?: string;
   title?: string;
   view_width?: number;
   view_height?: number;
   regions: TrainerRegionPaintRegion[];
+  height_matrix?: number[][];
   palette?: string[];
 };
 
@@ -367,6 +369,7 @@ export type TrainerPracticeItem = {
   point_on_image?: TrainerPointOnImageConfig;
   grid_fill?: TrainerGridFillConfig;
   region_paint?: TrainerRegionPaintConfig;
+  building_paint?: TrainerRegionPaintConfig;
 };
 
 export type TrainerContentAnalysis = {

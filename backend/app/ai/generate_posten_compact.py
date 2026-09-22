@@ -33,6 +33,7 @@ from app.core.spatial_compact import (
     parse_grid_fill_items,
     parse_image_choice_items,
     parse_point_on_image_items,
+    parse_building_paint_items,
     parse_region_paint_items,
     should_enable_spatial_compact_exercises,
     spatial_raw_to_practice_items,
@@ -242,6 +243,7 @@ def _parse_posten_compact_payload(
     point_on_image_items = parse_point_on_image_items(parsed.get("point_on_image_items"))
     grid_fill_items = parse_grid_fill_items(parsed.get("grid_fill_items"))
     region_paint_items = parse_region_paint_items(parsed.get("region_paint_items"))
+    building_paint_items = parse_building_paint_items(parsed.get("building_paint_items"))
 
     min_facts = facts_min if facts_min is not None else POSTEN_COMPACT_COUNTS["facts_min"]
     min_cards = max(6, int(card_target * 0.6))
@@ -262,6 +264,7 @@ def _parse_posten_compact_payload(
         "point_on_image_items": point_on_image_items,
         "grid_fill_items": grid_fill_items,
         "region_paint_items": region_paint_items,
+        "building_paint_items": building_paint_items,
     }
 
 
@@ -298,6 +301,7 @@ def posten_compact_payload_to_modules(
         point_on_image=list(payload.get("point_on_image_items") or []),
         grid_fill=list(payload.get("grid_fill_items") or []),
         region_paint=list(payload.get("region_paint_items") or []),
+        building_paint=list(payload.get("building_paint_items") or []),
         source_ids=source_ids or [],
         quiz_source=quiz_source,
     )

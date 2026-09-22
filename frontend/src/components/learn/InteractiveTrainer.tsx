@@ -1358,10 +1358,15 @@ export function InteractiveTrainer({
                     }
                   }}
                 />
-              ) : currentPractice.answer_type === "region_paint" && currentPractice.region_paint ? (
+              ) : (currentPractice.answer_type === "region_paint" && currentPractice.region_paint) ||
+                (currentPractice.answer_type === "building_paint" && currentPractice.building_paint) ? (
                 <RegionPaintExercise
                   key={`${currentPractice.module_id}:${currentPractice.exercise_index}`}
-                  config={currentPractice.region_paint}
+                  config={
+                    currentPractice.answer_type === "building_paint"
+                      ? currentPractice.building_paint!
+                      : currentPractice.region_paint!
+                  }
                   busy={busy}
                   result={practiceResult}
                   onSubmit={async (answer) => {

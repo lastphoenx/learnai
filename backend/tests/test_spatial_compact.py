@@ -11,6 +11,7 @@ from app.core.spatial_compact import (
     parse_grid_fill_items,
     parse_image_choice_items,
     parse_point_on_image_items,
+    parse_building_paint_items,
     parse_region_paint_items,
     score_grid_fill_answer,
     score_region_paint_answer,
@@ -146,6 +147,29 @@ def test_score_region_paint_answer():
     bad = json.dumps({"top": "green", "left": "purple"})
     assert score_region_paint_answer(expected, ok)["correct"]
     assert not score_region_paint_answer(expected, bad)["correct"]
+
+
+def test_building_paint_to_practice():
+    raw = parse_building_paint_items(
+        [
+            {
+                "prompt": "Färbe das Gebäude.",
+                "height_matrix": [[1, 0], [1, 2]],
+                "colored_faces": {"0,0,0,top": "green"},
+            }
+        ]
+    )
+    assert len(raw) == 1
+    items = spatial_raw_to_practice_items(
+        image_choice=[],
+        point_on_image=[],
+        grid_fill=[],
+        region_paint=[],
+        building_paint=raw,
+        source_ids=[],
+    )
+    assert items[0]["answer_type"] == "building_paint"
+    assert items[0]["building_paint"]["regions"]
 
 
 def test_count_spatial_practice_in_modules():

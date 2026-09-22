@@ -121,6 +121,7 @@ def _strip_practice_answers(content: dict | None) -> dict | None:
             "point_on_image",
             "grid_fill",
             "region_paint",
+            "building_paint",
         ):
             if key in item and item[key] is not None:
                 entry[key] = item[key]
@@ -648,9 +649,17 @@ def submit_practice_answer(
     elif answer_type == "grid_fill":
         from app.core.spatial_compact import score_grid_fill_answer
 
-        grid_score = score_grid_fill_answer(expected, answer_text)
+        gf = item.get("grid_fill") if isinstance(item.get("grid_fill"), dict) else {}
+        validation = str(gf.get("validation") or "exact_match")
+        grid_score = score_grid_fill_answer(expected, answer_text, validation=validation)
         is_correct = bool(grid_score.get("correct"))
         label_score = grid_score
+    elif answer_type == "building_paint":
+        from app.core.spatial_compact import score_region_paint_answer
+
+        paint_score = score_region_paint_answer(expected, answer_text)
+        is_correct = bool(paint_score.get("correct"))
+        label_score = paint_score
     elif answer_type == "region_paint":
         from app.core.spatial_compact import score_region_paint_answer
 
@@ -708,7 +717,7 @@ def submit_practice_answer(
             for s in raw_slots
             if isinstance(s, dict)
         ]
-    elif answer_type == "region_paint":
+    elif answer_type in ("region_paint", "building_paint"):
         raw_slots = (label_score or {}).get("slots") if isinstance((label_score or {}).get("slots"), list) else []
         label_slots = [
             {

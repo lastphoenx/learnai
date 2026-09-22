@@ -16,7 +16,7 @@ GRID_COLOR_PALETTE = ("yellow", "green", "purple", "blue", "orange", "empty")
 _GRID_COLOR_PALETTE = GRID_COLOR_PALETTE
 
 SPATIAL_ANSWER_TYPES = frozenset(
-    {"image_choice", "point_on_image", "grid_fill", "region_paint"}
+    {"image_choice", "point_on_image", "grid_fill", "region_paint", "building_paint"}
 )
 
 
@@ -235,23 +235,44 @@ def parse_grid_fill_items(raw: object) -> list[dict[str, Any]]:
             cols = int(item.get("cols", 0))
         except (TypeError, ValueError):
             continue
-        if not prompt or rows < 2 or rows > 12 or cols < 2 or cols > 12:
+        validation = str(item.get("validation") or "exact_match").strip().lower()
+        if validation not in ("exact_match", "derived_projection"):
+            validation = "exact_match"
+        if validation == "derived_projection":
+            if rows < 2 or rows > 12 or cols < 2 or cols > 12:
+                continue
+            cell_type = "number"
+        elif not prompt or rows < 2 or rows > 12 or cols < 2 or cols > 12:
             continue
         cell_type = str(item.get("cell_type") or "number").strip().lower()
         if cell_type not in ("number", "color"):
             cell_type = "number"
         answer_raw = item.get("answer")
-        if not isinstance(answer_raw, list) or len(answer_raw) != rows:
+        if validation == "derived_projection":
+            if not isinstance(answer_raw, dict):
+                continue
+            from app.core.iso_building import building_projections, normalize_height_matrix
+
+            ref_matrix = normalize_height_matrix(answer_raw.get("height_matrix"))
+            if ref_matrix is None:
+                continue
+            grid = building_projections(ref_matrix)
+            if not all(k in grid for k in ("top", "front", "right")):
+                continue
+            answer_payload: Any = grid
+        elif not isinstance(answer_raw, list) or len(answer_raw) != rows:
             continue
-        grid: list[list[Any]] = []
-        ok = True
-        for row in answer_raw:
-            if not isinstance(row, list) or len(row) != cols:
-                ok = False
-                break
-            grid.append([_parse_grid_cell(cell, cell_type) for cell in row])
-        if not ok:
-            continue
+        else:
+            grid: list[list[Any]] = []
+            ok = True
+            for row in answer_raw:
+                if not isinstance(row, list) or len(row) != cols:
+                    ok = False
+                    break
+                grid.append([_parse_grid_cell(cell, cell_type) for cell in row])
+            if not ok:
+                continue
+            answer_payload = grid
         palette = item.get("palette")
         if cell_type == "color" and isinstance(palette, list):
             pal = [str(p).strip().lower() for p in palette if str(p).strip()]
@@ -266,7 +287,8 @@ def parse_grid_fill_items(raw: object) -> list[dict[str, Any]]:
                 "cols": cols,
                 "cell_type": cell_type,
                 "palette": pal[:6],
-                "answer": grid,
+                "validation": validation,
+                "answer": answer_payload,
             }
         )
     return out[:6]
@@ -319,12 +341,64 @@ def parse_region_paint_items(raw: object) -> list[dict[str, Any]]:
     return out[:6]
 
 
+def parse_building_paint_items(raw: object) -> list[dict[str, Any]]:
+    from app.core.iso_building import build_region_paint_layout, normalize_height_matrix
+
+    if not isinstance(raw, list):
+        return []
+    out: list[dict[str, Any]] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        prompt = str(item.get("prompt") or "").strip()
+        matrix = normalize_height_matrix(item.get("height_matrix"))
+        if not prompt or not matrix:
+            continue
+        colored = item.get("colored_faces")
+        if not isinstance(colored, dict) or not colored:
+            answer_raw = item.get("answer")
+            if isinstance(answer_raw, dict):
+                colored = answer_raw
+            else:
+                continue
+        parsed_answer: dict[str, str] = {}
+        layout = build_region_paint_layout(matrix, title="Gebäude (isometrisch)")
+        valid_ids = {str(r.get("id")) for r in layout.get("regions") or [] if r.get("id")}
+        for key, value in colored.items():
+            rid = str(key).strip()
+            color = _parse_grid_cell(value, "color")
+            if not rid or not color or (valid_ids and rid not in valid_ids):
+                continue
+            parsed_answer[rid] = color
+        if not parsed_answer:
+            continue
+        palette_raw = item.get("palette")
+        if isinstance(palette_raw, list):
+            pal = [str(p).strip().lower() for p in palette_raw if str(p).strip()]
+            pal = [p for p in pal if p in _GRID_COLOR_PALETTE and p != "empty"]
+        else:
+            pal = [c for c in _GRID_COLOR_PALETTE if c != "empty"][:5]
+        out.append(
+            {
+                "prompt": prompt[:500],
+                "hint": str(item.get("hint") or "")[:300] or None,
+                "height_matrix": matrix,
+                "answer": parsed_answer,
+                "palette": pal[:6]
+                if pal
+                else [c for c in _GRID_COLOR_PALETTE if c != "empty"][:5],
+            }
+        )
+    return out[:6]
+
+
 def count_raw_spatial_fields(payload: dict[str, Any]) -> int:
     return (
         len(payload.get("image_choice_items") or [])
         + len(payload.get("point_on_image_items") or [])
         + len(payload.get("grid_fill_items") or [])
         + len(payload.get("region_paint_items") or [])
+        + len(payload.get("building_paint_items") or [])
     )
 
 
@@ -350,12 +424,15 @@ def spatial_raw_to_practice_items(
     point_on_image: list[dict[str, Any]],
     grid_fill: list[dict[str, Any]],
     region_paint: list[dict[str, Any]] | None = None,
+    building_paint: list[dict[str, Any]] | None = None,
     source_ids: list[str],
     quiz_source: str = "posten_compact",
 ) -> list[dict[str, Any]]:
+    from app.core.iso_building import build_region_paint_layout
     from app.core.region_layouts import get_region_template
 
     region_paint = region_paint or []
+    building_paint = building_paint or []
     items: list[dict[str, Any]] = []
 
     for raw in image_choice:
@@ -431,6 +508,7 @@ def spatial_raw_to_practice_items(
                     "cols": raw["cols"],
                     "cell_type": raw["cell_type"],
                     "palette": raw.get("palette") or list(_GRID_COLOR_PALETTE),
+                    "validation": raw.get("validation") or "exact_match",
                 },
                 "source": quiz_source,
             }
@@ -455,6 +533,33 @@ def spatial_raw_to_practice_items(
                     "view_width": tpl.get("view_width", 400),
                     "view_height": tpl.get("view_height", 280),
                     "regions": tpl.get("regions") or [],
+                    "height_matrix": tpl.get("height_matrix"),
+                    "palette": raw.get("palette") or list(_GRID_COLOR_PALETTE),
+                },
+                "source": quiz_source,
+            }
+        )
+
+    for raw in building_paint:
+        matrix = raw.get("height_matrix")
+        if not isinstance(matrix, list):
+            continue
+        layout = build_region_paint_layout(matrix, title="Gebäude (isometrisch)")
+        answer_map = raw.get("answer") if isinstance(raw.get("answer"), dict) else {}
+        if not answer_map:
+            continue
+        items.append(
+            {
+                "prompt": raw["prompt"],
+                "hint": raw.get("hint"),
+                "answer_type": "building_paint",
+                "answer": json.dumps(answer_map, ensure_ascii=False),
+                "building_paint": {
+                    "height_matrix": matrix,
+                    "title": layout.get("title"),
+                    "view_width": layout.get("view_width", 400),
+                    "view_height": layout.get("view_height", 300),
+                    "regions": layout.get("regions") or [],
                     "palette": raw.get("palette") or list(_GRID_COLOR_PALETTE),
                 },
                 "source": quiz_source,
@@ -509,7 +614,16 @@ def tap_hit_radius(candidates: list[dict[str, Any]]) -> float:
     return max(0.02, min(0.08, radius))
 
 
-def score_grid_fill_answer(expected_json: str, user_text: str) -> dict[str, Any]:
+def score_grid_fill_answer(
+    expected_json: str,
+    user_text: str,
+    *,
+    validation: str = "exact_match",
+) -> dict[str, Any]:
+    if str(validation or "").strip().lower() == "derived_projection":
+        from app.core.iso_building import score_derived_projection_answer
+
+        return score_derived_projection_answer(expected_json, user_text)
     try:
         expected = json.loads(expected_json)
     except json.JSONDecodeError:
@@ -596,4 +710,8 @@ def validate_spatial_practice_item(item: dict[str, Any]) -> list[str]:
         rp = item.get("region_paint")
         if not isinstance(rp, dict):
             warnings.append("region_paint: fehlende Konfiguration")
+    elif at == "building_paint":
+        bp = item.get("building_paint")
+        if not isinstance(bp, dict):
+            warnings.append("building_paint: fehlende Konfiguration")
     return warnings
