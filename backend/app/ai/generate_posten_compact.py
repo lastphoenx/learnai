@@ -527,6 +527,7 @@ def generate_posten_compact(
     result: dict | None = None
     modules: list[dict] = []
     last_exc: LlmError | None = None
+    spatial_warning: str | None = None
     min_modules = 3
 
     for attempt in (1, 2):
@@ -575,9 +576,19 @@ def generate_posten_compact(
                 spatial_n = count_spatial_practice_in_modules(modules)
                 raw_n = count_raw_spatial_fields(payload)
                 if spatial_n < 1:
-                    raise LlmError(
-                        f"Raumaufgaben fehlen (practice={spatial_n}, raw={raw_n})",
-                        "thin_spatial",
+                    if attempt == 1:
+                        raise LlmError(
+                            f"Raumaufgaben fehlen (practice={spatial_n}, raw={raw_n})",
+                            "thin_spatial",
+                        )
+                    spatial_warning = (
+                        f"Raumaufgaben fehlen nach 2 Versuchen "
+                        f"(practice={spatial_n}, raw={raw_n}) — Trainer ohne Raum-Übungen gespeichert."
+                    )
+                    _log.warning(
+                        "generate_posten_compact thin_spatial_soft unit_id=%s %s",
+                        unit_id,
+                        spatial_warning,
                     )
             last_exc = None
             break
@@ -601,11 +612,12 @@ def generate_posten_compact(
                 retry_hint = (
                     "\n\nWICHTIG — Raumaufgaben fehlten im JSON. "
                     "Liefere mindestens 2 Einträge gesamt in image_choice_items, "
-                    "point_on_image_items, grid_fill_items und/oder region_paint_items. "
+                    "point_on_image_items, grid_fill_items, region_paint_items und/oder building_paint_items. "
                     "Nutze gültige source_index und bbox (0–1) aus den Fotos; "
                     "für Würfel-Einfärben: region_paint mit template "
                     '"iso_single_cube" oder "iso_tower_2" und answer als Objekt '
-                    '{"top":"green",...}. Keine reinen Text-Quiz-Fragen statt Bildaufgaben.\n'
+                    '{"top":"green",...}; oder building_paint mit height_matrix und colored_faces. '
+                    "Keine reinen Text-Quiz-Fragen statt Bildaufgaben.\n"
                 )
                 continue
             raise
@@ -620,6 +632,8 @@ def generate_posten_compact(
     meta["generation_mode"] = preset_id
     meta["multimodal"] = multimodal
     meta["pipeline"] = pipeline
+    if spatial_warning:
+        meta["spatial_generation_warning"] = spatial_warning
     if progress:
         progress("saving", cards=total_cards, questions=total_questions, ai_tasks=ai_tasks)
     _save_generated_modules(
@@ -630,6 +644,16 @@ def generate_posten_compact(
         task="interactive",
         final=True,
     )
+    if spatial_warning and record:
+        recon["spatial_generation_warning"] = spatial_warning
+        from app.services.crypto_json import encrypt_json
+
+        record.reconstruction_encrypted = encrypt_json(recon)
+    elif record and recon.get("spatial_generation_warning"):
+        recon.pop("spatial_generation_warning", None)
+        from app.services.crypto_json import encrypt_json
+
+        record.reconstruction_encrypted = encrypt_json(recon)
     db.commit()
     persist_last_ai_run(
         db,

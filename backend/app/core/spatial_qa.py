@@ -60,10 +60,13 @@ def spatial_report_lines(unit: LearningUnit, recon: dict | None) -> list[str]:
             "laufen nur über Preset **posten_compact** oder **exam_review**."
         )
     elif focus_group == "math" and _math_focus_geometry(str(math_focus) if math_focus else None):
+        gen_warn = recon.get("spatial_generation_warning")
+        if isinstance(gen_warn, str) and gen_warn.strip():
+            lines.append(f"- **Hinweis Generierung:** {gen_warn.strip()}")
         if counts["total"] < 1:
             lines.append(
                 "- **WARNUNG:** Geometrie/Raum erwartet, aber keine Raum-Übungen — "
-                "Generierung erneut mit Preset posten_compact oder Retry prüfen."
+                "Didaktik/Quellen prüfen oder «Neu aufbereiten»."
             )
         else:
             lines.append("- OK: Mindestens eine Raum-Übung vorhanden.")
