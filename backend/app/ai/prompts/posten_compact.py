@@ -80,6 +80,7 @@ POSTEN_COMPACT_SPATIAL_EXTRA = (
     'answer: {"top":"yellow","left":"green","right":"purple"} — nur Flächen-IDs des Templates.\n'
     "- Pflicht bei Raumgeometrie: mindestens 2 Einträge gesamt in den vier spatial-Listen "
     "(nicht nur cards/quiz). Quiz um 2-4 Fragen kürzen.\n"
+)
 
 
 def build_compact_system_prompt(preset_id: str = "posten_compact", *, spatial_geometry: bool = False) -> str:
