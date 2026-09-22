@@ -2,14 +2,18 @@
 
 import json
 
+from app.core.region_layouts import get_region_template, list_region_template_ids
 from app.core.spatial_compact import (
+    count_spatial_practice_in_modules,
     grade_image_choice,
     grade_point_on_image,
     parse_bbox,
     parse_grid_fill_items,
     parse_image_choice_items,
     parse_point_on_image_items,
+    parse_region_paint_items,
     score_grid_fill_answer,
+    score_region_paint_answer,
     should_enable_spatial_compact_exercises,
     spatial_raw_to_practice_items,
     tap_hit_radius,
@@ -105,3 +109,55 @@ def test_tap_hit_radius_bounded():
 
 def test_grade_image_choice():
     assert grade_image_choice("a", "A")
+
+
+def test_region_templates_exist():
+    ids = list_region_template_ids()
+    assert "iso_single_cube" in ids
+    assert get_region_template("iso_single_cube") is not None
+
+
+def test_region_paint_parse_and_practice():
+    raw = parse_region_paint_items(
+        [
+            {
+                "prompt": "Färbe die Flächen.",
+                "template": "iso_single_cube",
+                "answer": {"top": "green", "left": "purple"},
+            }
+        ]
+    )
+    assert len(raw) == 1
+    items = spatial_raw_to_practice_items(
+        image_choice=[],
+        point_on_image=[],
+        grid_fill=[],
+        region_paint=raw,
+        source_ids=[],
+    )
+    assert len(items) == 1
+    assert items[0]["answer_type"] == "region_paint"
+    assert len(items[0]["region_paint"]["regions"]) == 3
+
+
+def test_score_region_paint_answer():
+    expected = json.dumps({"top": "green", "left": "yellow"})
+    ok = json.dumps({"top": "green", "left": "yellow"})
+    bad = json.dumps({"top": "green", "left": "purple"})
+    assert score_region_paint_answer(expected, ok)["correct"]
+    assert not score_region_paint_answer(expected, bad)["correct"]
+
+
+def test_count_spatial_practice_in_modules():
+    modules = [
+        {
+            "title": "Aufgaben",
+            "content": {
+                "practice": [
+                    {"answer_type": "choice"},
+                    {"answer_type": "region_paint"},
+                ]
+            },
+        }
+    ]
+    assert count_spatial_practice_in_modules(modules) == 1

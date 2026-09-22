@@ -12,7 +12,12 @@ from app.core.focus_groups import normalize_focus_key
 _SPATIAL_MATH_FOCUS = frozenset({"geometry", "geometry_spatial"})
 _BBOX_PADDING = 0.02
 _MIN_BBOX_SIZE = 0.04
-_GRID_COLOR_PALETTE = ("yellow", "green", "purple", "blue", "orange", "empty")
+GRID_COLOR_PALETTE = ("yellow", "green", "purple", "blue", "orange", "empty")
+_GRID_COLOR_PALETTE = GRID_COLOR_PALETTE
+
+SPATIAL_ANSWER_TYPES = frozenset(
+    {"image_choice", "point_on_image", "grid_fill", "region_paint"}
+)
 
 
 def should_enable_spatial_compact_exercises(
@@ -267,14 +272,90 @@ def parse_grid_fill_items(raw: object) -> list[dict[str, Any]]:
     return out[:6]
 
 
+def parse_region_paint_items(raw: object) -> list[dict[str, Any]]:
+    from app.core.region_layouts import get_region_template
+
+    if not isinstance(raw, list):
+        return []
+    out: list[dict[str, Any]] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        prompt = str(item.get("prompt") or "").strip()
+        template_id = str(item.get("template") or "").strip()
+        tpl = get_region_template(template_id)
+        if not prompt or not tpl:
+            continue
+        answer_raw = item.get("answer")
+        if not isinstance(answer_raw, dict):
+            continue
+        region_ids = {str(r.get("id") or "") for r in tpl.get("regions") or [] if r.get("id")}
+        parsed_answer: dict[str, str] = {}
+        for rid in region_ids:
+            if rid not in answer_raw:
+                continue
+            color = _parse_grid_cell(answer_raw.get(rid), "color")
+            if color:
+                parsed_answer[rid] = color
+        if len(parsed_answer) < 1:
+            continue
+        palette_raw = item.get("palette")
+        if isinstance(palette_raw, list):
+            pal = [str(p).strip().lower() for p in palette_raw if str(p).strip()]
+            pal = [p for p in pal if p in _GRID_COLOR_PALETTE and p != "empty"]
+        else:
+            pal = [c for c in _GRID_COLOR_PALETTE if c != "empty"][:5]
+        out.append(
+            {
+                "prompt": prompt[:500],
+                "hint": str(item.get("hint") or "")[:300] or None,
+                "template": template_id,
+                "answer": parsed_answer,
+                "palette": pal[:6]
+                if pal
+                else [c for c in _GRID_COLOR_PALETTE if c != "empty"][:5],
+            }
+        )
+    return out[:6]
+
+
+def count_raw_spatial_fields(payload: dict[str, Any]) -> int:
+    return (
+        len(payload.get("image_choice_items") or [])
+        + len(payload.get("point_on_image_items") or [])
+        + len(payload.get("grid_fill_items") or [])
+        + len(payload.get("region_paint_items") or [])
+    )
+
+
+def count_spatial_practice_in_modules(modules: list[dict[str, Any]]) -> int:
+    total = 0
+    for mod in modules:
+        if not isinstance(mod, dict):
+            continue
+        if str(mod.get("title") or "").strip() != "Aufgaben":
+            continue
+        content = mod.get("content") if isinstance(mod.get("content"), dict) else {}
+        for item in content.get("practice") or []:
+            if not isinstance(item, dict):
+                continue
+            if str(item.get("answer_type") or "") in SPATIAL_ANSWER_TYPES:
+                total += 1
+    return total
+
+
 def spatial_raw_to_practice_items(
     *,
     image_choice: list[dict[str, Any]],
     point_on_image: list[dict[str, Any]],
     grid_fill: list[dict[str, Any]],
+    region_paint: list[dict[str, Any]] | None = None,
     source_ids: list[str],
     quiz_source: str = "posten_compact",
 ) -> list[dict[str, Any]]:
+    from app.core.region_layouts import get_region_template
+
+    region_paint = region_paint or []
     items: list[dict[str, Any]] = []
 
     for raw in image_choice:
@@ -349,6 +430,31 @@ def spatial_raw_to_practice_items(
                     "rows": raw["rows"],
                     "cols": raw["cols"],
                     "cell_type": raw["cell_type"],
+                    "palette": raw.get("palette") or list(_GRID_COLOR_PALETTE),
+                },
+                "source": quiz_source,
+            }
+        )
+
+    for raw in region_paint:
+        tpl = get_region_template(str(raw.get("template") or ""))
+        if not tpl:
+            continue
+        answer_map = raw.get("answer") if isinstance(raw.get("answer"), dict) else {}
+        if not answer_map:
+            continue
+        items.append(
+            {
+                "prompt": raw["prompt"],
+                "hint": raw.get("hint"),
+                "answer_type": "region_paint",
+                "answer": json.dumps(answer_map, ensure_ascii=False),
+                "region_paint": {
+                    "template": raw["template"],
+                    "title": tpl.get("title"),
+                    "view_width": tpl.get("view_width", 400),
+                    "view_height": tpl.get("view_height", 280),
+                    "regions": tpl.get("regions") or [],
                     "palette": raw.get("palette") or list(_GRID_COLOR_PALETTE),
                 },
                 "source": quiz_source,
@@ -438,6 +544,38 @@ def score_grid_fill_answer(expected_json: str, user_text: str) -> dict[str, Any]
     return {"correct": all_ok and len(slots) > 0, "slots": slots}
 
 
+def score_region_paint_answer(expected_json: str, user_text: str) -> dict[str, Any]:
+    try:
+        expected = json.loads(expected_json)
+    except json.JSONDecodeError:
+        return {"correct": False, "slots": []}
+    try:
+        user = json.loads(user_text)
+    except json.JSONDecodeError:
+        return {"correct": False, "slots": []}
+    if not isinstance(expected, dict) or not isinstance(user, dict):
+        return {"correct": False, "slots": []}
+    slots: list[dict[str, Any]] = []
+    all_ok = True
+    for rid, exp_color in expected.items():
+        user_color = user.get(rid)
+        ok = exp_color == user_color
+        if not ok:
+            all_ok = False
+        slots.append(
+            {
+                "id": str(rid),
+                "correct": ok,
+                "expected_term": str(exp_color),
+                "user_term": str(user_color) if user_color is not None else "",
+            }
+        )
+    for rid in user:
+        if rid not in expected:
+            all_ok = False
+    return {"correct": all_ok and len(slots) > 0, "slots": slots}
+
+
 def validate_spatial_practice_item(item: dict[str, Any]) -> list[str]:
     warnings: list[str] = []
     at = str(item.get("answer_type") or "")
@@ -454,4 +592,8 @@ def validate_spatial_practice_item(item: dict[str, Any]) -> list[str]:
         gf = item.get("grid_fill")
         if not isinstance(gf, dict):
             warnings.append("grid_fill: fehlende Konfiguration")
+    elif at == "region_paint":
+        rp = item.get("region_paint")
+        if not isinstance(rp, dict):
+            warnings.append("region_paint: fehlende Konfiguration")
     return warnings

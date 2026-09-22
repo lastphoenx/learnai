@@ -213,6 +213,26 @@ def test_strip_practice_answers_keeps_choice_options():
     assert "answer" not in item
 
 
+def test_strip_practice_answers_keeps_spatial_config_without_answer():
+    from app.services.learn_service import _strip_practice_answers
+
+    out = _strip_practice_answers(
+        {
+            "practice": [
+                {
+                    "prompt": "Färbe.",
+                    "answer_type": "region_paint",
+                    "answer": '{"top":"green"}',
+                    "region_paint": {"template": "iso_single_cube", "regions": []},
+                }
+            ]
+        }
+    )
+    item = out["practice"][0]
+    assert item["region_paint"]["template"] == "iso_single_cube"
+    assert "answer" not in item
+
+
 def test_derive_practice_hint_does_not_leak_quiz_explanation():
     bw = parse_basiswissen_payload(CASTLE_BASISWISSEN, focus_group="nmg")
     items = derive_practice_items(

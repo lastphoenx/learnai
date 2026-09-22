@@ -100,6 +100,43 @@ def test_posten_compact_spatial_payload_to_practice():
     assert any(p.get("answer_type") == "grid_fill" for p in practice)
 
 
+def test_posten_compact_region_paint_payload_to_practice():
+    raw = {
+        "goal": "Du kennst Würfel.",
+        "facts": [
+            {"title": "A", "text": "1."},
+            {"title": "B", "text": "2."},
+            {"title": "C", "text": "3."},
+        ],
+        "cards": [{"question": f"Frage {i}?", "answer": f"A{i}."} for i in range(12)],
+        "quiz": [
+            {"q": f"Q{i}?", "options": ["A", "B", "C", "D"], "answer": 0, "explanation": "x"}
+            for i in range(8)
+        ],
+        "region_paint_items": [
+            {
+                "prompt": "Färbe gemäss Ansicht.",
+                "template": "iso_tower_2",
+                "answer": {"lower_top": "yellow", "upper_right": "green"},
+            }
+        ],
+    }
+    payload = _parse_posten_compact_payload(
+        json.dumps(raw, ensure_ascii=False),
+        card_target=12,
+        question_target=8,
+    )
+    assert len(payload["region_paint_items"]) == 1
+    modules = posten_compact_payload_to_modules(
+        payload,
+        title="Geo",
+        focus_group="math",
+        source_ids=[],
+    )
+    practice = next(m for m in modules if m["title"] == "Aufgaben")["content"].get("practice") or []
+    assert any(p.get("answer_type") == "region_paint" for p in practice)
+
+
 def test_is_weak_card_rejects_tautology_and_dates():
     assert _is_weak_card("Was ist der Fachbegriff «Fundstücke»?", "Fundstücke")
     assert _is_weak_card("Was bedeutet «9500 bis 5500 v. Chr.»?", "9500 bis 5500 v. Chr.")

@@ -108,7 +108,7 @@ def ensure_compact_aufgaben_module(
     types = {str(i.get("answer_type") or "") for i in collected}
     if "label_diagram" in types:
         intro = "Ordne Begriffe am Zeitstrahl zu."
-    elif types & {"image_choice", "point_on_image", "grid_fill"}:
+    elif types & {"image_choice", "point_on_image", "grid_fill", "region_paint"}:
         intro = "Raumaufgaben aus dem Heft — Bilder, Karte oder Raster bearbeiten."
     else:
         intro = "Prüfbare Wissensaufgaben — wähle die passende Antwort."

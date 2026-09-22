@@ -341,6 +341,21 @@ export type TrainerGridFillConfig = {
   palette?: string[];
 };
 
+export type TrainerRegionPaintRegion = {
+  id: string;
+  label?: string;
+  points: [number, number][];
+};
+
+export type TrainerRegionPaintConfig = {
+  template: string;
+  title?: string;
+  view_width?: number;
+  view_height?: number;
+  regions: TrainerRegionPaintRegion[];
+  palette?: string[];
+};
+
 export type TrainerPracticeItem = {
   prompt: string;
   hint?: string | null;
@@ -351,6 +366,7 @@ export type TrainerPracticeItem = {
   image_choice?: TrainerImageChoiceConfig;
   point_on_image?: TrainerPointOnImageConfig;
   grid_fill?: TrainerGridFillConfig;
+  region_paint?: TrainerRegionPaintConfig;
 };
 
 export type TrainerContentAnalysis = {

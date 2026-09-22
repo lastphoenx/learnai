@@ -19,6 +19,7 @@ from app.core.content_qa import (
 )
 from app.core.quiz_explanation import enrich_quiz_explanation, explanation_is_weak, method_explanation_incomplete
 from app.core.quiz_numeric import strip_option_label
+from app.core.spatial_qa import spatial_report_lines
 from app.core.solution_repair import enrich_card_answer
 from app.models import LearningRecord, LearningUnit, User
 from app.services.ai_run_snapshot import (
@@ -103,6 +104,12 @@ def _practice_detail_lines(item: dict) -> list[str]:
         gf = item.get("grid_fill") if isinstance(item.get("grid_fill"), dict) else {}
         lines.append(
             f"- Raster: {gf.get('rows')}×{gf.get('cols')}, Typ {gf.get('cell_type') or 'number'}"
+        )
+    elif answer_type == "region_paint":
+        rp = item.get("region_paint") if isinstance(item.get("region_paint"), dict) else {}
+        lines.append(
+            f"- Flächen einfärben: Template {rp.get('template') or '—'}, "
+            f"{len(rp.get('regions') or [])} Flächen"
         )
     elif answer_type == "choice":
         options = item.get("options") or []
@@ -482,6 +489,12 @@ def build_unit_quality_report(db: Session, user: User, ref: str) -> dict:
             lines.append("")
             lines.extend(_content_section(root_loaded))
             lines.append("")
+            root_recon = (
+                decrypt_json(root_record.reconstruction_encrypted)
+                if root_record and root_record.reconstruction_encrypted
+                else {}
+            )
+            lines.extend(spatial_report_lines(root_loaded, root_recon if isinstance(root_recon, dict) else {}))
             lines.append("## Module, Karten & Quiz (Lösungsvarianten)")
             lines.append("")
             fam = refs.get("reference_family") or family
@@ -511,6 +524,10 @@ def build_unit_quality_report(db: Session, user: User, ref: str) -> dict:
         lines.append("")
         lines.extend(_content_section(unit))
         lines.append("")
+        inst_recon = (
+            decrypt_json(record.reconstruction_encrypted) if record and record.reconstruction_encrypted else {}
+        )
+        lines.extend(spatial_report_lines(unit, inst_recon if isinstance(inst_recon, dict) else {}))
         lines.append("## Module, Karten & Quiz (Lösungsvarianten)")
         lines.append("")
         fam = refs.get("reference_family") or family

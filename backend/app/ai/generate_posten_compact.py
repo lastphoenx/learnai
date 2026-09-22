@@ -28,9 +28,12 @@ from app.ai.validators.interactive import dedupe_interactive_modules, validate_i
 from app.core.basiswissen import empty_basiswissen
 from app.core.label_diagram import build_label_diagram_from_terms
 from app.core.spatial_compact import (
+    count_raw_spatial_fields,
+    count_spatial_practice_in_modules,
     parse_grid_fill_items,
     parse_image_choice_items,
     parse_point_on_image_items,
+    parse_region_paint_items,
     should_enable_spatial_compact_exercises,
     spatial_raw_to_practice_items,
 )
@@ -238,6 +241,7 @@ def _parse_posten_compact_payload(
     image_choice_items = parse_image_choice_items(parsed.get("image_choice_items"))
     point_on_image_items = parse_point_on_image_items(parsed.get("point_on_image_items"))
     grid_fill_items = parse_grid_fill_items(parsed.get("grid_fill_items"))
+    region_paint_items = parse_region_paint_items(parsed.get("region_paint_items"))
 
     min_facts = facts_min if facts_min is not None else POSTEN_COMPACT_COUNTS["facts_min"]
     min_cards = max(6, int(card_target * 0.6))
@@ -257,6 +261,7 @@ def _parse_posten_compact_payload(
         "image_choice_items": image_choice_items,
         "point_on_image_items": point_on_image_items,
         "grid_fill_items": grid_fill_items,
+        "region_paint_items": region_paint_items,
     }
 
 
@@ -292,6 +297,7 @@ def posten_compact_payload_to_modules(
         image_choice=list(payload.get("image_choice_items") or []),
         point_on_image=list(payload.get("point_on_image_items") or []),
         grid_fill=list(payload.get("grid_fill_items") or []),
+        region_paint=list(payload.get("region_paint_items") or []),
         source_ids=source_ids or [],
         quiz_source=quiz_source,
     )
@@ -561,6 +567,14 @@ def generate_posten_compact(
                 min_questions=question_target,
                 min_modules=min_modules,
             )
+            if spatial_geometry:
+                spatial_n = count_spatial_practice_in_modules(modules)
+                raw_n = count_raw_spatial_fields(payload)
+                if spatial_n < 1:
+                    raise LlmError(
+                        f"Raumaufgaben fehlen (practice={spatial_n}, raw={raw_n})",
+                        "thin_spatial",
+                    )
             last_exc = None
             break
         except LlmError as exc:
@@ -577,6 +591,17 @@ def generate_posten_compact(
                     "\n\nWICHTIG — vorheriger Versuch zu dünn. "
                     f"Liefere mindestens {facts_min} facts, "
                     f"{card_target} cards und {question_target} quiz — keine Auslassungen.\n"
+                )
+                continue
+            if attempt == 1 and exc.code == "thin_spatial" and spatial_geometry:
+                retry_hint = (
+                    "\n\nWICHTIG — Raumaufgaben fehlten im JSON. "
+                    "Liefere mindestens 2 Einträge gesamt in image_choice_items, "
+                    "point_on_image_items, grid_fill_items und/oder region_paint_items. "
+                    "Nutze gültige source_index und bbox (0–1) aus den Fotos; "
+                    "für Würfel-Einfärben: region_paint mit template "
+                    '"iso_single_cube" oder "iso_tower_2" und answer als Objekt '
+                    '{"top":"green",...}. Keine reinen Text-Quiz-Fragen statt Bildaufgaben.\n'
                 )
                 continue
             raise

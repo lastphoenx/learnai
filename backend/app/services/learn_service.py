@@ -108,16 +108,23 @@ def _strip_practice_answers(content: dict | None) -> dict | None:
         if not isinstance(item, dict):
             continue
         options = item.get("options") if isinstance(item.get("options"), list) else []
-        practice.append(
-            {
-                "prompt": item.get("prompt", ""),
-                "hint": item.get("hint"),
-                "answer_type": item.get("answer_type") or "text",
-                "options": [str(o).strip() for o in options if str(o).strip()],
-                "diagram": item.get("diagram"),
-                "drawing": item.get("drawing"),
-            }
-        )
+        entry: dict = {
+            "prompt": item.get("prompt", ""),
+            "hint": item.get("hint"),
+            "answer_type": item.get("answer_type") or "text",
+            "options": [str(o).strip() for o in options if str(o).strip()],
+            "diagram": item.get("diagram"),
+            "drawing": item.get("drawing"),
+        }
+        for key in (
+            "image_choice",
+            "point_on_image",
+            "grid_fill",
+            "region_paint",
+        ):
+            if key in item and item[key] is not None:
+                entry[key] = item[key]
+        practice.append(entry)
     if practice:
         out["practice"] = practice
     return out
@@ -644,6 +651,12 @@ def submit_practice_answer(
         grid_score = score_grid_fill_answer(expected, answer_text)
         is_correct = bool(grid_score.get("correct"))
         label_score = grid_score
+    elif answer_type == "region_paint":
+        from app.core.spatial_compact import score_region_paint_answer
+
+        paint_score = score_region_paint_answer(expected, answer_text)
+        is_correct = bool(paint_score.get("correct"))
+        label_score = paint_score
     elif answer_type == "drawing":
         is_correct = True
     else:
@@ -691,6 +704,18 @@ def submit_practice_answer(
                 "correct": bool(s.get("correct")),
                 "expected_term": str(s.get("expected") if s.get("expected") is not None else ""),
                 "user_term": str(s.get("user") if s.get("user") is not None else ""),
+            }
+            for s in raw_slots
+            if isinstance(s, dict)
+        ]
+    elif answer_type == "region_paint":
+        raw_slots = (label_score or {}).get("slots") if isinstance((label_score or {}).get("slots"), list) else []
+        label_slots = [
+            {
+                "id": str(s.get("id") or ""),
+                "correct": bool(s.get("correct")),
+                "expected_term": s.get("expected_term"),
+                "user_term": s.get("user_term"),
             }
             for s in raw_slots
             if isinstance(s, dict)

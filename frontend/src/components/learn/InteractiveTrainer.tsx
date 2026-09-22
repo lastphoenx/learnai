@@ -24,6 +24,7 @@ import { ClozeExercise } from "@/components/learn/ClozeExercise";
 import { DrawingCanvas } from "@/components/learn/DrawingCanvas";
 import { KnowledgeConceptPanel } from "@/components/learn/KnowledgeConceptPanel";
 import { GridFillExercise } from "@/components/learn/GridFillExercise";
+import { RegionPaintExercise } from "@/components/learn/RegionPaintExercise";
 import { ImageChoiceExercise } from "@/components/learn/ImageChoiceExercise";
 import { LabelDiagramExercise } from "@/components/learn/LabelDiagramExercise";
 import { PointOnImageExercise } from "@/components/learn/PointOnImageExercise";
@@ -1326,6 +1327,41 @@ export function InteractiveTrainer({
                 <GridFillExercise
                   key={`${currentPractice.module_id}:${currentPractice.exercise_index}`}
                   config={currentPractice.grid_fill}
+                  busy={busy}
+                  result={practiceResult}
+                  onSubmit={async (answer) => {
+                    setBusy(true);
+                    setError(null);
+                    try {
+                      const res = await submitPracticeAnswer(unitId, {
+                        module_id: currentPractice.module_id,
+                        exercise_index: currentPractice.exercise_index,
+                        answer,
+                      });
+                      onStateChange({ ...state, progress: res.progress, summary: res.summary });
+                      setPracticeResult({
+                        correct: res.correct,
+                        hint: res.hint,
+                        expected: res.expected,
+                        label_slots: res.label_slots,
+                      });
+                    } catch (err) {
+                      setError(err instanceof Error ? err.message : "Antwort fehlgeschlagen");
+                    } finally {
+                      setBusy(false);
+                    }
+                  }}
+                  onContinue={() => {
+                    setPracticeResult(null);
+                    if (practiceIndex + 1 < practiceExercises.length) {
+                      setPracticeIndex(practiceIndex + 1);
+                    }
+                  }}
+                />
+              ) : currentPractice.answer_type === "region_paint" && currentPractice.region_paint ? (
+                <RegionPaintExercise
+                  key={`${currentPractice.module_id}:${currentPractice.exercise_index}`}
+                  config={currentPractice.region_paint}
                   busy={busy}
                   result={practiceResult}
                   onSubmit={async (answer) => {

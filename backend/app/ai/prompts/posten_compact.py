@@ -75,8 +75,11 @@ POSTEN_COMPACT_SPATIAL_EXTRA = (
     "- grid_fill_items: 1-3 Bauplan- oder Einfärb-Raster. "
     'rows, cols, cell_type "number" oder "color", answer als 2D-Array (null = leer). '
     "Farben nur: yellow, green, purple, blue, orange, empty.\n"
-    "- Wenn mindestens ein spatial-Item gesetzt ist: quiz um 2-4 Fragen kürzer (Regelwissen reicht).\n"
-)
+    "- region_paint_items: 1-2 Würfelflächen einfärben (isometrisch). "
+    'template: "iso_single_cube" oder "iso_tower_2". '
+    'answer: {"top":"yellow","left":"green","right":"purple"} — nur Flächen-IDs des Templates.\n'
+    "- Pflicht bei Raumgeometrie: mindestens 2 Einträge gesamt in den vier spatial-Listen "
+    "(nicht nur cards/quiz). Quiz um 2-4 Fragen kürzen.\n"
 
 
 def build_compact_system_prompt(preset_id: str = "posten_compact", *, spatial_geometry: bool = False) -> str:
@@ -88,7 +91,7 @@ def build_compact_system_prompt(preset_id: str = "posten_compact", *, spatial_ge
         base = (
             base
             + '\nErweitertes Schema (zusätzliche optionale Felder): '
-            + '"image_choice_items":[],"point_on_image_items":[],"grid_fill_items":[]\n'
+            + '"image_choice_items":[],"point_on_image_items":[],"grid_fill_items":[],"region_paint_items":[]\n'
             + POSTEN_COMPACT_SPATIAL_EXTRA
         )
     return base
@@ -154,7 +157,8 @@ def build_posten_compact_prompt(
     )
     if spatial_geometry:
         prompt += (
-            "\nRaumgeometrie: Nutze image_choice_items, point_on_image_items und grid_fill_items "
-            "für Aufgaben direkt aus den Bildern (Netze, Baupläne, Kartenstandorte).\n"
+            "\nRaumgeometrie: Nutze image_choice_items, point_on_image_items, grid_fill_items "
+            "und region_paint_items (Templates iso_single_cube / iso_tower_2) "
+            "für Aufgaben aus Bildern und Würfel-Einfärben.\n"
         )
     return prompt
