@@ -93,11 +93,64 @@ def try_compute_from_question(question: str) -> float | None:
 
 
 def resolve_quiz_expected_value(q: dict) -> float | None:
-    computed = try_compute_from_question(str(q.get("q") or ""))
-    from_expl = parse_expected_from_explanation(str(q.get("explanation") or ""))
+    question = str(q.get("q") or "")
+    explanation = str(q.get("explanation") or "")
+    computed = try_compute_from_question(question)
+    from_expl = parse_expected_from_explanation(explanation)
+    if computed is not None and from_expl is not None and abs(computed - from_expl) > 1e-6:
+        options = q.get("options") if isinstance(q.get("options"), list) else []
+        if len(options) == 4:
+            expl_matches = option_indices_matching_value(options, from_expl)
+            if len(expl_matches) == 1:
+                return from_expl
     if computed is not None:
         return computed
     return from_expl
+
+
+_RICHTIG_LINE = re.compile(r"richtig:\s*([^.\n]+)", re.I)
+
+
+def option_index_from_richtig_line(explanation: str, options: list) -> int | None:
+    match = _RICHTIG_LINE.search(str(explanation or ""))
+    if not match:
+        return None
+    target = match.group(1).strip()
+    target_norm = _normalize_choice_text(target)
+    if not target_norm:
+        return None
+    for i, opt in enumerate(options):
+        opt_norm = _normalize_choice_text(str(opt))
+        if opt_norm == target_norm:
+            return i
+        label = strip_option_label(str(opt))
+        if label and label.lower() in target.lower():
+            return i
+    return None
+
+
+def reconcile_quiz_answer_index(q: dict) -> dict:
+    """`answer`-Index an Erklärung/Rechnung anpassen, wenn gespeichert falsch ist."""
+    if not isinstance(q, dict):
+        return q
+    out = dict(q)
+    options = out.get("options")
+    if not isinstance(options, list) or len(options) != 4:
+        return out
+    try:
+        stored = int(out.get("answer", -1))
+    except (TypeError, ValueError):
+        stored = -1
+
+    richtig_idx = option_index_from_richtig_line(str(out.get("explanation") or ""), options)
+    if richtig_idx is not None and richtig_idx != stored:
+        out["answer"] = richtig_idx
+        stored = richtig_idx
+
+    resolved = resolve_quiz_correct_index(out)
+    if 0 <= resolved <= 3 and resolved != stored:
+        out["answer"] = resolved
+    return out
 
 
 def option_indices_matching_value(options: list, value: float) -> list[int]:
@@ -199,8 +252,8 @@ def is_quiz_selection_correct(q: dict, selected: int) -> bool:
 def repair_quiz_question(q: dict) -> dict:
     if not isinstance(q, dict):
         return q
-    out = dict(q)
-    resolved = resolve_quiz_correct_index(q)
+    out = reconcile_quiz_answer_index(q)
+    resolved = resolve_quiz_correct_index(out)
     if 0 <= resolved <= 3:
         out["answer"] = resolved
     options = out.get("options")

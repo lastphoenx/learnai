@@ -1,7 +1,9 @@
 from app.core.quiz_numeric import (
     is_quiz_selection_correct,
+    option_index_from_richtig_line,
     parse_expected_from_explanation,
     parse_quiz_numeric,
+    reconcile_quiz_answer_index,
     repair_quiz_question,
     resolve_quiz_correct_index,
     resolve_quiz_expected_value,
@@ -106,6 +108,30 @@ def test_method_question_is_not_graded_by_embedded_product():
     assert is_quiz_selection_correct(q, 1)
     assert not is_quiz_selection_correct(q, 0)
     assert not is_quiz_selection_correct(q, 2)
+
+
+def test_richtig_line_overrides_wrong_stored_answer():
+    q = {
+        "q": "Wie gross ist das Volumen?",
+        "options": ["12 cm³", "24 cm³", "36 cm³", "48 cm³"],
+        "answer": 0,
+        "explanation": "Richtig: 24 cm³. Die Rechnung ergibt 48 cm³.",
+        "question_type": "calculation",
+    }
+    assert option_index_from_richtig_line(q["explanation"], q["options"]) == 1
+    repaired = repair_quiz_question(q)
+    assert repaired["answer"] == 1
+
+
+def test_reconcile_syncs_stored_index_with_resolve():
+    q = {
+        "q": "Wie lautet das Ergebnis der Addition von 1.6 und 8.4?",
+        "options": ["9", "9.0", "10", "10.0"],
+        "answer": 1,
+        "explanation": "Die Addition von 1.6 und 8.4 ergibt 10.0.",
+    }
+    fixed = reconcile_quiz_answer_index(q)
+    assert fixed["answer"] == resolve_quiz_correct_index(q)
 
 
 def test_resolve_computed_question_wins_over_wrong_ergibt():
