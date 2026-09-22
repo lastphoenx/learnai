@@ -349,20 +349,34 @@ def _complete_posten_compact(
     label: str,
     system: str,
     images: list[tuple[bytes, str]] | None = None,
+    progress: Callable[..., None] | None = None,
 ) -> dict:
+    from app.services.generate_heartbeat import run_with_generate_heartbeat
+
     last_exc: LlmError | None = None
     for attempt in (1, 2, 3):
         try:
-            result = complete(
-                prompt=prompt,
-                provider=provider,
-                system=system,
-                model=model,
-                num_predict=num_predict,
-                json_mode=True,
-                images=images,
+
+            def _call() -> dict:
+                out = complete(
+                    prompt=prompt,
+                    provider=provider,
+                    system=system,
+                    model=model,
+                    num_predict=num_predict,
+                    json_mode=True,
+                    images=images,
+                )
+                parse_json_object(out["text"])
+                return out
+
+            result = run_with_generate_heartbeat(
+                progress,
+                stage="generating_posten_compact",
+                message=f"Kompakter Trainer — KI-Anfrage läuft (Versuch {attempt})…",
+                fn=_call,
+                attempt=attempt,
             )
-            parse_json_object(result["text"])
             return result
         except LlmError as exc:
             last_exc = exc
@@ -516,6 +530,7 @@ def generate_posten_compact(
             label=f"{preset_id}_{attempt}",
             system=system_prompt,
             images=images if multimodal else None,
+            progress=progress,
         )
         try:
             payload = _parse_posten_compact_payload(

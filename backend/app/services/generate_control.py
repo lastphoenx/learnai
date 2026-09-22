@@ -30,7 +30,8 @@ def _revoke_celery(task_id: str | None) -> None:
     try:
         from app.worker import celery_app
 
-        celery_app.control.revoke(str(task_id), terminate=True, signal="SIGTERM")
+        # terminate=False: SIGTERM löst SystemExit aus, Celery-Backend kann das nicht serialisieren.
+        celery_app.control.revoke(str(task_id), terminate=False)
     except Exception:
         _log.warning("generate_revoke_failed task_id=%s", task_id, exc_info=True)
 

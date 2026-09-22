@@ -93,6 +93,10 @@ def generate_unit_task(self, unit_id: str, user_id: str, provider: str | None = 
         if not job_was_stopped(unit_id, job_id):
             progress("failed", error=exc.message)
         _log.warning("generate_unit_task unit_error unit_id=%s msg=%s", unit_id, exc.message)
+    except SystemExit:
+        db.rollback()
+        _log.warning("generate_unit_task terminated unit_id=%s (revoke/SIGTERM)", unit_id)
+        return
     except LlmError as exc:
         db.rollback()
         if exc.code == "cancelled" or job_was_stopped(unit_id, job_id):

@@ -27,6 +27,8 @@ STAGE_MESSAGES: dict[str, str] = {
     "category": "Lernkarten und Quiz werden erzeugt…",
     "saving": "Lernblöcke werden gespeichert…",
     "extracting_pedagogy": "Didaktik aus Quellen (Vision)…",
+    "generating_posten_compact": "Kompakter Trainer wird erzeugt (Vision)…",
+    "running": "KI arbeitet…",
     "done": "Fertig",
     "partial": "Entwurf gespeichert",
     "failed": "Fehlgeschlagen",

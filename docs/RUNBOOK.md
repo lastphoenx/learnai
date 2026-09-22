@@ -189,6 +189,8 @@ docker compose exec -T api python /opt/scripts/unlock_login.py --email user@exam
 
 In der Einheit gibt es **Abbrechen**. Hängende Jobs (kein Fortschritt ~17 min, oder queued >3 min) werden beim Status-Poll automatisch zurückgesetzt — **nicht** still neu gestartet.
 
+Lange Multimodal-Compact-Läufe (ein Cloud-Vision-Call) pingen den Job alle ~90 s (`generate_heartbeat`), damit der Stale-Wächter sie nicht abbricht. Beim Abbruch: Celery-`revoke` ohne `terminate` (kein `SystemExit`-Rauschen im Worker-Log).
+
 **Ollama belegt durch SlitProjektHub?** Die UI zeigt dann z. B. «Wartet auf Ollama (SlitProjektHub)…». Lock-Key:
 
 ```bash
