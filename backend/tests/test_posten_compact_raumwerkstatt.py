@@ -4,48 +4,41 @@ import json
 from pathlib import Path
 
 from app.ai.generate_posten_compact import _parse_posten_compact_payload, posten_compact_payload_to_modules
-from app.core.spatial_compact import (
-    parse_building_paint_items,
-    parse_grid_fill_items,
-    parse_net_build_items,
-    parse_synthetic_viewpoint_items,
-    parse_spatial_sequence_items,
-)
 
 _FIXTURE = Path(__file__).parent / "fixtures" / "posten_compact_raumwerkstatt.json"
 
 
-def test_raumwerkstatt_workshop_v2_parsers():
+def _payload_from_fixture() -> dict:
     raw = json.loads(_FIXTURE.read_text(encoding="utf-8"))
-    payload = _parse_posten_compact_payload(
+    return _parse_posten_compact_payload(
         json.dumps(raw, ensure_ascii=False),
         card_target=12,
         question_target=8,
     )
-    nets = parse_net_build_items(payload.get("net_build_items"))
+
+
+def test_raumwerkstatt_workshop_v2_parsers():
+    payload = _payload_from_fixture()
+
+    nets = payload.get("net_build_items") or []
     assert len(nets) >= 1
     assert nets[0].get("presentation") == "workshop_v2"
 
-    grid = parse_grid_fill_items(payload.get("grid_fill_items"))
+    grid = payload.get("grid_fill_items") or []
     assert grid and grid[0].get("presentation") == "workshop_v2"
 
-    paint = parse_building_paint_items(payload.get("building_paint_items"))
+    paint = payload.get("building_paint_items") or []
     assert paint and paint[0].get("presentation") == "workshop_v2"
 
-    seq = parse_spatial_sequence_items(payload.get("spatial_sequence_items"))
+    seq = payload.get("spatial_sequence_items") or []
     assert len(seq) >= 1
 
-    sv = parse_synthetic_viewpoint_items(payload.get("synthetic_viewpoint_items"))
+    sv = payload.get("synthetic_viewpoint_items") or []
     assert sv and sv[0].get("presentation") == "workshop_v2"
 
 
 def test_raumwerkstatt_payload_to_practice_net_build():
-    raw = json.loads(_FIXTURE.read_text(encoding="utf-8"))
-    payload = _parse_posten_compact_payload(
-        json.dumps(raw, ensure_ascii=False),
-        card_target=12,
-        question_target=8,
-    )
+    payload = _payload_from_fixture()
     modules = posten_compact_payload_to_modules(
         payload,
         title="RaumWerkstatt",
