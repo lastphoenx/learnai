@@ -43,8 +43,8 @@ function poseFromDirection(
   };
 }
 
-/** Legacy-Default: schräge Ansicht von vorne-rechts-oben (früher [7,9,7]). */
-const OBLIQUE_DIR: [number, number, number] = [1, 1.28, 1];
+/** Schräge Ansicht von vorne-rechts-oben (vorne = negative Z, Raumvertrag). */
+const OBLIQUE_DIR: [number, number, number] = [1, 1.28, -1];
 
 export function cameraPoseForPreset(
   matrix: HeightMatrix,

@@ -2,7 +2,6 @@
 
 import { Suspense } from "react";
 import { Canvas } from "@react-three/fiber";
-import { OrbitControls } from "@react-three/drei";
 import type { HeightMatrix } from "@/lib/isoBuilding";
 import { VoxelBuilding } from "@/components/learn/buildingThree/VoxelBuilding";
 import { BuildingOrientationLabels } from "@/components/learn/buildingThree/BuildingOrientationLabels";
@@ -10,6 +9,7 @@ import { ViewpointSceneMarkers } from "@/components/learn/buildingThree/Viewpoin
 import type { ViewpointCandidateLike } from "@/lib/viewpointWorld";
 import type { SpatialCameraPreset } from "@/lib/spatialCoordinates";
 import { BuildingCameraRig } from "@/components/learn/buildingThree/BuildingCameraRig";
+import { BuildingOrbitControls } from "@/components/learn/buildingThree/BuildingOrbitControls";
 
 export type BuildingThreeCanvasProps = {
   matrix: HeightMatrix;
@@ -74,14 +74,7 @@ export function BuildingThreeCanvas({
             />
           )}
         </Suspense>
-        <OrbitControls
-          makeDefault
-          enableDamping
-          dampingFactor={0.08}
-          enableRotate={!cameraLocked}
-          enablePan={!cameraLocked}
-          enableZoom={!cameraLocked}
-        />
+        <BuildingOrbitControls matrix={matrix} preset={cameraPreset} cameraLocked={cameraLocked} />
       </Canvas>
     </div>
   );

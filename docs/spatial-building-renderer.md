@@ -38,7 +38,7 @@ Legacy `region_paint` **ohne** `height_matrix` nutzt weiterhin SVG-Polygone (alt
 
 ## Projektionen (Prio 2)
 
-`building_projections()` in `iso_building.py`: Vorderansicht = **max pro Spalte** (Silhouette), Rechtsansicht = **max pro Zeile**, Aufsicht = Höhenzahlen. Tests: `test_spatial_coordinates.py` (asymmetrische Golden-Matrix).
+`building_projections()` in `iso_building.py`: Vorderansicht = **max pro Spalte** (Silhouette), Rechtsansicht = **max pro Zeile**, Aufsicht = Höhenzahlen. **Vorder/Rechts:** Zeile 0 = oberste Würfelreihe (top-down, wie CSS-Grid). Frontend: `buildingProjections.ts`. `oblique` = vorne-rechts-oben (`z = -1`). Tests: `test_spatial_coordinates.py`, `buildingProjections.test.ts`.
 
 ## Backend / KI-Schema
 

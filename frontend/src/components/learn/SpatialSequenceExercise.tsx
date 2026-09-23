@@ -3,9 +3,10 @@
 import { useMemo, useState } from "react";
 import type { TrainerSpatialSequenceConfig } from "@/lib/api";
 import type { SpatialCameraPreset } from "@/lib/spatialCoordinates";
+import { buildingProjections } from "@/lib/buildingProjections";
 import { BuildingThreeCanvas } from "@/components/learn/BuildingThreeCanvas";
 import { ProjectionFillGrids } from "@/components/learn/ProjectionFillGrids";
-import { emptyProjectionDraft, type SpatialSequenceAnswer } from "@/lib/spatialSequence";
+import { emptyProjectionDraft, type SpatialSequenceAnswer, type SpatialSequenceStage } from "@/lib/spatialSequence";
 
 type Props = {
   config: TrainerSpatialSequenceConfig;
@@ -21,9 +22,21 @@ const HINT_LABELS: Record<string, string> = {
   show_solution_overlay: "Lösung andeuten",
 };
 
+function isSkippableStage(stage: SpatialSequenceStage | undefined): boolean {
+  return Boolean(stage && stage.type === "inspect" && stage.hint_only);
+}
+
+function nextStageIndex(stages: SpatialSequenceStage[], from: number): number {
+  let i = from + 1;
+  while (i < stages.length && isSkippableStage(stages[i])) {
+    i += 1;
+  }
+  return i;
+}
+
 export function SpatialSequenceExercise({ config, busy, result, onSubmit, onContinue }: Props) {
   const matrix = config.height_matrix;
-  const stages = config.stages ?? [];
+  const stages = (config.stages ?? []) as SpatialSequenceStage[];
   const hints = config.hints ?? [];
 
   const [stageIndex, setStageIndex] = useState(0);
@@ -31,6 +44,8 @@ export function SpatialSequenceExercise({ config, busy, result, onSubmit, onCont
   const [visibility, setVisibility] = useState<SpatialSequenceAnswer["visibility"] | null>(null);
   const [projections, setProjections] = useState(emptyProjectionDraft());
   const [overlayHint, setOverlayHint] = useState(false);
+
+  const solutionOverlay = useMemo(() => (overlayHint ? buildingProjections(matrix) : null), [overlayHint, matrix]);
 
   const current = stages[stageIndex];
   const camera: SpatialCameraPreset =
@@ -40,6 +55,8 @@ export function SpatialSequenceExercise({ config, busy, result, onSubmit, onCont
     current?.type === "inspect"
       ? Boolean(current.camera_locked) && !(current.unlock_hint === "show_second_camera" && secondCamUnlocked)
       : false;
+
+  const projectionStageIndex = stages.findIndex((s) => s.type === "projection_fill");
 
   const viewTemplates = useMemo(() => {
     const pf = stages.find((s) => s.type === "projection_fill");
@@ -68,19 +85,19 @@ export function SpatialSequenceExercise({ config, busy, result, onSubmit, onCont
       );
       if (idx >= 0) setStageIndex(idx);
     }
-    if (id === "show_top_view") setStageIndex((i) => {
+    if (id === "show_top_view") {
       const idx = stages.findIndex((s) => s.type === "inspect" && s.camera === "top");
-      return idx >= 0 ? idx : i;
-    });
+      if (idx >= 0) setStageIndex(idx);
+    }
   }
 
   function advanceStage() {
-    if (stageIndex + 1 < stages.length) setStageIndex(stageIndex + 1);
+    const next = nextStageIndex(stages, stageIndex);
+    if (next < stages.length) setStageIndex(next);
   }
 
   const canSubmit =
-    visibility !== null &&
-    stageIndex >= stages.findIndex((s) => s.type === "projection_fill");
+    visibility !== null && stageIndex >= projectionStageIndex && projectionStageIndex >= 0;
 
   function handleSubmit() {
     const payload: SpatialSequenceAnswer = {
@@ -102,9 +119,21 @@ export function SpatialSequenceExercise({ config, busy, result, onSubmit, onCont
             showOrientationLabels={true}
             heightPx={280}
           />
-          <button type="button" className="btn btn-secondary" onClick={advanceStage} disabled={!!result}>
-            Weiter
-          </button>
+          {!current.hint_only && (
+            <button type="button" className="btn btn-secondary" onClick={advanceStage} disabled={!!result}>
+              Weiter
+            </button>
+          )}
+          {current.hint_only && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => setStageIndex(projectionStageIndex >= 0 ? projectionStageIndex : stageIndex)}
+              disabled={!!result}
+            >
+              Zurück zu den Ansichten
+            </button>
+          )}
         </>
       )}
 
@@ -150,13 +179,8 @@ export function SpatialSequenceExercise({ config, busy, result, onSubmit, onCont
             editable={!result}
             values={projections}
             onChange={setProjections}
+            solutionOverlay={solutionOverlay}
           />
-          {overlayHint && (
-            <p className="muted">
-              Tipp: In der Vorderansicht zählt pro Spalte die höchste Stapelhöhe; die Aufsicht zeigt die Zahlen im
-              Bauplan.
-            </p>
-          )}
         </>
       )}
 

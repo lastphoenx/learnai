@@ -235,7 +235,10 @@ def legacy_template_matrix(template_id: str) -> list[list[int]] | None:
 
 
 def building_projections(matrix: list[list[int]]) -> dict[str, list[list[int]]]:
-    """Aufsicht, Vorder- und Rechtsansicht aus der Höhenmatrix (siehe spatial_coordinates)."""
+    """Aufsicht, Vorder- und Rechtsansicht aus der Höhenmatrix (siehe spatial_coordinates).
+
+    Vorder- und Rechtsansicht: Zeile 0 = oberste Würfelreihe (top-down, wie CSS-Grid).
+    """
     rows = len(matrix)
     cols = len(matrix[0])
     max_h = max(max(r) for r in matrix)
@@ -249,13 +252,15 @@ def building_projections(matrix: list[list[int]]) -> dict[str, list[list[int]]]:
     for x in range(cols):
         col_max = max(_height_at(matrix, x, y) for y in range(rows))
         for zi in range(max_h):
-            front[zi][x] = 1 if zi < col_max else 0
+            row = max_h - 1 - zi
+            front[row][x] = 1 if zi < col_max else 0
 
     right: list[list[int]] = [[0 for _ in range(rows)] for _ in range(max_h)]
     for y in range(rows):
         row_max = max(_height_at(matrix, x, y) for x in range(cols))
         for zi in range(max_h):
-            right[zi][y] = 1 if zi < row_max else 0
+            row = max_h - 1 - zi
+            right[row][y] = 1 if zi < row_max else 0
 
     return {"top": top, "front": front, "right": right}
 

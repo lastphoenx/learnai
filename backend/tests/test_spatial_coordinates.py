@@ -28,14 +28,14 @@ def test_building_projections_asymmetric_4x4():
     views = building_projections(matrix)
     assert views["top"] == matrix
     assert views["front"] == [
-        [1, 1, 1, 1],
-        [1, 1, 1, 1],
         [0, 0, 1, 0],
+        [1, 1, 1, 1],
+        [1, 1, 1, 1],
     ]
     assert views["right"] == [
-        [1, 1, 1, 1],
-        [1, 1, 1, 1],
         [1, 0, 0, 0],
+        [1, 1, 1, 1],
+        [1, 1, 1, 1],
     ]
 
 

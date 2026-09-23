@@ -13,7 +13,7 @@ def _cases():
     return data.get("cases") or []
 
 
-def test_spatial_golden_projections_asymmetric():
+def test_spatial_golden_visibility_and_projections():
     for case in _cases():
         if case.get("id") != "asymmetric_4x4":
             continue
@@ -21,12 +21,27 @@ def test_spatial_golden_projections_asymmetric():
         assert matrix is not None
         views = building_projections(matrix)
         assert views["front"] == [
-            [1, 1, 1, 1],
-            [1, 1, 1, 1],
             [0, 0, 1, 0],
+            [1, 1, 1, 1],
+            [1, 1, 1, 1],
+        ]
+        assert views["right"] == [
+            [1, 0, 0, 0],
+            [1, 1, 1, 1],
+            [1, 1, 1, 1],
         ]
         vis = case.get("visibility_oblique")
         if vis:
             assert compute_visibility_decision(matrix, "oblique") == vis
         return
     raise AssertionError("asymmetric_4x4 case missing")
+
+
+def test_spatial_golden_visibility_expectations():
+    for case in _cases():
+        vis = case.get("visibility_oblique")
+        if not vis:
+            continue
+        matrix = normalize_height_matrix(case["matrix"])
+        assert matrix is not None
+        assert compute_visibility_decision(matrix, "oblique") == vis

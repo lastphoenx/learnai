@@ -687,20 +687,19 @@ def parse_spatial_sequence_items(raw: object) -> list[dict[str, Any]]:
             config.setdefault("schema_version", 1)
             if validate_spatial_sequence_config(config):
                 continue
-            answer_raw = item.get("answer")
-            if isinstance(answer_raw, dict):
-                import json
+            from app.core.spatial_validator import build_spatial_sequence_answer
 
-                answer = json.dumps(answer_raw, ensure_ascii=False)
-            else:
-                from app.core.spatial_validator import build_spatial_sequence_answer
-
-                first = "oblique"
-                for st in config.get("stages") or []:
-                    if isinstance(st, dict) and st.get("type") == "inspect":
-                        first = str(st.get("camera") or first)
-                        break
-                answer = json.dumps(build_spatial_sequence_answer(matrix, first), ensure_ascii=False)
+            first = str(config.get("first_camera") or "oblique").strip().lower()
+            for st in config.get("stages") or []:
+                if (
+                    isinstance(st, dict)
+                    and st.get("type") == "inspect"
+                    and not st.get("hint_only")
+                    and not st.get("unlock_hint")
+                ):
+                    first = str(st.get("camera") or first).strip().lower()
+                    break
+            answer = json.dumps(build_spatial_sequence_answer(matrix, first), ensure_ascii=False)
             out.append(
                 {
                     "prompt": prompt[:500],

@@ -392,7 +392,13 @@ export type TrainerSyntheticViewpointConfig = {
 };
 
 export type TrainerSpatialSequenceStage =
-  | { type: "inspect"; camera?: string; camera_locked?: boolean; unlock_hint?: string }
+  | {
+      type: "inspect";
+      camera?: string;
+      camera_locked?: boolean;
+      unlock_hint?: string;
+      hint_only?: boolean;
+    }
   | { type: "visibility_decision" }
   | { type: "projection_fill"; views?: string[] };
 
