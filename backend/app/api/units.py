@@ -64,7 +64,7 @@ from app.services.exam_service import (
     update_exam,
     update_exam_analysis,
 )
-from app.services.unit_service import UnitError, _get_unit_or_404, add_source, add_source_url, assign_unit_to_profiles, create_test_copy_from_unit, create_unit, create_review_from_unit, create_unit_from_record, create_units, delete_source, delete_unit, get_record, get_source_file, get_unit, list_records, list_units, purge_source_file_keep_meta, update_unit, update_unit_flags, update_unit_profile
+from app.services.unit_service import UnitError, _get_unit_or_404, add_source, add_source_url, assign_unit_to_profiles, create_test_copy_from_unit, create_unit, create_review_from_unit, create_unit_from_record, create_units, delete_source, delete_unit, finalize_test_copy, get_record, get_source_file, get_unit, list_records, list_units, purge_source_file_keep_meta, update_unit, update_unit_flags, update_unit_profile
 from app.services.unit_release_service import set_unit_learner_release
 from app.services.pedagogy_service import extract_unit_pedagogy, get_unit_pedagogy
 from app.services.pdf_export_service import unit_worksheet_pdf
@@ -420,6 +420,17 @@ def units_create(
 def units_test_copy(unit_id: UUID, user: User = Depends(get_app_user), db: Session = Depends(get_db)):
     try:
         result = create_test_copy_from_unit(db, user, unit_id)
+        db.commit()
+        return result
+    except UnitError as exc:
+        db.rollback()
+        raise _http(exc) from exc
+
+
+@router.post("/{unit_id}/finalize-test-copy")
+def units_finalize_test_copy(unit_id: UUID, user: User = Depends(get_app_user), db: Session = Depends(get_db)):
+    try:
+        result = finalize_test_copy(db, user, unit_id)
         db.commit()
         return result
     except UnitError as exc:

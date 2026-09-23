@@ -5,16 +5,13 @@ import { useEffect, useMemo, useState } from "react";
 import {
   assignUnitToProfiles,
   fetchUnits,
+  finalizeTestCopyUnit,
   patchUnitProfile,
   type LearnerProfile,
   type LearningUnit,
 } from "@/lib/api";
 import { LearnerMultiSelect } from "@/components/LearnerMultiSelect";
-import {
-  familyContentSourceUnit,
-  siblingCopyForProfile,
-  unitIdForChildCopySource,
-} from "@/lib/unitTemplateFamily";
+import { familyContentSourceUnit, siblingCopyForProfile } from "@/lib/unitTemplateFamily";
 
 type Props = {
   unitId: string;
@@ -121,21 +118,17 @@ export function UnitAssignSection({
     }
   }
 
-  async function onCreateChildCopy(profileId: string) {
-    const sourceId = unitIdForChildCopySource(allUnits, unitForMatch);
+  async function onFinalizeTestCopy() {
     setBusy(true);
     setError(null);
     try {
-      const res = await assignUnitToProfiles(sourceId, [profileId]);
-      const profile = profiles.find((p) => p.id === profileId);
+      await finalizeTestCopyUnit(unitId);
       setMessage(
-        res.created_count
-          ? `Einheit für ${profile?.display_name ?? "Kind"} erstellt — dort «Freigabe für Kind» aktivieren, dann kann es lernen.`
-          : "Kopie erstellt.",
+        "Test abgeschlossen — dies ist jetzt eine normale Lerneinheit. Kind unten zuweisen und «Freigabe für Kind» aktivieren.",
       );
       onAssigned();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Kinder-Einheit konnte nicht erstellt werden");
+      setError(err instanceof Error ? err.message : "Abschliessen fehlgeschlagen");
     } finally {
       setBusy(false);
     }
@@ -172,10 +165,15 @@ export function UnitAssignSection({
       <h2>{isSandbox ? "Test-Kopie & Zuweisung" : "Kinder & Zuweisung"}</h2>
       {isSandbox ? (
         <p className="muted section-lead">
-          Sandbox-Kopie mit eigenem Fortschritt — zum Testen ohne den Fortschritt eines Kindes zu
-          verändern. Zuweisung an Eltern/Admin oder Lernen ohne Zuweisung (mit deinem Profil). Für ein
-          Kind unten «Einheit erstellen» — die Test-Kopie selbst wird Kindern nicht angezeigt.
+          Sandbox zum Durchtesten. Wenn alles passt: Test abschliessen — dieselbe Einheit wird eine normale
+          Lerneinheit (kein Testkopie-Badge mehr), danach Kind zuweisen und freigeben. Vorher nur
+          «Zum Testen zuweisen» an Erwachsene oder direkt lernen.
         </p>
+        <div className="filter-row" style={{ marginTop: "0.75rem" }}>
+          <button type="button" className="btn-primary" onClick={onFinalizeTestCopy} disabled={busy}>
+            Test abschliessen — als Lerneinheit übernehmen
+          </button>
+        </div>
       ) : (
         <p className="muted section-lead">
           Diese Einheit kann genau einem Kind zugeordnet sein — oder vorübergehend keinem. Für ein
@@ -278,14 +276,7 @@ export function UnitAssignSection({
                         Zuweisen
                       </button>
                     ) : isSandbox ? (
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-primary"
-                        onClick={() => onCreateChildCopy(child.id)}
-                        disabled={busy}
-                      >
-                        Einheit erstellen
-                      </button>
+                      <span className="muted">nach «Test abschliessen» zuweisen</span>
                     ) : (
                       <span className="muted">noch keine Kopie</span>
                     )}

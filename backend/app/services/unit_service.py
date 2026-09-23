@@ -764,6 +764,42 @@ def create_test_copy_from_unit(db: Session, user: User, unit_id: uuid.UUID) -> d
     return row
 
 
+def finalize_test_copy(db: Session, user: User, unit_id: uuid.UUID) -> dict:
+    """Test-Kopie in normale Lerneinheit überführen (gleiche ID, Inhalt & Fortschritt bleiben)."""
+    if user.is_child:
+        raise UnitError("Nur für Eltern-Accounts", "forbidden")
+    unit = _get_unit_or_404(db, user, unit_id)
+    record = db.query(LearningRecord).filter(LearningRecord.unit_id == unit.id).first()
+    if not unit_is_sandbox_copy(unit, record):
+        raise UnitError("Diese Einheit ist keine Test-Kopie", "not_sandbox")
+
+    title = _strip_test_copy_title(decrypt_text_master(unit.title_encrypted))
+    if not title.strip():
+        raise UnitError("Titel fehlt — bitte kurz bearbeiten", "invalid_title")
+    unit.title_encrypted = encrypt_text_master(title)
+    if record and record.title_encrypted:
+        record.title_encrypted = encrypt_text_master(title)
+
+    if record and record.reconstruction_encrypted:
+        recon = decrypt_json(record.reconstruction_encrypted)
+        if isinstance(recon, dict):
+            recon.pop("sandbox_copy_of", None)
+            record.reconstruction_encrypted = encrypt_json(recon)
+
+    db.flush()
+    row = get_unit(db, user, unit.id)
+    log_event(
+        db,
+        tenant_id=user.tenant_id,
+        actor_id=user.id,
+        action="unit.test_copy_finalize",
+        resource_type="learning_unit",
+        resource_id=unit.id,
+        detail="promoted_to_learner_unit",
+    )
+    return row
+
+
 def get_source_file(
     db: Session,
     user: User,

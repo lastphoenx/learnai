@@ -1400,6 +1400,9 @@ export const assignUnitToProfiles = (unitId: string, profileIds: string[]) =>
 
 export const createTestCopyUnit = (unitId: string) =>
   apiFetch<LearningUnit>(`/api/v1/units/${unitId}/test-copy`, { method: "POST" });
+
+export const finalizeTestCopyUnit = (unitId: string) =>
+  apiFetch<LearningUnit>(`/api/v1/units/${unitId}/finalize-test-copy`, { method: "POST" });
 export type UnitPatchBody = {
   title?: string;
   brief?: string | null;

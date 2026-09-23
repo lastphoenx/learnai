@@ -115,6 +115,22 @@ def test_template_ids_from_recon():
     assert legacy["sandbox_copy_of"] == "original-uuid"
 
 
+def test_after_finalize_unit_not_marked_sandbox():
+    from app.core.crypto import encrypt_json
+    from app.services.unit_service import _attach_template_fields, _strip_test_copy_title
+
+    title = _strip_test_copy_title("Test-Kopie: MahteFox")
+    recon = encrypt_json({"template_root_id": "root-1"})
+
+    class _Rec:
+        reconstruction_encrypted = recon
+
+    row = {"id": "u1", "title": title}
+    _attach_template_fields(row, _Rec())
+    assert row["is_sandbox_copy"] is False
+    assert title == "MahteFox"
+
+
 def test_strip_test_copy_title():
     from app.services.unit_service import _strip_test_copy_title
 
