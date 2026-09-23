@@ -91,8 +91,9 @@ POSTEN_COMPACT_SPATIAL_EXTRA = (
     'colored_faces {"0,0,0,top":"yellow","0,0,0,left":"green",...}; prompt mit klaren Farben pro Fläche.\n'
     "- region_paint_items: nur mehrstufige Türme — template iso_tower_2; Einzelwürfel immer building_paint.\n"
     '- grid_fill: validation "derived_projection" — answer {"height_matrix":[[...]]}; '
-    "reference_height_matrix = dasselbe Gebäude zur Vorschau. Bei «Höhenplan ergänzen»: exact_match mit "
-    "reference_height_matrix (Zielgebäude) und answer als Lösungsraster; rows/cols = Matrix-Zeilen/-Spalten.\n"
+    "reference_height_matrix PFLICHT bei cell_type number (exact_match: Vorschau-Gebäude; derived_projection: "
+    "optional, sonst height_matrix aus answer). Bei «Höhenplan ergänzen»: exact_match + reference_height_matrix "
+    "+ answer als Lösungsraster; rows/cols = Matrix-Zeilen/-Spalten.\n"
     '- net_build_items: Modus «bauen» — answer "valid_net", leeres Raster. Modus «prüfen» — given_cells '
     '[[col,row],...] (6 Zellen), answer "valid" oder "invalid" (Würfelnetz). '
     "Quader-Netze (ungleiche Rechtecke): image_choice aus Heft-Foto, nicht net_build.\n"

@@ -294,6 +294,8 @@ def parse_grid_fill_items(raw: object) -> list[dict[str, Any]]:
         ref_matrix = normalize_height_matrix(item.get("reference_height_matrix"))
         if validation == "derived_projection" and ref_matrix is None and isinstance(answer_raw, dict):
             ref_matrix = normalize_height_matrix(answer_raw.get("height_matrix"))
+        if cell_type == "number" and ref_matrix is None:
+            continue
         out.append(
             {
                 "prompt": prompt[:500],

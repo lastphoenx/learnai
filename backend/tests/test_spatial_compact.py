@@ -214,6 +214,37 @@ def test_spatial_fallback_fills_empty_payload():
     assert "net_build" in types
 
 
+def test_parse_grid_fill_number_exact_match_requires_reference_matrix():
+    rows = parse_grid_fill_items(
+        [
+            {
+                "prompt": "Ergänze den Höhenplan.",
+                "rows": 2,
+                "cols": 3,
+                "cell_type": "number",
+                "validation": "exact_match",
+                "answer": [[1, 2, 0], [1, 0, 0]],
+            }
+        ]
+    )
+    assert rows == []
+    rows_ok = parse_grid_fill_items(
+        [
+            {
+                "prompt": "Ergänze den Höhenplan.",
+                "rows": 2,
+                "cols": 3,
+                "cell_type": "number",
+                "validation": "exact_match",
+                "reference_height_matrix": [[1, 2, 0], [1, 0, 0]],
+                "answer": [[1, 2, 0], [1, 0, 0]],
+            }
+        ]
+    )
+    assert len(rows_ok) == 1
+    assert rows_ok[0]["reference_height_matrix"] is not None
+
+
 def test_parse_grid_fill_derived_projection_keeps_reference_matrix():
     rows = parse_grid_fill_items(
         [
