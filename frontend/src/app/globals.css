@@ -4161,3 +4161,33 @@ button.trainer-flashcard.flipped {
 .region-paint-face {
   transition: fill 0.12s ease;
 }
+
+.building-iso-preview {
+  margin-bottom: 0.75rem;
+}
+
+.building-iso-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.5rem;
+}
+
+.building-iso-svg {
+  width: 100%;
+  max-width: 28rem;
+  height: auto;
+  display: block;
+  background: #f8fafc;
+  border-radius: 0.5rem;
+}
+
+.building-iso-hint,
+.building-iso-breakdown {
+  font-size: 0.9rem;
+}
+
+.net-build-cell.selected {
+  background: color-mix(in srgb, var(--accent) 35%, var(--surface-2));
+  outline: 2px solid var(--accent);
+}

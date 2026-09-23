@@ -5,6 +5,7 @@ import json
 from app.core.iso_building import (
     build_region_paint_layout,
     building_projections,
+    classify_column_visibility,
     legacy_template_matrix,
     normalize_height_matrix,
     score_derived_projection_answer,
@@ -46,6 +47,14 @@ def test_valid_cube_net_cross():
     cross = [(0, 1), (1, 1), (2, 1), (1, 0), (1, 2), (1, 3)]
     assert valid_cube_net(cross)
     assert not valid_cube_net([(0, 0), (1, 0), (2, 0), (3, 0), (4, 0), (5, 0)])
+
+
+def test_classify_column_visibility_single_cube():
+    matrix = legacy_template_matrix("iso_single_cube")
+    assert matrix is not None
+    report = classify_column_visibility(matrix)
+    assert report["all_readable"]
+    assert len(report["columns"]) == 1
 
 
 def test_building_paint_layout_has_face_ids():

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { TrainerGridFillConfig } from "@/lib/api";
+import { BuildingIsoPreview } from "@/components/learn/BuildingIsoPreview";
 
 const COLOR_MAP: Record<string, string> = {
   yellow: "#e6c200",
@@ -56,8 +57,13 @@ export function GridFillExercise({ config, busy, result, onSubmit, onContinue }:
     setCell(ri, ci, next === "empty" ? null : next);
   }
 
+  const refMatrix = config.reference_height_matrix;
+
   return (
     <div className="grid-fill-exercise stack">
+      {refMatrix && refMatrix.length > 0 && (
+        <BuildingIsoPreview matrix={refMatrix} showInspector={config.validation === "derived_projection"} />
+      )}
       <div
         className="grid-fill-table"
         style={{ gridTemplateColumns: `repeat(${cols}, minmax(2.5rem, 1fr))` }}

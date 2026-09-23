@@ -1,52 +1,29 @@
 # Generischer Gebäude-Renderer (Raumgeometrie)
 
-Status: **Phase 1–2 umgesetzt** in Code; Phase 3–4 siehe Ausblick unten.
+**Stand:** Phase 1–2 + **Phase 3/4 (Basis)** + **Spalten-Inspektor (§9)**.
 
-## Prinzip
+## Umgesetzt
 
-Die KI erzeugt **keinen** ausführbaren Code pro Einheit. Sie liefert strukturierte Daten
-(Höhenmatrix, Farben, Template-ID) — feste, getestete Komponenten rendern und prüfen
-(dasselbe Muster wie `grid_fill` / `region_paint`).
+| Phase | Inhalt |
+|-------|--------|
+| 1 | `iso_building.py`, `isoBuilding.ts`, Legacy-Templates berechnet |
+| 2 | `building_paint`, `grid_fill` + `derived_projection`, `reference_height_matrix` |
+| 3 | `net_build` + `valid_cube_net`, UI `NetBuildExercise` |
+| 4 (Basis) | `synthetic_viewpoint` + `SyntheticViewpointExercise` (Iso-Szene, keine Fotos) |
+| §9 | `buildColumnInspector`, `classifyColumnVisibility`, Rückansicht (`camera: back`), `BuildingIsoPreview` in Grid/Region |
 
-## Implementiert
+## Spalten-Inspektor
 
-| Baustein | Pfad |
-|----------|------|
-| Isometrie + Layout aus Matrix | `backend/app/core/iso_building.py` |
-| Legacy-Templates (`iso_single_cube`, `iso_tower_2`) | berechnet via `region_layouts.get_region_template()` |
-| `building_paint` (Parser, Grading, Trainer) | `spatial_compact.py`, `RegionPaintExercise` |
-| `grid_fill` + `validation: derived_projection` | Parser + `score_derived_projection_answer` |
-| TS-Renderer (Client) | `frontend/src/lib/isoBuilding.ts` |
-| Würfelnetz (Topologie, 6 Zellen) | `valid_cube_net()` — Basis für Phase 3 |
+- **Schrägansicht allein** kann Spalten verdecken → Hinweis + optional **Rückansicht**.
+- **Spalte A…** öffnet Marker (Tiefe 1–n), massgebliche Tiefe hervorgehoben.
+- Backend: `classify_column_visibility(matrix)` für QA/Generierung.
 
-### `building_paint` (Schema)
+## Offen (bewusst)
 
-```json
-{
-  "answer_type": "building_paint",
-  "height_matrix": [[2,1],[1,3]],
-  "colored_faces": {"0,0,1,top": "yellow"},
-  "palette": ["yellow", "green", "purple"]
-}
-```
+- Quader-Netze (Rechteckgrössen pro Fläche)
+- Vollständiger Normalen-BFS für `valid_cube_net` (aktuell: Zusammenhang + Grad)
+- Prozedural zufällige Standpunkt-Szenen in der **Generierung** (nur Schema/UI)
 
-Flächen-IDs: `x,y,z,top|left|right` (berechnet, nicht handgezeichnet).
+## Referenz
 
-### `derived_projection`
-
-`grid_fill_items` mit `validation: "derived_projection"` und `answer.height_matrix` —
-Lösung des Lernenden ist eine Höhenmatrix; Vergleich über `building_projections()`.
-
-## Phasenplan (offen)
-
-1. ~~Genereller Renderer + Template-Migration~~ (erledigt)
-2. ~~`derived_projection` in `grid_fill`~~ (Backend; dedizierte UI optional)
-3. **Netz-Antippen** (`net_build`) + Quader-Grössencheck auf `valid_cube_net`
-4. **Synthetischer Standpunkt** (Ergänzung zu `point_on_image`, nicht Ersatz)
-
-## Architektur
-
-Rendering **clientseitig** (SVG `viewBox`, skalierbar). Backend validiert Matrizen
-und erwartete Farben/Ansichten — keine SVG-Generierung im API.
-
-Maximale Matrixgrösse Gebäude: **8×8**, Stapelhöhe **12** (`iso_building.py`).
+Siehe ursprüngliche Spezifikation (Phasenplan §8, Zuordnungstabelle §5) im Team-Chat / Ticket.

@@ -80,7 +80,9 @@ POSTEN_COMPACT_SPATIAL_EXTRA = (
     'answer: {"top":"yellow","left":"green","right":"purple"} — nur Flächen-IDs des Templates.\n'
     "- building_paint_items: Gebäude aus height_matrix (Zahlenraster wie grid_fill, max 8×8), "
     'colored_faces: {"0,0,0,top":"yellow",...} — Flächen-IDs x,y,z,top|left|right.\n'
-    '- grid_fill validation "derived_projection": answer mit height_matrix — System prüft abgeleitete Ansichten.\n'
+    '- grid_fill validation "derived_projection": answer mit height_matrix; optional reference_height_matrix fürs Zielgebäude.\n'
+    "- net_build_items: Würfelnetz — rows/cols 3-8, answer \"valid_net\" oder Liste [[col,row],...].\n"
+    "- synthetic_viewpoint_items: height_matrix, candidates [{id:\"A\"},...], answer = id (Standpunkt ohne Foto).\n"
     "- Pflicht bei Raumgeometrie: mindestens 2 Einträge gesamt in den spatial-Listen "
     "(nicht nur cards/quiz). Quiz um 2-4 Fragen kürzen.\n"
 )
@@ -95,7 +97,7 @@ def build_compact_system_prompt(preset_id: str = "posten_compact", *, spatial_ge
         base = (
             base
             + '\nErweitertes Schema (zusätzliche optionale Felder): '
-            + '"image_choice_items":[],"point_on_image_items":[],"grid_fill_items":[],"region_paint_items":[],"building_paint_items":[]\n'
+            + '"image_choice_items":[],"point_on_image_items":[],"grid_fill_items":[],"region_paint_items":[],"building_paint_items":[],"net_build_items":[],"synthetic_viewpoint_items":[]\n'
             + POSTEN_COMPACT_SPATIAL_EXTRA
         )
     return base

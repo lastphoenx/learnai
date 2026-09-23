@@ -312,6 +312,34 @@ def _net_cells_connected(cells: list[tuple[int, int]]) -> bool:
     return len(seen) == len(cells)
 
 
+def classify_column_visibility(matrix: list[list[int]]) -> dict[str, Any]:
+    """Prüft, ob jede Spalte aus der Standard-Schrägansicht lesbar ist."""
+    cols = len(matrix[0])
+    visible = {face_id(x, y, z, face) for x, y, z, face in iter_visible_faces(matrix)}
+    columns: list[dict[str, Any]] = []
+    for col in range(cols):
+        heights = [int(matrix[y][col]) for y in range(len(matrix))]
+        max_h = max(heights) if heights else 0
+        critical_y = next((i for i, h in enumerate(heights) if h == max_h), 0)
+        z_top = max(0, max_h - 1)
+        readable = max_h < 1 or any(
+            face_id(col, critical_y, z_top, face) in visible for face in _FACE_NAMES
+        )
+        columns.append(
+            {
+                "col": col,
+                "label": chr(65 + col),
+                "readable": readable,
+                "max_height": max_h,
+                "critical_depth_y": critical_y + 1,
+            }
+        )
+    return {
+        "all_readable": all(c["readable"] for c in columns),
+        "columns": columns,
+    }
+
+
 def valid_cube_net(cells: list[tuple[int, int]]) -> bool:
     """6 zusammenhängende Netz-Zellen (Würfelnetz-Topologie, Phase 3 — ohne Quader-Masse)."""
     if len(cells) != 6:

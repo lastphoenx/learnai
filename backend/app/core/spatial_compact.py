@@ -16,7 +16,15 @@ GRID_COLOR_PALETTE = ("yellow", "green", "purple", "blue", "orange", "empty")
 _GRID_COLOR_PALETTE = GRID_COLOR_PALETTE
 
 SPATIAL_ANSWER_TYPES = frozenset(
-    {"image_choice", "point_on_image", "grid_fill", "region_paint", "building_paint"}
+    {
+        "image_choice",
+        "point_on_image",
+        "grid_fill",
+        "region_paint",
+        "building_paint",
+        "net_build",
+        "synthetic_viewpoint",
+    }
 )
 
 
@@ -279,6 +287,11 @@ def parse_grid_fill_items(raw: object) -> list[dict[str, Any]]:
             pal = [p for p in pal if p in _GRID_COLOR_PALETTE]
         else:
             pal = list(_GRID_COLOR_PALETTE)
+        ref_matrix = None
+        if validation != "derived_projection":
+            from app.core.iso_building import normalize_height_matrix
+
+            ref_matrix = normalize_height_matrix(item.get("reference_height_matrix"))
         out.append(
             {
                 "prompt": prompt[:500],
@@ -289,6 +302,7 @@ def parse_grid_fill_items(raw: object) -> list[dict[str, Any]]:
                 "palette": pal[:6],
                 "validation": validation,
                 "answer": answer_payload,
+                "reference_height_matrix": ref_matrix,
             }
         )
     return out[:6]
@@ -392,6 +406,74 @@ def parse_building_paint_items(raw: object) -> list[dict[str, Any]]:
     return out[:6]
 
 
+def parse_net_build_items(raw: object) -> list[dict[str, Any]]:
+    if not isinstance(raw, list):
+        return []
+    out: list[dict[str, Any]] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        prompt = str(item.get("prompt") or "").strip()
+        try:
+            rows = int(item.get("rows", 0))
+            cols = int(item.get("cols", 0))
+        except (TypeError, ValueError):
+            continue
+        if not prompt or rows < 3 or rows > 8 or cols < 3 or cols > 8:
+            continue
+        answer = item.get("answer")
+        if answer is None:
+            answer = "valid_net"
+        out.append(
+            {
+                "prompt": prompt[:500],
+                "hint": str(item.get("hint") or "")[:300] or None,
+                "rows": rows,
+                "cols": cols,
+                "answer": answer,
+            }
+        )
+    return out[:4]
+
+
+def parse_synthetic_viewpoint_items(raw: object) -> list[dict[str, Any]]:
+    from app.core.iso_building import normalize_height_matrix
+
+    if not isinstance(raw, list):
+        return []
+    out: list[dict[str, Any]] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        prompt = str(item.get("prompt") or "").strip()
+        matrix = normalize_height_matrix(item.get("height_matrix"))
+        candidates_raw = item.get("candidates")
+        if not prompt or not matrix or not isinstance(candidates_raw, list):
+            continue
+        candidates: list[dict[str, str]] = []
+        for c in candidates_raw:
+            if not isinstance(c, dict):
+                continue
+            cid = str(c.get("id") or "").strip().upper()
+            if cid:
+                candidates.append({"id": cid[:8]})
+        if len(candidates) < 2:
+            continue
+        answer = str(item.get("answer") or "").strip().upper()
+        if answer not in {c["id"] for c in candidates}:
+            continue
+        out.append(
+            {
+                "prompt": prompt[:500],
+                "hint": str(item.get("hint") or "")[:300] or None,
+                "height_matrix": matrix,
+                "candidates": candidates,
+                "answer": answer,
+            }
+        )
+    return out[:4]
+
+
 def count_raw_spatial_fields(payload: dict[str, Any]) -> int:
     return (
         len(payload.get("image_choice_items") or [])
@@ -399,6 +481,8 @@ def count_raw_spatial_fields(payload: dict[str, Any]) -> int:
         + len(payload.get("grid_fill_items") or [])
         + len(payload.get("region_paint_items") or [])
         + len(payload.get("building_paint_items") or [])
+        + len(payload.get("net_build_items") or [])
+        + len(payload.get("synthetic_viewpoint_items") or [])
     )
 
 
@@ -425,14 +509,18 @@ def spatial_raw_to_practice_items(
     grid_fill: list[dict[str, Any]],
     region_paint: list[dict[str, Any]] | None = None,
     building_paint: list[dict[str, Any]] | None = None,
+    net_build: list[dict[str, Any]] | None = None,
+    synthetic_viewpoint: list[dict[str, Any]] | None = None,
     source_ids: list[str],
     quiz_source: str = "posten_compact",
 ) -> list[dict[str, Any]]:
-    from app.core.iso_building import build_region_paint_layout
+    from app.core.iso_building import build_region_paint_layout, classify_column_visibility
     from app.core.region_layouts import get_region_template
 
     region_paint = region_paint or []
     building_paint = building_paint or []
+    net_build = net_build or []
+    synthetic_viewpoint = synthetic_viewpoint or []
     items: list[dict[str, Any]] = []
 
     for raw in image_choice:
@@ -509,6 +597,7 @@ def spatial_raw_to_practice_items(
                     "cell_type": raw["cell_type"],
                     "palette": raw.get("palette") or list(_GRID_COLOR_PALETTE),
                     "validation": raw.get("validation") or "exact_match",
+                    "reference_height_matrix": raw.get("reference_height_matrix"),
                 },
                 "source": quiz_source,
             }
@@ -545,6 +634,7 @@ def spatial_raw_to_practice_items(
         if not isinstance(matrix, list):
             continue
         layout = build_region_paint_layout(matrix, title="Gebäude (isometrisch)")
+        col_vis = classify_column_visibility(matrix)
         answer_map = raw.get("answer") if isinstance(raw.get("answer"), dict) else {}
         if not answer_map:
             continue
@@ -560,7 +650,40 @@ def spatial_raw_to_practice_items(
                     "view_width": layout.get("view_width", 400),
                     "view_height": layout.get("view_height", 300),
                     "regions": layout.get("regions") or [],
+                    "column_visibility": col_vis,
                     "palette": raw.get("palette") or list(_GRID_COLOR_PALETTE),
+                },
+                "source": quiz_source,
+            }
+        )
+
+    for raw in net_build:
+        items.append(
+            {
+                "prompt": raw["prompt"],
+                "hint": raw.get("hint"),
+                "answer_type": "net_build",
+                "answer": json.dumps(raw.get("answer"), ensure_ascii=False),
+                "net_build": {"rows": raw["rows"], "cols": raw["cols"]},
+                "source": quiz_source,
+            }
+        )
+
+    for raw in synthetic_viewpoint:
+        matrix = raw.get("height_matrix")
+        if not isinstance(matrix, list):
+            continue
+        col_vis = classify_column_visibility(matrix)
+        items.append(
+            {
+                "prompt": raw["prompt"],
+                "hint": raw.get("hint"),
+                "answer_type": "synthetic_viewpoint",
+                "answer": raw["answer"],
+                "synthetic_viewpoint": {
+                    "height_matrix": matrix,
+                    "candidates": raw.get("candidates") or [],
+                    "column_visibility": col_vis,
                 },
                 "source": quiz_source,
             }
@@ -658,6 +781,38 @@ def score_grid_fill_answer(
     return {"correct": all_ok and len(slots) > 0, "slots": slots}
 
 
+def score_net_build_answer(expected_json: str, user_text: str) -> dict[str, Any]:
+    from app.core.iso_building import valid_cube_net
+
+    try:
+        user = json.loads(user_text)
+    except json.JSONDecodeError:
+        return {"correct": False, "slots": []}
+    if not isinstance(user, list):
+        return {"correct": False, "slots": []}
+    cells: list[tuple[int, int]] = []
+    for entry in user:
+        if not isinstance(entry, (list, tuple)) or len(entry) != 2:
+            return {"correct": False, "slots": []}
+        try:
+            cells.append((int(entry[0]), int(entry[1])))
+        except (TypeError, ValueError):
+            return {"correct": False, "slots": []}
+    ok = valid_cube_net(cells)
+    if not ok:
+        return {"correct": False, "slots": []}
+    try:
+        expected = json.loads(expected_json)
+    except json.JSONDecodeError:
+        expected = expected_json
+    if expected in ("valid_net", "valid", True):
+        return {"correct": True, "slots": []}
+    if isinstance(expected, list):
+        exp_cells = {(int(a[0]), int(a[1])) for a in expected if isinstance(a, (list, tuple)) and len(a) == 2}
+        return {"correct": set(cells) == exp_cells, "slots": []}
+    return {"correct": True, "slots": []}
+
+
 def score_region_paint_answer(expected_json: str, user_text: str) -> dict[str, Any]:
     try:
         expected = json.loads(expected_json)
@@ -714,4 +869,12 @@ def validate_spatial_practice_item(item: dict[str, Any]) -> list[str]:
         bp = item.get("building_paint")
         if not isinstance(bp, dict):
             warnings.append("building_paint: fehlende Konfiguration")
+    elif at == "net_build":
+        nb = item.get("net_build")
+        if not isinstance(nb, dict):
+            warnings.append("net_build: fehlende Konfiguration")
+    elif at == "synthetic_viewpoint":
+        sv = item.get("synthetic_viewpoint")
+        if not isinstance(sv, dict):
+            warnings.append("synthetic_viewpoint: fehlende Konfiguration")
     return warnings

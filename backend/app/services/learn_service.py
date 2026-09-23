@@ -122,6 +122,8 @@ def _strip_practice_answers(content: dict | None) -> dict | None:
             "grid_fill",
             "region_paint",
             "building_paint",
+            "net_build",
+            "synthetic_viewpoint",
         ):
             if key in item and item[key] is not None:
                 entry[key] = item[key]
@@ -660,6 +662,15 @@ def submit_practice_answer(
         paint_score = score_region_paint_answer(expected, answer_text)
         is_correct = bool(paint_score.get("correct"))
         label_score = paint_score
+    elif answer_type == "net_build":
+        from app.core.spatial_compact import score_net_build_answer
+
+        net_score = score_net_build_answer(expected, answer_text)
+        is_correct = bool(net_score.get("correct"))
+    elif answer_type == "synthetic_viewpoint":
+        from app.core.spatial_compact import grade_image_choice
+
+        is_correct = grade_image_choice(expected, answer_text)
     elif answer_type == "region_paint":
         from app.core.spatial_compact import score_region_paint_answer
 

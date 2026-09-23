@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { TrainerRegionPaintConfig } from "@/lib/api";
+import { BuildingIsoPreview } from "@/components/learn/BuildingIsoPreview";
 
 const COLOR_MAP: Record<string, string> = {
   yellow: "#e6c200",
@@ -60,6 +61,9 @@ export function RegionPaintExercise({ config, busy, result, onSubmit, onContinue
         ))}
       </div>
       <p className="muted region-paint-hint">Farbe wählen, dann Fläche antippen.</p>
+      {config.height_matrix && config.height_matrix.length > 0 && (
+        <BuildingIsoPreview matrix={config.height_matrix} showInspector={true} showCameraToggle={true} />
+      )}
       <div className="region-paint-stage" style={{ minWidth: 320 }}>
         <svg viewBox={`0 0 ${vw} ${vh}`} className="region-paint-svg" role="img">
           {(config.regions || []).map((region) => {

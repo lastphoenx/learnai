@@ -28,6 +28,8 @@ import { RegionPaintExercise } from "@/components/learn/RegionPaintExercise";
 import { ImageChoiceExercise } from "@/components/learn/ImageChoiceExercise";
 import { LabelDiagramExercise } from "@/components/learn/LabelDiagramExercise";
 import { PointOnImageExercise } from "@/components/learn/PointOnImageExercise";
+import { NetBuildExercise } from "@/components/learn/NetBuildExercise";
+import { SyntheticViewpointExercise } from "@/components/learn/SyntheticViewpointExercise";
 import { PracticeChoiceExercise } from "@/components/learn/PracticeChoiceExercise";
 import { JumpStrip } from "@/components/learn/JumpStrip";
 import { QuizWeaknessPanel } from "@/components/QuizWeaknessPanel";
@@ -1396,6 +1398,66 @@ export function InteractiveTrainer({
                     if (practiceIndex + 1 < practiceExercises.length) {
                       setPracticeIndex(practiceIndex + 1);
                     }
+                  }}
+                />
+              ) : currentPractice.answer_type === "net_build" && currentPractice.net_build ? (
+                <NetBuildExercise
+                  key={`${currentPractice.module_id}:${currentPractice.exercise_index}`}
+                  config={currentPractice.net_build}
+                  busy={busy}
+                  result={practiceResult ? { correct: practiceResult.correct } : null}
+                  onSubmit={async (answer) => {
+                    setBusy(true);
+                    setError(null);
+                    try {
+                      const res = await submitPracticeAnswer(unitId, {
+                        module_id: currentPractice.module_id,
+                        exercise_index: currentPractice.exercise_index,
+                        answer,
+                      });
+                      onStateChange({ ...state, progress: res.progress, summary: res.summary });
+                      setPracticeResult({ correct: res.correct, hint: res.hint, expected: res.expected });
+                    } catch (err) {
+                      setError(err instanceof Error ? err.message : "Antwort fehlgeschlagen");
+                    } finally {
+                      setBusy(false);
+                    }
+                  }}
+                  onContinue={() => {
+                    setPracticeResult(null);
+                    if (practiceIndex + 1 < practiceExercises.length) setPracticeIndex(practiceIndex + 1);
+                  }}
+                />
+              ) : currentPractice.answer_type === "synthetic_viewpoint" && currentPractice.synthetic_viewpoint ? (
+                <SyntheticViewpointExercise
+                  key={`${currentPractice.module_id}:${currentPractice.exercise_index}`}
+                  config={currentPractice.synthetic_viewpoint}
+                  busy={busy}
+                  result={
+                    practiceResult
+                      ? { correct: practiceResult.correct, expected_label: practiceResult.expected ?? null }
+                      : null
+                  }
+                  onSubmit={async (answer) => {
+                    setBusy(true);
+                    setError(null);
+                    try {
+                      const res = await submitPracticeAnswer(unitId, {
+                        module_id: currentPractice.module_id,
+                        exercise_index: currentPractice.exercise_index,
+                        answer,
+                      });
+                      onStateChange({ ...state, progress: res.progress, summary: res.summary });
+                      setPracticeResult({ correct: res.correct, hint: res.hint, expected: res.expected });
+                    } catch (err) {
+                      setError(err instanceof Error ? err.message : "Antwort fehlgeschlagen");
+                    } finally {
+                      setBusy(false);
+                    }
+                  }}
+                  onContinue={() => {
+                    setPracticeResult(null);
+                    if (practiceIndex + 1 < practiceExercises.length) setPracticeIndex(practiceIndex + 1);
                   }}
                 />
               ) : currentPractice.answer_type === "label_diagram" && currentPractice.diagram ? (
