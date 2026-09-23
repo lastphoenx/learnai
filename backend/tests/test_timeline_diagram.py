@@ -10,6 +10,11 @@ from app.core.timeline_diagram import (
 )
 
 
+def test_parse_epoch_year_range_accepts_en_dash_bc_spans():
+    assert parse_epoch_year_range("5500–2200 v. Chr.") == (-5500, -2200)
+    assert parse_epoch_year_range("800-30 v. Chr.") == (-800, -30)
+
+
 def test_parse_epoch_year_range_rejects_small_number_spans():
     assert parse_epoch_year_range("4 bis 8 Kanten") is None
     assert parse_epoch_year_range("12 bis 24 Seiten") is None

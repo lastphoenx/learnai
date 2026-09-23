@@ -29,6 +29,12 @@ _FALSE_EPOCH_TERM = re.compile(
 _DEEP_PAST = -500_000
 _PRESENT_YEAR = 2030
 _MIN_IMPLICIT_AD_YEAR = 500
+_RANGE_SEP = re.compile(r"\s*[-–—]\s*")
+
+
+def _normalize_range_separators(text: str) -> str:
+    """Heft-typisch: «5500–2200 v. Chr.» — Gedankenstrich wie «bis» behandeln."""
+    return _RANGE_SEP.sub(" bis ", text)
 
 
 def _century_bc_range(century: int) -> tuple[int, int]:
@@ -47,7 +53,7 @@ def _implicit_ad_span_plausible(a: int, b: int) -> bool:
 
 
 def parse_epoch_year_range(definition: str) -> tuple[int, int] | None:
-    text = str(definition or "").strip()
+    text = _normalize_range_separators(str(definition or "").strip())
     if not text:
         return None
 
