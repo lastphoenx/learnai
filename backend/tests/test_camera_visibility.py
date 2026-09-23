@@ -1,5 +1,4 @@
 from app.core.camera_visibility import (
-    _building_center,
     _camera_world_origin,
     _normalize,
     _ray_first_voxel,
@@ -61,14 +60,14 @@ def test_ray_to_rear_cell_hits_that_cell_not_side_column():
     assert hit == (1, 1, 0)
 
 
-def test_ray_toward_center_hits_front_column_first():
-    """Strahl von der Kamera zum Gebäudemittelpunkt trifft die vordere hohe Säule zuerst."""
-    matrix = normalize_height_matrix([[2, 0], [0, 1]])
+def test_ray_to_tall_column_top_hits_that_column():
+    """Zielpunkt auf Spalte (0,0) — kein entarteter Gebäudemittelpunkt (Ecken-Diagonale)."""
+    matrix = normalize_height_matrix([[2, 0], [1, 0]])
     assert matrix is not None
     view_dir = (1.0, 0.0, -1.0)
     origin = _camera_world_origin(matrix, view_dir)
-    cx, cy, cz = _building_center(matrix)
-    direction = _normalize((cx - origin[0], cy - origin[1], cz - origin[2]))
+    tx, ty, tz = _world_pos(0, 0, 1)
+    direction = _normalize((tx - origin[0], ty - origin[1], tz - origin[2]))
     hit = _ray_first_voxel(matrix, origin, direction)
     assert hit is not None
     assert hit[0] == 0
