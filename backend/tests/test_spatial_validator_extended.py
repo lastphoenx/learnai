@@ -41,15 +41,12 @@ def test_spatial_sequence_has_top_hint_stage():
     assert top_stages[0].get("hint_only") is True
 
 
-def test_second_camera_is_hint_only_not_main_flow():
+def test_second_camera_is_mandatory_in_second_view_branch():
     item = build_spatial_sequence_item([[1, 2], [2, 1]], prompt="x")
-    second = [
-        s
-        for s in item["spatial_sequence"]["stages"]
-        if s.get("type") == "inspect" and s.get("unlock_hint") == "show_second_camera"
-    ]
-    assert len(second) == 1
-    assert second[0].get("hint_only") is True
+    branch = item["spatial_sequence"]["visibility_branches"]["second_view_required"]["stages"]
+    second_inspects = [s for s in branch if s.get("type") == "inspect"]
+    assert len(second_inspects) == 1
+    assert not second_inspects[0].get("hint_only")
 
 
 def test_parse_ignores_ki_answer_dict():
@@ -76,7 +73,8 @@ def test_parse_ignores_ki_answer_dict():
     assert answer["visibility"] == "one_view_sufficient"
     assert answer["projections"]["top"] == [[1]]
 
-
-def test_quality_warning_reads_hint_only_second_camera():
+def test_quality_warning_uses_config_second_camera():
     item = build_spatial_sequence_item([[1, 2], [2, 1]], prompt="Test")
-    assert spatial_sequence_quality_warnings(item["spatial_sequence"]) == []
+    cfg = item["spatial_sequence"]
+    assert spatial_sequence_quality_warnings(cfg) == []
+    assert cfg["second_camera"] == choose_informative_second_camera(cfg["height_matrix"], "oblique")
