@@ -55,6 +55,13 @@ Golden: `backend/app/fixtures/spatial_golden/nets.json`, `backend/tests/fixtures
 
 Kap. 3: `resolveSpatialSequenceWorkshopPhase` — bei fehlendem `projection_fill` in der Navigation darf `projectionStageIndex === -1` nicht in die Projektions-Phase springen (Regressionstest in `spatialSequenceWorkshopPhase.test.ts`).
 
+## Didaktische Schutzregeln (workshop_v2)
+
+| Kapitel | Regel |
+|---------|--------|
+| 2 Netz | Faltvorschau nur nach «Hilfe: Faltvorschau» (nicht live beim Markieren); Validate: erst Entscheid-Phase |
+| 1 Würfel/Bild | Erkunden in Schritt 1 (Drehen); ab «Weiter zur Auswahl» Kamera gesperrt (`cameraLocked`) |
+
 ## Manuelle Verifikation (pro Kapitel-Pilot)
 
 Nach grüner CI: Freischaltung, Overlay-Wahrheitstabelle (Kap. 3), Pfeilrichtungen am Guide — bevor das nächste Kapitel startet.

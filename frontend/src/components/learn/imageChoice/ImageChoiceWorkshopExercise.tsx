@@ -54,7 +54,7 @@ export function ImageChoiceWorkshopExercise({
       instruction={
         phase === "inspect"
           ? "Schritt 1: Drehe den Würfel und merke dir die sichtbare Flächenfarbe."
-          : "Schritt 2: Wähle die passende Bildoption."
+          : "Schritt 2: Die Ansicht ist fixiert — wähle die passende Bildoption (nicht mehr drehen)."
       }
       modelPanel={
         <BuildingThreeCanvas
@@ -64,7 +64,8 @@ export function ImageChoiceWorkshopExercise({
           faceInteraction="orientable"
           showOrientationLabels={true}
           heightPx={320}
-          cameraLocked={false}
+          cameraPreset="oblique"
+          cameraLocked={phase === "choose"}
         />
       }
       paintBlock={
