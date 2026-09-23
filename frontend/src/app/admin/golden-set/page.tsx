@@ -6,22 +6,113 @@ import { AppHeader } from "@/components/AppHeader";
 import {
   fetchMe,
   fetchPedagogyGoldenStatus,
+  fetchTaskTypeGoldenStatus,
   runPedagogyGoldenSuite,
+  runTaskTypeGoldenSuite,
   type PedagogyGoldenStatus,
+  type TaskTypeGoldenStatus,
   type User,
 } from "@/lib/api";
 
+type GoldenSuiteProps<T extends { ok: boolean; report: string; passed: number; total: number; coverage_complete: boolean }> = {
+  title: string;
+  lead: string;
+  coverageTitle: string;
+  coverageRows: { id: string; label: string; ok: boolean; detail: string }[];
+  fixtures: { name: string; ok: boolean; meta: string; error?: string }[];
+  status: T | null;
+  busy: boolean;
+  onRun: () => void;
+  report: string | null;
+  onCopy: () => void;
+  copied: boolean;
+};
+
+function GoldenSuiteSection<T extends { ok: boolean; report: string; passed: number; total: number; coverage_complete: boolean }>({
+  title,
+  lead,
+  coverageTitle,
+  coverageRows,
+  fixtures,
+  status,
+  busy,
+  onRun,
+  report,
+  onCopy,
+  copied,
+}: GoldenSuiteProps<T>) {
+  return (
+    <>
+      <section className="card unit-section">
+        <h2>{title}</h2>
+        <p className="muted section-lead">{lead}</p>
+        <div className="filter-row">
+          <button type="button" className="btn-primary" onClick={onRun} disabled={busy}>
+            {busy ? "Läuft…" : "Tests jetzt ausführen"}
+          </button>
+          {report ? (
+            <button type="button" className="btn" onClick={onCopy}>
+              {copied ? "Kopiert" : "Report kopieren"}
+            </button>
+          ) : null}
+        </div>
+        {status && (
+          <p className="muted">
+            {status.passed}/{status.total} Fixtures OK
+            {status.coverage_complete ? " · alle Gruppen abgedeckt" : " · Abdeckung unvollständig"}
+          </p>
+        )}
+      </section>
+
+      <section className="card unit-section">
+        <h3>{coverageTitle}</h3>
+        <ul className="admin-golden-coverage">
+          {coverageRows.map((row) => (
+            <li key={row.id} className="admin-golden-coverage-row">
+              <span className={`badge ${row.ok ? "badge-ready" : "badge-neutral"}`}>{row.ok ? "OK" : "fehlt"}</span>
+              <strong>{row.label}</strong>
+              <span className="muted">{row.detail}</span>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section className="card unit-section">
+        <h3>Fixtures ({fixtures.length})</h3>
+        <ul className="admin-golden-list">
+          {fixtures.map((row) => (
+            <li key={row.name} className="admin-golden-result-row">
+              <div className="admin-golden-result-head">
+                <strong>{row.name}</strong>
+                <span className={`badge ${row.ok ? "badge-ready" : "badge-neutral"}`}>{row.ok ? "OK" : "Fehler"}</span>
+              </div>
+              <p className="muted admin-golden-result-meta">{row.meta}</p>
+              {row.error ? <p className="err admin-golden-result-error">{row.error}</p> : null}
+            </li>
+          ))}
+        </ul>
+      </section>
+    </>
+  );
+}
+
 export default function AdminGoldenSetPage() {
   const [user, setUser] = useState<User | null>(null);
-  const [status, setStatus] = useState<PedagogyGoldenStatus | null>(null);
+  const [pedagogyStatus, setPedagogyStatus] = useState<PedagogyGoldenStatus | null>(null);
+  const [taskTypeStatus, setTaskTypeStatus] = useState<TaskTypeGoldenStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [busyPedagogy, setBusyPedagogy] = useState(false);
+  const [busyTaskType, setBusyTaskType] = useState(false);
+  const [copiedReport, setCopiedReport] = useState<string | null>(null);
 
   async function reload() {
-    const res = await fetchPedagogyGoldenStatus();
-    setStatus(res);
+    const [pedagogy, taskType] = await Promise.all([
+      fetchPedagogyGoldenStatus(),
+      fetchTaskTypeGoldenStatus(),
+    ]);
+    setPedagogyStatus(pedagogy);
+    setTaskTypeStatus(taskType);
   }
 
   useEffect(() => {
@@ -38,27 +129,41 @@ export default function AdminGoldenSetPage() {
     reload().catch((err) => setError(err instanceof Error ? err.message : "Fehler"));
   }, [user?.is_admin]);
 
-  async function onRunSuite() {
-    setBusy(true);
+  async function onRunPedagogy() {
+    setBusyPedagogy(true);
     setError(null);
     setMessage(null);
     try {
       const res = await runPedagogyGoldenSuite();
-      setStatus(res);
-      setMessage(res.ok ? "Alle Tests bestanden." : "Es gibt Fehler — Report unten kopieren und der KI geben.");
+      setPedagogyStatus(res);
+      setMessage(res.ok ? "Pedagogy-Set: alle Tests bestanden." : "Pedagogy-Set: Fehler — Report kopieren.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Suite fehlgeschlagen");
     } finally {
-      setBusy(false);
+      setBusyPedagogy(false);
     }
   }
 
-  async function onCopyReport() {
-    if (!status?.report) return;
+  async function onRunTaskType() {
+    setBusyTaskType(true);
+    setError(null);
+    setMessage(null);
     try {
-      await navigator.clipboard.writeText(status.report);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 2000);
+      const res = await runTaskTypeGoldenSuite();
+      setTaskTypeStatus(res);
+      setMessage(res.ok ? "Aufgabentyp-Set: alle Tests bestanden." : "Aufgabentyp-Set: Fehler — Report kopieren.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Suite fehlgeschlagen");
+    } finally {
+      setBusyTaskType(false);
+    }
+  }
+
+  async function onCopyReport(text: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedReport(text);
+      window.setTimeout(() => setCopiedReport(null), 2000);
     } catch {
       setError("Kopieren fehlgeschlagen — Report manuell markieren.");
     }
@@ -73,89 +178,103 @@ export default function AdminGoldenSetPage() {
     );
   }
 
-  const coverage = status?.coverage;
+  const pedagogyCoverage = pedagogyStatus?.coverage;
+  const taskTypeCoverage = taskTypeStatus?.coverage;
 
   return (
     <main className="shell shell-wide admin-page">
       <AppHeader user={user} title="Golden Set" />
       {error && <p className="err">{error}</p>}
-      {message && <p className={status?.ok ? "muted" : "err"}>{message}</p>}
+      {message && <p className="muted">{message}</p>}
 
-      <section className="card unit-section">
-        <h2>Pedagogy Golden Set</h2>
-        <p className="muted section-lead">
-          Automatische Qualitätsprüfung der Didaktik-Pipeline (JSON nach Vision). Fixtures liegen nur im Git —
-          hier siehst du Ergebnisse und kannst den Report für die KI kopieren. Kein Bearbeiten nötig.
-        </p>
-        <div className="filter-row">
-          <button type="button" className="btn-primary" onClick={onRunSuite} disabled={busy || !user?.is_admin}>
-            {busy ? "Läuft…" : "Tests jetzt ausführen"}
-          </button>
-          {status?.report ? (
-            <button type="button" className="btn" onClick={onCopyReport}>
-              {copied ? "Kopiert" : "Report kopieren"}
-            </button>
+      <GoldenSuiteSection
+        title="Pedagogy Golden Set"
+        lead="Didaktik-Pipeline (JSON nach Vision). Fixtures nur im Git — Ergebnis lesen, Report für die KI kopieren."
+        coverageTitle="Fachgruppen-Abdeckung"
+        coverageRows={(pedagogyCoverage?.expected_groups || []).map((group) => {
+          const covered = pedagogyCoverage?.covered.find((row) => row.id === group.id);
+          const missing = pedagogyCoverage?.missing.some((row) => row.id === group.id);
+          return {
+            id: group.id,
+            label: group.label,
+            ok: !missing,
+            detail: covered?.fixtures?.length
+              ? covered.fixtures.join(", ")
+              : "kein Fixture in backend/app/fixtures/pedagogy_golden/",
+          };
+        })}
+        fixtures={(pedagogyStatus?.fixtures || []).map((row) => ({
+          name: row.name,
+          ok: !!row.ok,
+          meta: [
+            row.subject_group_label || row.subject_group || "—",
+            row.subject_hint || "",
+            row.method_count != null ? `${row.method_count} Strategien` : "",
+          ]
+            .filter(Boolean)
+            .join(" · "),
+          error: row.error,
+        }))}
+        status={pedagogyStatus}
+        busy={busyPedagogy || !user?.is_admin}
+        onRun={onRunPedagogy}
+        report={pedagogyStatus?.report || null}
+        onCopy={() => pedagogyStatus?.report && onCopyReport(pedagogyStatus.report)}
+        copied={copiedReport === pedagogyStatus?.report}
+      />
+
+      <GoldenSuiteSection
+        title="Aufgabentyp Golden Set"
+        lead="Generierte Lerneinheiten (modules-JSON pro Aufgabentyp). Prüft Struktur und Qualitätsregeln — keine Live-KI-Regression."
+        coverageTitle="Aufgabentyp-Abdeckung"
+        coverageRows={(taskTypeCoverage?.expected_types || []).map((group) => {
+          const covered = taskTypeCoverage?.covered.find((row) => row.id === group.id);
+          const missing = taskTypeCoverage?.missing.some((row) => row.id === group.id);
+          return {
+            id: group.id,
+            label: group.label,
+            ok: !missing,
+            detail: covered?.fixtures?.length
+              ? covered.fixtures.join(", ")
+              : "kein Fixture in backend/app/fixtures/task_type_golden/",
+          };
+        })}
+        fixtures={(taskTypeStatus?.fixtures || []).map((row) => ({
+          name: row.name,
+          ok: !!row.ok,
+          meta: [
+            row.task_type_label || row.task_type || "—",
+            row.subject_hint || "",
+            row.module_count != null ? `${row.module_count} Module` : "",
+            row.question_count != null ? `${row.question_count} Fragen` : "",
+          ]
+            .filter(Boolean)
+            .join(" · "),
+          error: row.error,
+        }))}
+        status={taskTypeStatus}
+        busy={busyTaskType || !user?.is_admin}
+        onRun={onRunTaskType}
+        report={taskTypeStatus?.report || null}
+        onCopy={() => taskTypeStatus?.report && onCopyReport(taskTypeStatus.report)}
+        copied={copiedReport === taskTypeStatus?.report}
+      />
+
+      {(pedagogyStatus?.report || taskTypeStatus?.report) && (
+        <section className="card unit-section">
+          <h3>Reports (für KI)</h3>
+          {pedagogyStatus?.report ? (
+            <>
+              <h4>Pedagogy</h4>
+              <pre className="admin-golden-report">{pedagogyStatus.report}</pre>
+            </>
           ) : null}
-        </div>
-        {status && (
-          <p className="muted">
-            {status.passed}/{status.total} Fixtures OK
-            {status.coverage_complete ? " · alle Fachgruppen abgedeckt" : " · Fachgruppen fehlen"}
-          </p>
-        )}
-      </section>
-
-      {coverage && (
-        <section className="card unit-section">
-          <h3>Fachgruppen-Abdeckung</h3>
-          <ul className="admin-golden-coverage">
-            {coverage.expected_groups.map((group) => {
-              const covered = coverage.covered.find((row) => row.id === group.id);
-              const missing = coverage.missing.some((row) => row.id === group.id);
-              return (
-                <li key={group.id} className="admin-golden-coverage-row">
-                  <span className={`badge ${missing ? "badge-neutral" : "badge-ready"}`}>
-                    {missing ? "fehlt" : "OK"}
-                  </span>
-                  <strong>{group.label}</strong>
-                  <span className="muted">
-                    {covered?.fixtures?.length
-                      ? covered.fixtures.join(", ")
-                      : "kein Fixture in backend/app/fixtures/pedagogy_golden/"}
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      )}
-
-      <section className="card unit-section">
-        <h3>Fixtures ({status?.fixtures.length ?? 0})</h3>
-        <ul className="admin-golden-list">
-          {(status?.fixtures || []).map((row) => (
-            <li key={row.name} className="admin-golden-result-row">
-              <div className="admin-golden-result-head">
-                <strong>{row.name}</strong>
-                <span className={`badge ${row.ok ? "badge-ready" : "badge-neutral"}`}>
-                  {row.ok ? "OK" : "Fehler"}
-                </span>
-              </div>
-              <p className="muted admin-golden-result-meta">
-                {row.subject_group_label || row.subject_group || "—"}
-                {row.subject_hint ? ` · ${row.subject_hint}` : ""}
-                {row.method_count != null ? ` · ${row.method_count} Strategien` : ""}
-              </p>
-              {row.error ? <p className="err admin-golden-result-error">{row.error}</p> : null}
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      {status?.report && (
-        <section className="card unit-section">
-          <h3>Report (für KI)</h3>
-          <pre className="admin-golden-report">{status.report}</pre>
+          {taskTypeStatus?.report ? (
+            <>
+              <h4>Aufgabentypen</h4>
+              <pre className="admin-golden-report">{taskTypeStatus.report}</pre>
+            </>
+          ) : null}
         </section>
       )}
 

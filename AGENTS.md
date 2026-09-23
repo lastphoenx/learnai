@@ -62,7 +62,7 @@ Bei Arbeit an **Didaktik**, **source_pedagogy**, **Pedagogy-Prompts**, **neuen F
 5. Tests laufen lassen: `pytest backend/tests/test_pedagogy_golden.py backend/tests/test_pedagogy_golden_service.py`
 6. **Immer mit committen** — der Nutzer bearbeitet kein JSON manuell.
 
-Admin-UI (`/admin/golden-set`) ist **read-only**: zeigt nur Testergebnis + kopierbaren Report für die KI.
+Admin-UI (`/admin/golden-set`) ist **read-only**: **Pedagogy Golden** (Fach/Didaktik) und **Aufgabentyp Golden** (`backend/app/fixtures/task_type_golden/`, Struktur pro `UNIT_TASK_TYPES`) — nur Testergebnis + kopierbarer Report für die KI. API: `/api/v1/admin/task-type-golden`.
 
 ## Referenz-Codes & Qualitätsreport
 
