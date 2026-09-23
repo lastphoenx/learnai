@@ -364,6 +364,7 @@ export type TrainerRegionPaintConfig = {
 export type TrainerPracticeItem = {
   prompt: string;
   hint?: string | null;
+  practice_topic?: string | null;
   answer_type?: string;
   options?: string[];
   diagram?: TrainerLabelDiagram;
@@ -1278,7 +1279,7 @@ export type BatchImportUnitQuality = {
   last_ai_run?: {
     finished_at?: string;
     pipeline?: string;
-    tasks?: Record<string, { provider: string; model: string }>;
+    tasks?: Record<string, { provider: string; model: string; reasoning_effort?: string | null }>;
     stats?: { modules?: number; cards?: number; questions?: number };
     summary?: string | null;
   } | null;
@@ -1854,6 +1855,7 @@ export type EffectiveAiTask = {
   provider: string;
   profile_model: string | null;
   effective_model: string;
+  reasoning_effort?: string | null;
   source?: "child" | "adult" | "catalog" | "env" | "unit";
   source_label?: string;
   recommended?: string[];
@@ -1863,7 +1865,7 @@ export type LastAiRun = {
   finished_at?: string;
   status?: string;
   pipeline?: string;
-  tasks?: Record<string, { provider: string; model: string }>;
+  tasks?: Record<string, { provider: string; model: string; reasoning_effort?: string | null }>;
   stats?: { modules?: number; cards?: number; questions?: number };
   triggered_by?: string | null;
 };

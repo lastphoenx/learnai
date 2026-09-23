@@ -45,6 +45,21 @@ def test_effective_config_applies_unit_provider_override():
     assert out["tasks"]["mixed"]["source"] == "unit"
 
 
+def test_effective_includes_reasoning_effort_for_gpt5():
+    prefs = {
+        "by_task": {
+            "mixed": {
+                "provider": "openai",
+                "model": "gpt-5.6-luna",
+                "reasoning_effort": "medium",
+            },
+        },
+    }
+    out = effective_ai_config(prefs)
+    assert out["tasks"]["mixed"]["reasoning_effort"] == "medium"
+    assert out["tasks"]["vision"].get("reasoning_effort") is None
+
+
 def test_effective_applies_unit_provider_override_to_mixed_only():
     from app.ai.effective import EffectiveAiContext
 

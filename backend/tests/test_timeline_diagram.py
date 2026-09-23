@@ -4,9 +4,32 @@ from tests.fixtures.timeline_epochs import POSTEN_14_EPOCH_TERMS
 from app.core.timeline_diagram import (
     build_timeline_diagram_from_pedagogy,
     detect_timeline_epochs,
+    is_epoch_key_term,
     parse_epoch_year_range,
     summarize_timeline,
 )
+
+
+def test_parse_epoch_year_range_rejects_small_number_spans():
+    assert parse_epoch_year_range("4 bis 8 Kanten") is None
+    assert parse_epoch_year_range("12 bis 24 Seiten") is None
+
+
+def test_is_epoch_key_term_rejects_mislabeled_geometry():
+    assert not is_epoch_key_term(
+        {
+            "term": "Bauplan",
+            "definition": "4 bis 8 Kanten am Würfelnetz",
+            "role": "historische Epoche",
+        }
+    )
+    assert not is_epoch_key_term(
+        {
+            "term": "Ansicht",
+            "definition": "1500 bis 1800",
+            "role": "historische Epoche",
+        }
+    )
 
 
 def test_parse_epoch_year_range():

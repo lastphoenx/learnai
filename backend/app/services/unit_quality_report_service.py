@@ -77,6 +77,9 @@ def _quiz_lines(quiz: dict, *, module_ref: str) -> list[str]:
 def _practice_detail_lines(item: dict) -> list[str]:
     answer_type = str(item.get("answer_type") or "text").strip().lower() or "text"
     lines = [f"- Typ: {answer_type}"]
+    topic = str(item.get("practice_topic") or "").strip()
+    if topic:
+        lines.append(f"- Thema: {topic}")
     prompt = str(item.get("prompt") or "").strip()
     if prompt:
         lines.append(f"- Aufgabe: {prompt[:400]}")

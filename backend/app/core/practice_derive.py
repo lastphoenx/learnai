@@ -681,6 +681,7 @@ def derive_practice_items(
                 hint="Ordne die Epochen von früh nach spät auf dem Zeitstrahl.",
                 source="pedagogy",
             )
+            timeline_item["practice_topic"] = "Geschichte / Zeitstrahl"
             items.insert(0, timeline_item)
             seen_prompts.add(str(timeline_item.get("prompt") or "").strip().lower())
 

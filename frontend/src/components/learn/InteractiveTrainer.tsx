@@ -259,7 +259,7 @@ export function InteractiveTrainer({
           ...exercise,
           module_id: mod.id,
           exercise_index: exerciseIndex,
-          domain: mod.title,
+          domain: exercise.practice_topic || mod.title,
         }));
       }),
     [state.modules],

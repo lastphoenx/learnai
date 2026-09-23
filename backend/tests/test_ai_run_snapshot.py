@@ -40,6 +40,19 @@ def test_effective_ai_config_includes_source():
     assert out["inheritance"]["child_label"] == "Lena"
 
 
+def test_build_ai_run_snapshot_keeps_reasoning_effort():
+    snap = build_ai_run_snapshot(
+        tasks={
+            "mixed": {
+                "provider": "openai",
+                "model": "gpt-5.6-luna",
+                "reasoning_effort": "medium",
+            },
+        },
+    )
+    assert snap["tasks"]["mixed"]["reasoning_effort"] == "medium"
+
+
 def test_build_ai_run_snapshot():
     snap = build_ai_run_snapshot(
         tasks={"mixed": {"provider": "openai", "model": "gpt-4o"}, "vision": {"provider": "openai", "model": "gpt-4o"}},
@@ -61,6 +74,26 @@ def test_resolve_generation_ai_tasks_includes_vision_with_sources():
     tasks = resolve_generation_ai_tasks({}, None, "interactive", source_count=3)
     assert "mixed" in tasks
     assert "vision" in tasks
+
+
+def test_resolve_generation_ai_tasks_records_reasoning_effort():
+    prefs = {
+        "by_task": {
+            "mixed": {
+                "provider": "openai",
+                "model": "gpt-5.6-luna",
+                "reasoning_effort": "high",
+            },
+        },
+    }
+    tasks = resolve_generation_ai_tasks(prefs, None, "mixed", source_count=0)
+    assert tasks["mixed"]["reasoning_effort"] == "high"
+
+
+def test_resolve_generation_ai_tasks_reasoning_default_when_unset():
+    prefs = {"by_task": {"mixed": {"provider": "openai", "model": "gpt-5.6-luna"}}}
+    tasks = resolve_generation_ai_tasks(prefs, None, "mixed", source_count=0)
+    assert tasks["mixed"]["reasoning_effort"] == "default"
 
 
 def test_resolve_generation_ai_tasks_omits_vision_when_not_used():

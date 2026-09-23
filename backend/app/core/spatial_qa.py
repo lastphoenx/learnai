@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from app.ai.subject_focus import detect_focus_group
+from app.core.crypto import decrypt_text_master
 from app.core.focus_groups import normalize_focus_key
 from app.core.spatial_compact import SPATIAL_ANSWER_TYPES, count_spatial_practice_in_modules
 from app.models import LearningUnit
@@ -19,7 +20,8 @@ def spatial_practice_counts_from_unit(unit: LearningUnit) -> dict[str, int]:
     modules: list[dict] = []
     for mod in unit.modules or []:
         content = decrypt_json(mod.content_encrypted) or {}
-        modules.append({"title": mod.title, "content": content if isinstance(content, dict) else {}})
+        title = decrypt_text_master(mod.title_encrypted)
+        modules.append({"title": title, "content": content if isinstance(content, dict) else {}})
     total = count_spatial_practice_in_modules(modules)
     by_type: dict[str, int] = {t: 0 for t in SPATIAL_ANSWER_TYPES}
     for mod in modules:

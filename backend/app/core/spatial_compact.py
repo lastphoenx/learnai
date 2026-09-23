@@ -1070,6 +1070,9 @@ def spatial_raw_to_practice_items(
             }
         )
 
+    for row in items:
+        if isinstance(row, dict) and str(row.get("answer_type") or "") in SPATIAL_ANSWER_TYPES:
+            row.setdefault("practice_topic", "Raumgeometrie")
     return items
 
 

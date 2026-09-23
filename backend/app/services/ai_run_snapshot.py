@@ -25,7 +25,13 @@ def build_ai_run_snapshot(
         provider = str(row.get("provider") or "").strip().lower()
         model = str(row.get("model") or "").strip() or "(auto)"
         if provider:
-            clean_tasks[str(key)] = {"provider": provider, "model": model}
+            entry: dict[str, str] = {"provider": provider, "model": model}
+            effort = str(row.get("reasoning_effort") or "").strip().lower()
+            if effort == "default":
+                entry["reasoning_effort"] = "default"
+            elif effort in {"low", "medium", "high"}:
+                entry["reasoning_effort"] = effort
+            clean_tasks[str(key)] = entry
     snapshot: dict[str, Any] = {
         "finished_at": datetime.now(timezone.utc).isoformat(),
         "status": status,
@@ -144,7 +150,28 @@ def resolve_generation_ai_tasks(
             vp, vm = resolve_task_ai_for_unit(target_prefs, fallback_prefs, "vision")
             tasks["vision"] = {"provider": vp, "model": vm or "(auto)"}
 
+    _attach_reasoning_effort_to_tasks(tasks, target_prefs, fallback_prefs)
     return tasks
+
+
+def _attach_reasoning_effort_to_tasks(
+    tasks: dict[str, dict[str, str]],
+    target_prefs: dict,
+    fallback_prefs: dict | None,
+) -> None:
+    from app.ai.catalog import effective_prefs_for_task, resolve_reasoning_effort
+    from app.ai.reasoning_effort import is_reasoning_family
+
+    fb = fallback_prefs if isinstance(fallback_prefs, dict) else {}
+    for key, row in tasks.items():
+        if not isinstance(row, dict):
+            continue
+        model = str(row.get("model") or "").strip()
+        if not is_reasoning_family(model):
+            continue
+        ep = effective_prefs_for_task(target_prefs, fb, key)
+        effort = resolve_reasoning_effort(ep, key, model)
+        row["reasoning_effort"] = effort if effort else "default"
 
 
 _PIPELINE_LABELS: dict[str, str] = {
@@ -325,6 +352,7 @@ def summarize_unit_ai_context(
             "model": task_row.get("effective_model") or task_row.get("profile_model") or "(auto)",
             "source": task_row.get("source"),
             "source_label": task_row.get("source_label"),
+            "reasoning_effort": task_row.get("reasoning_effort"),
         }
 
     return {

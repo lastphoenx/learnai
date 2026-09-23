@@ -47,6 +47,7 @@ def quiz_questions_to_practice_items(
                 "options": options[:4],
                 "answer": str(answer_idx),
                 "source": source,
+                "practice_topic": "Wissen",
             }
         )
     return items

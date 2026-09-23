@@ -4,15 +4,16 @@ import { useEffect, useState } from "react";
 import { fetchAiEffective, type LastAiRun, type TaskCatalogItem } from "@/lib/api";
 import {
   aiSourceBadgeClass,
-  formatAiTasksCompact,
   formatPipelineLabel,
   providerLabel,
   unitAiTaskKeys,
 } from "@/lib/unitAiTasks";
+import { formatReasoningEffort } from "@/lib/reasoningModels";
 
 type EffectiveTask = {
   provider: string;
   effective_model: string;
+  reasoning_effort?: string | null;
   source?: string;
   source_label?: string;
 };
@@ -95,11 +96,22 @@ export function UnitEffectiveAiPanel({
           const cat = catalogByKey[key];
           return { key, run, cat };
         })
-        .filter(Boolean) as { key: string; run: { provider: string; model: string }; cat?: TaskCatalogItem }[]
+        .filter(Boolean) as {
+        key: string;
+        run: { provider: string; model: string; reasoning_effort?: string | null };
+        cat?: TaskCatalogItem;
+      }[]
     : [];
   const lastRunWhen = formatWhen?.(lastAiRun?.finished_at) || null;
   const lastRunStats = formatRunStats(lastAiRun?.stats);
   const lastPipeline = formatPipelineLabel(lastAiRun?.pipeline);
+  const primaryRunReasoning = lastRunRows[0]
+    ? formatReasoningEffort(lastRunRows[0].run.model, lastRunRows[0].run.reasoning_effort)
+    : null;
+  const primaryConfigReasoning = formatReasoningEffort(
+    primary.task.effective_model,
+    primary.task.reasoning_effort,
+  );
 
   return (
     <div className="unit-ai-config stack">
@@ -114,6 +126,9 @@ export function UnitEffectiveAiPanel({
               {providerLabel(lastRunRows[0].run.provider)} · {lastRunRows[0].run.model}
             </span>
             {lastRunWhen ? <span className="unit-effective-ai-more">{lastRunWhen}</span> : null}
+            {primaryRunReasoning ? (
+              <span className="unit-effective-ai-more muted">Reasoning: {primaryRunReasoning}</span>
+            ) : null}
             {lastPipeline ? (
               <span className="unit-effective-ai-more muted">{lastPipeline}</span>
             ) : null}
@@ -126,6 +141,11 @@ export function UnitEffectiveAiPanel({
                   {providerLabel(run.provider)}
                 </span>
                 <span className="unit-effective-ai-row-model">{run.model}</span>
+                {formatReasoningEffort(run.model, run.reasoning_effort) ? (
+                  <span className="unit-effective-ai-more muted">
+                    Reasoning: {formatReasoningEffort(run.model, run.reasoning_effort)}
+                  </span>
+                ) : null}
               </li>
             ))}
           </ul>
@@ -144,6 +164,9 @@ export function UnitEffectiveAiPanel({
           <span className="unit-effective-ai-primary">
             {providerLabel(primary.task.provider)} · {primary.task.effective_model}
           </span>
+          {primaryConfigReasoning ? (
+            <span className="unit-effective-ai-more muted">Reasoning: {primaryConfigReasoning}</span>
+          ) : null}
           {rows.length > 1 ? (
             <span className="unit-effective-ai-more">+{rows.length - 1} Aufgabe{rows.length > 2 ? "n" : ""}</span>
           ) : null}
@@ -165,6 +188,11 @@ export function UnitEffectiveAiPanel({
                     {providerLabel(task.provider)}
                   </span>
                   <span className="unit-effective-ai-row-model">{task.effective_model}</span>
+                  {formatReasoningEffort(task.effective_model, task.reasoning_effort) ? (
+                    <span className="unit-effective-ai-more muted">
+                      Reasoning: {formatReasoningEffort(task.effective_model, task.reasoning_effort)}
+                    </span>
+                  ) : null}
                 </summary>
                 {cat?.why ? <p className="muted unit-effective-ai-why">{cat.why}</p> : null}
               </details>

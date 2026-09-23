@@ -10,3 +10,14 @@ export const REASONING_EFFORT_OPTIONS = [
   { value: "medium", label: "Mittel" },
   { value: "high", label: "Hoch" },
 ] as const;
+
+/** Anzeige für Einheiten-KI-Panel (effort null/default = API-Standard). */
+export function formatReasoningEffort(model: string, effort?: string | null): string | null {
+  if (!isReasoningModel(model)) return null;
+  const raw = (effort || "").trim().toLowerCase();
+  if (!raw || raw === "default") {
+    return REASONING_EFFORT_OPTIONS[0].label;
+  }
+  const opt = REASONING_EFFORT_OPTIONS.find((o) => o.value === raw);
+  return opt?.label ?? raw;
+}

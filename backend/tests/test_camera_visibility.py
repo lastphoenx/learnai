@@ -59,6 +59,14 @@ def test_ortho_parallel_ray_to_front_corner_not_blocked_by_rear():
     assert hit == (1, 1, 0)
 
 
+def test_ortho_ray_reaches_max_height_building():
+    matrix = normalize_height_matrix([[12]])
+    assert matrix is not None
+    view_dir = (1.0, 1.28, -1.0)
+    hit = _ortho_ray_first_voxel_at(matrix, 0, 0, 11, view_dir)
+    assert hit == (0, 0, 11)
+
+
 def test_oblique_may_require_second_view_on_asymmetric():
     matrix = normalize_height_matrix(
         [

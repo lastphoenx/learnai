@@ -3,7 +3,11 @@ import json
 from app.core.camera_visibility import choose_informative_second_camera, compute_visibility_decision
 from app.core.iso_building import normalize_height_matrix
 from app.core.spatial_compact import parse_spatial_sequence_items
-from app.core.spatial_validator import build_spatial_sequence_item, validate_spatial_sequence_config
+from app.core.spatial_validator import (
+    build_spatial_sequence_item,
+    spatial_sequence_quality_warnings,
+    validate_spatial_sequence_config,
+)
 
 _ASYMMETRIC = [
     [1, 0, 3, 1],
@@ -71,3 +75,8 @@ def test_parse_ignores_ki_answer_dict():
     answer = json.loads(raw[0]["answer"])
     assert answer["visibility"] == "one_view_sufficient"
     assert answer["projections"]["top"] == [[1]]
+
+
+def test_quality_warning_reads_hint_only_second_camera():
+    item = build_spatial_sequence_item([[1, 2], [2, 1]], prompt="Test")
+    assert spatial_sequence_quality_warnings(item["spatial_sequence"]) == []

@@ -167,6 +167,21 @@ def test_parse_posten_compact_posten14_fixture():
     assert payload["timeline"] is not None
 
 
+def test_parse_timeline_rejects_geometry_vocab_slots():
+    from app.ai.generate_posten_compact import _parse_timeline
+
+    bogus = {
+        "title": "Ansichten und Pläne",
+        "slots": [
+            {"label": "Netz", "hint": "Würfelnetz"},
+            {"label": "Bauplan", "hint": "Grundriss"},
+            {"label": "Ansicht", "hint": "Vorderansicht"},
+            {"label": "Körper", "hint": "Raumkörper"},
+        ],
+    }
+    assert _parse_timeline(bogus) is None
+
+
 def test_posten_compact_module_mapping():
     fixture = Path(__file__).parent / "fixtures" / "posten_compact_posten14.json"
     payload = _parse_posten_compact_payload(

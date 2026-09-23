@@ -10,8 +10,10 @@ from app.ai.catalog import (
     TASK_KEYS,
     catalog_with_resolved,
     default_for,
+    effective_prefs_for_task,
     has_explicit_task_setting,
     local_hints,
+    resolve_reasoning_effort,
     resolve_task_ai,
 )
 from app.ai.ollama_match import first_ollama_hint, match_ollama_hints
@@ -147,12 +149,19 @@ def effective_ai_config(
         )
         if env_backed and source_key == "catalog":
             source_key, source_label = "env", "Server (.env)"
+        merged_prefs = (
+            effective_prefs_for_task(prefs, fallback_prefs, task_key)
+            if fallback_prefs is not None
+            else prefs
+        )
+        reasoning_effort = resolve_reasoning_effort(merged_prefs, task_key, eff_model)
         tasks[task_key] = {
             "provider": provider,
             "profile_model": model or None,
             "effective_model": eff_model,
             "source": source_key,
             "source_label": source_label,
+            "reasoning_effort": reasoning_effort,
             "recommended": match_ollama_hints(local_hints(task_key), installed, limit=3)
             if provider == "ollama"
             else [],

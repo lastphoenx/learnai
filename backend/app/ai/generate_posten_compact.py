@@ -197,6 +197,21 @@ def _parse_cards(raw: object, *, expected: int) -> list[dict]:
     return out[:expected]
 
 
+def _timeline_slot_is_epoch(label: str, hint: str) -> bool:
+    from app.core.timeline_diagram import is_epoch_key_term, parse_epoch_year_range
+
+    if parse_epoch_year_range(hint):
+        return True
+    return is_epoch_key_term({"term": label, "definition": hint or label, "role": "epoche"})
+
+
+def _timeline_slots_are_epochs(slots: list[dict[str, str]], *, min_epochs: int = 3) -> bool:
+    if len(slots) < min_epochs:
+        return False
+    epoch_like = sum(1 for s in slots if _timeline_slot_is_epoch(s.get("label", ""), s.get("hint", "")))
+    return epoch_like >= min_epochs
+
+
 def _parse_timeline(raw: object) -> dict[str, Any] | None:
     if not isinstance(raw, dict):
         return None
@@ -211,7 +226,7 @@ def _parse_timeline(raw: object) -> dict[str, Any] | None:
         hint = str(item.get("hint") or item.get("definition") or "").strip()
         if label:
             slots.append({"label": label[:120], "hint": hint[:160]})
-    if len(slots) < 3:
+    if not _timeline_slots_are_epochs(slots):
         return None
     return {
         "title": str(raw.get("title") or "Epochen auf dem Zeitstrahl")[:120],
@@ -260,6 +275,7 @@ def _timeline_practice_item(
         "answer": json.dumps(expected, ensure_ascii=False),
         "diagram": diagram,
         "source": quiz_source,
+        "practice_topic": "Geschichte / Zeitstrahl",
     }
 
 

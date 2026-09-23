@@ -115,7 +115,7 @@ def _building_center(matrix: list[list[int]]) -> tuple[float, float, float]:
 def _ortho_ray_distance(matrix: list[list[int]]) -> float:
     cols, rows, max_h = _grid_extents(matrix)
     span = max(cols, rows, max_h, 1)
-    return span * 4.0 + 4.0
+    return span * 2.5 + 2.0
 
 
 def _parallel_ray_through_world_point(
@@ -152,7 +152,9 @@ def _ray_first_voxel(
     t = 0.0
     max_t = span * 8.0
     steps = 0
-    while t <= max_t and steps < max_steps:
+    required_steps = math.ceil(max_t / step) + 1
+    step_limit = max(max_steps, required_steps)
+    while t <= max_t and steps < step_limit:
         px = ox + dx * t
         py = oy + dy * t
         pz = oz + dz * t
@@ -189,9 +191,11 @@ def _face_occluded_along_view(
     ox, oy, oz = wx + 1e-3 * nx, wy + 1e-3 * ny, wz + 1e-3 * nz
     vx, vy, vz = _normalize(view_dir)
     cols, rows, max_h = _grid_extents(matrix)
+    diag = math.sqrt(cols * cols + rows * rows + max_h * max_h)
+    occlusion_steps = max(max_steps, math.ceil((diag * 2.5) / step) + 4)
     entered = False
     t = step
-    for _ in range(max_steps):
+    for _ in range(occlusion_steps):
         px = ox + vx * t
         py = oy + vy * t
         pz = oz + vz * t

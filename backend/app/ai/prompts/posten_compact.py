@@ -137,6 +137,7 @@ def build_compact_system_prompt(
     if spatial_geometry:
         base = (
             base
+            + "\n- timeline: bei Raumgeometrie **weglassen** (Feld nicht setzen) — kein Zeitstrahl neben Raumaufgaben.\n"
             + '\nErweitertes Schema (PFLICHT-Felder bei Raumgeometrie, im JSON mit ausfüllen): '
             + '"image_choice_items":[],"point_on_image_items":[],"grid_fill_items":[],"region_paint_items":[],"building_paint_items":[],"net_build_items":[],"spatial_sequence_items":[],"synthetic_viewpoint_items":[]\n'
             + POSTEN_COMPACT_SPATIAL_EXTRA

@@ -22,8 +22,13 @@ _CENTURY_SPAN = re.compile(
     re.I,
 )
 _PRESENT = re.compile(r"bis\s*(?:zur\s+)?Gegenwart|heute|21\.\s*Jahrhundert", re.I)
+_FALSE_EPOCH_TERM = re.compile(
+    r"bauplan|ansicht|schrägansicht|würfelnetz|\bnetz\b|körper|grundriss|lageplan|höhenplan",
+    re.I,
+)
 _DEEP_PAST = -500_000
 _PRESENT_YEAR = 2030
+_MIN_IMPLICIT_AD_YEAR = 500
 
 
 def _century_bc_range(century: int) -> tuple[int, int]:
@@ -34,6 +39,11 @@ def _century_bc_range(century: int) -> tuple[int, int]:
 def _century_ad_range(century: int) -> tuple[int, int]:
     n = max(1, min(century, 30))
     return (n - 1) * 100 + 1, n * 100
+
+
+def _implicit_ad_span_plausible(a: int, b: int) -> bool:
+    """Ohne «n. Chr.»: kleine Zahlen (Kanten, Seiten, Klassenstufen) sind keine Jahreszahlen."""
+    return max(a, b) >= _MIN_IMPLICIT_AD_YEAR
 
 
 def parse_epoch_year_range(definition: str) -> tuple[int, int] | None:
@@ -63,6 +73,8 @@ def parse_epoch_year_range(definition: str) -> tuple[int, int] | None:
         a, b = int(match.group(1)), int(match.group(2))
         if a > 2500 or b > 2500:
             continue
+        if not _implicit_ad_span_plausible(a, b):
+            continue
         spans.append((min(a, b), max(a, b)))
 
     until_bc = _UNTIL_BC.search(text)
@@ -84,12 +96,15 @@ def is_epoch_key_term(item: dict[str, Any]) -> bool:
     role = str(item.get("role") or "")
     term = str(item.get("term") or "")
     definition = str(item.get("definition") or "")
+    if _FALSE_EPOCH_TERM.search(term):
+        return False
     parsed = parse_epoch_year_range(definition)
     if not parsed:
         return False
-    if _EPOCH_ROLE.search(role):
-        return True
-    return bool(_EPOCH_TERM.search(term))
+    role_ok = bool(_EPOCH_ROLE.search(role))
+    term_ok = bool(_EPOCH_TERM.search(term))
+    # Datumsbereich + Rolle + Epochen-Begriff — Rolle allein (z. B. fälschlich an «Bauplan») reicht nicht.
+    return role_ok and term_ok
 
 
 def detect_timeline_epochs(key_terms: list[Any]) -> list[dict[str, Any]]:

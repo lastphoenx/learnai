@@ -11,6 +11,7 @@ import pytest
 from app.core.crypto import encrypt_text_master
 from app.services.ai_run_snapshot import format_finished_at_zurich
 from app.services.crypto_json import encrypt_json
+from app.core.spatial_qa import spatial_report_lines
 from app.services.unit_quality_report_service import _module_section, _practice_lines
 
 
@@ -73,6 +74,20 @@ def test_practice_lines_renders_choice_fallback():
     assert "choice" in report
     assert "[A] ✓ 1291" in report
     assert "Rütlischwur" in report
+
+
+def test_spatial_report_lines_decrypts_module_title(master_key_env):
+    mod = MagicMock()
+    mod.title_encrypted = encrypt_text_master("Aufgaben")
+    mod.content_encrypted = encrypt_json({"practice": []})
+    unit = MagicMock()
+    unit.modules = [mod]
+    unit.subject = "Mathematik"
+    unit.task_type = "interactive"
+    lines = spatial_report_lines(unit, {"trainer_preset": "posten_compact", "math_focus": "geometry_spatial"})
+    text = "\n".join(lines)
+    assert "## Raumaufgaben-QA" in text
+    assert "Raum-Übungen" in text
 
 
 def test_module_section_includes_practice_beyond_intro(master_key_env):
