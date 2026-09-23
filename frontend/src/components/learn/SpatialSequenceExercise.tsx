@@ -7,6 +7,11 @@ import { buildingProjections } from "@/lib/buildingProjections";
 import { BuildingThreeCanvas } from "@/components/learn/BuildingThreeCanvas";
 import { ProjectionFillGrids } from "@/components/learn/ProjectionFillGrids";
 import { emptyProjectionDraft, type SpatialSequenceAnswer, type SpatialSequenceStage } from "@/lib/spatialSequence";
+import {
+  canUnlockSpatialHint,
+  secondCameraPresetFromConfig,
+  spatialSequenceProjectionIndex,
+} from "@/lib/spatialSequenceHints";
 
 type Props = {
   config: TrainerSpatialSequenceConfig;
@@ -44,19 +49,16 @@ export function SpatialSequenceExercise({ config, busy, result, onSubmit, onCont
   const [visibility, setVisibility] = useState<SpatialSequenceAnswer["visibility"] | null>(null);
   const [projections, setProjections] = useState(emptyProjectionDraft());
   const [overlayHint, setOverlayHint] = useState(false);
+  const [hintPreviewCamera, setHintPreviewCamera] = useState<SpatialCameraPreset | null>(null);
 
   const solutionOverlay = useMemo(() => (overlayHint ? buildingProjections(matrix) : null), [overlayHint, matrix]);
 
   const current = stages[stageIndex];
-  const camera: SpatialCameraPreset =
+  const stageCamera: SpatialCameraPreset =
     (current?.type === "inspect" ? (current.camera as SpatialCameraPreset) : "oblique") ?? "oblique";
-  const secondCamUnlocked = hints.slice(0, unlockedHints).includes("show_second_camera");
-  const cameraLocked =
-    current?.type === "inspect"
-      ? Boolean(current.camera_locked) && !(current.unlock_hint === "show_second_camera" && secondCamUnlocked)
-      : false;
+  const cameraLocked = current?.type === "inspect" ? Boolean(current.camera_locked) : false;
 
-  const projectionStageIndex = stages.findIndex((s) => s.type === "projection_fill");
+  const projectionStageIndex = spatialSequenceProjectionIndex(stages);
 
   const viewTemplates = useMemo(() => {
     const pf = stages.find((s) => s.type === "projection_fill");
@@ -75,19 +77,29 @@ export function SpatialSequenceExercise({ config, busy, result, onSubmit, onCont
     };
   }, [matrix, stages]);
 
+  const nextHintId = hints[unlockedHints];
+  const nextHintAllowed =
+    nextHintId &&
+    canUnlockSpatialHint(nextHintId, stageIndex, visibility, stages);
+
   function unlockNextHint() {
-    setUnlockHints((n) => Math.min(n + 1, hints.length));
     const id = hints[unlockedHints];
-    if (id === "show_solution_overlay") setOverlayHint(true);
+    if (!id || !canUnlockSpatialHint(id, stageIndex, visibility, stages)) {
+      return;
+    }
+    setUnlockHints((n) => Math.min(n + 1, hints.length));
+    if (id === "show_solution_overlay") {
+      setOverlayHint(true);
+      return;
+    }
     if (id === "show_second_camera") {
-      const idx = stages.findIndex(
-        (s, i) => i > stageIndex && s.type === "inspect" && s.unlock_hint === "show_second_camera",
+      setHintPreviewCamera(
+        secondCameraPresetFromConfig(stages, config.second_camera) as SpatialCameraPreset,
       );
-      if (idx >= 0) setStageIndex(idx);
+      return;
     }
     if (id === "show_top_view") {
-      const idx = stages.findIndex((s) => s.type === "inspect" && s.camera === "top");
-      if (idx >= 0) setStageIndex(idx);
+      setHintPreviewCamera("top");
     }
   }
 
@@ -114,7 +126,7 @@ export function SpatialSequenceExercise({ config, busy, result, onSubmit, onCont
           <p className="muted">Schritt {stageIndex + 1}: Gebäude untersuchen.</p>
           <BuildingThreeCanvas
             matrix={matrix}
-            cameraPreset={camera}
+            cameraPreset={stageCamera}
             cameraLocked={cameraLocked}
             showOrientationLabels={true}
             heightPx={280}
@@ -184,11 +196,37 @@ export function SpatialSequenceExercise({ config, busy, result, onSubmit, onCont
         </>
       )}
 
+      {hintPreviewCamera && (
+        <div className="spatial-hint-preview stack">
+          <p className="muted">Hilfe — zusätzliche Ansicht (dein Aufgabenschritt bleibt unverändert)</p>
+          <BuildingThreeCanvas
+            matrix={matrix}
+            cameraPreset={hintPreviewCamera}
+            cameraLocked={true}
+            showOrientationLabels={true}
+            heightPx={220}
+          />
+          <button type="button" className="btn btn-sm btn-secondary" onClick={() => setHintPreviewCamera(null)}>
+            Hilfe schliessen
+          </button>
+        </div>
+      )}
+
       {hints.length > 0 && !result && (
         <div className="spatial-seq-hints">
           {unlockedHints < hints.length && (
-            <button type="button" className="btn btn-sm btn-secondary" onClick={unlockNextHint}>
-              Hilfe: {HINT_LABELS[hints[unlockedHints]] ?? hints[unlockedHints]}
+            <button
+              type="button"
+              className="btn btn-sm btn-secondary"
+              onClick={unlockNextHint}
+              disabled={!nextHintAllowed}
+              title={
+                nextHintAllowed
+                  ? undefined
+                  : "Diese Hilfe ist an diesem Schritt noch nicht verfügbar."
+              }
+            >
+              Hilfe: {HINT_LABELS[nextHintId ?? ""] ?? nextHintId}
             </button>
           )}
         </div>

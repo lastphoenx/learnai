@@ -25,6 +25,8 @@ KNOWN_CAMERAS = frozenset(_CAMERA_VIEWER_DIRS.keys())
 
 _ORTHO_SILHOUETTE_CAMERAS = frozenset({"front", "back", "left", "right", "top"})
 
+_ALL_FACE_NAMES = ("top", "bottom", "x_neg", "x_pos", "z_neg", "z_pos")
+
 _SECOND_CAMERA_CANDIDATES: tuple[str, ...] = (
     "front",
     "right",
@@ -43,13 +45,17 @@ def _normalize(v: tuple[float, float, float]) -> tuple[float, float, float]:
 
 
 def _face_normal(face: str) -> tuple[float, float, float]:
-    if face == "top":
-        return (0.0, 1.0, 0.0)
-    if face == "left":
-        return (-1.0, 0.0, 0.0)
-    if face == "right":
-        return (0.0, 0.0, -1.0)
-    return (0.0, 0.0, 0.0)
+    return {
+        "top": (0.0, 1.0, 0.0),
+        "bottom": (0.0, -1.0, 0.0),
+        "x_neg": (-1.0, 0.0, 0.0),
+        "x_pos": (1.0, 0.0, 0.0),
+        "z_neg": (0.0, 0.0, -1.0),
+        "z_pos": (0.0, 0.0, 1.0),
+        # Legacy iso-Namen
+        "left": (-1.0, 0.0, 0.0),
+        "right": (0.0, 0.0, -1.0),
+    }.get(face, (0.0, 0.0, 0.0))
 
 
 def _world_pos(x: int, y: int, z: int) -> tuple[float, float, float]:
@@ -61,12 +67,42 @@ def _world_to_voxel(px: float, py: float, pz: float) -> tuple[int, int, int]:
     return (int(math.floor(px)), int(math.floor(pz)), int(math.floor(py)))
 
 
+def _grid_extents(matrix: list[list[int]]) -> tuple[int, int, int]:
+    rows = len(matrix)
+    cols = len(matrix[0]) if matrix else 0
+    max_h = max(max(r) for r in matrix) if matrix else 0
+    return cols, rows, max_h
+
+
+def _inside_grid(gx: int, gy: int, gz: int, cols: int, rows: int, max_h: int) -> bool:
+    return 0 <= gx < cols and 0 <= gy < rows and 0 <= gz < max_h
+
+
 def _voxel_solid(matrix: list[list[int]], gx: int, gy: int, gz: int) -> bool:
     if gx < 0 or gy < 0 or gz < 0:
         return False
     if gy >= len(matrix) or gx >= len(matrix[0]):
         return False
     return gz < _height_at(matrix, gx, gy)
+
+
+def _face_visible_6(matrix: list[list[int]], x: int, y: int, z: int, face: str) -> bool:
+    h = _height_at(matrix, x, y)
+    if z >= h:
+        return False
+    if face == "top":
+        return z + 1 >= h
+    if face == "bottom":
+        return z > 0
+    if face in ("x_neg", "left"):
+        return z >= _height_at(matrix, x - 1, y)
+    if face == "x_pos":
+        return z >= _height_at(matrix, x + 1, y)
+    if face in ("z_neg", "right"):
+        return z >= _height_at(matrix, x, y - 1)
+    if face == "z_pos":
+        return z >= _height_at(matrix, x, y + 1)
+    return False
 
 
 def _building_center(matrix: list[list[int]]) -> tuple[float, float, float]:
@@ -89,24 +125,38 @@ def _ray_first_voxel(
     origin: tuple[float, float, float],
     direction: tuple[float, float, float],
     *,
-    max_steps: int = 160,
-    step: float = 0.12,
+    max_steps: int = 512,
+    step: float = 0.08,
 ) -> tuple[int, int, int] | None:
+    """Erster fester Würfel auf dem Strahl (Kamera liegt typischerweise außerhalb des Rasters)."""
     ox, oy, oz = origin
     dx, dy, dz = _normalize(direction)
-    rows = len(matrix)
-    cols = len(matrix[0]) if matrix else 0
-    t = 0.4
-    for _ in range(max_steps):
+    cols, rows, max_h = _grid_extents(matrix)
+    if cols == 0 or rows == 0 or max_h == 0:
+        return None
+
+    span = max(cols, rows, max_h)
+    entered_bounds = False
+    t = 0.0
+    max_t = span * 8.0
+    steps = 0
+    while t <= max_t and steps < max_steps:
         px = ox + dx * t
         py = oy + dy * t
         pz = oz + dz * t
         gx, gy, gz = _world_to_voxel(px, py, pz)
-        if gx < 0 or gy < 0 or gz < 0 or gy >= rows or gx >= cols:
-            return None
+        inside = _inside_grid(gx, gy, gz, cols, rows, max_h)
+        if not inside:
+            if entered_bounds:
+                return None
+            t += step
+            steps += 1
+            continue
+        entered_bounds = True
         if _voxel_solid(matrix, gx, gy, gz):
             return (gx, gy, gz)
         t += step
+        steps += 1
     return None
 
 
@@ -118,24 +168,29 @@ def _face_occluded_along_view(
     face: str,
     view_dir: tuple[float, float, float],
     *,
-    max_steps: int = 80,
-    step: float = 0.2,
+    max_steps: int = 120,
+    step: float = 0.12,
 ) -> bool:
     """True, wenn ein anderer Würfel die Sicht von dieser Fläche zur Kamera verdeckt."""
     wx, wy, wz = _world_pos(x, y, z)
     nx, ny, nz = _face_normal(face)
     ox, oy, oz = wx + 1e-3 * nx, wy + 1e-3 * ny, wz + 1e-3 * nz
     vx, vy, vz = view_dir
-    rows = len(matrix)
-    cols = len(matrix[0]) if matrix else 0
+    cols, rows, max_h = _grid_extents(matrix)
+    entered = False
     t = step
     for _ in range(max_steps):
         px = ox + vx * t
         py = oy + vy * t
         pz = oz + vz * t
         gx, gy, gz = _world_to_voxel(px, py, pz)
-        if gx < 0 or gy < 0 or gz < 0 or gy >= rows or gx >= cols:
-            return False
+        inside = _inside_grid(gx, gy, gz, cols, rows, max_h)
+        if not inside:
+            if entered:
+                return False
+            t += step
+            continue
+        entered = True
         if not _voxel_solid(matrix, gx, gy, gz):
             t += step
             continue
@@ -160,9 +215,7 @@ def _column_critical_top_voxel(matrix: list[list[int]], col: int) -> tuple[int, 
 def _face_toward_camera(
     matrix: list[list[int]], x: int, y: int, z: int, face: str, view_dir: tuple[float, float, float]
 ) -> bool:
-    from app.core.iso_building import _face_visible
-
-    if not _face_visible(matrix, x, y, z, face):
+    if not _face_visible_6(matrix, x, y, z, face):
         return False
     nx, ny, nz = _face_normal(face)
     vx, vy, vz = view_dir
@@ -184,18 +237,35 @@ def _column_center_ray_readable(
     return hit == critical
 
 
+def _ortho_column_readable(matrix: list[list[int]], col: int, camera: str) -> bool:
+    """Orthographische Lesbarkeit der Spalten-Maximalhöhe (nicht volle 3D-Rekonstruktion)."""
+    rows = len(matrix)
+    cols = len(matrix[0]) if matrix else 0
+    if not any(_height_at(matrix, col, y) > 0 for y in range(rows)):
+        return False
+    cam = camera.strip().lower()
+    if cam in ("front", "back"):
+        return True
+    if cam == "top":
+        return True
+    if cam in ("right", "left") and cols <= 1:
+        return True
+    return False
+
+
 def column_readable_from_camera(matrix: list[list[int]], col: int, camera: str) -> bool:
-    """True, wenn die Spalte aus dieser Kamera die Höheninformation erkennbar liefert."""
-    if camera in _ORTHO_SILHOUETTE_CAMERAS:
-        return any(_height_at(matrix, col, y) > 0 for y in range(len(matrix)))
-    view_dir = _normalize(_CAMERA_VIEWER_DIRS.get(camera, _CAMERA_VIEWER_DIRS["oblique"]))
+    """True, wenn die Spalten-Maximalhöhe aus dieser Kamera erkennbar ist."""
+    cam = (camera or "oblique").strip().lower()
+    if cam in _ORTHO_SILHOUETTE_CAMERAS:
+        return _ortho_column_readable(matrix, col, cam)
+    view_dir = _normalize(_CAMERA_VIEWER_DIRS.get(cam, _CAMERA_VIEWER_DIRS["oblique"]))
     if _column_center_ray_readable(matrix, col, view_dir):
         return True
     critical = _column_critical_top_voxel(matrix, col)
     if critical is None:
         return False
     x, y, z = critical
-    for face in ("top", "left", "right"):
+    for face in _ALL_FACE_NAMES:
         if _face_toward_camera(matrix, x, y, z, face, view_dir):
             return True
     return False

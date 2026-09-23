@@ -1,4 +1,8 @@
 from app.core.camera_visibility import (
+    _camera_world_origin,
+    _normalize,
+    _ray_first_voxel,
+    _world_pos,
     camera_visibility_report,
     column_readable_from_camera,
     compute_visibility_decision,
@@ -11,6 +15,37 @@ def test_front_camera_reads_all_columns():
     assert matrix is not None
     report = camera_visibility_report(matrix, "front")
     assert report["all_readable"]
+
+
+def test_right_ortho_not_all_width_columns_readable():
+    matrix = normalize_height_matrix([[1, 1, 1, 1]])
+    assert matrix is not None
+    report = camera_visibility_report(matrix, "right")
+    assert not report["all_readable"]
+    assert not any(c["readable"] for c in report["columns"])
+
+
+def test_ray_first_voxel_enters_from_outside_camera():
+    matrix = normalize_height_matrix([[1, 0], [0, 1]])
+    assert matrix is not None
+    view_dir = (1.0, 1.28, -1.0)
+    origin = _camera_world_origin(matrix, view_dir)
+    tx, ty, tz = _world_pos(0, 0, 0)
+    direction = _normalize((tx - origin[0], ty - origin[1], tz - origin[2]))
+    hit = _ray_first_voxel(matrix, origin, direction)
+    assert hit == (0, 0, 0)
+
+
+def test_ray_hits_front_voxel_on_shared_sightline():
+    matrix = normalize_height_matrix([[2, 0], [0, 1]])
+    assert matrix is not None
+    view_dir = (1.0, 0.0, -1.0)
+    origin = _camera_world_origin(matrix, view_dir)
+    tx, ty, tz = _world_pos(1, 1, 0)
+    direction = _normalize((tx - origin[0], ty - origin[1], tz - origin[2]))
+    hit = _ray_first_voxel(matrix, origin, direction)
+    assert hit is not None
+    assert hit[0] == 0
 
 
 def test_oblique_may_require_second_view_on_asymmetric():

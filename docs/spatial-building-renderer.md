@@ -48,7 +48,7 @@ Unverändert: `height_matrix`, `colored_faces` (`x,y,z,face`), `building_paint`,
 
 | Modul | Rolle |
 |-------|--------|
-| `camera_visibility.py` | Spalten lesbar aus Kamera; Entscheidung «eine/zwei Sichten» |
+| `camera_visibility.py` | Spalten-**Maximalhöhe** lesbar aus Kamera; «eine/zwei Sichten» (Vorderansicht = Spalten-Silhouette; Rechts/Links ≠ Breitenspalten) |
 | `spatial_validator.py` | Matrix-Check, `build_spatial_sequence_item()` (nur Matrix → Stufen + Answer) |
 | `spatial_sequence` (answer_type) | Mehrstufig: inspect → Sicht-Entscheidung → Projektionen |
 | `fixtures/spatial_golden/buildings.json` | Golden-Matrizen + erwartete Projektionen |
