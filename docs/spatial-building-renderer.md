@@ -25,13 +25,21 @@ Unverändert: `height_matrix`, `colored_faces` (`x,y,z,face`), `building_paint`,
 
 ## Offen
 
-- Quader-Netze (Flächengrössen)
-- Strenger Normalen-BFS für `valid_cube_net`
+- Quader-Netze (Flächengrössen) — noch keine Kantenlängen im Datenmodell
 - Optional: `InstancedMesh` für sehr grosse Matrizen (bei max. 8×8 derzeit nicht nötig)
 
 ## net_build
 
 Bewertung akzeptiert jedes gültige Würfelnetz (`answer` in Practice immer `"valid_net"`). KI-Prompt verlangt ebenfalls nur `"valid_net"`.
+
+`valid_cube_net()` prüft nicht mehr nur Zusammenhang + Grad-Heuristik, sondern
+faltet die 6 Zellen per Normalen-Simulation tatsächlich zu einem Würfel
+(Drehung um die gemeinsame Kante, Kollisionsprüfung auf den 6 Flächen-Normalen).
+Exhaustiv gegen alle 216 Sechszellen-Formen verifiziert: erkennt exakt die
+11 bekannten Würfelnetz-Formen, lehnt u. a. den klassischen 2×3-Block
+(Lehrbuch-Fangfrage) korrekt ab — die frühere Grad-Heuristik akzeptierte
+diesen und weitere 14 Formen fälschlich. Regression: `test_valid_cube_net_*`
+in `backend/tests/test_iso_building.py`.
 
 ## Deploy
 

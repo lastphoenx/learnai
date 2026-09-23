@@ -51,6 +51,27 @@ def test_valid_cube_net_cross():
     assert not valid_cube_net([(0, 0), (1, 0), (2, 0), (3, 0), (4, 0), (5, 0)])
 
 
+def test_valid_cube_net_asymmetric_shape():
+    # Vertikaler Balken (4 Zellen) mit je einem Seiten-Zapfen an der obersten Zelle —
+    # kein Kreuz, prüft die Falt-Simulation an einer unsymmetrischen Form.
+    net = [(0, 0), (1, 0), (1, 1), (1, 2), (1, 3), (2, 0)]
+    assert valid_cube_net(net)
+
+
+def test_valid_cube_net_rejects_2x3_block():
+    # Klassische Lehrbuch-Fangfrage: 2x3-Rechteck sieht wie ein Netz aus, faltet
+    # sich aber mit Überlappung — frühere Grad-Heuristik akzeptierte dies fälschlich.
+    block = [(0, 0), (1, 0), (2, 0), (0, 1), (1, 1), (2, 1)]
+    assert not valid_cube_net(block)
+
+
+def test_valid_cube_net_rejects_overlapping_offset_shape():
+    # Weitere Form (kein Rechteck), die Zusammenhang + Grad-Bedingung erfüllt,
+    # aber beim Falten zwei Zellen auf dieselbe Würfelfläche wirft.
+    shape = [(0, 0), (0, 1), (0, 2), (1, 0), (1, 1), (2, 1)]
+    assert not valid_cube_net(shape)
+
+
 def test_classify_column_visibility_single_cube():
     matrix = legacy_template_matrix("iso_single_cube")
     assert matrix is not None

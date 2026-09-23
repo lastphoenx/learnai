@@ -340,15 +340,72 @@ def classify_column_visibility(matrix: list[list[int]]) -> dict[str, Any]:
     }
 
 
+Vec3 = tuple[int, int, int]
+
+
+def _cross(a: Vec3, b: Vec3) -> Vec3:
+    return (
+        a[1] * b[2] - a[2] * b[1],
+        a[2] * b[0] - a[0] * b[2],
+        a[0] * b[1] - a[1] * b[0],
+    )
+
+
+def _dot(a: Vec3, b: Vec3) -> int:
+    return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+
+
+def _add(a: Vec3, b: Vec3) -> Vec3:
+    return (a[0] + b[0], a[1] + b[1], a[2] + b[2])
+
+
+def _scale(a: Vec3, k: int) -> Vec3:
+    return (a[0] * k, a[1] * k, a[2] * k)
+
+
+def _rotate90(v: Vec3, axis: Vec3) -> Vec3:
+    """90°-Drehung von v um die (Einheits-)Achse axis (Rodrigues bei theta=90°, exakt in Ganzzahlen)."""
+    return _add(_cross(axis, v), _scale(axis, _dot(axis, v)))
+
+
 def valid_cube_net(cells: list[tuple[int, int]]) -> bool:
-    """6 zusammenhängende Netz-Zellen (Würfelnetz-Topologie, Phase 3 — ohne Quader-Masse)."""
+    """6 Netz-Zellen per Falt-Simulation prüfen — echtes Würfelnetz, nicht nur Zusammenhang/Form.
+
+    Klappt jede Zelle in 3D auf (Normalen-Vektor + lokale Achsen, Drehung um die
+    gemeinsame Kante), gültig nur wenn alle 6 Zellen auf sechs verschiedene
+    Würfelflächen (Normalen) fallen — ohne Überlappung. Erkennt z. B. den
+    klassischen 2×3-Rechteck-Block als ungültig, den die frühere
+    Grad-Heuristik fälschlich akzeptierte.
+    """
     if len(cells) != 6:
+        return False
+    cell_set = set(cells)
+    if len(cell_set) != 6:
         return False
     if not _net_cells_connected(cells):
         return False
-    degrees = []
-    cell_set = set(cells)
-    for cx, cy in cells:
-        deg = sum((cx + dx, cy + dy) in cell_set for dx, dy in _NET_DIRS.values())
-        degrees.append(deg)
-    return max(degrees) >= 3 and min(degrees) >= 1
+    start = cells[0]
+    # Frame je Zelle: (Normale nach aussen, lokale Ost-Achse, lokale Süd-Achse) in 3D.
+    frames: dict[tuple[int, int], tuple[Vec3, Vec3, Vec3]] = {
+        start: ((0, 0, 1), (1, 0, 0), (0, 1, 0))
+    }
+    face_of: dict[tuple[int, int], Vec3] = {start: (0, 0, 1)}
+    seen = {start}
+    queue: deque[tuple[int, int]] = deque([start])
+    while queue:
+        cx, cy = queue.popleft()
+        normal, ex, ey = frames[(cx, cy)]
+        for dx, dy in _NET_DIRS.values():
+            n = (cx + dx, cy + dy)
+            if n not in cell_set or n in seen:
+                continue
+            travel = _add(_scale(ex, dx), _scale(ey, dy))
+            axis = _cross(normal, travel)
+            new_normal = _rotate90(normal, axis)
+            frames[n] = (new_normal, _rotate90(ex, axis), _rotate90(ey, axis))
+            face_of[n] = new_normal
+            seen.add(n)
+            queue.append(n)
+    if len(seen) != 6:
+        return False
+    return len(set(face_of.values())) == 6
