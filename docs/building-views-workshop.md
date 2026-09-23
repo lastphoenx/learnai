@@ -14,6 +14,8 @@ Referenz-UX: `tempdok/RaumWerkstatt_Koerper_Ansichten_Plaene*.html`, Abschnitt *
 | `SpatialSequenceExercise` | Kap. 3 — nutzt `useWorkshopFlow` + `spatialSequenceCapabilities` |
 | `BuildingPlanWorkshopShell` | Kap. 4 Bauplan — Höhenplan statt Projektionen |
 | `GridFillWorkshopExercise` | Kap. 4 bei `grid_fill.presentation: "workshop_v2"` + `derived_projection` |
+| `BuildingStandpointWorkshopShell` | Kap. 6 Standort |
+| `SyntheticViewpointWorkshopExercise` | Kap. 6 bei `synthetic_viewpoint.presentation: "workshop_v2"` |
 
 Generische Freischaltung: `frontend/src/lib/workshop/` (`workshopCapabilities`, `useWorkshopFlow`).
 
@@ -25,11 +27,14 @@ Generische Freischaltung: `frontend/src/lib/workshop/` (`workshopCapabilities`, 
 ## Schema (additiv)
 
 - `grid_fill.presentation: "workshop_v2"` — Werkstatt-UI für Bauplan (`derived_projection` + `reference_height_matrix`).
+- `synthetic_viewpoint.presentation: "workshop_v2"` — zweistufig: Schrägansicht, dann Standort-Wahl.
 - `spatial_sequence` — unverändert; gleiches Capability-Muster wie bisher.
 
 ## Weitere Modi (geplant)
 
-`building_paint` (farbige Projektionen), Kap. 6 `synthetic_viewpoint`, Kap. 2 Netze (`cube_net_cell_face_mapping` im Backend).
+`building_paint` (farbige Projektionen), Kap. 2 Netze (`cube_net_cell_face_mapping` im Backend).
+
+Kap. 3: `resolveSpatialSequenceWorkshopPhase` — bei fehlendem `projection_fill` in der Navigation darf `projectionStageIndex === -1` nicht in die Projektions-Phase springen (Regressionstest in `spatialSequenceWorkshopPhase.test.ts`).
 
 ## Manuelle Verifikation (pro Kapitel-Pilot)
 

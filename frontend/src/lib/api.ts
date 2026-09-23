@@ -393,6 +393,8 @@ export type TrainerSyntheticViewpointConfig = {
   height_matrix: number[][];
   candidates: { id: string; label?: string; x?: number; y?: number }[];
   column_visibility?: { all_readable: boolean };
+  /** Additiv: `workshop_v2` = RaumWerkstatt Kap. 6 Standort. */
+  presentation?: string | null;
 };
 
 export type TrainerSpatialSequenceStage =

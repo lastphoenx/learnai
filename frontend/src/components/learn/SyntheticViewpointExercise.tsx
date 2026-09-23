@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { TrainerSyntheticViewpointConfig } from "@/lib/api";
+import { SyntheticViewpointWorkshopExercise } from "@/components/learn/syntheticViewpoint/SyntheticViewpointWorkshopExercise";
 import { BuildingThreeCanvas } from "@/components/learn/BuildingThreeCanvas";
 import { ViewpointPlan, viewpointCandidateLabel } from "@/components/learn/ViewpointPlan";
 import { heightMatrixHasVoxels } from "@/lib/isoBuilding";
@@ -14,7 +15,18 @@ type Props = {
   onContinue: () => void;
 };
 
-export function SyntheticViewpointExercise({ config, busy, result, onSubmit, onContinue }: Props) {
+function isSyntheticViewpointWorkshopV2(config: TrainerSyntheticViewpointConfig): boolean {
+  return config.presentation === "workshop_v2";
+}
+
+export function SyntheticViewpointExercise(props: Props) {
+  if (isSyntheticViewpointWorkshopV2(props.config)) {
+    return <SyntheticViewpointWorkshopExercise {...props} />;
+  }
+  return <SyntheticViewpointClassicExercise {...props} />;
+}
+
+function SyntheticViewpointClassicExercise({ config, busy, result, onSubmit, onContinue }: Props) {
   const matrix = useMemo(() => config.height_matrix ?? [[1]], [config.height_matrix]);
   const hasBuilding = heightMatrixHasVoxels(matrix);
   const candidates = config.candidates?.length ? config.candidates : [];

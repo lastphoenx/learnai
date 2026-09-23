@@ -9,6 +9,7 @@ import { BuildingViewsWorkshopShell } from "@/components/learn/buildingWorkshop/
 import { BuildingWorkshopModelPanel } from "@/components/learn/buildingWorkshop/BuildingWorkshopModelPanel";
 import type { WorkshopModelMode } from "@/components/learn/buildingWorkshop/workshopModelTypes";
 import { spatialSequenceModelUnlock } from "@/lib/workshop/spatialSequenceCapabilities";
+import { resolveSpatialSequenceWorkshopPhase } from "@/lib/workshop/spatialSequenceWorkshopPhase";
 import { useWorkshopFlow } from "@/lib/workshop/useWorkshopFlow";
 import { VisibilityDecisionPanel } from "@/components/learn/buildingWorkshop/VisibilityDecisionPanel";
 import { emptyProjectionDraft, type SpatialSequenceAnswer, type SpatialSequenceStage } from "@/lib/spatialSequence";
@@ -69,17 +70,6 @@ function asInspectStage(stage: SpatialSequenceStage | undefined): InspectStage |
   return stage?.type === "inspect" ? stage : undefined;
 }
 
-function useWorkshopPhase(
-  current: SpatialSequenceStage | undefined,
-  stageIndex: number,
-  projectionStageIndex: number,
-): "inspect" | "decision" | "projections" | "hint_only" {
-  if (current?.type === "inspect" && current.hint_only) return "hint_only";
-  if (current?.type === "visibility_decision") return "decision";
-  if (current?.type === "projection_fill" || stageIndex >= projectionStageIndex) return "projections";
-  return "inspect";
-}
-
 export function SpatialSequenceExercise({ config, busy, result, onSubmit, onContinue }: Props) {
   const matrix = config.height_matrix;
   const hasBuilding = heightMatrixHasVoxels(matrix);
@@ -94,7 +84,7 @@ export function SpatialSequenceExercise({ config, busy, result, onSubmit, onCont
   const [projections, setProjections] = useState(emptyProjectionDraft());
   const current = stages[stageIndex];
   const projectionStageIndex = spatialSequenceProjectionIndex(stages);
-  const phase = useWorkshopPhase(current, stageIndex, projectionStageIndex);
+  const phase = resolveSpatialSequenceWorkshopPhase(current, stageIndex, projectionStageIndex);
 
   const unlockContext = useMemo(() => ({ phase, visibility }), [phase, visibility]);
 

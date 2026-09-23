@@ -649,6 +649,10 @@ def parse_synthetic_viewpoint_items(raw: object) -> list[dict[str, Any]]:
         answer = str(item.get("answer") or "").strip().upper()
         if answer not in {c["id"] for c in candidates}:
             continue
+        presentation_raw = item.get("presentation")
+        presentation = (
+            str(presentation_raw).strip() if presentation_raw is not None and str(presentation_raw).strip() else None
+        )
         out.append(
             {
                 "prompt": prompt[:500],
@@ -656,6 +660,7 @@ def parse_synthetic_viewpoint_items(raw: object) -> list[dict[str, Any]]:
                 "height_matrix": matrix,
                 "candidates": candidates,
                 "answer": answer,
+                "presentation": presentation,
             }
         )
     return out[:4]
@@ -1079,6 +1084,7 @@ def spatial_raw_to_practice_items(
                     "height_matrix": matrix,
                     "candidates": raw.get("candidates") or [],
                     "column_visibility": col_vis,
+                    "presentation": raw.get("presentation"),
                 },
                 "source": quiz_source,
             }
