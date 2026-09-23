@@ -37,7 +37,9 @@ from app.core.spatial_compact import (
     parse_net_build_items,
     parse_region_paint_items,
     parse_synthetic_viewpoint_items,
+    apply_spatial_fallback_to_payload,
     should_enable_spatial_compact_exercises,
+    spatial_payload_field_counts,
     spatial_raw_to_practice_items,
 )
 from app.core.quiz_numeric import repair_quiz_block
@@ -624,21 +626,60 @@ def generate_posten_compact(
             if spatial_geometry:
                 spatial_n = count_spatial_practice_in_modules(modules)
                 raw_n = count_raw_spatial_fields(payload)
+                _log.info(
+                    "generate_posten_compact spatial_raw unit_id=%s attempt=%d practice=%d raw=%d counts=%s",
+                    unit_id,
+                    attempt,
+                    spatial_n,
+                    raw_n,
+                    spatial_payload_field_counts(payload),
+                )
                 if spatial_n < 1:
                     if attempt == 1:
                         raise LlmError(
                             f"Raumaufgaben fehlen (practice={spatial_n}, raw={raw_n})",
                             "thin_spatial",
                         )
-                    spatial_warning = (
-                        f"Raumaufgaben fehlen nach 2 Versuchen "
-                        f"(practice={spatial_n}, raw={raw_n}) — Trainer ohne Raum-Übungen gespeichert."
-                    )
-                    _log.warning(
-                        "generate_posten_compact thin_spatial_soft unit_id=%s %s",
-                        unit_id,
-                        spatial_warning,
-                    )
+                    if apply_spatial_fallback_to_payload(
+                        payload, goal=str(payload.get("goal") or title)
+                    ):
+                        modules = posten_compact_payload_to_modules(
+                            payload,
+                            title=title,
+                            focus_group=focus_group,
+                            quiz_source=quiz_source,
+                            source_ids=source_ids,
+                        )
+                        modules, dedupe_warnings = dedupe_interactive_modules(modules)
+                        for warning in dedupe_warnings:
+                            _log.warning(
+                                "generate_posten_compact dedupe unit_id=%s %s", unit_id, warning
+                            )
+                        for module in modules:
+                            quiz = module.get("quiz") if isinstance(module, dict) else None
+                            if isinstance(module, dict) and isinstance(quiz, dict):
+                                module["quiz"] = repair_quiz_block(quiz)
+                        spatial_n = count_spatial_practice_in_modules(modules)
+                    if spatial_n < 1:
+                        spatial_warning = (
+                            f"Raumaufgaben fehlen nach 2 Versuchen "
+                            f"(practice={spatial_n}, raw={raw_n}) — Trainer ohne Raum-Übungen gespeichert."
+                        )
+                        _log.warning(
+                            "generate_posten_compact thin_spatial_soft unit_id=%s %s",
+                            unit_id,
+                            spatial_warning,
+                        )
+                    else:
+                        spatial_warning = (
+                            "KI lieferte keine Raumaufgaben — Standardübungen "
+                            "(Würfelflächen + Würfelnetz) wurden ergänzt."
+                        )
+                        _log.warning(
+                            "generate_posten_compact spatial_fallback unit_id=%s practice=%d",
+                            unit_id,
+                            spatial_n,
+                        )
             last_exc = None
             break
         except LlmError as exc:

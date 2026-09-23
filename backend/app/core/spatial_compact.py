@@ -471,16 +471,47 @@ def parse_synthetic_viewpoint_items(raw: object) -> list[dict[str, Any]]:
     return out[:4]
 
 
+_SPATIAL_PAYLOAD_LIST_KEYS = (
+    "image_choice_items",
+    "point_on_image_items",
+    "grid_fill_items",
+    "region_paint_items",
+    "building_paint_items",
+    "net_build_items",
+    "synthetic_viewpoint_items",
+)
+
+
+def spatial_payload_field_counts(payload: dict[str, Any]) -> dict[str, int]:
+    return {key: len(payload.get(key) or []) for key in _SPATIAL_PAYLOAD_LIST_KEYS}
+
+
 def count_raw_spatial_fields(payload: dict[str, Any]) -> int:
-    return (
-        len(payload.get("image_choice_items") or [])
-        + len(payload.get("point_on_image_items") or [])
-        + len(payload.get("grid_fill_items") or [])
-        + len(payload.get("region_paint_items") or [])
-        + len(payload.get("building_paint_items") or [])
-        + len(payload.get("net_build_items") or [])
-        + len(payload.get("synthetic_viewpoint_items") or [])
-    )
+    return sum(spatial_payload_field_counts(payload).values())
+
+
+def apply_spatial_fallback_to_payload(payload: dict[str, Any], *, goal: str = "") -> bool:
+    """Standard-Raumübungen, wenn die KI keine spatial-Listen liefert (ohne Bild-Bbox)."""
+    if count_raw_spatial_fields(payload) > 0:
+        return False
+    hint = (goal or "").strip()[:120]
+    suffix = f" ({hint})" if hint else ""
+    payload["region_paint_items"] = [
+        {
+            "prompt": f"Färbe die drei sichtbaren Würfelflächen wie im Heft{suffix}.",
+            "template": "iso_single_cube",
+            "answer": {"top": "yellow", "left": "green", "right": "blue"},
+        }
+    ]
+    payload["net_build_items"] = [
+        {
+            "prompt": "Lege ein gültiges Würfelnetz aus sechs Quadraten.",
+            "rows": 4,
+            "cols": 4,
+            "answer": "valid_net",
+        }
+    ]
+    return True
 
 
 def count_spatial_practice_in_modules(modules: list[dict[str, Any]]) -> int:

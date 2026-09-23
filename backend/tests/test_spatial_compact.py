@@ -4,6 +4,7 @@ import json
 
 from app.core.region_layouts import get_region_template, list_region_template_ids
 from app.core.spatial_compact import (
+    apply_spatial_fallback_to_payload,
     count_spatial_practice_in_modules,
     grade_image_choice,
     grade_point_on_image,
@@ -172,6 +173,23 @@ def test_building_paint_to_practice():
     )
     assert items[0]["answer_type"] == "building_paint"
     assert items[0]["building_paint"]["regions"]
+
+
+def test_spatial_fallback_fills_empty_payload():
+    payload: dict = {"goal": "Körper und Pläne"}
+    assert apply_spatial_fallback_to_payload(payload, goal=payload["goal"])
+    items = spatial_raw_to_practice_items(
+        image_choice=[],
+        point_on_image=[],
+        grid_fill=[],
+        region_paint=list(payload.get("region_paint_items") or []),
+        net_build=list(payload.get("net_build_items") or []),
+        source_ids=[],
+    )
+    assert len(items) >= 2
+    types = {i["answer_type"] for i in items}
+    assert "region_paint" in types
+    assert "net_build" in types
 
 
 def test_net_build_answer_always_valid_net():
