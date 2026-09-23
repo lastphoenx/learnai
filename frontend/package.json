@@ -21,7 +21,7 @@
   },
   "devDependencies": {
     "@types/three": "^0.175.0",
-    "@types/node": "^22.15.21",
+    "@types/node": "^22.20.4",
     "@types/qrcode": "^1.5.5",
     "@types/react": "^19.1.4",
     "@types/react-dom": "^19.1.5",

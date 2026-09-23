@@ -3,17 +3,17 @@ starlette==1.6.0
 uvicorn[standard]==0.52.4
 sqlalchemy==2.0.52
 psycopg[binary]==3.3.4
-alembic==1.19.1
+alembic==1.19.2
 pydantic-settings==2.15.0
-pydantic[email]==2.13.4
+pydantic[email]==2.13.5
 argon2-cffi==25.1.0
-cryptography==50.0.0
+cryptography==50.0.1
 python-multipart==0.0.32
 pyotp==2.10.0
 celery[redis]==5.6.3
 redis==6.4.0  # pinned: kombu[redis] in celery 5.6.x requires redis <6.5
 httpx==0.28.1
-pypdf==6.16.2
+pypdf==6.17.0
 pymupdf==1.28.2
 pymupdf-fonts==1.0.5
 
@@ -21,5 +21,5 @@ pymupdf-fonts==1.0.5
 pytest==9.1.1
 
 # Deutsch-Grammatik (Ticket B — Fallbestimmung)
-spacy==3.8.11
+spacy==3.8.16
 de-core-news-sm @ https://github.com/explosion/spacy-models/releases/download/de_core_news_sm-3.8.0/de_core_news_sm-3.8.0-py3-none-any.whl
