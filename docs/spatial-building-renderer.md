@@ -26,6 +26,7 @@ Legacy `region_paint` **ohne** `height_matrix` nutzt weiterhin SVG-Polygone (alt
 - `grid_fill` + `derived_projection`: `reference_height_matrix` bzw. `height_matrix` im answer für die Gebäude-Vorschau.
 - Einzelwürfel färben: `building_paint` mit `[[1]]`, nicht `region_paint`/`iso_single_cube`.
 - `net_build` **validate**: `given_cells` + answer `valid`/`invalid`; Quader-Netze → `image_choice`.
+- `synthetic_viewpoint`: Kandidaten mit `label` + Plan-`x`/`y`; UI: Grundriss-Kompass + **3D-👁-Marker** (`ViewpointSceneMarkers`) und Richtungslabels am Gebäude.
 
 ## Backend / KI-Schema
 

@@ -2,20 +2,9 @@
 
 import type { CSSProperties } from "react";
 import type { HeightMatrix } from "@/lib/isoBuilding";
+import { resolveViewpointNorm, type ViewpointCandidateLike } from "@/lib/viewpointWorld";
 
-export type ViewpointCandidate = {
-  id: string;
-  label?: string;
-  x?: number;
-  y?: number;
-};
-
-const FALLBACK_XY: Record<string, [number, number]> = {
-  A: [0.5, 0.9],
-  B: [0.88, 0.5],
-  C: [0.5, 0.1],
-  D: [0.12, 0.5],
-};
+export type ViewpointCandidate = ViewpointCandidateLike;
 
 type Props = {
   matrix: HeightMatrix;
@@ -74,10 +63,7 @@ export function ViewpointPlan({ matrix, candidates, selectedId }: Props) {
           R
         </text>
         {candidates.map((c) => {
-          const [nx, ny] =
-            typeof c.x === "number" && typeof c.y === "number"
-              ? [c.x, c.y]
-              : FALLBACK_XY[c.id] ?? [0.5, 0.5];
+          const [nx, ny] = resolveViewpointNorm(c);
           const px = 8 + nx * 84;
           const py = 8 + ny * 84;
           const active = selectedId === c.id;

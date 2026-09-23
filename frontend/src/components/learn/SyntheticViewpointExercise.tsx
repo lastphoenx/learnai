@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { TrainerSyntheticViewpointConfig } from "@/lib/api";
-import { BuildingIsoPreview } from "@/components/learn/BuildingIsoPreview";
+import { BuildingThreeCanvas } from "@/components/learn/BuildingThreeCanvas";
 import { ViewpointPlan, viewpointCandidateLabel } from "@/components/learn/ViewpointPlan";
 
 type Props = {
@@ -27,11 +27,21 @@ export function SyntheticViewpointExercise({ config, busy, result, onSubmit, onC
   return (
     <div className="synthetic-viewpoint stack">
       <p className="muted">
-        Das Gebäude ist mit <strong>Vorne / Hinten / Links / Rechts</strong> beschriftet — die Beschriftung dreht mit dem Modell.
-        Wähle den Standpunkt, von dem die Aufgabe beschrieben wird.
+        <strong>Vorne / Hinten / Links / Rechts</strong> am Gebäude; 👁-Marker zeigen mögliche Standpunkte in der 3D-Szene
+        (mit dem Gebäude mitverankert). Drehe die Ansicht — Marker und Beschriftung bleiben am Bauwerk.
       </p>
       <ViewpointPlan matrix={matrix} candidates={candidates} selectedId={picked} />
-      <BuildingIsoPreview matrix={matrix} showOrientationLabels={true} />
+      <p className="muted building-iso-hint">Drehen: ziehen · Zoomen: zwei Finger oder Mausrad · Standpunkt: 👁 antippen</p>
+      <BuildingThreeCanvas
+        matrix={matrix}
+        showOrientationLabels={true}
+        heightPx={340}
+        viewpointCandidates={candidates}
+        selectedViewpointId={picked}
+        onViewpointPick={choose}
+        viewpointPickDisabled={busy || Boolean(result)}
+      />
+      <p className="muted">Oder wähle dieselbe Position als Liste:</p>
       <div className="viewpoint-choice-list stack" style={{ gap: "0.5rem" }}>
         {candidates.map((c) => (
           <button

@@ -6,6 +6,8 @@ import { OrbitControls } from "@react-three/drei";
 import type { HeightMatrix } from "@/lib/isoBuilding";
 import { VoxelBuilding } from "@/components/learn/buildingThree/VoxelBuilding";
 import { BuildingOrientationLabels } from "@/components/learn/buildingThree/BuildingOrientationLabels";
+import { ViewpointSceneMarkers } from "@/components/learn/buildingThree/ViewpointSceneMarkers";
+import type { ViewpointCandidateLike } from "@/lib/viewpointWorld";
 
 export type BuildingThreeCanvasProps = {
   matrix: HeightMatrix;
@@ -15,6 +17,10 @@ export type BuildingThreeCanvasProps = {
   slotCorrect?: Map<string, boolean>;
   heightPx?: number;
   showOrientationLabels?: boolean;
+  viewpointCandidates?: ViewpointCandidateLike[];
+  selectedViewpointId?: string | null;
+  onViewpointPick?: (id: string) => void;
+  viewpointPickDisabled?: boolean;
 };
 
 export function BuildingThreeCanvas({
@@ -25,6 +31,10 @@ export function BuildingThreeCanvas({
   slotCorrect,
   heightPx = 300,
   showOrientationLabels = false,
+  viewpointCandidates,
+  selectedViewpointId,
+  onViewpointPick,
+  viewpointPickDisabled = false,
 }: BuildingThreeCanvasProps) {
   return (
     <div className="building-three-wrap" style={{ height: heightPx, maxWidth: "28rem", width: "100%" }}>
@@ -45,6 +55,15 @@ export function BuildingThreeCanvas({
             slotCorrect={slotCorrect}
           />
           {showOrientationLabels && <BuildingOrientationLabels matrix={matrix} />}
+          {viewpointCandidates && viewpointCandidates.length > 0 && onViewpointPick && (
+            <ViewpointSceneMarkers
+              matrix={matrix}
+              candidates={viewpointCandidates}
+              selectedId={selectedViewpointId}
+              disabled={viewpointPickDisabled}
+              onPick={onViewpointPick}
+            />
+          )}
         </Suspense>
         <OrbitControls makeDefault enableDamping dampingFactor={0.08} />
       </Canvas>

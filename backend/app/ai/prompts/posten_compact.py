@@ -98,7 +98,7 @@ POSTEN_COMPACT_SPATIAL_EXTRA = (
     '[[col,row],...] (6 Zellen), answer "valid" oder "invalid" (Würfelnetz). '
     "Quader-Netze (ungleiche Rechtecke): image_choice aus Heft-Foto, nicht net_build.\n"
     "- synthetic_viewpoint_items: height_matrix; candidates mit id, label (deutsch, z. B. «Vorne …»), "
-    "optional direction (vorne/hinten/links/rechts/oben) und x/y (0–1) auf dem Plan; "
+    "direction (vorne/hinten/links/rechts) und x/y (0–1) auf dem Plan (Marker in 3D); "
     "answer = id des richtigen Standpunkts — keine leeren A/B/C ohne Beschreibung.\n"
     "- PFLICHT: mindestens 2 Einträge gesamt in den spatial-Listen (zusätzlich zu cards/quiz).\n"
     "- Bevorzuge building_paint/grid_fill/image_choice aus dem Heft-Material, wenn erkennbar.\n"
