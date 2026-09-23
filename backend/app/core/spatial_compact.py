@@ -703,10 +703,12 @@ def parse_spatial_sequence_items(raw: object) -> list[dict[str, Any]]:
                 ):
                     first = str(st.get("camera") or first).strip().lower()
                     break
+            from app.core.spatial_validator import canonical_spatial_sequence_prompt
+
             answer = json.dumps(build_spatial_sequence_answer(matrix, first), ensure_ascii=False)
             out.append(
                 {
-                    "prompt": prompt[:500],
+                    "prompt": canonical_spatial_sequence_prompt(matrix)[:500],
                     "hint": hint,
                     "spatial_sequence": config,
                     "answer": answer,

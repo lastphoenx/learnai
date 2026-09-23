@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import type { TrainerSyntheticViewpointConfig } from "@/lib/api";
 import { BuildingThreeCanvas } from "@/components/learn/BuildingThreeCanvas";
 import { ViewpointPlan, viewpointCandidateLabel } from "@/components/learn/ViewpointPlan";
+import { heightMatrixHasVoxels } from "@/lib/isoBuilding";
 
 type Props = {
   config: TrainerSyntheticViewpointConfig;
@@ -15,6 +16,7 @@ type Props = {
 
 export function SyntheticViewpointExercise({ config, busy, result, onSubmit, onContinue }: Props) {
   const matrix = useMemo(() => config.height_matrix ?? [[1]], [config.height_matrix]);
+  const hasBuilding = heightMatrixHasVoxels(matrix);
   const candidates = config.candidates?.length ? config.candidates : [];
   const [picked, setPicked] = useState<string | null>(null);
 
@@ -30,17 +32,31 @@ export function SyntheticViewpointExercise({ config, busy, result, onSubmit, onC
         <strong>Vorne / Hinten / Links / Rechts</strong> am Gebäude; 👁-Marker zeigen mögliche Standpunkte in der 3D-Szene
         (mit dem Gebäude mitverankert). Drehe die Ansicht — Marker und Beschriftung bleiben am Bauwerk.
       </p>
-      <ViewpointPlan matrix={matrix} candidates={candidates} selectedId={picked} />
-      <p className="muted building-iso-hint">Drehen: ziehen · Zoomen: zwei Finger oder Mausrad · Standpunkt: 👁 antippen</p>
-      <BuildingThreeCanvas
-        matrix={matrix}
-        showOrientationLabels={true}
-        heightPx={340}
-        viewpointCandidates={candidates}
-        selectedViewpointId={picked}
-        onViewpointPick={choose}
-        viewpointPickDisabled={busy || Boolean(result)}
-      />
+      {!hasBuilding ? (
+        <div className="learn-feedback bad" role="alert">
+          <strong>Gebäudedaten fehlen</strong>
+          <p className="muted" style={{ margin: "0.35rem 0 0" }}>
+            Der Höhenplan ist leer oder ungültig — die 3D-Szene kann nicht dargestellt werden. Einheit neu aufbereiten
+            oder Didaktik prüfen.
+          </p>
+        </div>
+      ) : (
+        <>
+          <ViewpointPlan matrix={matrix} candidates={candidates} selectedId={picked} />
+          <p className="muted building-iso-hint">
+            Drehen: ziehen · Zoomen: zwei Finger oder Mausrad · Standpunkt: 👁 antippen
+          </p>
+          <BuildingThreeCanvas
+            matrix={matrix}
+            showOrientationLabels={true}
+            heightPx={340}
+            viewpointCandidates={candidates}
+            selectedViewpointId={picked}
+            onViewpointPick={choose}
+            viewpointPickDisabled={busy || Boolean(result)}
+          />
+        </>
+      )}
       <p className="muted">Oder wähle dieselbe Position als Liste:</p>
       <div className="viewpoint-choice-list stack" style={{ gap: "0.5rem" }}>
         {candidates.map((c) => (
@@ -49,7 +65,7 @@ export function SyntheticViewpointExercise({ config, busy, result, onSubmit, onC
             type="button"
             className="btn-secondary viewpoint-choice-btn"
             style={{ textAlign: "left", justifyContent: "flex-start" }}
-            disabled={busy || Boolean(result)}
+            disabled={busy || Boolean(result) || !hasBuilding}
             onClick={() => choose(c.id)}
           >
             <span className="viewpoint-choice-id">{c.id}</span>

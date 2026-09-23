@@ -130,6 +130,17 @@ def spatial_sequence_quality_warnings(config: dict[str, Any]) -> list[str]:
     return warnings
 
 
+def canonical_spatial_sequence_prompt(matrix: list[list[int]]) -> str:
+    """Anzeige-Text — KI-Prompt wird beim Parsen ignoriert (wie net_build)."""
+    rows = len(matrix)
+    cols = len(matrix[0]) if matrix else 0
+    return (
+        f"Würfelgebäude ({rows}×{cols} Grundriss): In der 3D-Ansicht ansehen, "
+        "entscheiden ob eine Sicht ausreicht oder eine zweite nötig ist, "
+        "danach Vorder-, Rechts- und Aufsicht in die Raster eintragen."
+    )
+
+
 def build_spatial_sequence_answer(matrix: list[list[int]], first_camera: str = "oblique") -> dict[str, Any]:
     return {
         "visibility": compute_visibility_decision(matrix, first_camera),
@@ -188,8 +199,9 @@ def build_spatial_sequence_item(
     if val_errors:
         raise ValueError("; ".join(val_errors))
     answer = build_spatial_sequence_answer(matrix, first_camera)
+    display_prompt = canonical_spatial_sequence_prompt(matrix)
     return {
-        "prompt": prompt[:500],
+        "prompt": display_prompt[:500],
         "hint": (hint or "")[:300] or None,
         "spatial_sequence": config,
         "answer": json.dumps(answer, ensure_ascii=False),

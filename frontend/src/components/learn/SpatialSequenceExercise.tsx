@@ -17,6 +17,7 @@ import {
   secondCameraPresetFromConfig,
   spatialSequenceProjectionIndex,
 } from "@/lib/spatialSequenceHints";
+import { heightMatrixHasVoxels } from "@/lib/isoBuilding";
 
 type Props = {
   config: TrainerSpatialSequenceConfig;
@@ -60,6 +61,7 @@ function asInspectStage(stage: SpatialSequenceStage | undefined): InspectStage |
 
 export function SpatialSequenceExercise({ config, busy, result, onSubmit, onContinue }: Props) {
   const matrix = config.height_matrix;
+  const hasBuilding = heightMatrixHasVoxels(matrix);
   const stages = (config.stages ?? []) as SpatialSequenceStage[];
   const hints = config.hints ?? [];
 
@@ -201,6 +203,20 @@ export function SpatialSequenceExercise({ config, busy, result, onSubmit, onCont
       projections,
     };
     onSubmit(JSON.stringify(payload));
+  }
+
+  if (!hasBuilding) {
+    return (
+      <div className="spatial-sequence-exercise stack">
+        <div className="learn-feedback bad" role="alert">
+          <strong>Gebäudedaten fehlen</strong>
+          <p className="muted" style={{ margin: "0.35rem 0 0" }}>
+            Der Höhenplan ist leer oder ungültig — diese Aufgabe kann nicht bearbeitet werden. Einheit neu aufbereiten
+            oder Didaktik prüfen.
+          </p>
+        </div>
+      </div>
+    );
   }
 
   return (

@@ -100,7 +100,10 @@ POSTEN_COMPACT_SPATIAL_EXTRA = (
     'Modus «prüfen» — given_cells (6 Zellen), answer "valid"/"invalid". '
     "Quader-Netze (ungleiche Rechtecke): image_choice aus Heft-Foto, nicht net_build.\n"
     "- spatial_sequence_items: nur height_matrix + prompt (Stufen/Hilfen/Lösung werden serverseitig erzeugt); "
-    "optional fertiges spatial_sequence-Objekt für Experten.\n"
+    "prompt = kurze generische Einleitung zum Gebäude (Thema/Kontext), KEINE Beschreibung der Schritte — "
+    "wird serverseitig ersetzt. Ablauf ist immer: Gebäude in 3D ansehen → Sicht-Entscheidung → "
+    "Vorder-/Rechts-/Aufsicht eintragen. Nicht «bauen», nicht «Schichten legen», nicht «Säulenhöhen prüfen» "
+    "o.ä. schreiben. Optional fertiges spatial_sequence-Objekt für Experten.\n"
     "- synthetic_viewpoint_items: height_matrix; candidates mit id, label (deutsch, z. B. «Vorne …»), "
     "direction (vorne/hinten/links/rechts) und x/y (0–1) auf dem Plan (Marker in 3D); "
     "answer = id des richtigen Standpunkts — keine leeren A/B/C ohne Beschreibung.\n"

@@ -4218,6 +4218,18 @@ button.trainer-flashcard.flipped {
   border-radius: 0.5rem;
 }
 
+.viewpoint-choice-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.viewpoint-choice-id {
+  font-weight: 800;
+  flex: 0 0 auto;
+  min-width: 1.25rem;
+}
+
 .building-three-wrap {
   border-radius: 0.5rem;
   overflow: hidden;

@@ -5,6 +5,12 @@
 
 export type HeightMatrix = number[][];
 
+/** Mindestens ein Feld mit Höhe > 0 (Altdaten mit nur Nullen → keine 3D-Voxel). */
+export function heightMatrixHasVoxels(matrix: HeightMatrix | null | undefined): boolean {
+  if (!matrix?.length) return false;
+  return matrix.some((row) => row.some((h) => (h ?? 0) > 0));
+}
+
 export function faceId(x: number, y: number, z: number, face: string): string {
   return `${x},${y},${z},${face}`;
 }
