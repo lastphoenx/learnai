@@ -4091,6 +4091,42 @@ button.trainer-flashcard.flipped {
   color: #fff;
 }
 
+.spatial-seq-fill-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  align-items: stretch;
+}
+
+.spatial-seq-fill-building {
+  width: 100%;
+  max-width: 22rem;
+}
+
+@media (min-width: 768px) {
+  .spatial-seq-fill-workspace {
+    flex-direction: row;
+    align-items: flex-start;
+  }
+
+  .spatial-seq-fill-building {
+    flex: 0 0 min(40%, 20rem);
+    position: sticky;
+    top: 0.5rem;
+  }
+
+  .spatial-seq-fill-workspace .projection-fill-grids {
+    flex: 1;
+    min-width: 0;
+  }
+}
+
+.projection-fill-caption {
+  margin: 0.15rem 0 0.35rem;
+  font-size: 0.88rem;
+  line-height: 1.35;
+}
+
 .grid-fill-table {
   display: grid;
   gap: 0.35rem;

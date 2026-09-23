@@ -24,12 +24,14 @@ function setCell(grid: Grid, ri: number, ci: number, v: string) {
 
 function ViewBlock({
   title,
+  caption,
   grid,
   editable,
   solution,
   onCell,
 }: {
   title: string;
+  caption?: string;
   grid?: Grid;
   editable: boolean;
   solution?: Grid;
@@ -40,6 +42,7 @@ function ViewBlock({
   return (
     <div className="projection-fill-view stack">
       <strong>{title}</strong>
+      {caption ? <p className="muted projection-fill-caption">{caption}</p> : null}
       <div
         className="grid-fill-table projection-fill-table"
         style={{ gridTemplateColumns: `repeat(${cols}, minmax(1.5rem, 1fr))` }}
@@ -73,7 +76,16 @@ function ViewBlock({
   );
 }
 
-export function ProjectionFillGrids({ views, editable, values, onChange, solutionOverlay }: Props) {
+export function ProjectionFillGrids({
+  views,
+  editable,
+  values,
+  onChange,
+  solutionOverlay,
+  viewCaptions,
+}: Props & {
+  viewCaptions?: Partial<Record<"front" | "right" | "top", string>>;
+}) {
   const keys = (["front", "right", "top"] as const).filter((k) => views[k]?.length);
 
   function patch(key: "top" | "front" | "right", ri: number, ci: number, v: string) {
@@ -90,6 +102,7 @@ export function ProjectionFillGrids({ views, editable, values, onChange, solutio
         <ViewBlock
           key={k}
           title={titles[k]}
+          caption={viewCaptions?.[k]}
           grid={values[k] ?? views[k]}
           editable={editable}
           solution={solutionOverlay?.[k]}

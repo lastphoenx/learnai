@@ -60,6 +60,28 @@ export function SpatialSequenceExercise({ config, busy, result, onSubmit, onCont
 
   const projectionStageIndex = spatialSequenceProjectionIndex(stages);
 
+  const primaryFillCamera = useMemo((): SpatialCameraPreset => {
+    const mainInspect = stages.find((s) => s.type === "inspect" && !s.hint_only);
+    const cam = mainInspect?.camera ?? config.first_camera ?? "oblique";
+    return cam as SpatialCameraPreset;
+  }, [stages, config.first_camera]);
+
+  const buildingFootprint = useMemo(() => {
+    const rows = matrix.length;
+    const cols = matrix[0]?.length ?? 1;
+    const maxH = Math.max(...matrix.flat(), 1);
+    return { rows, cols, maxH };
+  }, [matrix]);
+
+  const projectionViewCaptions = useMemo(
+    () => ({
+      front: `${buildingFootprint.maxH} Zeilen (Höhe) × ${buildingFootprint.cols} Spalten (Breite von vorne)`,
+      right: `${buildingFootprint.maxH} Zeilen (Höhe) × ${buildingFootprint.rows} Spalten (Tiefe — von rechts gesehen, nicht die Vorderbreite)`,
+      top: `${buildingFootprint.rows} Zeilen × ${buildingFootprint.cols} Spalten (Grundriss von oben)`,
+    }),
+    [buildingFootprint],
+  );
+
   const viewTemplates = useMemo(() => {
     const pf = stages.find((s) => s.type === "projection_fill");
     const views = pf?.views ?? ["front", "right", "top"];
@@ -182,23 +204,49 @@ export function SpatialSequenceExercise({ config, busy, result, onSubmit, onCont
       {current?.type === "projection_fill" && (
         <>
           <p>Trage die drei Ansichten ein (0 = leer, 1 = belegt bei Vorder-/Rechtsansicht).</p>
-          <ProjectionFillGrids
-            views={{
-              top: viewTemplates.views.top,
-              front: viewTemplates.views.front,
-              right: viewTemplates.views.right,
-            }}
-            editable={!result}
-            values={projections}
-            onChange={setProjections}
-            solutionOverlay={solutionOverlay}
-          />
+          <div className="spatial-seq-fill-workspace">
+            <div className="spatial-seq-fill-building stack">
+              <p className="muted">
+                {hintPreviewCamera
+                  ? "Hilfe — zusätzliche Ansicht zum Vergleichen"
+                  : "Gebäude zum Vergleich (drehen und zoomen)"}
+              </p>
+              <BuildingThreeCanvas
+                matrix={matrix}
+                cameraPreset={hintPreviewCamera ?? primaryFillCamera}
+                cameraLocked={Boolean(hintPreviewCamera)}
+                showOrientationLabels={true}
+                heightPx={220}
+              />
+              {hintPreviewCamera ? (
+                <button
+                  type="button"
+                  className="btn btn-sm btn-secondary"
+                  onClick={() => setHintPreviewCamera(null)}
+                >
+                  Hilfe schliessen
+                </button>
+              ) : null}
+            </div>
+            <ProjectionFillGrids
+              views={{
+                top: viewTemplates.views.top,
+                front: viewTemplates.views.front,
+                right: viewTemplates.views.right,
+              }}
+              editable={!result}
+              values={projections}
+              onChange={setProjections}
+              solutionOverlay={solutionOverlay}
+              viewCaptions={projectionViewCaptions}
+            />
+          </div>
         </>
       )}
 
-      {hintPreviewCamera && (
+      {hintPreviewCamera && current?.type !== "projection_fill" && (
         <div className="spatial-hint-preview stack">
-          <p className="muted">Hilfe — zusätzliche Ansicht (dein Aufgabenschritt bleibt unverändert)</p>
+          <p className="muted">Hilfe — zusätzliche Ansicht</p>
           <BuildingThreeCanvas
             matrix={matrix}
             cameraPreset={hintPreviewCamera}
