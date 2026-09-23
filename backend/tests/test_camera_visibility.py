@@ -1,4 +1,5 @@
 from app.core.camera_visibility import (
+    _building_center,
     _camera_world_origin,
     _normalize,
     _ray_first_voxel,
@@ -36,13 +37,26 @@ def test_ray_first_voxel_enters_from_outside_camera():
     assert hit == (0, 0, 0)
 
 
-def test_ray_hits_front_voxel_on_shared_sightline():
+def test_ray_to_rear_cell_hits_that_cell_not_side_column():
+    """Perspektivstrahl Kamera→Ziel: (0,0)-Säule liegt nicht auf dem Weg zu (1,1,0)."""
     matrix = normalize_height_matrix([[2, 0], [0, 1]])
     assert matrix is not None
     view_dir = (1.0, 0.0, -1.0)
     origin = _camera_world_origin(matrix, view_dir)
     tx, ty, tz = _world_pos(1, 1, 0)
     direction = _normalize((tx - origin[0], ty - origin[1], tz - origin[2]))
+    hit = _ray_first_voxel(matrix, origin, direction)
+    assert hit == (1, 1, 0)
+
+
+def test_ray_toward_center_hits_front_column_first():
+    """Strahl von der Kamera zum Gebäudemittelpunkt trifft die vordere hohe Säule zuerst."""
+    matrix = normalize_height_matrix([[2, 0], [0, 1]])
+    assert matrix is not None
+    view_dir = (1.0, 0.0, -1.0)
+    origin = _camera_world_origin(matrix, view_dir)
+    cx, cy, cz = _building_center(matrix)
+    direction = _normalize((cx - origin[0], cy - origin[1], cz - origin[2]))
     hit = _ray_first_voxel(matrix, origin, direction)
     assert hit is not None
     assert hit[0] == 0

@@ -31,12 +31,16 @@ export function canUnlockSpatialHint(
   return false;
 }
 
+type InspectStage = Extract<SpatialSequenceStage, { type: "inspect" }>;
+
+function isSecondCameraInspectStage(s: SpatialSequenceStage): s is InspectStage {
+  return s.type === "inspect" && s.unlock_hint === "show_second_camera";
+}
+
 export function secondCameraPresetFromConfig(
   stages: SpatialSequenceStage[],
   secondCamera?: string,
 ): string {
-  const fromStage = stages.find(
-    (s) => s.type === "inspect" && s.unlock_hint === "show_second_camera",
-  )?.camera;
-  return fromStage || secondCamera || "front_right";
+  const fromStage = stages.find(isSecondCameraInspectStage);
+  return fromStage?.camera || secondCamera || "front_right";
 }
