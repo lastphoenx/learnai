@@ -517,6 +517,7 @@ def _complete_with_retry(
     num_predict: int,
     label: str,
     images: list[tuple[bytes, str]] | None = None,
+    reasoning_effort: str | None = None,
 ) -> dict:
     last_exc: LlmError | None = None
     for attempt in (1, 2, 3):
@@ -529,6 +530,7 @@ def _complete_with_retry(
                 num_predict=num_predict,
                 json_mode=True,
                 images=images,
+                reasoning_effort=reasoning_effort,
             )
             parse_json_object(result["text"])
             return result
@@ -662,6 +664,11 @@ def generate_interactive_modules(
         target_prefs, fallback_prefs, ai_task, override=effective_provider
     )
     name = resolve_provider(name)
+    from app.ai.catalog import effective_prefs_for_task, resolve_reasoning_effort
+
+    def _reasoning_for(task_key: str) -> str | None:
+        prefs = effective_prefs_for_task(target_prefs, fallback_prefs, task_key)
+        return resolve_reasoning_effort(prefs, task_key, model)
 
     vision_will_run = _unit_will_use_vision_extract(unit)
     from app.services.ai_run_snapshot import resolve_generation_ai_tasks
@@ -822,6 +829,7 @@ def generate_interactive_modules(
         model=model,
         num_predict=_PLAN_NUM_PREDICT,
         label="plan",
+        reasoning_effort=_reasoning_for("mixed"),
     )
     max_plan_categories = 3 if compact else 6
     categories = _normalize_plan_counts(
@@ -911,6 +919,7 @@ def generate_interactive_modules(
             model=model,
             num_predict=_BATCH_NUM_PREDICT,
             label=f"quiz_{index + 1}",
+            reasoning_effort=_reasoning_for("quiz"),
         )
         questions = _parse_questions(quiz_result["text"], cat["questions"])
         all_quiz_questions.extend(q["q"] for q in questions)

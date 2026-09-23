@@ -62,7 +62,8 @@ export type User = {
   login_email?: string;
   llm_provider?: string;
   llm_model?: string;
-  by_task?: Record<string, { provider: string; model: string }>;
+  by_task?: Record<string, { provider: string; model: string; reasoning_effort?: string }>;
+  llm_reasoning_effort?: string;
   ki_summary?: string;
 };
 export type LoginResponse = { requires_2fa: boolean; must_enroll_2fa?: boolean; user?: User };
@@ -76,7 +77,8 @@ export type LearnerProfile = {
   is_child_profile: boolean;
   llm_provider: string;
   llm_model: string;
-  by_task: Record<string, { provider: string; model: string }>;
+  by_task: Record<string, { provider: string; model: string; reasoning_effort?: string }>;
+  llm_reasoning_effort?: string;
   stt_provider: string;
   default_language: string;
   target_age: string;
@@ -961,7 +963,8 @@ export const updateProfile = (
     display_name?: string;
     llm_provider?: string;
     llm_model?: string;
-    by_task?: Record<string, { provider: string; model: string }>;
+    by_task?: Record<string, { provider: string; model: string; reasoning_effort?: string }>;
+    llm_reasoning_effort?: string;
     default_language?: string;
     target_age?: string;
     auto_purge_sources?: boolean;

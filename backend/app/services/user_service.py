@@ -411,7 +411,13 @@ def _normalize_by_task(raw: object) -> dict:
             provider = ""
         elif provider not in {"ollama", "openai", "anthropic"}:
             continue
-        out[str(key)] = {"provider": provider, "model": str(row.get("model") or "").strip()[:80]}
+        from app.ai.reasoning_effort import normalize_reasoning_effort
+
+        effort = normalize_reasoning_effort(row.get("reasoning_effort"))
+        entry = {"provider": provider, "model": str(row.get("model") or "").strip()[:80]}
+        if effort:
+            entry["reasoning_effort"] = effort
+        out[str(key)] = entry
     return out
 
 

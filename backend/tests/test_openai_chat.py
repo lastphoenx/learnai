@@ -13,6 +13,7 @@ def test_openai_vision_list_includes_gpt5():
 
 def test_is_reasoning_family():
     assert _is_reasoning_family("gpt-5.6-terra")
+    assert _is_reasoning_family("gpt-5.6-luna")
     assert _is_reasoning_family("o3-mini")
     assert not _is_reasoning_family("gpt-4o")
     assert not _is_reasoning_family("gpt-4.1-mini")
@@ -31,6 +32,19 @@ def test_openai_chat_omits_temperature_for_gpt5_family(monkeypatch):
     assert "temperature" not in captured
     assert captured.get("max_completion_tokens") == 100
     assert "max_tokens" not in captured
+
+
+def test_openai_chat_sets_reasoning_effort_for_gpt5(monkeypatch):
+    monkeypatch.setattr("app.ai.providers.settings.openai_api_key", "sk-test")
+    captured: dict = {}
+
+    def fake_post(body, timeout=90.0):
+        captured.update(body)
+        return {"choices": [{"message": {"content": "ok"}}]}
+
+    monkeypatch.setattr("app.ai.providers._openai_post", fake_post)
+    _openai_chat("Test", model="gpt-5.6-luna", max_tokens=200, reasoning_effort="high")
+    assert captured.get("reasoning_effort") == "high"
 
 
 def test_openai_chat_keeps_legacy_params_for_gpt4(monkeypatch):

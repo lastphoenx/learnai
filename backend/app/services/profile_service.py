@@ -7,6 +7,7 @@ import uuid
 from sqlalchemy.orm import Session
 
 from app.ai.catalog import TASK_KEYS
+from app.ai.reasoning_effort import normalize_reasoning_effort
 from app.ai.extract import STT_PROVIDERS
 from app.ai.model_registry import pick_external_model, validate_model
 from app.models import ChildGuardian, LearningProfile, User
@@ -37,7 +38,11 @@ def _normalize_settings(raw: dict | None) -> dict:
                 p = ""
             elif p not in {"ollama", "openai", "anthropic"}:
                 continue
-            by_task[str(key)] = {"provider": p, "model": str(row.get("model") or "").strip()[:80]}
+            effort = normalize_reasoning_effort(row.get("reasoning_effort"))
+            entry: dict[str, str] = {"provider": p, "model": str(row.get("model") or "").strip()[:80]}
+            if effort:
+                entry["reasoning_effort"] = effort
+            by_task[str(key)] = entry
     stt = str(data.get("stt_provider") or "").strip().lower()
     if stt not in STT_PROVIDERS:
         stt = "browser"
@@ -45,6 +50,7 @@ def _normalize_settings(raw: dict | None) -> dict:
         "display_name": str(data.get("display_name") or "").strip()[:80],
         "llm_provider": provider,
         "llm_model": str(data.get("llm_model") or "").strip()[:80],
+        "llm_reasoning_effort": normalize_reasoning_effort(data.get("llm_reasoning_effort")),
         "by_task": by_task,
         "stt_provider": stt,
         "default_language": str(data.get("default_language") or "de").strip()[:8] or "de",
@@ -69,7 +75,11 @@ def _validate_settings(settings: dict) -> dict:
                 model = validate_model(provider, model, task_key=key)
             except ValueError as exc:
                 raise ProfileError(f"{key}: {exc}", "invalid_model") from exc
-        validated_tasks[key] = {"provider": provider, "model": model}
+        effort = normalize_reasoning_effort(row.get("reasoning_effort"))
+        task_row: dict[str, str] = {"provider": provider, "model": model}
+        if effort:
+            task_row["reasoning_effort"] = effort
+        validated_tasks[key] = task_row
     out["by_task"] = validated_tasks
     return out
 
@@ -99,6 +109,8 @@ def set_profile_settings(db: Session, profile: LearningProfile, settings: dict) 
             current["llm_provider"] = name
     if "llm_model" in settings and settings["llm_model"] is not None:
         current["llm_model"] = str(settings["llm_model"]).strip()[:80]
+    if "llm_reasoning_effort" in settings and settings["llm_reasoning_effort"] is not None:
+        current["llm_reasoning_effort"] = normalize_reasoning_effort(settings["llm_reasoning_effort"])
     if "by_task" in settings and settings["by_task"] is not None:
         current["by_task"] = incoming["by_task"]
     if "stt_provider" in settings and settings["stt_provider"] is not None:
@@ -125,6 +137,7 @@ def profile_public_dict(profile: LearningProfile) -> dict:
         "is_child_profile": profile.is_child_profile,
         "llm_provider": prefs.get("llm_provider") or "",
         "llm_model": prefs.get("llm_model") or "",
+        "llm_reasoning_effort": prefs.get("llm_reasoning_effort") or "",
         "by_task": prefs.get("by_task") or {},
         "stt_provider": prefs.get("stt_provider") or "browser",
         "default_language": prefs.get("default_language") or "de",

@@ -213,6 +213,21 @@ def resolve_task_ai(
     return provider, (model or None)
 
 
+def resolve_reasoning_effort(prefs: dict, task_key: str, model: str | None) -> str | None:
+    """OpenAI reasoning_effort für GPT-5/o — None = API-Default."""
+    from app.ai.reasoning_effort import is_reasoning_family, normalize_reasoning_effort
+
+    if not is_reasoning_family(model or ""):
+        return None
+    by_task = prefs.get("by_task") if isinstance(prefs.get("by_task"), dict) else {}
+    row = by_task.get(task_key) if isinstance(by_task.get(task_key), dict) else {}
+    effort = normalize_reasoning_effort(row.get("reasoning_effort"))
+    if effort:
+        return effort
+    effort = normalize_reasoning_effort(prefs.get("llm_reasoning_effort"))
+    return effort or None
+
+
 _VISION_CAPABLE_PATTERNS = (
     r"qwen2\.5vl",
     r"qwen3-vl",

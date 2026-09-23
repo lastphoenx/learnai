@@ -3,8 +3,9 @@
 import { useState } from "react";
 import { ModelSelect } from "@/components/ModelSelect";
 import type { AiModelCatalog, SttProvider, SttStatus, TaskCatalogItem } from "@/lib/api";
+import { isReasoningModel, REASONING_EFFORT_OPTIONS } from "@/lib/reasoningModels";
 
-export type TaskRow = { provider: string; model: string };
+export type TaskRow = { provider: string; model: string; reasoning_effort?: string };
 
 function modelHints(item: TaskCatalogItem, effectiveProvider: string): string[] {
   if (effectiveProvider === "ollama") {
@@ -21,8 +22,10 @@ type Props = {
   byTask: Record<string, TaskRow>;
   llmProvider: string;
   llmModel: string;
+  llmReasoningEffort: string;
   onByTaskChange: (next: Record<string, TaskRow>) => void;
   onFallbackChange: (provider: string, model: string) => void;
+  onReasoningEffortChange: (effort: string) => void;
   onApplyRecommendations: () => void;
   sttProvider?: SttProvider;
   sttStatus?: SttStatus;
@@ -38,8 +41,10 @@ export function LearnerSettingsForm({
   byTask,
   llmProvider,
   llmModel,
+  llmReasoningEffort,
   onByTaskChange,
   onFallbackChange,
+  onReasoningEffortChange,
   onApplyRecommendations,
   sttProvider = "browser",
   sttStatus,
@@ -72,6 +77,7 @@ export function LearnerSettingsForm({
                 <th>Typ</th>
                 <th>Provider</th>
                 <th>Modell</th>
+                <th>Reasoning</th>
               </tr>
             </thead>
             <tbody>
@@ -81,6 +87,8 @@ export function LearnerSettingsForm({
                 const isTts = item.key === "tts";
                 const isMixed = item.key === "mixed";
                 const effectiveProvider = provider || item.default_provider;
+                const showReasoning =
+                  effectiveProvider === "openai" && isReasoningModel(row.model);
                 return (
                   <tr key={item.key}>
                     <td>
@@ -129,6 +137,29 @@ export function LearnerSettingsForm({
                             item.key === "tts" ? "Standard (tts-1-hd)" : "Empfehlung (automatisch)"
                           }
                         />
+                      )}
+                    </td>
+                    <td>
+                      {showReasoning ? (
+                        readOnly ? (
+                          row.reasoning_effort || "API-Standard"
+                        ) : (
+                          <select
+                            value={row.reasoning_effort || ""}
+                            onChange={(e) =>
+                              setRow(item.key, { reasoning_effort: e.target.value || undefined })
+                            }
+                            title="OpenAI reasoning_effort (GPT-5 / o-Serie)"
+                          >
+                            {REASONING_EFFORT_OPTIONS.map((opt) => (
+                              <option key={opt.value || "default"} value={opt.value}>
+                                {opt.label}
+                              </option>
+                            ))}
+                          </select>
+                        )
+                      ) : (
+                        <span className="muted">—</span>
                       )}
                     </td>
                   </tr>
@@ -212,6 +243,29 @@ export function LearnerSettingsForm({
               />
             )}
           </label>
+          {llmProvider === "openai" && isReasoningModel(llmModel) && (
+            <label>
+              Reasoning-Aufwand (Fallback)
+              {readOnly ? (
+                <span>{llmReasoningEffort || "API-Standard"}</span>
+              ) : (
+                <select
+                  value={llmReasoningEffort}
+                  onChange={(e) => onReasoningEffortChange(e.target.value)}
+                >
+                  {REASONING_EFFORT_OPTIONS.map((opt) => (
+                    <option key={opt.value || "default"} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <span className="muted why">
+                Für GPT-5/o-Modelle ohne eigene Zeile in der Tabelle (z. B. Gemischt bei Posten
+                kompakt).
+              </span>
+            </label>
+          )}
         </div>
       </details>
     </>

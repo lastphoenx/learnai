@@ -417,6 +417,7 @@ def _complete_posten_compact(
     system: str,
     images: list[tuple[bytes, str]] | None = None,
     progress: Callable[..., None] | None = None,
+    reasoning_effort: str | None = None,
 ) -> dict:
     from app.services.generate_heartbeat import run_with_generate_heartbeat
 
@@ -433,6 +434,7 @@ def _complete_posten_compact(
                     num_predict=num_predict,
                     json_mode=True,
                     images=images,
+                    reasoning_effort=reasoning_effort,
                 )
                 parse_json_object(out["text"])
                 return out
@@ -490,6 +492,10 @@ def generate_posten_compact(
     math_focus = recon.get("math_focus")
     if target_prefs is None or fallback_prefs is None:
         target_prefs, fallback_prefs = resolve_unit_ai_prefs(db, user, unit.profile_id)
+    from app.ai.catalog import effective_prefs_for_task, resolve_reasoning_effort
+
+    mixed_prefs = effective_prefs_for_task(target_prefs, fallback_prefs, "mixed")
+    reasoning_effort = resolve_reasoning_effort(mixed_prefs, "mixed", model)
     focus_group = (
         detect_focus_group(subject=unit.subject, task_type=str(unit.task_type or "interactive"))
         or "general"
@@ -606,6 +612,7 @@ def generate_posten_compact(
             system=system_prompt,
             images=images if multimodal else None,
             progress=progress,
+            reasoning_effort=reasoning_effort,
         )
         try:
             payload = _parse_posten_compact_payload(

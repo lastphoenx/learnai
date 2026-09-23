@@ -62,6 +62,7 @@ class ProfileResponse(BaseModel):
     is_child_profile: bool = False
     llm_provider: str = ""
     llm_model: str = ""
+    llm_reasoning_effort: str = ""
     by_task: dict[str, dict[str, str]] = Field(default_factory=dict)
     default_language: str = "de"
     target_age: str = ""
@@ -79,6 +80,7 @@ class ProfileSettingsUpdateRequest(BaseModel):
     display_name: str | None = Field(default=None, max_length=80)
     llm_provider: str | None = Field(default=None, max_length=32)
     llm_model: str | None = Field(default=None, max_length=80)
+    llm_reasoning_effort: str | None = Field(default=None, max_length=16)
     by_task: dict[str, dict[str, str]] | None = None
     default_language: str | None = Field(default=None, max_length=8)
     target_age: str | None = Field(default=None, max_length=32)

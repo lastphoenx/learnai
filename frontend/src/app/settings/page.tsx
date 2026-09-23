@@ -54,6 +54,7 @@ export default function SettingsPage() {
   const [byTask, setByTask] = useState<Record<string, TaskRow>>({});
   const [llmProvider, setLlmProvider] = useState("default");
   const [llmModel, setLlmModel] = useState("");
+  const [llmReasoningEffort, setLlmReasoningEffort] = useState("");
   const [catalog, setCatalog] = useState<TaskCatalogItem[]>([]);
   const [modelCatalog, setModelCatalog] = useState<AiModelCatalog>(EMPTY_CATALOG);
   const [ollamaModels, setOllamaModels] = useState<string[]>([]);
@@ -92,6 +93,7 @@ export default function SettingsPage() {
     setByTask(profile.by_task || {});
     setLlmProvider(profile.llm_provider || "default");
     setLlmModel(profile.llm_model || "");
+    setLlmReasoningEffort(profile.llm_reasoning_effort || "");
     setSttProvider((profile.stt_provider as SttProvider) || "browser");
   }
 
@@ -285,6 +287,7 @@ export default function SettingsPage() {
                 const updated = await updateProfile(selected.id, {
                   llm_provider: llmProvider,
                   llm_model: llmModel,
+                  llm_reasoning_effort: llmReasoningEffort,
                   by_task: byTask,
                   stt_provider: sttProvider,
                 });
@@ -312,6 +315,7 @@ export default function SettingsPage() {
               byTask={byTask}
               llmProvider={llmProvider}
               llmModel={llmModel}
+              llmReasoningEffort={llmReasoningEffort}
               onByTaskChange={(next) => {
                 markLearnerSettingsDirty();
                 setByTask(next);
@@ -320,6 +324,10 @@ export default function SettingsPage() {
                 markLearnerSettingsDirty();
                 setLlmProvider(provider);
                 setLlmModel(model);
+              }}
+              onReasoningEffortChange={(effort) => {
+                markLearnerSettingsDirty();
+                setLlmReasoningEffort(effort);
               }}
               onApplyRecommendations={async () => {
                 const updated = await applyProfileRecommendations(selected.id);

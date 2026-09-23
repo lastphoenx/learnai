@@ -81,6 +81,7 @@ def complete(
     num_predict: int | None = None,
     json_mode: bool = False,
     images: list[tuple[bytes, str]] | None = None,
+    reasoning_effort: str | None = None,
 ) -> LlmResult:
     name = resolve_provider(provider)
     text = prompt.strip()
@@ -105,6 +106,7 @@ def complete(
                 model=model,
                 max_tokens=num_predict,
                 json_mode=json_mode,
+                reasoning_effort=reasoning_effort,
             )
         return _anthropic_multimodal_chat(
             text,
@@ -118,7 +120,13 @@ def complete(
             text, system=system, model=model, num_predict=num_predict, json_mode=json_mode
         )
     if name == "openai":
-        return _openai_chat(text, system=system, model=model, max_tokens=num_predict)
+        return _openai_chat(
+            text,
+            system=system,
+            model=model,
+            max_tokens=num_predict,
+            reasoning_effort=reasoning_effort,
+        )
     return _anthropic_chat(text, system=system, model=model, max_tokens=num_predict)
 
 
@@ -388,7 +396,9 @@ def _ollama_post_unlocked(path: str, payload: dict, timeout: float | None = None
 
 def _is_reasoning_family(model: str) -> bool:
     """GPT-5/o-Serie: temperature nur Default, max_completion_tokens statt max_tokens."""
-    return bool(re.match(r"^(o\d|gpt-5)", (model or "").strip().lower()))
+    from app.ai.reasoning_effort import is_reasoning_family as _reasoning
+
+    return _reasoning(model)
 
 
 def _openai_chat_body(
@@ -397,13 +407,19 @@ def _openai_chat_body(
     *,
     temperature: float,
     max_tokens: int | None = None,
+    reasoning_effort: str | None = None,
 ) -> dict:
+    from app.ai.reasoning_effort import REASONING_EFFORT_VALUES
+
     body: dict = {"model": model, "messages": messages}
     if not _is_reasoning_family(model):
         body["temperature"] = temperature
     if max_tokens:
         key = "max_completion_tokens" if _is_reasoning_family(model) else "max_tokens"
         body[key] = max_tokens
+    effort = (reasoning_effort or "").strip().lower()
+    if _is_reasoning_family(model) and effort in REASONING_EFFORT_VALUES:
+        body["reasoning_effort"] = effort
     return body
 
 
@@ -413,6 +429,7 @@ def _openai_chat(
     model: str | None = None,
     *,
     max_tokens: int | None = None,
+    reasoning_effort: str | None = None,
 ) -> LlmResult:
     if not settings.openai_api_key:
         raise LlmError("OPENAI_API_KEY fehlt", "missing_key")
@@ -421,7 +438,13 @@ def _openai_chat(
     if system:
         messages.append({"role": "system", "content": system})
     messages.append({"role": "user", "content": prompt})
-    body = _openai_chat_body(model, messages, temperature=0.3, max_tokens=max_tokens)
+    body = _openai_chat_body(
+        model,
+        messages,
+        temperature=0.3,
+        max_tokens=max_tokens,
+        reasoning_effort=reasoning_effort,
+    )
     data = _openai_post(body)
     text = (((data.get("choices") or [{}])[0].get("message") or {}).get("content")) or ""
     if not text.strip():
@@ -447,6 +470,7 @@ def _openai_multimodal_chat(
     max_tokens: int | None = None,
     json_mode: bool = False,
     temperature: float = 0.3,
+    reasoning_effort: str | None = None,
 ) -> LlmResult:
     if not settings.openai_api_key:
         raise LlmError("OPENAI_API_KEY fehlt", "missing_key")
@@ -466,7 +490,13 @@ def _openai_multimodal_chat(
     if system:
         messages.append({"role": "system", "content": system})
     messages.append({"role": "user", "content": user_content})
-    body = _openai_chat_body(model, messages, temperature=temperature, max_tokens=max_tokens)
+    body = _openai_chat_body(
+        model,
+        messages,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        reasoning_effort=reasoning_effort,
+    )
     if json_mode and not _is_reasoning_family(model):
         body["response_format"] = {"type": "json_object"}
     data = _openai_post(body, timeout=180.0)
