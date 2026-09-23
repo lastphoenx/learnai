@@ -44,9 +44,11 @@ def test_spatial_sequence_has_top_hint_stage():
 def test_second_camera_is_mandatory_in_second_view_branch():
     item = build_spatial_sequence_item([[1, 2], [2, 1]], prompt="x")
     branch = item["spatial_sequence"]["visibility_branches"]["second_view_required"]["stages"]
-    second_inspects = [s for s in branch if s.get("type") == "inspect"]
-    assert len(second_inspects) == 1
-    assert not second_inspects[0].get("hint_only")
+    mandatory_inspects = [
+        s for s in branch if s.get("type") == "inspect" and not s.get("hint_only")
+    ]
+    assert len(mandatory_inspects) == 1
+    assert mandatory_inspects[0].get("camera") == item["spatial_sequence"]["second_camera"]
 
 
 def test_parse_ignores_ki_answer_dict():
