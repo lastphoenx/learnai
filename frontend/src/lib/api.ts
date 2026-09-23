@@ -421,6 +421,7 @@ export type TrainerSpatialSequenceConfig = {
   hints?: string[];
   first_camera?: string;
   second_camera?: string;
+  expected_visibility?: "one_view_sufficient" | "second_view_required";
 };
 
 export type TrainerContentAnalysis = {

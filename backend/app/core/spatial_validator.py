@@ -216,6 +216,7 @@ def build_spatial_sequence_item(
     if val_errors:
         raise ValueError("; ".join(val_errors))
     answer = build_spatial_sequence_answer(matrix, first_camera)
+    config["expected_visibility"] = answer["visibility"]
     display_prompt = canonical_spatial_sequence_prompt(matrix)
     return {
         "prompt": display_prompt[:500],

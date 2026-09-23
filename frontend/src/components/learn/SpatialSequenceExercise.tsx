@@ -4,8 +4,10 @@ import { useMemo, useState } from "react";
 import type { TrainerSpatialSequenceConfig } from "@/lib/api";
 import type { SpatialCameraPreset } from "@/lib/spatialCoordinates";
 import { buildingProjections } from "@/lib/buildingProjections";
-import { BuildingThreeCanvas } from "@/components/learn/BuildingThreeCanvas";
 import { ProjectionFillGrids } from "@/components/learn/ProjectionFillGrids";
+import { BuildingViewsWorkshopShell } from "@/components/learn/buildingWorkshop/BuildingViewsWorkshopShell";
+import { BuildingWorkshopModelPanel } from "@/components/learn/buildingWorkshop/BuildingWorkshopModelPanel";
+import { VisibilityDecisionPanel } from "@/components/learn/buildingWorkshop/VisibilityDecisionPanel";
 import { emptyProjectionDraft, type SpatialSequenceAnswer, type SpatialSequenceStage } from "@/lib/spatialSequence";
 import {
   emptyNumberGrid,
@@ -43,7 +45,7 @@ type Props = {
 const HINT_LABELS: Record<string, string> = {
   show_second_camera: "Zweite Kamera zeigen",
   show_top_view: "Aufsicht als Kamera",
-  show_solution_overlay: "Lösung andeuten",
+  show_solution_overlay: "Lösung überlagern",
 };
 
 function isSkippableStage(stage: SpatialSequenceStage | undefined): boolean {
@@ -64,6 +66,17 @@ function asInspectStage(stage: SpatialSequenceStage | undefined): InspectStage |
   return stage?.type === "inspect" ? stage : undefined;
 }
 
+function useWorkshopPhase(
+  current: SpatialSequenceStage | undefined,
+  stageIndex: number,
+  projectionStageIndex: number,
+): "inspect" | "decision" | "projections" | "hint_only" {
+  if (current?.type === "inspect" && current.hint_only) return "hint_only";
+  if (current?.type === "visibility_decision") return "decision";
+  if (current?.type === "projection_fill" || stageIndex >= projectionStageIndex) return "projections";
+  return "inspect";
+}
+
 export function SpatialSequenceExercise({ config, busy, result, onSubmit, onContinue }: Props) {
   const matrix = config.height_matrix;
   const hasBuilding = heightMatrixHasVoxels(matrix);
@@ -78,16 +91,13 @@ export function SpatialSequenceExercise({ config, busy, result, onSubmit, onCont
   const hints = useMemo(() => activeSpatialSequenceHints(flowConfig, visibility), [flowConfig, visibility]);
   const [projections, setProjections] = useState(emptyProjectionDraft());
   const [overlayHint, setOverlayHint] = useState(false);
-  const [hintPreviewCamera, setHintPreviewCamera] = useState<SpatialCameraPreset | null>(null);
 
   const solutionOverlay = useMemo(() => (overlayHint ? buildingProjections(matrix) : null), [overlayHint, matrix]);
 
   const current = stages[stageIndex];
-  const inspectStage = asInspectStage(current);
-  const stageCamera: SpatialCameraPreset = (inspectStage?.camera as SpatialCameraPreset) ?? "oblique";
-  const cameraLocked = Boolean(inspectStage?.camera_locked);
-
   const projectionStageIndex = spatialSequenceProjectionIndex(stages);
+  const phase = useWorkshopPhase(current, stageIndex, projectionStageIndex);
+
   const projectionFillStage = stages.find((s) => s.type === "projection_fill");
   const gridSizeHint = normalizeGridSizeHint(
     projectionFillStage?.type === "projection_fill" ? projectionFillStage.grid_size_hint : undefined,
@@ -104,13 +114,13 @@ export function SpatialSequenceExercise({ config, busy, result, onSubmit, onCont
     return initial;
   });
 
-  const primaryFillCamera = useMemo((): SpatialCameraPreset => {
-    const mainInspect = stages.find(
-      (s): s is InspectStage => s.type === "inspect" && !s.hint_only,
-    );
-    const cam = mainInspect?.camera ?? config.first_camera ?? "oblique";
-    return cam as SpatialCameraPreset;
-  }, [stages, config.first_camera]);
+  const firstCamera = (config.first_camera ?? "oblique") as SpatialCameraPreset;
+  const secondCamera = useMemo(
+    () => secondCameraPresetFromConfig(stages, config.second_camera) as SpatialCameraPreset,
+    [stages, config.second_camera],
+  );
+
+  const expectedVisibility = config.expected_visibility;
 
   const buildingFootprint = useMemo(() => {
     const rows = matrix.length;
@@ -122,15 +132,15 @@ export function SpatialSequenceExercise({ config, busy, result, onSubmit, onCont
   const projectionViewCaptions = useMemo(() => {
     if (gridSizeHint === "derive") {
       return {
-        front: "Lege Zeilen (Höhe) und Spalten (Breite von vorne) fest, dann sichtbare Felder markieren.",
-        right: "Spalten = Gebäudetiefe von der Seite — sichtbare Felder markieren.",
-        top: "Grundriss: markiere Felder, wo ein Würfel steht (ohne Höhenzahl).",
+        front: "Silhouette von vorne markieren.",
+        right: "Silhouette von rechts markieren.",
+        top: "Grundriss: belegte Felder (ohne Höhenzahl).",
       };
     }
     return {
-      front: `${buildingFootprint.maxH}×${buildingFootprint.cols} — Silhouette von vorne markieren`,
-      right: `${buildingFootprint.maxH}×${buildingFootprint.rows} — Silhouette von rechts markieren`,
-      top: `${buildingFootprint.rows}×${buildingFootprint.cols} — belegte Grundriss-Felder markieren (nicht die Stapelhöhe)`,
+      front: `${buildingFootprint.maxH}×${buildingFootprint.cols} — von vorne`,
+      right: `${buildingFootprint.maxH}×${buildingFootprint.rows} — von rechts`,
+      top: `${buildingFootprint.rows}×${buildingFootprint.cols} — Aufsicht (Belegung)`,
     };
   }, [buildingFootprint, gridSizeHint]);
 
@@ -173,8 +183,7 @@ export function SpatialSequenceExercise({ config, busy, result, onSubmit, onCont
 
   const nextHintId = hints[unlockedHints];
   const nextHintAllowed =
-    nextHintId &&
-    canUnlockSpatialHint(nextHintId, stageIndex, visibility, stages);
+    nextHintId && canUnlockSpatialHint(nextHintId, stageIndex, visibility, stages);
 
   function unlockNextHint() {
     const id = hints[unlockedHints];
@@ -184,22 +193,17 @@ export function SpatialSequenceExercise({ config, busy, result, onSubmit, onCont
     setUnlockHints((n) => Math.min(n + 1, hints.length));
     if (id === "show_solution_overlay") {
       setOverlayHint(true);
-      return;
-    }
-    if (id === "show_second_camera") {
-      setHintPreviewCamera(
-        secondCameraPresetFromConfig(stages, config.second_camera) as SpatialCameraPreset,
-      );
-      return;
-    }
-    if (id === "show_top_view") {
-      setHintPreviewCamera("top");
     }
   }
 
   function advanceStage() {
     const next = nextStageIndex(stages, stageIndex);
     if (next < stages.length) setStageIndex(next);
+  }
+
+  function clearProjections() {
+    setProjections(emptyProjectionDraft());
+    setOverlayHint(false);
   }
 
   const canSubmit =
@@ -219,194 +223,162 @@ export function SpatialSequenceExercise({ config, busy, result, onSubmit, onCont
         <div className="learn-feedback bad" role="alert">
           <strong>Gebäudedaten fehlen</strong>
           <p className="muted" style={{ margin: "0.35rem 0 0" }}>
-            Der Höhenplan ist leer oder ungültig — diese Aufgabe kann nicht bearbeitet werden. Einheit neu aufbereiten
-            oder Didaktik prüfen.
+            Der Höhenplan ist leer oder ungültig — diese Aufgabe kann nicht bearbeitet werden.
           </p>
         </div>
       </div>
     );
   }
 
-  return (
-    <div className="spatial-sequence-exercise stack">
-      {current?.type === "inspect" && (
-        <>
-          <p className="muted">Schritt {stageIndex + 1}: Gebäude untersuchen.</p>
-          <BuildingThreeCanvas
-            matrix={matrix}
-            cameraPreset={stageCamera}
-            cameraLocked={cameraLocked}
-            showOrientationLabels={true}
-            heightPx={280}
-          />
-          {!current.hint_only && (
-            <button type="button" className="btn btn-secondary" onClick={advanceStage} disabled={!!result}>
-              Weiter
-            </button>
-          )}
-          {current.hint_only && (
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={() => setStageIndex(projectionStageIndex >= 0 ? projectionStageIndex : stageIndex)}
-              disabled={!!result}
-            >
-              Zurück zu den Ansichten
-            </button>
-          )}
-        </>
-      )}
-
-      {current?.type === "visibility_decision" && (
-        <>
-          <p>
-            Kannst du aus dieser ersten Ansicht wirklich alle wichtigen Stellen des Gebäudes erkennen — oder
-            brauchst du zwingend noch eine zweite Perspektive?
-          </p>
-          <div className="spatial-seq-choices">
-            <button
-              type="button"
-              className={`btn spatial-seq-choice${visibility === "one_view_sufficient" ? " spatial-seq-choice--on" : ""}`}
-              disabled={!!result}
-              onClick={() => setVisibility("one_view_sufficient")}
-            >
-              Ja, eindeutig — eine Sicht reicht
-            </button>
-            <button
-              type="button"
-              className={`btn spatial-seq-choice${visibility === "second_view_required" ? " spatial-seq-choice--on" : ""}`}
-              disabled={!!result}
-              onClick={() => setVisibility("second_view_required")}
-            >
-              Nein — es gibt verdeckte Stellen
-            </button>
-          </div>
-          {visibility && !result ? (
-            <div className="learn-feedback ok spatial-seq-decision-confirm">
-              <strong>
-                {visibility === "one_view_sufficient"
-                  ? "Deine Wahl: Eine Sicht reicht."
-                  : "Deine Wahl: Du brauchst noch eine zweite Perspektive."}
-              </strong>
-              <p className="muted" style={{ margin: "0.35rem 0 0" }}>
-                {visibility === "one_view_sufficient"
-                  ? "Als Nächstes trägst du die drei Orthogonalansichten ein."
-                  : "Als Nächstes siehst du eine zweite Kamera, danach die Orthogonalansichten."}
-              </p>
-              <button
-                type="button"
-                className="btn-primary"
-                style={{ marginTop: "0.75rem" }}
-                onClick={() => setStageIndex(spatialSequencePrefix(flowConfig).length)}
-              >
-                Weiter zu den Ansichten
-              </button>
-            </div>
-          ) : null}
-        </>
-      )}
-
-      {current?.type === "projection_fill" && (
-        <>
-          <p>
-            {gridSizeHint === "derive"
-              ? "Wähle pro Ansicht die Rastergrösse, dann markiere die sichtbaren Felder (Antippen)."
-              : "Markiere in allen drei Ansichten die sichtbaren Felder — Antippen statt Zahlen tippen."}
-          </p>
-          <div className="spatial-seq-fill-workspace">
-            <div className="spatial-seq-fill-building stack">
-              <p className="muted">
-                {hintPreviewCamera
-                  ? "Hilfe — zusätzliche Ansicht zum Vergleichen"
-                  : "Gebäude zum Vergleich (drehen und zoomen)"}
-              </p>
-              <BuildingThreeCanvas
-                matrix={matrix}
-                cameraPreset={hintPreviewCamera ?? primaryFillCamera}
-                cameraLocked={visibility === "one_view_sufficient" || Boolean(hintPreviewCamera)}
-                showOrientationLabels={true}
-                heightPx={220}
-              />
-              {hintPreviewCamera ? (
-                <button
-                  type="button"
-                  className="btn btn-sm btn-secondary"
-                  onClick={() => setHintPreviewCamera(null)}
-                >
-                  Hilfe schliessen
-                </button>
-              ) : null}
-            </div>
-            <ProjectionFillGrids
-              views={{
-                top: displayViews.top,
-                front: displayViews.front,
-                right: displayViews.right,
-              }}
-              editable={!result}
-              values={projections}
-              onChange={setProjections}
-              solutionOverlay={solutionOverlay}
-              viewCaptions={projectionViewCaptions}
-              gridSizeHint={gridSizeHint}
-              viewSizes={viewSizes}
-              onViewSizeChange={gridSizeHint === "derive" ? handleViewSizeChange : undefined}
-              slotFeedback={result?.label_slots ?? undefined}
-            />
-          </div>
-        </>
-      )}
-
-      {hintPreviewCamera && current?.type !== "projection_fill" && (
-        <div className="spatial-hint-preview stack">
-          <p className="muted">Hilfe — zusätzliche Ansicht</p>
-          <BuildingThreeCanvas
-            matrix={matrix}
-            cameraPreset={hintPreviewCamera}
-            cameraLocked={true}
-            showOrientationLabels={true}
-            heightPx={220}
-          />
-          <button type="button" className="btn btn-sm btn-secondary" onClick={() => setHintPreviewCamera(null)}>
-            Hilfe schliessen
-          </button>
-        </div>
-      )}
-
-      {hints.length > 0 && !result && (
-        <div className="spatial-seq-hints">
-          {unlockedHints < hints.length && (
-            <button
-              type="button"
-              className="btn btn-sm btn-secondary"
-              onClick={unlockNextHint}
-              disabled={!nextHintAllowed}
-              title={
-                nextHintAllowed
-                  ? undefined
-                  : "Diese Hilfe ist an diesem Schritt noch nicht verfügbar."
-              }
-            >
-              Hilfe: {HINT_LABELS[nextHintId ?? ""] ?? nextHintId}
-            </button>
-          )}
-        </div>
-      )}
-
-      {canSubmit && !result && (
-        <button type="button" className="btn btn-primary" disabled={busy} onClick={handleSubmit}>
-          Antwort prüfen
+  if (phase === "hint_only") {
+    const hintStage = asInspectStage(current);
+    return (
+      <div className="spatial-sequence-exercise stack">
+        <p className="muted">Hilfe — zusätzliche Ansicht</p>
+        <BuildingWorkshopModelPanel
+          matrix={matrix}
+          firstCamera={(hintStage?.camera as SpatialCameraPreset) ?? "top"}
+          secondCamera={secondCamera}
+          cameraLocked={true}
+        />
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={() => setStageIndex(projectionStageIndex >= 0 ? projectionStageIndex : stageIndex)}
+          disabled={!!result}
+        >
+          Zurück zu den Ansichten
         </button>
-      )}
+      </div>
+    );
+  }
 
-      {result && (
-        <div className={`practice-result${result.correct ? " ok" : " bad"}`}>
-          <p>{result.correct ? "Richtig!" : "Noch nicht vollständig richtig."}</p>
-          <button type="button" className="btn btn-primary" onClick={onContinue}>
-            Weiter
-          </button>
-        </div>
-      )}
+  const showDecision = phase === "decision" || phase === "projections";
+  const showProjections = phase === "projections";
+  const modelDisabled = !!result;
+
+  return (
+    <div className="spatial-sequence-exercise">
+      <BuildingViewsWorkshopShell
+        taskTitle="Ansichten eines Gebäudes"
+        taskPrompt="Erst untersuchen, dann entscheiden, dann die drei Orthogonalansichten markieren."
+        instruction={
+          phase === "inspect"
+            ? "Schritt 1: Untersuche das Gebäude in der Schrägansicht. Nutze die Werkzeugleiste (zweite Sicht, von oben, Höhenplan)."
+            : null
+        }
+        modelPanel={
+          <BuildingWorkshopModelPanel
+            matrix={matrix}
+            firstCamera={firstCamera}
+            secondCamera={secondCamera}
+            cameraLocked={true}
+            disabled={modelDisabled}
+          />
+        }
+        decisionBlock={
+          showDecision
+            ? (
+                <VisibilityDecisionPanel
+                  value={visibility}
+                  expected={expectedVisibility}
+                  disabled={!!result || phase === "projections"}
+                  onPick={setVisibility}
+                  showContinue={phase === "decision" && !result}
+                  onContinue={() => setStageIndex(spatialSequencePrefix(flowConfig).length)}
+                />
+              )
+            : undefined
+        }
+        projectionsBlock={
+          showProjections
+            ? (
+                <ProjectionFillGrids
+                  views={{
+                    top: displayViews.top,
+                    front: displayViews.front,
+                    right: displayViews.right,
+                  }}
+                  editable={!result}
+                  values={projections}
+                  onChange={setProjections}
+                  solutionOverlay={solutionOverlay}
+                  viewCaptions={projectionViewCaptions}
+                  gridSizeHint={gridSizeHint}
+                  viewSizes={viewSizes}
+                  onViewSizeChange={gridSizeHint === "derive" ? handleViewSizeChange : undefined}
+                  slotFeedback={result?.label_slots ?? undefined}
+                />
+              )
+            : undefined
+        }
+        helpBlock={
+          showProjections && !result
+            ? (
+                <>
+                  <div className="btnrow">
+                    {hints.length > 0 && unlockedHints < hints.length && (
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-secondary"
+                        onClick={unlockNextHint}
+                        disabled={!nextHintAllowed}
+                      >
+                        Hilfe: {HINT_LABELS[nextHintId ?? ""] ?? nextHintId}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-secondary"
+                      onClick={() => setOverlayHint((v) => !v)}
+                    >
+                      {overlayHint ? "Lösung ausblenden" : "Lösung überlagern"}
+                    </button>
+                  </div>
+                  {overlayHint ? (
+                    <div className="building-views-solution-legend" aria-hidden={false}>
+                      <span><i className="mine" /> deine Auswahl</span>
+                      <span><i className="missing" /> fehlt noch</span>
+                      <span><i className="both" /> richtig gewählt</span>
+                      <span><i className="extra" /> zu viel gewählt</span>
+                    </div>
+                  ) : null}
+                </>
+              )
+            : undefined
+        }
+        actions={
+          <>
+            {phase === "inspect" && (
+              <button type="button" className="btn btn-secondary" onClick={advanceStage} disabled={!!result}>
+                Weiter zur Sicht-Entscheidung
+              </button>
+            )}
+            {showProjections && !result && (
+              <>
+                <button type="button" className="btn-primary" disabled={busy || !canSubmit} onClick={handleSubmit}>
+                  Ansichten prüfen
+                </button>
+                <button type="button" className="btn btn-secondary" disabled={busy} onClick={clearProjections}>
+                  Leeren
+                </button>
+              </>
+            )}
+          </>
+        }
+        footer={
+          result
+            ? (
+                <div className={`practice-result learn-feedback${result.correct ? " ok" : " bad"}`}>
+                  <p>{result.correct ? "Richtig!" : "Noch nicht vollständig richtig."}</p>
+                  <button type="button" className="btn btn-primary" onClick={onContinue}>
+                    Weiter
+                  </button>
+                </div>
+              )
+            : null
+        }
+      />
     </div>
   );
 }

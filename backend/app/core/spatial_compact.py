@@ -697,7 +697,9 @@ def parse_spatial_sequence_items(raw: object) -> list[dict[str, Any]]:
                     break
             from app.core.spatial_validator import canonical_spatial_sequence_prompt
 
-            answer = json.dumps(build_spatial_sequence_answer(matrix, first), ensure_ascii=False)
+            ans_obj = build_spatial_sequence_answer(matrix, first)
+            config["expected_visibility"] = ans_obj.get("visibility")
+            answer = json.dumps(ans_obj, ensure_ascii=False)
             out.append(
                 {
                     "prompt": canonical_spatial_sequence_prompt(matrix)[:500],
@@ -1083,6 +1085,13 @@ def spatial_raw_to_practice_items(
         matrix = config.get("height_matrix")
         if not isinstance(matrix, list):
             continue
+        if not config.get("expected_visibility"):
+            try:
+                ans = json.loads(str(raw.get("answer") or "{}"))
+                if isinstance(ans, dict) and ans.get("visibility"):
+                    config = {**config, "expected_visibility": ans["visibility"]}
+            except json.JSONDecodeError:
+                pass
         items.append(
             {
                 "prompt": raw["prompt"],

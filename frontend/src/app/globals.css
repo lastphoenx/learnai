@@ -4091,6 +4091,261 @@ button.trainer-flashcard.flipped {
   color: #fff;
 }
 
+/* RaumWerkstatt Kap. 3 — Gebäude-Ansichten (Template) */
+.building-views-workshop {
+  gap: 1rem;
+  padding: 1rem 1.1rem 1.25rem;
+  border: 1.5px solid var(--border);
+  border-radius: 1.1rem;
+  background: var(--surface);
+}
+
+.building-views-taskbar {
+  padding: 0.85rem 1rem;
+  border: 1.5px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+  border-radius: 1rem;
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+}
+
+.building-views-task-title {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.building-views-instruction {
+  padding: 0.75rem 0.9rem;
+  border-left: 4px solid var(--accent);
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  line-height: 1.45;
+}
+
+.building-views-work {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+  align-items: start;
+}
+
+@media (min-width: 800px) {
+  .building-views-work {
+    grid-template-columns: minmax(280px, 1fr) minmax(240px, 1fr);
+  }
+}
+
+.building-views-work-stage {
+  min-width: 0;
+}
+
+.building-views-guide {
+  background: color-mix(in srgb, var(--surface-2) 90%, #e8f0fa);
+  border: 1.5px solid var(--border);
+  border-radius: 1rem;
+  padding: 0.65rem 0.75rem;
+}
+
+.building-views-guide b {
+  display: block;
+  text-align: center;
+  margin-bottom: 0.35rem;
+}
+
+.building-views-guide svg {
+  display: block;
+  width: 100%;
+  max-height: 12rem;
+}
+
+.building-views-guide-note {
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.building-workshop-stage {
+  background: linear-gradient(#f8fbff, #edf3f9);
+  border: 1.5px solid var(--border);
+  border-radius: 1rem;
+  padding: 0.5rem;
+}
+
+.building-workshop-model-tools {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.4rem;
+  margin-top: 0.65rem;
+}
+
+.building-workshop-model-tools button {
+  border: 1.5px solid #aebed0;
+  background: #fff;
+  color: #10263f;
+  border-radius: 0.55rem;
+  padding: 0.45rem 0.65rem;
+  font-size: 0.82rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.building-workshop-model-tools button.active {
+  background: #10263f;
+  color: #fff;
+  border-color: #10263f;
+}
+
+.building-workshop-model-tools button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.building-workshop-slice-label {
+  flex-basis: 100%;
+  text-align: center;
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: #566a82;
+  margin-top: 0.25rem;
+}
+
+.building-workshop-model-note,
+.building-workshop-slice {
+  font-size: 0.85rem;
+  margin: 0.35rem 0 0;
+  line-height: 1.35;
+}
+
+.building-height-plan-svg {
+  width: 100%;
+  max-height: 300px;
+}
+
+.building-views-question {
+  margin: 0;
+  padding: 0.85rem 1rem;
+  border-radius: 0.85rem;
+  background: #fff7d9;
+  border: 1.5px solid #efd36c;
+}
+
+.building-views-question-buttons {
+  margin-top: 0.65rem;
+}
+
+.building-views-choice--on.building-views-choice--ok {
+  background: var(--accent);
+  color: var(--accent-fg);
+  border-color: var(--accent);
+}
+
+.building-views-choice--on.building-views-choice--bad {
+  background: color-mix(in srgb, var(--danger) 88%, #fff);
+  color: #fff;
+  border-color: var(--danger);
+}
+
+.building-views-decision-note {
+  margin: 0.55rem 0 0;
+  line-height: 1.4;
+}
+
+.building-views-mark-hint {
+  margin: 0 0 0.75rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  line-height: 1.45;
+}
+
+.building-views-projections .projection-fill-grids {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+@media (min-width: 700px) {
+  .building-views-projections .projection-fill-grids {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .building-views-projections .projection-fill-view {
+    background: #f5f8fb;
+    border-radius: 1rem;
+    padding: 0.65rem;
+    text-align: center;
+  }
+}
+
+.building-views-projections .projection-toggle-cell--on .projection-toggle-btn {
+  background: #78a9ff;
+  border-color: #326ed6;
+}
+
+.building-views-projections .projection-toggle-cell.review-missing .projection-toggle-btn {
+  background: rgba(57, 183, 165, 0.28);
+  border: 2px dashed #118a78;
+}
+
+.building-views-projections .projection-toggle-cell.review-both .projection-toggle-btn {
+  background: linear-gradient(135deg, #78a9ff 0 47%, rgba(57, 183, 165, 0.9) 53%);
+  border: 2px solid #147b70;
+}
+
+.building-views-projections .projection-toggle-cell.review-extra .projection-toggle-btn {
+  background: linear-gradient(135deg, #78a9ff 0 47%, rgba(217, 71, 75, 0.88) 53%);
+  border: 2px solid #b52f37;
+}
+
+.building-views-help {
+  padding: 0.75rem 0.9rem;
+  border: 1.5px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+  border-radius: 0.85rem;
+  background: color-mix(in srgb, var(--accent) 6%, var(--surface));
+}
+
+.building-views-solution-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  margin-top: 0.65rem;
+  font-size: 0.88rem;
+}
+
+.building-views-solution-legend span {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.building-views-solution-legend i {
+  width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 0.25rem;
+  border: 1.5px solid #789;
+  display: inline-block;
+}
+
+.building-views-solution-legend i.mine {
+  background: #78a9ff;
+}
+
+.building-views-solution-legend i.missing {
+  background: rgba(57, 183, 165, 0.28);
+  border: 2px dashed #118a78;
+}
+
+.building-views-solution-legend i.both {
+  background: linear-gradient(135deg, #78a9ff 0 47%, rgba(57, 183, 165, 0.9) 53%);
+}
+
+.building-views-solution-legend i.extra {
+  background: linear-gradient(135deg, #78a9ff 0 47%, rgba(217, 71, 75, 0.88) 53%);
+}
+
+.building-views-actions {
+  margin-top: 0.25rem;
+}
+
 .spatial-seq-fill-workspace {
   display: flex;
   flex-direction: column;

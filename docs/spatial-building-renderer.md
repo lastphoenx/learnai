@@ -52,7 +52,7 @@ Unverändert: `height_matrix`, `colored_faces` (`x,y,z,face`), `building_paint`,
 | `spatial_validator.py` | Matrix-Check, `build_spatial_sequence_item()` (nur Matrix → Stufen + Answer) |
 | `spatial_sequence` (answer_type) | Mehrstufig: inspect → Sicht-Entscheidung → Projektionen |
 | `fixtures/spatial_golden/buildings.json` | Golden-Matrizen + erwartete Projektionen |
-| Frontend | `SpatialSequenceExercise`, `ProjectionFillGrids`, gestufte Hilfen |
+| Frontend | `BuildingViewsWorkshopShell` (RaumWerkstatt Kap. 3), `SpatialSequenceExercise`, `ProjectionFillGrids` |
 
 KI liefert für Sequenzen **keine** Projektionslösung — nur `height_matrix` und Text.
 

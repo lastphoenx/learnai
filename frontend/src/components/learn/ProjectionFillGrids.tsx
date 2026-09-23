@@ -145,11 +145,18 @@ function ViewBlock({
           row.map((cell, ci) => {
             const sol = solution?.[ri]?.[ci];
             const filled = isOccupied(viewKey, cell);
-            const showSol = solution && sol !== undefined && !cellsEquivalent(viewKey, cell, sol);
+            const correctCell =
+              solution && sol !== undefined ? cellsEquivalent(viewKey, cell, sol) : false;
+            let reviewClass = "";
+            if (solution && sol !== undefined) {
+              if (filled && correctCell) reviewClass = " review-both";
+              else if (correctCell && !filled) reviewClass = " review-missing";
+              else if (filled && !correctCell) reviewClass = " review-extra";
+            }
             return (
               <div
                 key={`${ri}-${ci}`}
-                className={`grid-fill-cell projection-toggle-cell${filled ? " projection-toggle-cell--on" : ""}${showSol ? " projection-solution-hint" : ""}${contentBad ? " slot-bad" : ""}`}
+                className={`grid-fill-cell projection-toggle-cell${filled ? " projection-toggle-cell--on" : ""}${reviewClass}${contentBad ? " slot-bad" : ""}`}
               >
                 {editable ? (
                   <button
@@ -162,11 +169,6 @@ function ViewBlock({
                 ) : (
                   <span className="projection-toggle-readonly" aria-hidden={!filled}>{filled ? "■" : ""}</span>
                 )}
-                {showSol && solution ? (
-                  <span className="projection-sol-val" title="Hinweis">
-                    {isOccupied(viewKey, sol) ? "■" : "·"}
-                  </span>
-                ) : null}
               </div>
             );
           }),

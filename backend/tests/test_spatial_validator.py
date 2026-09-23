@@ -22,6 +22,7 @@ def test_build_spatial_sequence_item_deterministic():
     answer = json.loads(item["answer"])
     assert "visibility" in answer
     assert "projections" in answer
+    assert item["spatial_sequence"].get("expected_visibility") == answer["visibility"]
     p = item["prompt"].lower()
     assert "baue das würfelgebäude schritt" not in p
     assert "ansicht" in p or "perspektive" in p
