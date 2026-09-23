@@ -101,9 +101,11 @@ def main() -> int:
         origin = prod if prod.startswith("http") else f"https://{prod}"
         text = _set_key(text, "CORS_ORIGINS", origin)
         text = _set_key(text, "COOKIE_SECURE", "true")
+        text = _set_key(text, "APP_ENV", "production")
     else:
         text = _set_key(text, "CORS_ORIGINS", "http://localhost:3000")
         text = _set_key(text, "COOKIE_SECURE", "false")
+        text = _set_key(text, "APP_ENV", "development")
 
     ENV_PATH.write_text(text, encoding="utf-8")
     ENV_PATH.chmod(0o600)

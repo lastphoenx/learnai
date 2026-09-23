@@ -22,9 +22,10 @@ echo "==> Build & start"
 docker compose build
 docker compose up -d
 
-echo "==> Health (über Frontend-Proxy)"
+HEALTH_URL="${HEALTH_URL:-http://127.0.0.1:3000/api/v1/health}"
+echo "==> Health (über Frontend-Proxy): ${HEALTH_URL}"
 sleep 3
-if ! curl -fsS "http://127.0.0.1:3000/api/v1/health"; then
+if ! curl -fsS "${HEALTH_URL}"; then
   echo ""
   echo "==> Container-Logs:"
   docker compose logs --tail 30

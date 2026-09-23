@@ -102,6 +102,8 @@ bash scripts/check-env-safe.sh .env
 | `COOKIE_SECURE` | `true` |
 | `CORS_ORIGINS` | `https://learn.example.app` |
 | `PUBLISH_BIND` | `192.168.131.45` |
+| `HEALTH_URL` | `http://192.168.131.45:3000/api/v1/health` (für `scripts/deploy.sh`) |
+| `REDIS_PASSWORD` | gesetzt; `REDIS_URL=redis://:…@redis:6379/0` (CT 136 gleiches Passwort) |
 | `TRUSTED_PROXY_CIDRS` | `192.168.131.105/32` (nur CT 108) |
 | `DATABASE_URL` | Host `db`, nicht `localhost` |
 

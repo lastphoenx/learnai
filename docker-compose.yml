@@ -19,8 +19,19 @@ services:
   redis:
     image: docker.io/library/redis:7-alpine
     restart: unless-stopped
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+    command:
+      - sh
+      - -c
+      - |
+        if [ -n "$$REDIS_PASSWORD" ]; then
+          exec redis-server --requirepass "$$REDIS_PASSWORD"
+        else
+          exec redis-server
+        fi
     ports:
-      # Ollama-Lock für SlitProjektHub (CT 136) — nur LAN, Firewall beachten
+      # Ollama-Lock für SlitProjektHub (CT 136) — nur LAN + REDIS_PASSWORD + Firewall
       - "${PUBLISH_BIND:-192.168.131.45}:6379:6379"
 
   api:

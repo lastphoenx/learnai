@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import type { TrainerGridFillConfig } from "@/lib/api";
 import { BuildingIsoPreview } from "@/components/learn/BuildingIsoPreview";
 import {
+  initialGridFillDimensions,
   normalizeGridSizeHint,
   PROJECTION_MAX_COLS,
   PROJECTION_MAX_ROWS,
@@ -53,10 +54,13 @@ export function GridFillExercise({ config, busy, result, onSubmit, onContinue }:
   const { rows: configRows, cols: configCols, cell_type, palette = [] } = config;
   const gridSizeHint = normalizeGridSizeHint(config.grid_size_hint);
   const isNumber = cell_type === "number";
-  const [size, setSize] = useState({ rows: configRows, cols: configCols });
+  const initialDims = initialGridFillDimensions(configRows, configCols, config.grid_size_hint);
+  const [size, setSize] = useState(initialDims);
   const rows = gridSizeHint === "derive" ? size.rows : configRows;
   const cols = gridSizeHint === "derive" ? size.cols : configCols;
-  const [grid, setGrid] = useState<(string | number | null)[][]>(() => emptyGrid(configRows, configCols));
+  const [grid, setGrid] = useState<(string | number | null)[][]>(() =>
+    emptyGrid(initialDims.rows, initialDims.cols),
+  );
   const colorPalette = palette.length ? palette : ["yellow", "green", "purple", "blue", "orange", "empty"];
 
   const slotMap = useMemo(() => {

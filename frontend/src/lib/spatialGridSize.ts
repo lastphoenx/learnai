@@ -14,3 +14,11 @@ export function emptyNumberGrid(rows: number, cols: number): number[][] {
 export function normalizeGridSizeHint(raw: string | undefined | null): GridSizeHint {
   return raw === "derive" ? "derive" : "given";
 }
+
+/** derive: 1×1 start (Schüler wählt Grösse); given: vorgegebene rows/cols aus der Aufgabe. */
+export function initialGridFillDimensions(rows: number, cols: number, gridSizeHint?: string | null): ViewSize {
+  if (normalizeGridSizeHint(gridSizeHint) === "derive") {
+    return { rows: 1, cols: 1 };
+  }
+  return { rows, cols };
+}

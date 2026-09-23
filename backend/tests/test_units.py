@@ -100,7 +100,7 @@ def test_template_ids_from_recon():
     _attach_template_fields(copy_row, None)
     assert copy_row["is_sandbox_copy"] is True
 
-    from app.core.crypto import encrypt_json
+    from app.services.crypto_json import encrypt_json
 
     recon = encrypt_json(
         {"template_unit_id": "original-uuid", "template_root_id": "root-uuid"}
@@ -116,7 +116,7 @@ def test_template_ids_from_recon():
 
 
 def test_after_finalize_unit_not_marked_sandbox():
-    from app.core.crypto import encrypt_json
+    from app.services.crypto_json import encrypt_json
     from app.services.unit_service import _attach_template_fields, _strip_test_copy_title
 
     title = _strip_test_copy_title("Test-Kopie: MahteFox")
