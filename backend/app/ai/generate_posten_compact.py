@@ -36,6 +36,7 @@ from app.core.spatial_compact import (
     parse_point_on_image_items,
     parse_building_paint_items,
     parse_net_build_items,
+    parse_spatial_sequence_items,
     parse_region_paint_items,
     parse_synthetic_viewpoint_items,
     apply_spatial_fallback_to_payload,
@@ -293,6 +294,7 @@ def _parse_posten_compact_payload(
     building_paint_items = parse_building_paint_items(parsed.get("building_paint_items"))
     net_build_items = parse_net_build_items(parsed.get("net_build_items"))
     synthetic_viewpoint_items = parse_synthetic_viewpoint_items(parsed.get("synthetic_viewpoint_items"))
+    spatial_sequence_items = parse_spatial_sequence_items(parsed.get("spatial_sequence_items"))
 
     min_facts = facts_min if facts_min is not None else POSTEN_COMPACT_COUNTS["facts_min"]
     min_cards = max(6, int(card_target * 0.6))
@@ -316,6 +318,7 @@ def _parse_posten_compact_payload(
         "building_paint_items": building_paint_items,
         "net_build_items": net_build_items,
         "synthetic_viewpoint_items": synthetic_viewpoint_items,
+        "spatial_sequence_items": spatial_sequence_items,
     }
 
 
@@ -355,6 +358,7 @@ def posten_compact_payload_to_modules(
         building_paint=list(payload.get("building_paint_items") or []),
         net_build=list(payload.get("net_build_items") or []),
         synthetic_viewpoint=list(payload.get("synthetic_viewpoint_items") or []),
+        spatial_sequence=list(payload.get("spatial_sequence_items") or []),
         source_ids=source_ids or [],
         quiz_source=quiz_source,
     )

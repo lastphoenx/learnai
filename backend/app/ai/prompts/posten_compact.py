@@ -99,6 +99,8 @@ POSTEN_COMPACT_SPATIAL_EXTRA = (
     'für eine konkrete Vorlage; sonst answer "valid_net" (beliebiges gültiges Netz). '
     'Modus «prüfen» — given_cells (6 Zellen), answer "valid"/"invalid". '
     "Quader-Netze (ungleiche Rechtecke): image_choice aus Heft-Foto, nicht net_build.\n"
+    "- spatial_sequence_items: nur height_matrix + prompt (Stufen/Hilfen/Lösung werden serverseitig erzeugt); "
+    "optional fertiges spatial_sequence-Objekt für Experten.\n"
     "- synthetic_viewpoint_items: height_matrix; candidates mit id, label (deutsch, z. B. «Vorne …»), "
     "direction (vorne/hinten/links/rechts) und x/y (0–1) auf dem Plan (Marker in 3D); "
     "answer = id des richtigen Standpunkts — keine leeren A/B/C ohne Beschreibung.\n"
@@ -136,7 +138,7 @@ def build_compact_system_prompt(
         base = (
             base
             + '\nErweitertes Schema (PFLICHT-Felder bei Raumgeometrie, im JSON mit ausfüllen): '
-            + '"image_choice_items":[],"point_on_image_items":[],"grid_fill_items":[],"region_paint_items":[],"building_paint_items":[],"net_build_items":[],"synthetic_viewpoint_items":[]\n'
+            + '"image_choice_items":[],"point_on_image_items":[],"grid_fill_items":[],"region_paint_items":[],"building_paint_items":[],"net_build_items":[],"spatial_sequence_items":[],"synthetic_viewpoint_items":[]\n'
             + POSTEN_COMPACT_SPATIAL_EXTRA
         )
     return base

@@ -26,6 +26,7 @@ SPATIAL_ANSWER_TYPES = frozenset(
         "building_paint",
         "net_build",
         "synthetic_viewpoint",
+        "spatial_sequence",
     }
 )
 
@@ -658,6 +659,98 @@ def parse_synthetic_viewpoint_items(raw: object) -> list[dict[str, Any]]:
     return out[:4]
 
 
+def parse_spatial_sequence_items(raw: object) -> list[dict[str, Any]]:
+    from app.core.iso_building import normalize_height_matrix
+    from app.core.spatial_validator import (
+        build_spatial_sequence_item,
+        validate_spatial_sequence_config,
+    )
+
+    if not isinstance(raw, list):
+        return []
+    out: list[dict[str, Any]] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        prompt = str(item.get("prompt") or "").strip()
+        if not prompt:
+            continue
+        hint = str(item.get("hint") or "")[:300] or None
+        matrix = normalize_height_matrix(item.get("height_matrix"))
+        if matrix is None:
+            continue
+        seq_raw = item.get("spatial_sequence")
+        if isinstance(seq_raw, dict) and seq_raw.get("stages"):
+            config = dict(seq_raw)
+            config["height_matrix"] = matrix
+            config.setdefault("schema_version", 1)
+            if validate_spatial_sequence_config(config):
+                continue
+            answer_raw = item.get("answer")
+            if isinstance(answer_raw, dict):
+                import json
+
+                answer = json.dumps(answer_raw, ensure_ascii=False)
+            else:
+                from app.core.spatial_validator import build_spatial_sequence_answer
+
+                first = "oblique"
+                for st in config.get("stages") or []:
+                    if isinstance(st, dict) and st.get("type") == "inspect":
+                        first = str(st.get("camera") or first)
+                        break
+                answer = json.dumps(build_spatial_sequence_answer(matrix, first), ensure_ascii=False)
+            out.append(
+                {
+                    "prompt": prompt[:500],
+                    "hint": hint,
+                    "spatial_sequence": config,
+                    "answer": answer,
+                }
+            )
+        else:
+            try:
+                built = build_spatial_sequence_item(
+                    matrix,
+                    prompt=prompt,
+                    hint=hint,
+                    first_camera=str(item.get("first_camera") or "oblique"),
+                    second_camera=str(item.get("second_camera") or "front_right"),
+                )
+                out.append(built)
+            except ValueError:
+                continue
+    return out[:3]
+
+
+def score_spatial_sequence_answer(expected_json: str, user_text: str) -> dict[str, Any]:
+    try:
+        expected = json.loads(expected_json)
+    except json.JSONDecodeError:
+        return {"correct": False, "slots": []}
+    try:
+        user = json.loads(user_text)
+    except json.JSONDecodeError:
+        return {"correct": False, "slots": []}
+    if not isinstance(expected, dict) or not isinstance(user, dict):
+        return {"correct": False, "slots": []}
+    slots: list[dict[str, Any]] = []
+    vis_ok = str(expected.get("visibility") or "") == str(user.get("visibility") or "")
+    slots.append({"id": "visibility", "correct": vis_ok})
+    all_ok = vis_ok
+    exp_proj = expected.get("projections") if isinstance(expected.get("projections"), dict) else {}
+    user_proj = user.get("projections") if isinstance(user.get("projections"), dict) else {}
+    for key in ("top", "front", "right"):
+        exp = exp_proj.get(key)
+        if exp is None:
+            continue
+        ok = _grids_equal(exp, user_proj.get(key))
+        if not ok:
+            all_ok = False
+        slots.append({"id": key, "correct": ok})
+    return {"correct": all_ok and len(slots) > 1, "slots": slots}
+
+
 _SPATIAL_PAYLOAD_LIST_KEYS = (
     "image_choice_items",
     "point_on_image_items",
@@ -666,6 +759,7 @@ _SPATIAL_PAYLOAD_LIST_KEYS = (
     "building_paint_items",
     "net_build_items",
     "synthetic_viewpoint_items",
+    "spatial_sequence_items",
 )
 
 
@@ -756,6 +850,7 @@ def spatial_raw_to_practice_items(
     building_paint: list[dict[str, Any]] | None = None,
     net_build: list[dict[str, Any]] | None = None,
     synthetic_viewpoint: list[dict[str, Any]] | None = None,
+    spatial_sequence: list[dict[str, Any]] | None = None,
     source_ids: list[str],
     quiz_source: str = "posten_compact",
 ) -> list[dict[str, Any]]:
@@ -766,6 +861,7 @@ def spatial_raw_to_practice_items(
     building_paint = building_paint or []
     net_build = net_build or []
     synthetic_viewpoint = synthetic_viewpoint or []
+    spatial_sequence = spatial_sequence or []
     items: list[dict[str, Any]] = []
 
     for raw in image_choice:
@@ -952,6 +1048,24 @@ def spatial_raw_to_practice_items(
                     "candidates": raw.get("candidates") or [],
                     "column_visibility": col_vis,
                 },
+                "source": quiz_source,
+            }
+        )
+
+    for raw in spatial_sequence:
+        config = raw.get("spatial_sequence")
+        if not isinstance(config, dict):
+            continue
+        matrix = config.get("height_matrix")
+        if not isinstance(matrix, list):
+            continue
+        items.append(
+            {
+                "prompt": raw["prompt"],
+                "hint": raw.get("hint"),
+                "answer_type": "spatial_sequence",
+                "answer": raw.get("answer") or "{}",
+                "spatial_sequence": config,
                 "source": quiz_source,
             }
         )
@@ -1160,4 +1274,13 @@ def validate_spatial_practice_item(item: dict[str, Any]) -> list[str]:
         sv = item.get("synthetic_viewpoint")
         if not isinstance(sv, dict):
             warnings.append("synthetic_viewpoint: fehlende Konfiguration")
+    elif at == "spatial_sequence":
+        from app.core.spatial_validator import validate_spatial_sequence_config
+
+        ss = item.get("spatial_sequence")
+        if not isinstance(ss, dict):
+            warnings.append("spatial_sequence: fehlende Konfiguration")
+        else:
+            for err in validate_spatial_sequence_config(ss):
+                warnings.append(f"spatial_sequence: {err}")
     return warnings

@@ -44,6 +44,18 @@ Legacy `region_paint` **ohne** `height_matrix` nutzt weiterhin SVG-Polygone (alt
 
 Unverändert: `height_matrix`, `colored_faces` (`x,y,z,face`), `building_paint`, `derived_projection`, `net_build`, `synthetic_viewpoint`.
 
+## Spatial Exercise Engine (Prio 3–7)
+
+| Modul | Rolle |
+|-------|--------|
+| `camera_visibility.py` | Spalten lesbar aus Kamera; Entscheidung «eine/zwei Sichten» |
+| `spatial_validator.py` | Matrix-Check, `build_spatial_sequence_item()` (nur Matrix → Stufen + Answer) |
+| `spatial_sequence` (answer_type) | Mehrstufig: inspect → Sicht-Entscheidung → Projektionen |
+| `fixtures/spatial_golden/buildings.json` | Golden-Matrizen + erwartete Projektionen |
+| Frontend | `SpatialSequenceExercise`, `ProjectionFillGrids`, gestufte Hilfen |
+
+KI liefert für Sequenzen **keine** Projektionslösung — nur `height_matrix` und Text.
+
 ## Offen
 
 - Quader-Netze (Flächengrössen) — noch keine Kantenlängen im Datenmodell

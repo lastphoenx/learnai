@@ -116,6 +116,7 @@ def ensure_compact_aufgaben_module(
         "building_paint",
         "net_build",
         "synthetic_viewpoint",
+        "spatial_sequence",
     }:
         intro = "Raumaufgaben aus dem Heft — Bilder, Karte oder Raster bearbeiten."
     else:

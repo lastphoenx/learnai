@@ -124,6 +124,7 @@ def _strip_practice_answers(content: dict | None) -> dict | None:
             "building_paint",
             "net_build",
             "synthetic_viewpoint",
+            "spatial_sequence",
         ):
             if key in item and item[key] is not None:
                 entry[key] = item[key]
@@ -671,6 +672,12 @@ def submit_practice_answer(
         from app.core.spatial_compact import grade_image_choice
 
         is_correct = grade_image_choice(expected, answer_text)
+    elif answer_type == "spatial_sequence":
+        from app.core.spatial_compact import score_spatial_sequence_answer
+
+        seq_score = score_spatial_sequence_answer(expected, answer_text)
+        is_correct = bool(seq_score.get("correct"))
+        label_score = seq_score
     elif answer_type == "region_paint":
         from app.core.spatial_compact import score_region_paint_answer
 

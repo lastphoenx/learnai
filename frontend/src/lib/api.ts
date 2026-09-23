@@ -373,6 +373,7 @@ export type TrainerPracticeItem = {
   building_paint?: TrainerRegionPaintConfig;
   net_build?: TrainerNetBuildConfig;
   synthetic_viewpoint?: TrainerSyntheticViewpointConfig;
+  spatial_sequence?: TrainerSpatialSequenceConfig;
 };
 
 export type TrainerNetBuildConfig = {
@@ -386,6 +387,20 @@ export type TrainerSyntheticViewpointConfig = {
   height_matrix: number[][];
   candidates: { id: string; label?: string; x?: number; y?: number }[];
   column_visibility?: { all_readable: boolean };
+};
+
+export type TrainerSpatialSequenceStage =
+  | { type: "inspect"; camera?: string; camera_locked?: boolean; unlock_hint?: string }
+  | { type: "visibility_decision" }
+  | { type: "projection_fill"; views?: string[] };
+
+export type TrainerSpatialSequenceConfig = {
+  schema_version?: number;
+  height_matrix: number[][];
+  stages?: TrainerSpatialSequenceStage[];
+  hints?: string[];
+  first_camera?: string;
+  second_camera?: string;
 };
 
 export type TrainerContentAnalysis = {
