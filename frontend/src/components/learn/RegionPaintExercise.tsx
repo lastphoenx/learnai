@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { TrainerRegionPaintConfig } from "@/lib/api";
+import { RegionPaintWorkshopExercise } from "@/components/learn/regionPaint/RegionPaintWorkshopExercise";
 import { BuildingThreeCanvas } from "@/components/learn/BuildingThreeCanvas";
 
 const COLOR_MAP: Record<string, string> = {
@@ -23,7 +24,21 @@ type Props = {
   onContinue: () => void;
 };
 
-export function RegionPaintExercise({ config, busy, result, onSubmit, onContinue }: Props) {
+function isRegionPaintWorkshopV2(config: TrainerRegionPaintConfig): boolean {
+  return (
+    config.presentation === "workshop_v2"
+    && Boolean(config.height_matrix?.length)
+  );
+}
+
+export function RegionPaintExercise(props: Props) {
+  if (isRegionPaintWorkshopV2(props.config)) {
+    return <RegionPaintWorkshopExercise {...props} />;
+  }
+  return <RegionPaintClassicExercise {...props} />;
+}
+
+function RegionPaintClassicExercise({ config, busy, result, onSubmit, onContinue }: Props) {
   const palette = config.palette?.length ? config.palette : ["yellow", "green", "purple", "blue", "orange"];
   const [selectedColor, setSelectedColor] = useState(palette[0] || "yellow");
   const [colors, setColors] = useState<Record<string, string>>({});

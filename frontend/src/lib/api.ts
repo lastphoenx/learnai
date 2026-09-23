@@ -324,9 +324,17 @@ export type TrainerImageRef = {
   bbox?: TrainerImageBbox | null;
 };
 
+export type TrainerOrientationCubeConfig = {
+  height_matrix: number[][];
+  colored_faces?: Record<string, string>;
+};
+
 export type TrainerImageChoiceConfig = {
   options: { id: string; source_id: string; bbox: TrainerImageBbox }[];
   reference?: TrainerImageRef;
+  /** Additiv: `workshop_v2` + orientation_cube = Kap. 1 Würfel drehen. */
+  presentation?: string | null;
+  orientation_cube?: TrainerOrientationCubeConfig | null;
 };
 
 export type TrainerPointOnImageConfig = {
@@ -362,6 +370,8 @@ export type TrainerRegionPaintConfig = {
   regions: TrainerRegionPaintRegion[];
   height_matrix?: number[][] | null;
   palette?: string[];
+  /** Additiv: `workshop_v2` = freies Drehen + Flächen malen (Kap. 5). */
+  presentation?: string | null;
 };
 
 export type TrainerPracticeItem = {

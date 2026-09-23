@@ -69,7 +69,7 @@ export function GridFillWorkshopExercise({ config, busy, result, onSubmit, onCon
         <BuildingWorkshopModelPanel
           matrix={matrix}
           firstCamera="oblique"
-          secondCamera="oblique_left"
+          secondCamera="front_right"
           mode={workshop.modelMode}
           onModeChange={workshop.setModelMode}
           unlockedModes={workshop.modelUnlock.unlockedModes}

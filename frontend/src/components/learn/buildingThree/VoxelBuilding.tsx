@@ -4,6 +4,12 @@ import { useMemo, useRef } from "react";
 import * as THREE from "three";
 import { Edges } from "@react-three/drei";
 import type { HeightMatrix } from "@/lib/isoBuilding";
+import {
+  BOX_MATERIAL_INDEX_TO_FACE,
+  BUILDING_FACE_TO_MATERIAL,
+  type BuildingFace,
+  isExteriorBuildingFace,
+} from "@/lib/cubeOrientation";
 import { faceId } from "@/lib/isoBuilding";
 import { paletteColor } from "@/lib/buildingColors";
 import { listVoxelsFromHeightMatrix } from "@/lib/voxelList";
@@ -11,39 +17,40 @@ import { listVoxelsFromHeightMatrix } from "@/lib/voxelList";
 const BOX = 0.94;
 const GAP = 1.02;
 
-/**
- * BoxGeometry material index: 0 +X, 1 -X, 2 +Y, 3 -Y, 4 +Z, 5 -Z
- * Iso-Paint «right» = Fläche in +X (Beschriftung «Rechts»), nicht −Z (vorne).
- * Muss zu backend `iso_building._face_polygon(..., "right")` passen.
- */
-const FACE_TO_MATERIAL: Record<string, number> = {
-  left: 1,
-  top: 2,
-  right: 0,
-};
+const ISO_FACES: BuildingFace[] = ["left", "top", "right"];
 
-const MATERIAL_TO_FACE: Record<number, string> = {
-  1: "left",
-  2: "top",
-  0: "right",
-};
+export type VoxelFaceInteraction = "iso" | "orientable";
 
 type VoxelProps = {
+  matrix: HeightMatrix;
   gx: number;
   gy: number;
   gz: number;
   faceColors: Record<string, string>;
   interactive: boolean;
+  faceInteraction: VoxelFaceInteraction;
   onFaceClick?: (id: string) => void;
   slotCorrect?: Map<string, boolean>;
 };
 
-function Voxel({ gx, gy, gz, faceColors, interactive, onFaceClick, slotCorrect }: VoxelProps) {
+function Voxel({
+  matrix,
+  gx,
+  gy,
+  gz,
+  faceColors,
+  interactive,
+  faceInteraction,
+  onFaceClick,
+  slotCorrect,
+}: VoxelProps) {
   const meshRef = useRef<THREE.Mesh>(null);
 
   const materials = useMemo(() => {
     const mats = Array.from({ length: 6 }, () => new THREE.MeshStandardMaterial({ color: "#e2e8f0" }));
-    for (const [fname, midx] of Object.entries(FACE_TO_MATERIAL)) {
+    const paintFaces = faceInteraction === "orientable" ? Object.keys(BUILDING_FACE_TO_MATERIAL) : ISO_FACES;
+    for (const fname of paintFaces) {
+      const midx = BUILDING_FACE_TO_MATERIAL[fname as BuildingFace];
       const id = faceId(gx, gy, gz, fname);
       const painted = faceColors[id];
       if (painted) {
@@ -54,7 +61,7 @@ function Voxel({ gx, gy, gz, faceColors, interactive, onFaceClick, slotCorrect }
       else if (slot === true) mats[midx].emissive.set("#bbf7d0");
     }
     return mats;
-  }, [gx, gy, gz, faceColors, slotCorrect]);
+  }, [gx, gy, gz, faceColors, slotCorrect, faceInteraction]);
 
   return (
     <mesh
@@ -65,8 +72,10 @@ function Voxel({ gx, gy, gz, faceColors, interactive, onFaceClick, slotCorrect }
         if (!interactive || !onFaceClick) return;
         e.stopPropagation();
         const idx = Math.floor((e.faceIndex ?? 0) / 2);
-        const fname = MATERIAL_TO_FACE[idx];
+        const fname = BOX_MATERIAL_INDEX_TO_FACE[idx];
         if (!fname) return;
+        if (faceInteraction === "iso" && !ISO_FACES.includes(fname)) return;
+        if (!isExteriorBuildingFace(matrix, gx, gy, gz, fname)) return;
         onFaceClick(faceId(gx, gy, gz, fname));
       }}
     >
@@ -80,6 +89,7 @@ export type VoxelBuildingProps = {
   matrix: HeightMatrix;
   faceColors?: Record<string, string>;
   interactive?: boolean;
+  faceInteraction?: VoxelFaceInteraction;
   onFaceClick?: (faceId: string) => void;
   slotCorrect?: Map<string, boolean>;
 };
@@ -88,6 +98,7 @@ export function VoxelBuilding({
   matrix,
   faceColors = {},
   interactive = false,
+  faceInteraction = "iso",
   onFaceClick,
   slotCorrect,
 }: VoxelBuildingProps) {
@@ -103,11 +114,13 @@ export function VoxelBuilding({
       {voxels.map((v) => (
         <Voxel
           key={`${v.gx},${v.gy},${v.gz}`}
+          matrix={matrix}
           gx={v.gx}
           gy={v.gy}
           gz={v.gz}
           faceColors={faceColors}
           interactive={interactive}
+          faceInteraction={faceInteraction}
           onFaceClick={onFaceClick}
           slotCorrect={slotCorrect}
         />

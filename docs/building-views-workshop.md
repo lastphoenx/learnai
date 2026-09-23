@@ -16,6 +16,11 @@ Referenz-UX: `tempdok/RaumWerkstatt_Koerper_Ansichten_Plaene*.html`, Abschnitt *
 | `GridFillWorkshopExercise` | Kap. 4 bei `grid_fill.presentation: "workshop_v2"` + `derived_projection` |
 | `BuildingStandpointWorkshopShell` | Kap. 6 Standort |
 | `SyntheticViewpointWorkshopExercise` | Kap. 6 bei `synthetic_viewpoint.presentation: "workshop_v2"` |
+| `BuildingPaintWorkshopShell` | Kap. 5 / Kap. 1 |
+| `RegionPaintWorkshopExercise` | `building_paint.presentation: "workshop_v2"` + `height_matrix` |
+| `ImageChoiceWorkshopExercise` | Kap. 1: `image_choice.presentation` + `orientation_cube` |
+
+Orientierungs-Kern (6 Flächen, stabil bei freier Kamera): `frontend/src/lib/cubeOrientation.ts` — `VoxelBuilding` `faceInteraction: "orientable"`.
 
 Generische Freischaltung: `frontend/src/lib/workshop/` (`workshopCapabilities`, `useWorkshopFlow`).
 
@@ -29,10 +34,12 @@ Generische Freischaltung: `frontend/src/lib/workshop/` (`workshopCapabilities`, 
 - `grid_fill.presentation: "workshop_v2"` — Werkstatt-UI für Bauplan (`derived_projection` + `reference_height_matrix`).
 - `synthetic_viewpoint.presentation: "workshop_v2"` — zweistufig: Schrägansicht, dann Standort-Wahl.
 - `spatial_sequence` — unverändert; gleiches Capability-Muster wie bisher.
+- `building_paint.presentation: "workshop_v2"` — drehen + Flächen tippen (`orientable`).
+- `image_choice.presentation: "workshop_v2"` + `orientation_cube: { height_matrix, colored_faces }` — Würfel drehen, Bildoption wählen.
 
 ## Weitere Modi (geplant)
 
-`building_paint` (farbige Projektionen), Kap. 2 Netze (`cube_net_cell_face_mapping` im Backend).
+Kap. 2 Netze (`cube_net_cell_face_mapping` im Backend), `net_build` Faltvorschau.
 
 Kap. 3: `resolveSpatialSequenceWorkshopPhase` — bei fehlendem `projection_fill` in der Navigation darf `projectionStageIndex === -1` nicht in die Projektions-Phase springen (Regressionstest in `spatialSequenceWorkshopPhase.test.ts`).
 

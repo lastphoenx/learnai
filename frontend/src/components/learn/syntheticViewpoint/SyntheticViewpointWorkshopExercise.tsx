@@ -75,7 +75,7 @@ export function SyntheticViewpointWorkshopExercise({ config, busy, result, onSub
                 <BuildingWorkshopModelPanel
                   matrix={matrix}
                   firstCamera="oblique"
-                  secondCamera="oblique_left"
+                  secondCamera="front_right"
                   mode={workshop.modelMode}
                   onModeChange={workshop.setModelMode}
                   unlockedModes={workshop.modelUnlock.unlockedModes}
@@ -100,7 +100,7 @@ export function SyntheticViewpointWorkshopExercise({ config, busy, result, onSub
               <BuildingWorkshopModelPanel
                 matrix={matrix}
                 firstCamera="oblique"
-                secondCamera="oblique_left"
+                secondCamera="front_right"
                 mode="oblique"
                 onModeChange={workshop.setModelMode}
                 unlockedModes={workshop.modelUnlock.unlockedModes}

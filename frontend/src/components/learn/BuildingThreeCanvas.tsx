@@ -3,7 +3,7 @@
 import { Suspense } from "react";
 import { Canvas } from "@react-three/fiber";
 import type { HeightMatrix } from "@/lib/isoBuilding";
-import { VoxelBuilding } from "@/components/learn/buildingThree/VoxelBuilding";
+import { VoxelBuilding, type VoxelFaceInteraction } from "@/components/learn/buildingThree/VoxelBuilding";
 import { BuildingOrientationLabels } from "@/components/learn/buildingThree/BuildingOrientationLabels";
 import { ViewpointSceneMarkers } from "@/components/learn/buildingThree/ViewpointSceneMarkers";
 import type { ViewpointCandidateLike } from "@/lib/viewpointWorld";
@@ -15,6 +15,7 @@ export type BuildingThreeCanvasProps = {
   matrix: HeightMatrix;
   faceColors?: Record<string, string>;
   interactive?: boolean;
+  faceInteraction?: VoxelFaceInteraction;
   onFaceClick?: (faceId: string) => void;
   slotCorrect?: Map<string, boolean>;
   heightPx?: number;
@@ -33,6 +34,7 @@ export function BuildingThreeCanvas({
   matrix,
   faceColors,
   interactive = false,
+  faceInteraction = "iso",
   onFaceClick,
   slotCorrect,
   heightPx = 300,
@@ -60,6 +62,7 @@ export function BuildingThreeCanvas({
             matrix={matrix}
             faceColors={faceColors}
             interactive={interactive}
+            faceInteraction={faceInteraction}
             onFaceClick={onFaceClick}
             slotCorrect={slotCorrect}
           />

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { SourceImageCrop } from "@/components/learn/SourceImageCrop";
+import { ImageChoiceWorkshopExercise } from "@/components/learn/imageChoice/ImageChoiceWorkshopExercise";
 import { sourceFileUrl, type TrainerImageChoiceConfig } from "@/lib/api";
 
 type Props = {
@@ -13,7 +14,26 @@ type Props = {
   onContinue: () => void;
 };
 
-export function ImageChoiceExercise({ unitId, config, busy, result, onSubmit, onContinue }: Props) {
+function isImageChoiceWorkshopV2(config: TrainerImageChoiceConfig): boolean {
+  return (
+    config.presentation === "workshop_v2"
+    && Boolean(config.orientation_cube?.height_matrix?.length)
+  );
+}
+
+export function ImageChoiceExercise(props: Props) {
+  if (isImageChoiceWorkshopV2(props.config) && props.config.orientation_cube) {
+    return (
+      <ImageChoiceWorkshopExercise
+        {...props}
+        orientationCube={props.config.orientation_cube}
+      />
+    );
+  }
+  return <ImageChoiceClassicExercise {...props} />;
+}
+
+function ImageChoiceClassicExercise({ unitId, config, busy, result, onSubmit, onContinue }: Props) {
   const [selected, setSelected] = useState<string | null>(null);
   const reference = config.reference;
 

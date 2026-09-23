@@ -158,6 +158,24 @@ def parse_image_choice_items(raw: object) -> list[dict[str, Any]]:
         }
         if item.get("reference_image_ref"):
             entry["reference_image_ref"] = item.get("reference_image_ref")
+        presentation_raw = item.get("presentation")
+        if presentation_raw is not None and str(presentation_raw).strip():
+            entry["presentation"] = str(presentation_raw).strip()
+        oc_raw = item.get("orientation_cube")
+        if isinstance(oc_raw, dict):
+            from app.core.iso_building import normalize_height_matrix
+
+            oc_matrix = normalize_height_matrix(oc_raw.get("height_matrix"))
+            colored = oc_raw.get("colored_faces")
+            if oc_matrix is not None and isinstance(colored, dict) and colored:
+                entry["orientation_cube"] = {
+                    "height_matrix": oc_matrix,
+                    "colored_faces": {
+                        str(k): str(v).strip().lower()
+                        for k, v in colored.items()
+                        if k is not None and v is not None and str(k).strip()
+                    },
+                }
         out.append(entry)
     return out[:6]
 
@@ -407,6 +425,10 @@ def parse_building_paint_items(raw: object) -> list[dict[str, Any]]:
             pal = [p for p in pal if p in _GRID_COLOR_PALETTE and p != "empty"]
         else:
             pal = [c for c in _GRID_COLOR_PALETTE if c != "empty"][:5]
+        presentation_raw = item.get("presentation")
+        presentation = (
+            str(presentation_raw).strip() if presentation_raw is not None and str(presentation_raw).strip() else None
+        )
         out.append(
             {
                 "prompt": prompt[:500],
@@ -416,6 +438,7 @@ def parse_building_paint_items(raw: object) -> list[dict[str, Any]]:
                 "palette": pal[:6]
                 if pal
                 else [c for c in _GRID_COLOR_PALETTE if c != "empty"][:5],
+                "presentation": presentation,
             }
         )
     return out[:6]
@@ -931,6 +954,10 @@ def spatial_raw_to_practice_items(
             parsed_ref = _parse_image_ref(ref_img, source_ids=source_ids)
             if parsed_ref:
                 payload["image_choice"]["reference"] = parsed_ref
+        if raw.get("presentation"):
+            payload["image_choice"]["presentation"] = raw.get("presentation")
+        if isinstance(raw.get("orientation_cube"), dict):
+            payload["image_choice"]["orientation_cube"] = raw["orientation_cube"]
         items.append(payload)
 
     for raw in point_on_image:
@@ -1040,6 +1067,7 @@ def spatial_raw_to_practice_items(
                     "regions": layout.get("regions") or [],
                     "column_visibility": col_vis,
                     "palette": raw.get("palette") or list(_GRID_COLOR_PALETTE),
+                    "presentation": raw.get("presentation"),
                 },
                 "source": quiz_source,
             }
