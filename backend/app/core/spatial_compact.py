@@ -8,6 +8,7 @@ import re
 from typing import Any
 
 from app.core.focus_groups import normalize_focus_key
+from app.core.iso_building import _grids_equal
 
 _SPATIAL_MATH_FOCUS = frozenset({"geometry", "geometry_spatial"})
 _BBOX_PADDING = 0.02

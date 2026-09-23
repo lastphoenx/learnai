@@ -24,5 +24,5 @@ def test_oblique_may_require_second_view_on_asymmetric():
     )
     assert matrix is not None
     decision = compute_visibility_decision(matrix, "oblique")
-    assert decision in ("one_view_sufficient", "second_view_required")
+    assert decision == "second_view_required"
     assert column_readable_from_camera(matrix, 0, "front")

@@ -44,14 +44,68 @@ def _face_normal(face: str) -> tuple[float, float, float]:
     return (0.0, 0.0, 0.0)
 
 
-def _column_top_voxels(matrix: list[list[int]], col: int) -> list[tuple[int, int, int]]:
+def _world_pos(x: int, y: int, z: int) -> tuple[float, float, float]:
+    """Weltkoordinaten (Three.js): x, Höhe y-up, Tiefe z (matrix-Zeile)."""
+    return (x + 0.5, z + 0.5, y + 0.5)
+
+
+def _world_to_voxel(px: float, py: float, pz: float) -> tuple[int, int, int]:
+    return (int(math.floor(px)), int(math.floor(pz)), int(math.floor(py)))
+
+
+def _voxel_solid(matrix: list[list[int]], gx: int, gy: int, gz: int) -> bool:
+    if gx < 0 or gy < 0 or gz < 0:
+        return False
+    if gy >= len(matrix) or gx >= len(matrix[0]):
+        return False
+    return gz < _height_at(matrix, gx, gy)
+
+
+def _face_occluded_along_view(
+    matrix: list[list[int]],
+    x: int,
+    y: int,
+    z: int,
+    face: str,
+    view_dir: tuple[float, float, float],
+    *,
+    max_steps: int = 80,
+    step: float = 0.2,
+) -> bool:
+    """True, wenn ein anderer Würfel die Sicht von dieser Fläche zur Kamera verdeckt."""
+    wx, wy, wz = _world_pos(x, y, z)
+    nx, ny, nz = _face_normal(face)
+    ox, oy, oz = wx + 1e-3 * nx, wy + 1e-3 * ny, wz + 1e-3 * nz
+    vx, vy, vz = view_dir
     rows = len(matrix)
-    out: list[tuple[int, int, int]] = []
-    for y in range(rows):
-        h = _height_at(matrix, col, y)
-        if h > 0:
-            out.append((col, y, h - 1))
-    return out
+    cols = len(matrix[0]) if matrix else 0
+    t = step
+    for _ in range(max_steps):
+        px = ox + vx * t
+        py = oy + vy * t
+        pz = oz + vz * t
+        gx, gy, gz = _world_to_voxel(px, py, pz)
+        if gx < 0 or gy < 0 or gz < 0 or gy >= rows or gx >= cols:
+            return False
+        if not _voxel_solid(matrix, gx, gy, gz):
+            t += step
+            continue
+        if (gx, gy, gz) == (x, y, z):
+            t += step
+            continue
+        return True
+    return False
+
+
+def _column_critical_top_voxel(matrix: list[list[int]], col: int) -> tuple[int, int, int] | None:
+    """Oberster Würfel der höchsten Stelle in dieser Spalte (didaktisch relevant)."""
+    rows = len(matrix)
+    heights = [_height_at(matrix, col, y) for y in range(rows)]
+    max_h = max(heights) if heights else 0
+    if max_h < 1:
+        return None
+    critical_y = next((i for i, h in enumerate(heights) if h == max_h), 0)
+    return (col, critical_y, max_h - 1)
 
 
 def _face_toward_camera(
@@ -63,7 +117,9 @@ def _face_toward_camera(
         return False
     nx, ny, nz = _face_normal(face)
     vx, vy, vz = view_dir
-    return nx * vx + ny * vy + nz * vz > 0.05
+    if nx * vx + ny * vy + nz * vz <= 0.05:
+        return False
+    return not _face_occluded_along_view(matrix, x, y, z, face, view_dir)
 
 
 def column_readable_from_camera(matrix: list[list[int]], col: int, camera: str) -> bool:
@@ -71,10 +127,13 @@ def column_readable_from_camera(matrix: list[list[int]], col: int, camera: str) 
     if camera in _ORTHO_SILHOUETTE_CAMERAS:
         return any(_height_at(matrix, col, y) > 0 for y in range(len(matrix)))
     view_dir = _normalize(_CAMERA_VIEWER_DIRS.get(camera, _CAMERA_VIEWER_DIRS["oblique"]))
-    for x, y, z in _column_top_voxels(matrix, col):
-        for face in ("top", "left", "right"):
-            if _face_toward_camera(matrix, x, y, z, face, view_dir):
-                return True
+    critical = _column_critical_top_voxel(matrix, col)
+    if critical is None:
+        return False
+    x, y, z = critical
+    for face in ("top", "left", "right"):
+        if _face_toward_camera(matrix, x, y, z, face, view_dir):
+            return True
     return False
 
 
