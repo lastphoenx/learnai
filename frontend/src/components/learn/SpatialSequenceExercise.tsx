@@ -266,27 +266,43 @@ export function SpatialSequenceExercise({ config, busy, result, onSubmit, onCont
           <div className="spatial-seq-choices">
             <button
               type="button"
-              className={`btn${visibility === "one_view_sufficient" ? " btn-primary" : ""}`}
+              className={`btn spatial-seq-choice${visibility === "one_view_sufficient" ? " spatial-seq-choice--on" : ""}`}
               disabled={!!result}
-              onClick={() => {
-                setVisibility("one_view_sufficient");
-                setStageIndex(spatialSequencePrefix(flowConfig).length);
-              }}
+              onClick={() => setVisibility("one_view_sufficient")}
             >
               Ja, eindeutig — eine Sicht reicht
             </button>
             <button
               type="button"
-              className={`btn${visibility === "second_view_required" ? " btn-primary" : ""}`}
+              className={`btn spatial-seq-choice${visibility === "second_view_required" ? " spatial-seq-choice--on" : ""}`}
               disabled={!!result}
-              onClick={() => {
-                setVisibility("second_view_required");
-                setStageIndex(spatialSequencePrefix(flowConfig).length);
-              }}
+              onClick={() => setVisibility("second_view_required")}
             >
               Nein — es gibt verdeckte Stellen
             </button>
           </div>
+          {visibility && !result ? (
+            <div className="learn-feedback ok spatial-seq-decision-confirm">
+              <strong>
+                {visibility === "one_view_sufficient"
+                  ? "Deine Wahl: Eine Sicht reicht."
+                  : "Deine Wahl: Du brauchst noch eine zweite Perspektive."}
+              </strong>
+              <p className="muted" style={{ margin: "0.35rem 0 0" }}>
+                {visibility === "one_view_sufficient"
+                  ? "Als Nächstes trägst du die drei Orthogonalansichten ein."
+                  : "Als Nächstes siehst du eine zweite Kamera, danach die Orthogonalansichten."}
+              </p>
+              <button
+                type="button"
+                className="btn-primary"
+                style={{ marginTop: "0.75rem" }}
+                onClick={() => setStageIndex(spatialSequencePrefix(flowConfig).length)}
+              >
+                Weiter zu den Ansichten
+              </button>
+            </div>
+          ) : null}
         </>
       )}
 

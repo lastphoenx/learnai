@@ -670,8 +670,12 @@ def submit_practice_answer(
         is_correct = bool(paint_score.get("correct"))
         label_score = paint_score
     elif answer_type == "net_build":
-        from app.core.spatial_compact import score_net_build_answer
+        from app.core.spatial_compact import net_build_validate_expected, score_net_build_answer
 
+        nb = item.get("net_build") if isinstance(item.get("net_build"), dict) else {}
+        validate_expected = net_build_validate_expected(nb)
+        if validate_expected is not None:
+            expected = validate_expected
         net_score = score_net_build_answer(expected, answer_text)
         is_correct = bool(net_score.get("correct"))
     elif answer_type == "synthetic_viewpoint":

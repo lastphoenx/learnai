@@ -11,17 +11,21 @@ import { listVoxelsFromHeightMatrix } from "@/lib/voxelList";
 const BOX = 0.94;
 const GAP = 1.02;
 
-/** BoxGeometry material index: 0 +X, 1 -X, 2 +Y, 3 -Y, 4 +Z, 5 -Z */
+/**
+ * BoxGeometry material index: 0 +X, 1 -X, 2 +Y, 3 -Y, 4 +Z, 5 -Z
+ * Iso-Paint «right» = Fläche in +X (Beschriftung «Rechts»), nicht −Z (vorne).
+ * Muss zu backend `iso_building._face_polygon(..., "right")` passen.
+ */
 const FACE_TO_MATERIAL: Record<string, number> = {
   left: 1,
   top: 2,
-  right: 5,
+  right: 0,
 };
 
 const MATERIAL_TO_FACE: Record<number, string> = {
   1: "left",
   2: "top",
-  5: "right",
+  0: "right",
 };
 
 type VoxelProps = {

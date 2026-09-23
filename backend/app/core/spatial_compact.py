@@ -514,16 +514,8 @@ def parse_net_build_items(raw: object) -> list[dict[str, Any]]:
         if given_cells and len(given_cells) == 6:
             mode = "validate"
             prompt = prompt_raw or "Ist dieses Würfelnetz gültig?"
-            if isinstance(answer_raw, bool):
-                answer = answer_raw
-            else:
-                ans_s = str(answer_raw or "").strip().lower()
-                if ans_s in ("valid", "true", "gültig", "gueltig", "yes", "ja"):
-                    answer = True
-                elif ans_s in ("invalid", "false", "ungültig", "ungueltig", "no", "nein"):
-                    answer = False
-                else:
-                    answer = valid_cube_net(given_cells)
+            # Geometrie schlägt KI-Bool — Kreuz-Netze wurden fälschlich als «ungültig» gespeichert.
+            answer = valid_cube_net(given_cells)
         else:
             if target_cells and len(target_cells) == 6 and valid_cube_net(target_cells):
                 if not all(0 <= c < cols and 0 <= r < rows for c, r in target_cells):
@@ -1215,6 +1207,18 @@ def score_grid_fill_answer(
                 }
             )
     return {"correct": all_ok and len(slots) > 0, "slots": slots}
+
+
+def net_build_validate_expected(net_build: dict[str, Any] | None) -> str | None:
+    """Validate-Modus: Ja/Nein aus Geometrie der given_cells (Alteinheiten mit falscher KI-Bool)."""
+    if not isinstance(net_build, dict) or str(net_build.get("mode") or "") != "validate":
+        return None
+    cells = _parse_net_cell_list(net_build.get("given_cells"))
+    if not cells or len(cells) != 6:
+        return None
+    from app.core.iso_building import valid_cube_net
+
+    return json.dumps(valid_cube_net(cells), ensure_ascii=False)
 
 
 def score_net_build_answer(expected_json: str, user_text: str) -> dict[str, Any]:

@@ -346,6 +346,19 @@ def test_net_build_validate_mode():
     assert score_net_build_answer(items[0]["answer"], json.dumps(True))["correct"]
     assert not score_net_build_answer(items[0]["answer"], json.dumps(False))["correct"]
 
+    wrong_ai = parse_net_build_items(
+        [
+            {
+                "prompt": "Prüfe das Netz.",
+                "rows": 4,
+                "cols": 4,
+                "given_cells": cross,
+                "answer": False,
+            }
+        ]
+    )
+    assert wrong_ai[0]["answer"] is True
+
 
 def test_synthetic_viewpoint_requires_meaningful_labels():
     raw = parse_synthetic_viewpoint_items(
