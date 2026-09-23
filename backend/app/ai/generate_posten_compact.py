@@ -68,6 +68,47 @@ _CIRCULAR_QUESTION = re.compile(
 )
 
 
+def build_thin_retry_hint(
+    error_code: str,
+    *,
+    spatial_geometry: bool,
+    facts_min: int,
+    card_target: int,
+    question_target: int,
+) -> str:
+    """Prompt-Zusatz für den einzigen Retry nach thin_content/thin_spatial.
+
+    Bei aktivierter Raumgeometrie wird der Raumaufgaben-Hinweis IMMER mit
+    angehängt, auch wenn der Fehler dieses Versuchs thin_content war — sonst
+    bekommt die KI beim einzigen Retry nie den Raumaufgaben-Hinweis, falls
+    beide Probleme gleichzeitig auftreten (z. B. Versuch 1: zu wenige
+    Quizfragen → thin_content; Versuch 2 dann weiterhin ohne Raumaufgaben
+    gespeichert, weil nie darauf hingewiesen).
+    """
+    hint = ""
+    if error_code == "thin_content":
+        hint += (
+            "\n\nWICHTIG — vorheriger Versuch zu dünn. "
+            f"Liefere mindestens {facts_min} facts, "
+            f"{card_target} cards und {question_target} quiz — keine Auslassungen.\n"
+        )
+    if spatial_geometry:
+        hint += (
+            "\n\nWICHTIG — Raumaufgaben fehlten im JSON. "
+            "Liefere mindestens 2 Einträge gesamt in image_choice_items, "
+            "point_on_image_items, grid_fill_items, region_paint_items, "
+            "building_paint_items, net_build_items und/oder synthetic_viewpoint_items. "
+            "Nutze gültige source_index und bbox (0–1) aus den Fotos; "
+            "für Würfel-Einfärben: region_paint mit template "
+            '"iso_single_cube" oder "iso_tower_2" und answer als Objekt '
+            '{"top":"green",...}; building_paint mit height_matrix und colored_faces; '
+            'net_build (rows/cols 3-8, answer "valid_net"); oder synthetic_viewpoint '
+            "(height_matrix, candidates, answer=id). "
+            "Keine reinen Text-Quiz-Fragen statt Bildaufgaben.\n"
+        )
+    return hint
+
+
 def should_use_posten_compact(
     *,
     trainer_preset: str | None,
@@ -609,23 +650,13 @@ def generate_posten_compact(
                 exc.code,
                 exc.message,
             )
-            if attempt == 1 and exc.code == "thin_content":
-                retry_hint = (
-                    "\n\nWICHTIG — vorheriger Versuch zu dünn. "
-                    f"Liefere mindestens {facts_min} facts, "
-                    f"{card_target} cards und {question_target} quiz — keine Auslassungen.\n"
-                )
-                continue
-            if attempt == 1 and exc.code == "thin_spatial" and spatial_geometry:
-                retry_hint = (
-                    "\n\nWICHTIG — Raumaufgaben fehlten im JSON. "
-                    "Liefere mindestens 2 Einträge gesamt in image_choice_items, "
-                    "point_on_image_items, grid_fill_items, region_paint_items und/oder building_paint_items. "
-                    "Nutze gültige source_index und bbox (0–1) aus den Fotos; "
-                    "für Würfel-Einfärben: region_paint mit template "
-                    '"iso_single_cube" oder "iso_tower_2" und answer als Objekt '
-                    '{"top":"green",...}; oder building_paint mit height_matrix und colored_faces. '
-                    "Keine reinen Text-Quiz-Fragen statt Bildaufgaben.\n"
+            if attempt == 1 and exc.code in ("thin_content", "thin_spatial"):
+                retry_hint = build_thin_retry_hint(
+                    exc.code,
+                    spatial_geometry=spatial_geometry,
+                    facts_min=facts_min,
+                    card_target=card_target,
+                    question_target=question_target,
                 )
                 continue
             raise

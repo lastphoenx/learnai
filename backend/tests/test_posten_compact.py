@@ -7,6 +7,7 @@ from app.ai.generate_german_compact import should_use_german_compact
 from app.ai.generate_posten_compact import (
     _is_weak_card,
     _parse_posten_compact_payload,
+    build_thin_retry_hint,
     posten_compact_payload_to_modules,
     should_use_posten_compact,
 )
@@ -292,3 +293,58 @@ def test_complete_accepts_images_parameter(monkeypatch):
     )
     assert captured["images"] == 1
     assert result["text"] == '{"ok": true}'
+
+
+def test_thin_retry_hint_combines_content_and_spatial():
+    # Regression: unit_id d3881fee... — Versuch 1 scheiterte an thin_content
+    # (zu wenige Quizfragen), der Retry-Hinweis erwähnte damals nur
+    # Fakten/Karten/Quiz. Die KI bekam nie den Raumaufgaben-Hinweis und
+    # speicherte Versuch 2 komplett ohne Raumaufgaben (thin_spatial_soft,
+    # practice=0, raw=0). Bei aktivierter Raumgeometrie muss der Hinweis
+    # IMMER beide Themen abdecken, unabhängig davon, welcher Fehler zuerst kam.
+    hint = build_thin_retry_hint(
+        "thin_content",
+        spatial_geometry=True,
+        facts_min=6,
+        card_target=12,
+        question_target=8,
+    )
+    assert "vorheriger Versuch zu dünn" in hint
+    assert "Raumaufgaben fehlten im JSON" in hint
+
+
+def test_thin_retry_hint_content_only_without_spatial():
+    hint = build_thin_retry_hint(
+        "thin_content",
+        spatial_geometry=False,
+        facts_min=6,
+        card_target=12,
+        question_target=8,
+    )
+    assert "vorheriger Versuch zu dünn" in hint
+    assert "Raumaufgaben" not in hint
+
+
+def test_thin_retry_hint_spatial_only_for_thin_spatial():
+    hint = build_thin_retry_hint(
+        "thin_spatial",
+        spatial_geometry=True,
+        facts_min=6,
+        card_target=12,
+        question_target=8,
+    )
+    assert "vorheriger Versuch zu dünn" not in hint
+    assert "Raumaufgaben fehlten im JSON" in hint
+
+
+def test_thin_retry_hint_mentions_all_spatial_types():
+    # net_build/synthetic_viewpoint (Phase 3/4) fehlten im Hinweistext.
+    hint = build_thin_retry_hint(
+        "thin_spatial",
+        spatial_geometry=True,
+        facts_min=6,
+        card_target=12,
+        question_target=8,
+    )
+    assert "net_build_items" in hint
+    assert "synthetic_viewpoint_items" in hint
