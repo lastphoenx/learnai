@@ -10,13 +10,17 @@ import {
   type LearningUnit,
 } from "@/lib/api";
 import { LearnerMultiSelect } from "@/components/LearnerMultiSelect";
-import { siblingCopyForProfile } from "@/lib/unitTemplateFamily";
+import {
+  familyContentSourceUnit,
+  siblingCopyForProfile,
+  unitIdForChildCopySource,
+} from "@/lib/unitTemplateFamily";
 
 type Props = {
   unitId: string;
   currentUnit: Pick<
     LearningUnit,
-    "id" | "template_root_id" | "is_sandbox_copy" | "sandbox_copy_of" | "title"
+    "id" | "template_root_id" | "template_unit_id" | "is_sandbox_copy" | "sandbox_copy_of" | "title"
   >;
   currentProfileId: string | null | undefined;
   learnerName?: string | null;
@@ -117,6 +121,26 @@ export function UnitAssignSection({
     }
   }
 
+  async function onCreateChildCopy(profileId: string) {
+    const sourceId = unitIdForChildCopySource(allUnits, unitForMatch);
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await assignUnitToProfiles(sourceId, [profileId]);
+      const profile = profiles.find((p) => p.id === profileId);
+      setMessage(
+        res.created_count
+          ? `Einheit für ${profile?.display_name ?? "Kind"} erstellt — dort «Freigabe für Kind» aktivieren, dann kann es lernen.`
+          : "Kopie erstellt.",
+      );
+      onAssigned();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Kinder-Einheit konnte nicht erstellt werden");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function onCreateCopies() {
     const ids = selectedCopyIds.filter((id) => assignableCopyIds.includes(id));
     if (!ids.length) {
@@ -138,7 +162,10 @@ export function UnitAssignSection({
     }
   }
 
-  const originalId = currentUnit.sandbox_copy_of;
+  const contentSource = familyContentSourceUnit(allUnits, unitForMatch);
+  const originalId =
+    currentUnit.sandbox_copy_of ??
+    (contentSource && contentSource.id !== unitId ? contentSource.id : null);
 
   return (
     <section className="card unit-section unit-assign-section">
@@ -146,7 +173,8 @@ export function UnitAssignSection({
       {isSandbox ? (
         <p className="muted section-lead">
           Sandbox-Kopie mit eigenem Fortschritt — zum Testen ohne den Fortschritt eines Kindes zu
-          verändern. Zuweisung an Eltern/Admin oder Lernen ohne Zuweisung (mit deinem Profil).
+          verändern. Zuweisung an Eltern/Admin oder Lernen ohne Zuweisung (mit deinem Profil). Für ein
+          Kind unten «Einheit erstellen» — die Test-Kopie selbst wird Kindern nicht angezeigt.
         </p>
       ) : (
         <p className="muted section-lead">
@@ -250,7 +278,14 @@ export function UnitAssignSection({
                         Zuweisen
                       </button>
                     ) : isSandbox ? (
-                      <span className="muted">keine Kopie</span>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-primary"
+                        onClick={() => onCreateChildCopy(child.id)}
+                        disabled={busy}
+                      >
+                        Einheit erstellen
+                      </button>
                     ) : (
                       <span className="muted">noch keine Kopie</span>
                     )}

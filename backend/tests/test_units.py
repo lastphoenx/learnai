@@ -100,6 +100,27 @@ def test_template_ids_from_recon():
     _attach_template_fields(copy_row, None)
     assert copy_row["is_sandbox_copy"] is True
 
+    from app.core.crypto import encrypt_json
+
+    recon = encrypt_json(
+        {"template_unit_id": "original-uuid", "template_root_id": "root-uuid"}
+    )
+
+    class _Rec:
+        reconstruction_encrypted = recon
+
+    record = _Rec()
+    legacy = {"id": "unit-2", "title": "Test-Kopie: Mathematik"}
+    _attach_template_fields(legacy, record)
+    assert legacy["sandbox_copy_of"] == "original-uuid"
+
+
+def test_strip_test_copy_title():
+    from app.services.unit_service import _strip_test_copy_title
+
+    assert _strip_test_copy_title("Test-Kopie: MahteFox") == "MahteFox"
+    assert _strip_test_copy_title("Test: Foo") == "Foo"
+
 
 def test_ensure_test_copy_title():
     from app.services.unit_service import _ensure_test_copy_title

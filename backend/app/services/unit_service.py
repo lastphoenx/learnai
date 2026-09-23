@@ -186,6 +186,8 @@ def _attach_template_fields(row: dict, record: LearningRecord | None) -> None:
         title = str(row.get("title") or "").strip()
         if title.lower().startswith(("test:", "test-kopie:")):
             is_sandbox_copy = True
+    if is_sandbox_copy and not sandbox_copy_of and template_unit_id and template_unit_id != row.get("id"):
+        sandbox_copy_of = template_unit_id
     row["template_unit_id"] = template_unit_id
     row["template_root_id"] = template_root_id or row["id"]
     row["sandbox_copy_of"] = sandbox_copy_of
@@ -615,6 +617,8 @@ def assign_unit_to_profiles(
     brief = decrypt_text_master(unit.brief_encrypted) if unit.brief_encrypted else None
     math_focus = None
     src_record = db.query(LearningRecord).filter(LearningRecord.unit_id == unit.id).first()
+    if unit_is_sandbox_copy(unit, src_record):
+        title = _strip_test_copy_title(title)
     if src_record and src_record.reconstruction_encrypted:
         src_recon = decrypt_json(src_record.reconstruction_encrypted)
         if isinstance(src_recon, dict):
@@ -673,6 +677,16 @@ def assign_unit_to_profiles(
         detail=f"copies={len(created)} modules_template={template_modules}",
     )
     return created
+
+
+def _strip_test_copy_title(title: str) -> str:
+    stripped = (title or "").strip()
+    lower = stripped.lower()
+    for prefix in ("test-kopie:", "test:"):
+        if lower.startswith(prefix):
+            rest = stripped[len(prefix) :].strip()
+            return rest if rest else stripped
+    return stripped
 
 
 def _ensure_test_copy_title(title: str) -> str:
