@@ -75,8 +75,21 @@ def validate_spatial_sequence_config(config: dict[str, Any]) -> list[str]:
 
     if not saw_decision:
         errors.append("stages: visibility_decision fehlt")
-    if not saw_projection:
+    if not saw_projection and not config.get("visibility_branches"):
         errors.append("stages: projection_fill fehlt")
+
+    branches = config.get("visibility_branches")
+    if isinstance(branches, dict):
+        for key in ("one_view_sufficient", "second_view_required"):
+            branch = branches.get(key)
+            if not isinstance(branch, dict):
+                errors.append(f"visibility_branches.{key}: fehlt")
+                continue
+            b_stages = branch.get("stages")
+            if not isinstance(b_stages, list) or not any(
+                isinstance(s, dict) and s.get("type") == "projection_fill" for s in b_stages
+            ):
+                errors.append(f"visibility_branches.{key}: projection_fill fehlt")
 
     matrix = normalize_height_matrix(config.get("height_matrix"))
     if matrix is None:
@@ -135,9 +148,9 @@ def canonical_spatial_sequence_prompt(matrix: list[list[int]]) -> str:
     rows = len(matrix)
     cols = len(matrix[0]) if matrix else 0
     return (
-        f"Würfelgebäude ({rows}×{cols} Grundriss): In der 3D-Ansicht ansehen, "
-        "entscheiden ob eine Sicht ausreicht oder eine zweite nötig ist, "
-        "danach Vorder-, Rechts- und Aufsicht in die Raster eintragen."
+        f"Du betrachtest ein Würfelgebäude ({rows}×{cols} Grundriss). "
+        "Reicht die erste Ansicht, um alle nötigen Informationen für die drei Orthogonalansichten "
+        "(Vorne, Rechts, Aufsicht) zu erkennen — oder brauchst du zwingend eine zweite Perspektive?"
     )
 
 
@@ -155,7 +168,7 @@ def build_spatial_sequence_item(
     hint: str | None = None,
     first_camera: str = "oblique",
     second_camera: str | None = None,
-    grid_size_hint: str = "derive",
+    grid_size_hint: str = "given",
 ) -> dict[str, Any]:
     """Deterministische Mehrstufen-Aufgabe — KI liefert nur Matrix + Text."""
     from app.core.spatial_grid_size import normalize_grid_size_hint
@@ -165,34 +178,47 @@ def build_spatial_sequence_item(
         raise ValueError("; ".join(errors))
     first_camera = (first_camera or "oblique").strip().lower()
     second = (second_camera or choose_informative_second_camera(matrix, first_camera)).strip().lower()
+    grid_hint = normalize_grid_size_hint(grid_size_hint)
+    projection_fill = {
+        "type": "projection_fill",
+        "views": ["front", "right", "top"],
+        "grid_size_hint": grid_hint,
+    }
+    top_hint = {
+        "type": "inspect",
+        "camera": "top",
+        "camera_locked": True,
+        "hint_only": True,
+        "unlock_hint": "show_top_view",
+    }
+    stages_prefix = [
+        {"type": "inspect", "camera": first_camera, "camera_locked": True},
+        {"type": "visibility_decision"},
+    ]
+    branch_one = {
+        "stages": [projection_fill, top_hint],
+        "hints": ["show_top_view", "show_solution_overlay"],
+    }
+    branch_second = {
+        "stages": [
+            {"type": "inspect", "camera": second, "camera_locked": True},
+            projection_fill,
+            top_hint,
+        ],
+        "hints": ["show_top_view", "show_solution_overlay"],
+    }
+    legacy_stages = stages_prefix + branch_second["stages"]
     config: dict[str, Any] = {
         "schema_version": 1,
         "height_matrix": matrix,
         "first_camera": first_camera,
         "second_camera": second,
-        "stages": [
-            {"type": "inspect", "camera": first_camera, "camera_locked": True},
-            {"type": "visibility_decision"},
-            {
-                "type": "inspect",
-                "camera": second,
-                "camera_locked": True,
-                "hint_only": True,
-                "unlock_hint": "show_second_camera",
-            },
-            {
-                "type": "projection_fill",
-                "views": ["front", "right", "top"],
-                "grid_size_hint": normalize_grid_size_hint(grid_size_hint),
-            },
-            {
-                "type": "inspect",
-                "camera": "top",
-                "camera_locked": True,
-                "hint_only": True,
-                "unlock_hint": "show_top_view",
-            },
-        ],
+        "stages_prefix": stages_prefix,
+        "visibility_branches": {
+            "one_view_sufficient": branch_one,
+            "second_view_required": branch_second,
+        },
+        "stages": legacy_stages,
         "hints": ["show_second_camera", "show_top_view", "show_solution_overlay"],
     }
     val_errors = validate_spatial_sequence_config(config)

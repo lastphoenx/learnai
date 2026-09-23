@@ -80,7 +80,7 @@ def test_merge_template_recon_keeps_trainer_options(monkeypatch):
     assert roundtrip["template_unit_id"] == "source-id"
 
 
-def test_template_ids_from_recon():
+def test_template_ids_from_recon(master_key_env):
     from app.services.unit_service import _attach_template_fields, _template_ids_from_recon
 
     tid, troot = _template_ids_from_recon(
@@ -115,7 +115,7 @@ def test_template_ids_from_recon():
     assert legacy["sandbox_copy_of"] == "original-uuid"
 
 
-def test_after_finalize_unit_not_marked_sandbox():
+def test_after_finalize_unit_not_marked_sandbox(master_key_env):
     from app.services.crypto_json import encrypt_json
     from app.services.unit_service import _attach_template_fields, _strip_test_copy_title
 

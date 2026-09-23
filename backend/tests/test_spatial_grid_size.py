@@ -5,11 +5,12 @@ from app.core.spatial_grid_size import spatial_sequence_projection_grid_size_hin
 from app.core.spatial_validator import build_spatial_sequence_item
 
 
-def test_build_spatial_sequence_defaults_to_derive_grid_hint():
+def test_build_spatial_sequence_defaults_to_given_grid_hint():
     item = build_spatial_sequence_item([[1, 2], [2, 1]], prompt="x")
-    stages = item["spatial_sequence"]["stages"]
-    pf = next(s for s in stages if s.get("type") == "projection_fill")
-    assert pf.get("grid_size_hint") == "derive"
+    cfg = item["spatial_sequence"]
+    pf = next(s for s in cfg["stages"] if s.get("type") == "projection_fill")
+    assert pf.get("grid_size_hint") == "given"
+    assert cfg.get("visibility_branches")
 
 
 def test_score_spatial_sequence_derive_rejects_wrong_dimensions():

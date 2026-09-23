@@ -24,7 +24,8 @@ def test_build_spatial_sequence_item_deterministic():
     assert "projections" in answer
     p = item["prompt"].lower()
     assert "baue das würfelgebäude schritt" not in p
-    assert "3d" in p or "ansicht" in p
+    assert "ansicht" in p or "perspektive" in p
+    assert item["spatial_sequence"].get("visibility_branches")
 
 
 def test_spatial_sequence_prompt_replaces_misleading_ai_text():

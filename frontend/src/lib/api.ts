@@ -404,10 +404,20 @@ export type TrainerSpatialSequenceStage =
   | { type: "visibility_decision" }
   | { type: "projection_fill"; views?: string[]; grid_size_hint?: "given" | "derive" };
 
+export type TrainerSpatialSequenceVisibilityBranch = {
+  stages?: TrainerSpatialSequenceStage[];
+  hints?: string[];
+};
+
 export type TrainerSpatialSequenceConfig = {
   schema_version?: number;
   height_matrix: number[][];
   stages?: TrainerSpatialSequenceStage[];
+  stages_prefix?: TrainerSpatialSequenceStage[];
+  visibility_branches?: {
+    one_view_sufficient?: TrainerSpatialSequenceVisibilityBranch;
+    second_view_required?: TrainerSpatialSequenceVisibilityBranch;
+  };
   hints?: string[];
   first_camera?: string;
   second_camera?: string;

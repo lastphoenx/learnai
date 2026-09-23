@@ -20,6 +20,9 @@ export function canUnlockSpatialHint(
   const pastDecision = visibility !== null || (decisionIdx >= 0 && stageIndex > decisionIdx);
 
   if (hintId === "show_second_camera") {
+    if (visibility === "one_view_sufficient") {
+      return false;
+    }
     return pastDecision;
   }
   if (hintId === "show_top_view") {

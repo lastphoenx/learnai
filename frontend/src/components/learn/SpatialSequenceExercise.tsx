@@ -17,6 +17,11 @@ import {
   secondCameraPresetFromConfig,
   spatialSequenceProjectionIndex,
 } from "@/lib/spatialSequenceHints";
+import {
+  activeSpatialSequenceHints,
+  navigableSpatialSequenceStages,
+  spatialSequencePrefix,
+} from "@/lib/spatialSequenceFlow";
 import { heightMatrixHasVoxels } from "@/lib/isoBuilding";
 
 type Props = {
@@ -62,12 +67,15 @@ function asInspectStage(stage: SpatialSequenceStage | undefined): InspectStage |
 export function SpatialSequenceExercise({ config, busy, result, onSubmit, onContinue }: Props) {
   const matrix = config.height_matrix;
   const hasBuilding = heightMatrixHasVoxels(matrix);
-  const stages = (config.stages ?? []) as SpatialSequenceStage[];
-  const hints = config.hints ?? [];
-
+  const flowConfig = config;
   const [stageIndex, setStageIndex] = useState(0);
   const [unlockedHints, setUnlockHints] = useState(0);
   const [visibility, setVisibility] = useState<SpatialSequenceAnswer["visibility"] | null>(null);
+  const stages = useMemo(
+    () => navigableSpatialSequenceStages(flowConfig, visibility) as SpatialSequenceStage[],
+    [flowConfig, visibility],
+  );
+  const hints = useMemo(() => activeSpatialSequenceHints(flowConfig, visibility), [flowConfig, visibility]);
   const [projections, setProjections] = useState(emptyProjectionDraft());
   const [overlayHint, setOverlayHint] = useState(false);
   const [hintPreviewCamera, setHintPreviewCamera] = useState<SpatialCameraPreset | null>(null);
@@ -251,7 +259,10 @@ export function SpatialSequenceExercise({ config, busy, result, onSubmit, onCont
 
       {current?.type === "visibility_decision" && (
         <>
-          <p>Reicht die erste Sicht, um alle wichtigen Informationen zu erkennen?</p>
+          <p>
+            Kannst du aus dieser ersten Ansicht wirklich alle wichtigen Stellen des Gebäudes erkennen — oder
+            brauchst du zwingend noch eine zweite Perspektive?
+          </p>
           <div className="spatial-seq-choices">
             <button
               type="button"
@@ -259,10 +270,10 @@ export function SpatialSequenceExercise({ config, busy, result, onSubmit, onCont
               disabled={!!result}
               onClick={() => {
                 setVisibility("one_view_sufficient");
-                advanceStage();
+                setStageIndex(spatialSequencePrefix(flowConfig).length);
               }}
             >
-              Eine Sicht reicht
+              Ja, eindeutig — eine Sicht reicht
             </button>
             <button
               type="button"
@@ -270,10 +281,10 @@ export function SpatialSequenceExercise({ config, busy, result, onSubmit, onCont
               disabled={!!result}
               onClick={() => {
                 setVisibility("second_view_required");
-                advanceStage();
+                setStageIndex(spatialSequencePrefix(flowConfig).length);
               }}
             >
-              Zweite Sicht nötig
+              Nein — es gibt verdeckte Stellen
             </button>
           </div>
         </>
@@ -296,7 +307,7 @@ export function SpatialSequenceExercise({ config, busy, result, onSubmit, onCont
               <BuildingThreeCanvas
                 matrix={matrix}
                 cameraPreset={hintPreviewCamera ?? primaryFillCamera}
-                cameraLocked={Boolean(hintPreviewCamera)}
+                cameraLocked={visibility === "one_view_sufficient" || Boolean(hintPreviewCamera)}
                 showOrientationLabels={true}
                 heightPx={220}
               />

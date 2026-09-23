@@ -88,8 +88,11 @@ POSTEN_COMPACT_SPATIAL_EXTRA = (
     'rows, cols, cell_type "number" oder "color", answer als 2D-Array (null = leer). '
     "Farben nur: yellow, green, purple, blue, orange, empty.\n"
     "- building_paint_items: Würfel/Gebäude einfärben (Three.js) — height_matrix (Einzelwürfel [[1]]), "
-    'colored_faces {"0,0,0,top":"yellow","0,0,0,left":"green",...}; prompt mit klaren Farben pro Fläche.\n'
-    "- region_paint_items: nur mehrstufige Türme — template iso_tower_2; Einzelwürfel immer building_paint.\n"
+    'colored_faces {"0,0,0,top":"yellow","0,0,0,left":"green",...}; prompt mit klaren Farben pro Fläche. '
+    "Nur sichtbare Flächen in der Schrägansicht: top/left/right (oben/links/rechts) — "
+    "nie front/back/bottom, nie «vordere/hintere/untere Fläche».\n"
+    "- region_paint_items: nur mehrstufige Türme — template iso_tower_2; Einzelwürfel immer building_paint. "
+    "Prompt: nur top/left/right benennen, nie vorne/hinten/unten.\n"
     '- grid_fill: validation "derived_projection" — answer {"height_matrix":[[...]]}; '
     "reference_height_matrix PFLICHT bei cell_type number (exact_match: Vorschau-Gebäude; derived_projection: "
     "optional, sonst height_matrix aus answer). Bei «Höhenplan ergänzen»: exact_match + reference_height_matrix "

@@ -75,6 +75,7 @@ export function RegionPaintExercise({ config, busy, result, onSubmit, onContinue
           interactive={!result && !busy}
           onFaceClick={(id) => paintRegion(id)}
           slotCorrect={result ? slotMap : undefined}
+          showOrientationLabels={true}
         />
       ) : (
         <div className="region-paint-stage" style={{ minWidth: 320 }}>
