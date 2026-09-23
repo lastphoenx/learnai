@@ -7,7 +7,6 @@ Quelle der Wahrheit: `doku/pve2/vm/135-learnai/betrieb.md`
 | Was | Branch | CT 135 |
 |-----|--------|--------|
 | **Produktion / Live-Bug** | **direkt `main`** | `git pull origin main` — **nie** Feature-Branches pullen |
-| **Unfertiges Feature** (Golden Set, …) | `feature/task-type-golden` | erst mergen, wenn live |
 
 **Keine einmaligen `fix/…`-Branches** für kleine Live-Fixes. Commit + Push auf `main`. Einen `fix/…`-Branch nur, wenn der Nutzer ihn ausdrücklich will oder die Änderung unsicher/reviewbedürftig ist — **nach Merge auf `main` sofort löschen** (`git push origin --delete <branch>` und `git branch -d <branch>`).
 
@@ -23,8 +22,6 @@ git add …
 git commit -m "fix: …"
 git push origin main
 ```
-
-Wenn gerade auf `feature/task-type-golden` weitergearbeitet wird: `main` danach dort einmergen (nicht umgekehrt auf CT deployen).
 
 **Nicht:** `git push origin <sha>:main` (Refspec-Hack), Merge ohne vorher `git pull`, Feature-Branch auf CT deployen, gemergte `fix/…`-Branches stehen lassen.
 
