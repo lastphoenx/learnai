@@ -66,13 +66,7 @@
   "spatial_sequence_items": [
     {
       "prompt": "Ansichten des Gebäudes.",
-      "height_matrix": [[1, 2], [1, 1]],
-      "spatial_sequence": {
-        "schema_version": 1,
-        "height_matrix": [[1, 2], [1, 1]],
-        "stages_prefix": [{ "type": "inspect", "camera": "oblique" }, { "type": "visibility_decision" }],
-        "stages": [{ "type": "projection_fill", "views": ["front", "right", "top"] }]
-      }
+      "height_matrix": [[1, 2], [1, 1]]
     }
   ],
   "synthetic_viewpoint_items": [
