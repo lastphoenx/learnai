@@ -1,0 +1,90 @@
+{
+  "goal": "RaumWerkstatt workshop_v2 — Golden-Payload für alle Kapitel-Typen.",
+  "facts": [
+    { "title": "Netz", "text": "Sechs Quadrate falten." },
+    { "title": "Bauplan", "text": "Höhen aus der Schrägansicht." },
+    { "title": "Ansichten", "text": "Silhouetten und Sicht-Entscheid." }
+  ],
+  "cards": [
+    { "question": "Was ist ein Würfelnetz?", "answer": "Sechs Quadrate, die sich zu einem Würfel falten." },
+    { "question": "Was ist ein Höhenplan?", "answer": "Zahlen für Stapelhöhen je Feld." },
+    { "question": "Was ist eine Vorderansicht?", "answer": "Silhouette von vorne." },
+    { "question": "Frage 4?", "answer": "Antwort 4." },
+    { "question": "Frage 5?", "answer": "Antwort 5." },
+    { "question": "Frage 6?", "answer": "Antwort 6." },
+    { "question": "Frage 7?", "answer": "Antwort 7." },
+    { "question": "Frage 8?", "answer": "Antwort 8." },
+    { "question": "Frage 9?", "answer": "Antwort 9." },
+    { "question": "Frage 10?", "answer": "Antwort 10." },
+    { "question": "Frage 11?", "answer": "Antwort 11." },
+    { "question": "Frage 12?", "answer": "Antwort 12." }
+  ],
+  "quiz": [
+    { "q": "Quiz 1?", "options": ["A", "B", "C", "D"], "answer": 0, "explanation": "x" },
+    { "q": "Quiz 2?", "options": ["A", "B", "C", "D"], "answer": 0, "explanation": "x" },
+    { "q": "Quiz 3?", "options": ["A", "B", "C", "D"], "answer": 0, "explanation": "x" },
+    { "q": "Quiz 4?", "options": ["A", "B", "C", "D"], "answer": 0, "explanation": "x" },
+    { "q": "Quiz 5?", "options": ["A", "B", "C", "D"], "answer": 0, "explanation": "x" },
+    { "q": "Quiz 6?", "options": ["A", "B", "C", "D"], "answer": 0, "explanation": "x" },
+    { "q": "Quiz 7?", "options": ["A", "B", "C", "D"], "answer": 0, "explanation": "x" },
+    { "q": "Quiz 8?", "options": ["A", "B", "C", "D"], "answer": 0, "explanation": "x" }
+  ],
+  "net_build_items": [
+    {
+      "rows": 4,
+      "cols": 4,
+      "presentation": "workshop_v2",
+      "target_cells": [[0, 1], [1, 1], [2, 1], [1, 0], [1, 2], [1, 3]]
+    },
+    {
+      "rows": 4,
+      "cols": 4,
+      "presentation": "workshop_v2",
+      "given_cells": [[0, 0], [1, 0], [2, 0], [0, 1], [1, 1], [2, 1]]
+    }
+  ],
+  "grid_fill_items": [
+    {
+      "prompt": "Bauplan aus dem Gebäude.",
+      "rows": 2,
+      "cols": 2,
+      "cell_type": "number",
+      "validation": "derived_projection",
+      "presentation": "workshop_v2",
+      "answer": { "height_matrix": [[1, 2], [1, 1]] }
+    }
+  ],
+  "building_paint_items": [
+    {
+      "prompt": "Färbe die sichtbare Fläche.",
+      "height_matrix": [[1]],
+      "presentation": "workshop_v2",
+      "colored_faces": { "0,0,0,top": "yellow" },
+      "answer": { "0,0,0,top": "yellow" }
+    }
+  ],
+  "spatial_sequence_items": [
+    {
+      "prompt": "Ansichten des Gebäudes.",
+      "height_matrix": [[1, 2], [1, 1]],
+      "spatial_sequence": {
+        "schema_version": 1,
+        "height_matrix": [[1, 2], [1, 1]],
+        "stages_prefix": [{ "type": "inspect", "camera": "oblique" }, { "type": "visibility_decision" }],
+        "stages": [{ "type": "projection_fill", "views": ["front", "right", "top"] }]
+      }
+    }
+  ],
+  "synthetic_viewpoint_items": [
+    {
+      "prompt": "Wo steht der Betrachter?",
+      "presentation": "workshop_v2",
+      "height_matrix": [[1, 1], [1, 0]],
+      "candidates": [
+        { "id": "A", "label": "Vorne links", "x": 0.2, "y": 0.8 },
+        { "id": "B", "label": "Hinten rechts", "x": 0.8, "y": 0.2 }
+      ],
+      "answer": "A"
+    }
+  ]
+}

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { TrainerNetBuildConfig } from "@/lib/api";
+import { NetBuildWorkshopExercise } from "@/components/learn/netBuild/NetBuildWorkshopExercise";
 
 type Props = {
   config: TrainerNetBuildConfig;
@@ -19,7 +20,14 @@ function cellsToSet(cells: [number, number][] | undefined): Set<string> {
   return s;
 }
 
-export function NetBuildExercise({ config, busy, result, onSubmit, onContinue }: Props) {
+export function NetBuildExercise(props: Props) {
+  if (props.config.presentation === "workshop_v2") {
+    return <NetBuildWorkshopExercise {...props} />;
+  }
+  return <NetBuildClassicExercise {...props} />;
+}
+
+function NetBuildClassicExercise({ config, busy, result, onSubmit, onContinue }: Props) {
   const { rows, cols, mode = "build", given_cells } = config;
   const validateMode = mode === "validate" && Boolean(given_cells?.length);
   const locked = useMemo(() => cellsToSet(given_cells), [given_cells]);

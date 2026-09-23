@@ -56,6 +56,10 @@ Unverändert: `height_matrix`, `colored_faces` (`x,y,z,face`), `building_paint`,
 
 KI liefert für Sequenzen **keine** Projektionslösung — nur `height_matrix` und Text.
 
+## RaumWerkstatt (`workshop_v2`)
+
+Siehe `docs/building-views-workshop.md`. Netze: `frontend/src/lib/cubeNetFold.ts` (Parität zu `cube_net_cell_face_mapping`).
+
 ## Offen
 
 - Quader-Netze (Flächengrössen) — noch keine Kantenlängen im Datenmodell

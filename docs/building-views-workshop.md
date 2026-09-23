@@ -19,6 +19,8 @@ Referenz-UX: `tempdok/RaumWerkstatt_Koerper_Ansichten_Plaene*.html`, Abschnitt *
 | `BuildingPaintWorkshopShell` | Kap. 5 / Kap. 1 |
 | `RegionPaintWorkshopExercise` | `building_paint.presentation: "workshop_v2"` + `height_matrix` |
 | `ImageChoiceWorkshopExercise` | Kap. 1: `image_choice.presentation` + `orientation_cube` |
+| `BuildingNetWorkshopShell` | Kap. 2 Netze |
+| `NetBuildWorkshopExercise` | `net_build.presentation: "workshop_v2"` + `cubeNetFold.ts` |
 
 Orientierungs-Kern (6 Flächen, stabil bei freier Kamera): `frontend/src/lib/cubeOrientation.ts` — `VoxelBuilding` `faceInteraction: "orientable"`.
 
@@ -36,10 +38,20 @@ Generische Freischaltung: `frontend/src/lib/workshop/` (`workshopCapabilities`, 
 - `spatial_sequence` — unverändert; gleiches Capability-Muster wie bisher.
 - `building_paint.presentation: "workshop_v2"` — drehen + Flächen tippen (`orientable`).
 - `image_choice.presentation: "workshop_v2"` + `orientation_cube: { height_matrix, colored_faces }` — Würfel drehen, Bildoption wählen.
+- `net_build.presentation: "workshop_v2"` — Faltvorschau (F1–F6).
 
-## Weitere Modi (geplant)
+Golden: `backend/app/fixtures/spatial_golden/nets.json`, `backend/tests/fixtures/posten_compact_raumwerkstatt.json`.
 
-Kap. 2 Netze (`cube_net_cell_face_mapping` im Backend), `net_build` Faltvorschau.
+## Umfang RaumWerkstatt (workshop_v2)
+
+| Kap. | answer_type | presentation + Voraussetzung |
+|------|-------------|------------------------------|
+| 1 | `image_choice` | + `orientation_cube` |
+| 2 | `net_build` | Faltvorschau F1–F6 |
+| 3 | `spatial_sequence` | (klassische Shell, Phasen-Fix) |
+| 4 | `grid_fill` | + `derived_projection` + `reference_height_matrix` |
+| 5 | `building_paint` | + `height_matrix` |
+| 6 | `synthetic_viewpoint` | + `height_matrix` |
 
 Kap. 3: `resolveSpatialSequenceWorkshopPhase` — bei fehlendem `projection_fill` in der Navigation darf `projectionStageIndex === -1` nicht in die Projektions-Phase springen (Regressionstest in `spatialSequenceWorkshopPhase.test.ts`).
 

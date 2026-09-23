@@ -553,6 +553,10 @@ def parse_net_build_items(raw: object) -> list[dict[str, Any]]:
             else:
                 prompt = _NET_BUILD_GENERIC_PROMPT.format(rows=rows, cols=cols)
                 answer = "valid_net"
+        presentation_raw = item.get("presentation")
+        presentation = (
+            str(presentation_raw).strip() if presentation_raw is not None and str(presentation_raw).strip() else None
+        )
         out.append(
             {
                 "prompt": prompt[:500],
@@ -562,6 +566,7 @@ def parse_net_build_items(raw: object) -> list[dict[str, Any]]:
                 "mode": mode,
                 "given_cells": [[c, r] for c, r in given_cells] if given_cells else None,
                 "answer": answer,
+                "presentation": presentation,
             }
         )
     return out[:4]
@@ -1077,6 +1082,8 @@ def spatial_raw_to_practice_items(
         mode = str(raw.get("mode") or "build")
         given = raw.get("given_cells")
         nb_config: dict[str, Any] = {"rows": raw["rows"], "cols": raw["cols"], "mode": mode}
+        if raw.get("presentation"):
+            nb_config["presentation"] = raw.get("presentation")
         if isinstance(given, list) and given:
             nb_config["given_cells"] = given
         ans = raw.get("answer", "valid_net")

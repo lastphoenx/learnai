@@ -1,0 +1,17 @@
+{
+  "_meta": {
+    "description": "Würfelnetz-Golden (Faltsimulation, öffentlich nur Koordinaten)."
+  },
+  "cases": [
+    {
+      "id": "cross_net",
+      "cells": [[0, 1], [1, 1], [2, 1], [1, 0], [1, 2], [1, 3]],
+      "valid": true
+    },
+    {
+      "id": "block_2x3_invalid",
+      "cells": [[0, 0], [1, 0], [2, 0], [0, 1], [1, 1], [2, 1]],
+      "valid": false
+    }
+  ]
+}

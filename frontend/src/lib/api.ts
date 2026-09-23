@@ -397,6 +397,8 @@ export type TrainerNetBuildConfig = {
   cols: number;
   mode?: "build" | "validate";
   given_cells?: [number, number][];
+  /** Additiv: `workshop_v2` = Faltvorschau (Kap. 2). */
+  presentation?: string | null;
 };
 
 export type TrainerSyntheticViewpointConfig = {
