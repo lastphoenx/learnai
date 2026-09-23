@@ -204,14 +204,30 @@ def test_spatial_fallback_fills_empty_payload():
         image_choice=[],
         point_on_image=[],
         grid_fill=[],
-        region_paint=list(payload.get("region_paint_items") or []),
+        building_paint=list(payload.get("building_paint_items") or []),
         net_build=list(payload.get("net_build_items") or []),
         source_ids=[],
     )
     assert len(items) >= 2
     types = {i["answer_type"] for i in items}
-    assert "region_paint" in types
+    assert "building_paint" in types
     assert "net_build" in types
+
+
+def test_parse_grid_fill_derived_projection_keeps_reference_matrix():
+    rows = parse_grid_fill_items(
+        [
+            {
+                "prompt": "Aufsicht ableiten",
+                "rows": 3,
+                "cols": 3,
+                "validation": "derived_projection",
+                "answer": {"height_matrix": [[2, 1], [1, 0]]},
+            }
+        ]
+    )
+    assert len(rows) == 1
+    assert rows[0]["reference_height_matrix"] is not None
 
 
 def test_net_build_answer_always_valid_net():
@@ -221,7 +237,7 @@ def test_net_build_answer_always_valid_net():
                 "prompt": "Lege ein Würfelnetz.",
                 "rows": 4,
                 "cols": 4,
-                "answer": [[0, 1], [1, 1], [2, 1], [1, 0], [1, 2], [1, 3]],
+                "answer": "valid_net",
             }
         ]
     )
@@ -238,6 +254,33 @@ def test_net_build_answer_always_valid_net():
     assert json.loads(items[0]["answer"]) == "valid_net"
     cross = json.dumps([[0, 1], [1, 1], [2, 1], [1, 0], [1, 2], [1, 3]])
     assert score_net_build_answer(items[0]["answer"], cross)["correct"]
+
+
+def test_net_build_validate_mode():
+    cross = [[0, 1], [1, 1], [2, 1], [1, 0], [1, 2], [1, 3]]
+    raw = parse_net_build_items(
+        [
+            {
+                "prompt": "Prüfe das Netz.",
+                "rows": 4,
+                "cols": 4,
+                "given_cells": cross,
+                "answer": "valid",
+            }
+        ]
+    )
+    assert raw[0]["mode"] == "validate"
+    assert raw[0]["answer"] is True
+    items = spatial_raw_to_practice_items(
+        image_choice=[],
+        point_on_image=[],
+        grid_fill=[],
+        net_build=raw,
+        source_ids=[],
+    )
+    assert items[0]["net_build"]["mode"] == "validate"
+    assert score_net_build_answer(items[0]["answer"], json.dumps(True))["correct"]
+    assert not score_net_build_answer(items[0]["answer"], json.dumps(False))["correct"]
 
 
 def test_count_spatial_practice_in_modules():

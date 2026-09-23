@@ -26,6 +26,9 @@ def test_legacy_templates_via_layout():
     assert len(tpl["regions"]) == 3
     ids = {r["id"] for r in tpl["regions"]}
     assert ids == {"top", "left", "right"}
+    polys = {r["id"]: tuple(tuple(p) for p in r["points"]) for r in tpl["regions"]}
+    assert polys["top"] != polys["right"]
+    assert polys["left"] != polys["right"]
 
 
 def test_iso_tower_visible_iso_faces():

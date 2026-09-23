@@ -289,11 +289,11 @@ def parse_grid_fill_items(raw: object) -> list[dict[str, Any]]:
             pal = [p for p in pal if p in _GRID_COLOR_PALETTE]
         else:
             pal = list(_GRID_COLOR_PALETTE)
-        ref_matrix = None
-        if validation != "derived_projection":
-            from app.core.iso_building import normalize_height_matrix
+        from app.core.iso_building import normalize_height_matrix
 
-            ref_matrix = normalize_height_matrix(item.get("reference_height_matrix"))
+        ref_matrix = normalize_height_matrix(item.get("reference_height_matrix"))
+        if validation == "derived_projection" and ref_matrix is None and isinstance(answer_raw, dict):
+            ref_matrix = normalize_height_matrix(answer_raw.get("height_matrix"))
         out.append(
             {
                 "prompt": prompt[:500],
@@ -408,7 +408,24 @@ def parse_building_paint_items(raw: object) -> list[dict[str, Any]]:
     return out[:6]
 
 
+def _parse_net_cell_list(raw: object) -> list[tuple[int, int]] | None:
+    if not isinstance(raw, list) or not raw:
+        return None
+    cells: list[tuple[int, int]] = []
+    for entry in raw:
+        if isinstance(entry, (list, tuple)) and len(entry) == 2:
+            try:
+                cells.append((int(entry[0]), int(entry[1])))
+            except (TypeError, ValueError):
+                return None
+        else:
+            return None
+    return cells
+
+
 def parse_net_build_items(raw: object) -> list[dict[str, Any]]:
+    from app.core.iso_building import valid_cube_net
+
     if not isinstance(raw, list):
         return []
     out: list[dict[str, Any]] = []
@@ -423,13 +440,31 @@ def parse_net_build_items(raw: object) -> list[dict[str, Any]]:
             continue
         if not prompt or rows < 3 or rows > 8 or cols < 3 or cols > 8:
             continue
+        given_cells = _parse_net_cell_list(item.get("given_cells"))
+        answer_raw = item.get("answer")
+        mode = "build"
+        answer: Any = "valid_net"
+        if given_cells and len(given_cells) == 6:
+            mode = "validate"
+            if isinstance(answer_raw, bool):
+                answer = answer_raw
+            else:
+                ans_s = str(answer_raw or "").strip().lower()
+                if ans_s in ("valid", "true", "gültig", "gueltig", "yes", "ja"):
+                    answer = True
+                elif ans_s in ("invalid", "false", "ungültig", "ungueltig", "no", "nein"):
+                    answer = False
+                else:
+                    answer = valid_cube_net(given_cells)
         out.append(
             {
                 "prompt": prompt[:500],
                 "hint": str(item.get("hint") or "")[:300] or None,
                 "rows": rows,
                 "cols": cols,
-                "answer": "valid_net",
+                "mode": mode,
+                "given_cells": [[c, r] for c, r in given_cells] if given_cells else None,
+                "answer": answer,
             }
         )
     return out[:4]
@@ -496,16 +531,19 @@ def apply_spatial_fallback_to_payload(payload: dict[str, Any], *, goal: str = ""
     """Standard-Raumübungen, wenn die KI keine spatial-Listen liefert (ohne Bild-Bbox)."""
     if count_raw_spatial_fields(payload) > 0:
         return False
-    payload["region_paint_items"] = [
+    payload["building_paint_items"] = [
         {
             "prompt": (
-                "Übung: In der Schrägansicht siehst du drei Flächen des Würfels — "
-                "oben, links und rechts (im Bild beschriftet). "
-                "Färbe die obere Fläche gelb, die linke Seite grün und die rechte Seite blau."
+                "Färbe den Würfel in der Schrägansicht: oben gelb, links grün, rechts blau. "
+                "Du kannst das Gebäude drehen, um die Flächen zu finden."
             ),
-            "hint": "Farbe wählen, dann die passende Fläche im Bild antippen (nicht drehen nötig).",
-            "template": "iso_single_cube",
-            "answer": {"top": "yellow", "left": "green", "right": "blue"},
+            "hint": "Farbe wählen, dann die sichtbare Würfelfläche antippen.",
+            "height_matrix": [[1]],
+            "colored_faces": {
+                "0,0,0,top": "yellow",
+                "0,0,0,left": "green",
+                "0,0,0,right": "blue",
+            },
         }
     ]
     payload["net_build_items"] = [
@@ -719,13 +757,23 @@ def spatial_raw_to_practice_items(
         )
 
     for raw in net_build:
+        mode = str(raw.get("mode") or "build")
+        given = raw.get("given_cells")
+        nb_config: dict[str, Any] = {"rows": raw["rows"], "cols": raw["cols"], "mode": mode}
+        if isinstance(given, list) and given:
+            nb_config["given_cells"] = given
+        ans = raw.get("answer", "valid_net")
+        if mode == "validate":
+            answer_json = json.dumps(bool(ans), ensure_ascii=False)
+        else:
+            answer_json = json.dumps("valid_net", ensure_ascii=False)
         items.append(
             {
                 "prompt": raw["prompt"],
                 "hint": raw.get("hint"),
                 "answer_type": "net_build",
-                "answer": json.dumps("valid_net", ensure_ascii=False),
-                "net_build": {"rows": raw["rows"], "cols": raw["cols"]},
+                "answer": answer_json,
+                "net_build": nb_config,
                 "source": quiz_source,
             }
         )
@@ -846,6 +894,25 @@ def score_net_build_answer(expected_json: str, user_text: str) -> dict[str, Any]
     from app.core.iso_building import valid_cube_net
 
     try:
+        expected = json.loads(expected_json)
+    except json.JSONDecodeError:
+        expected = expected_json
+    if isinstance(expected, bool):
+        exp_bool = expected
+    elif str(expected).strip().lower() in ("valid", "invalid"):
+        exp_bool = str(expected).strip().lower() == "valid"
+    else:
+        exp_bool = None
+    if exp_bool is not None:
+        try:
+            user_val = json.loads(user_text)
+        except json.JSONDecodeError:
+            return {"correct": False, "slots": []}
+        if isinstance(user_val, bool):
+            return {"correct": user_val == exp_bool, "slots": []}
+        return {"correct": False, "slots": []}
+
+    try:
         user = json.loads(user_text)
     except json.JSONDecodeError:
         return {"correct": False, "slots": []}
@@ -862,10 +929,6 @@ def score_net_build_answer(expected_json: str, user_text: str) -> dict[str, Any]
     ok = valid_cube_net(cells)
     if not ok:
         return {"correct": False, "slots": []}
-    try:
-        expected = json.loads(expected_json)
-    except json.JSONDecodeError:
-        expected = expected_json
     if expected in ("valid_net", "valid", True):
         return {"correct": True, "slots": []}
     if isinstance(expected, list):

@@ -117,8 +117,8 @@ def _face_polygon(x: int, y: int, z: int, face: str) -> list[tuple[float, float]
         return [
             iso_point(x + 1, y, z + 1),
             iso_point(x + 1, y + 1, z + 1),
-            iso_point(x, y + 1, z + 1),
-            iso_point(x, y, z + 1),
+            iso_point(x + 1, y + 1, z),
+            iso_point(x + 1, y, z),
         ]
     raise ValueError(face)
 

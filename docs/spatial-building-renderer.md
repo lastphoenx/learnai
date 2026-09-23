@@ -21,7 +21,11 @@ Legacy `region_paint` **ohne** `height_matrix` nutzt weiterhin SVG-Polygone (alt
 
 ## posten_compact + Raumgeometrie
 
-**Kompakt** = weniger Karten/Quiz im JSON (z. B. 10/6 statt 12/8), **nicht** weniger Aufgabentypen oder leichtere Raumaufgaben. Spatial-Listen (`building_paint`, `net_build`, …) sind Pflicht (min. 2 Einträge); Fallback liefert verständliche Texte mit konkreten Farben, nicht «wie im Heft» ohne Referenz.
+**Kompakt** = weniger Karten/Quiz im JSON (z. B. 10/6 statt 12/8), **nicht** weniger Aufgabentypen oder leichtere Raumaufgaben. Spatial-Listen (`building_paint`, `net_build`, …) sind Pflicht (min. 2 Einträge); Fallback: `building_paint` + `net_build`.
+
+- `grid_fill` + `derived_projection`: `reference_height_matrix` bzw. `height_matrix` im answer für die Gebäude-Vorschau.
+- Einzelwürfel färben: `building_paint` mit `[[1]]`, nicht `region_paint`/`iso_single_cube`.
+- `net_build` **validate**: `given_cells` + answer `valid`/`invalid`; Quader-Netze → `image_choice`.
 
 ## Backend / KI-Schema
 

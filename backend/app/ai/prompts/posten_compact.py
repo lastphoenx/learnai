@@ -87,14 +87,15 @@ POSTEN_COMPACT_SPATIAL_EXTRA = (
     "- grid_fill_items: 1-3 Bauplan- oder Einfärb-Raster. "
     'rows, cols, cell_type "number" oder "color", answer als 2D-Array (null = leer). '
     "Farben nur: yellow, green, purple, blue, orange, empty.\n"
-    "- region_paint_items: 1-2 Würfel in Schrägansicht einfärben — prompt muss Farben "
-    "pro Fläche nennen (oben/links/rechts oder Template-IDs), nicht «wie im Heft» ohne Lösung. "
-    'template: "iso_single_cube" oder "iso_tower_2". '
-    'answer: {"top":"yellow","left":"green","right":"purple"} — nur Flächen-IDs des Templates.\n'
-    "- building_paint_items: Gebäude aus height_matrix (Zahlenraster wie grid_fill, max 8×8), "
-    'colored_faces: {"0,0,0,top":"yellow",...} — Flächen-IDs x,y,z,top|left|right.\n'
-    '- grid_fill validation "derived_projection": answer mit height_matrix; optional reference_height_matrix fürs Zielgebäude.\n'
-    '- net_build_items: Würfelnetz — rows/cols 3-8, answer immer exakt "valid_net" (keine Zellenliste).\n'
+    "- building_paint_items: Würfel/Gebäude einfärben (Three.js) — height_matrix (Einzelwürfel [[1]]), "
+    'colored_faces {"0,0,0,top":"yellow","0,0,0,left":"green",...}; prompt mit klaren Farben pro Fläche.\n'
+    "- region_paint_items: nur mehrstufige Türme — template iso_tower_2; Einzelwürfel immer building_paint.\n"
+    '- grid_fill: validation "derived_projection" — answer {"height_matrix":[[...]]}; '
+    "reference_height_matrix optional (Vorschau-Gebäude). Bei «Höhenplan»/«Aufsicht»: derived_projection oder "
+    "exact_match mit reference_height_matrix.\n"
+    '- net_build_items: Modus «bauen» — answer "valid_net", leeres Raster. Modus «prüfen» — given_cells '
+    '[[col,row],...] (6 Zellen), answer "valid" oder "invalid" (Würfelnetz). '
+    "Quader-Netze (ungleiche Rechtecke): image_choice aus Heft-Foto, nicht net_build.\n"
     "- synthetic_viewpoint_items: height_matrix, candidates [{id:\"A\"},...], answer = id (Standpunkt ohne Foto).\n"
     "- PFLICHT: mindestens 2 Einträge gesamt in den spatial-Listen (zusätzlich zu cards/quiz).\n"
     "- Bevorzuge building_paint/grid_fill/image_choice aus dem Heft-Material, wenn erkennbar.\n"

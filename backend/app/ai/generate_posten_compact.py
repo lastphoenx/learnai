@@ -102,10 +102,9 @@ def build_thin_retry_hint(
             "point_on_image_items, grid_fill_items, region_paint_items, "
             "building_paint_items, net_build_items und/oder synthetic_viewpoint_items. "
             "Nutze gültige source_index und bbox (0–1) aus den Fotos; "
-            "für Würfel-Einfärben: region_paint mit template "
-            '"iso_single_cube" oder "iso_tower_2" und answer als Objekt '
-            '{"top":"green",...}; building_paint mit height_matrix und colored_faces; '
-            'net_build (rows/cols 3-8, answer "valid_net"); oder synthetic_viewpoint '
+            "Einzelwürfel: building_paint mit height_matrix [[1]] und colored_faces; "
+            'net_build bauen: answer "valid_net"; net prüfen: given_cells + answer "valid"/"invalid"; '
+            'grid_fill derived_projection mit height_matrix in answer; synthetic_viewpoint '
             "(height_matrix, candidates, answer=id). "
             "Keine reinen Text-Quiz-Fragen statt Bildaufgaben.\n"
         )

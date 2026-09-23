@@ -378,6 +378,8 @@ export type TrainerPracticeItem = {
 export type TrainerNetBuildConfig = {
   rows: number;
   cols: number;
+  mode?: "build" | "validate";
+  given_cells?: [number, number][];
 };
 
 export type TrainerSyntheticViewpointConfig = {
