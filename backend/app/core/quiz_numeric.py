@@ -101,7 +101,8 @@ def resolve_quiz_expected_value(q: dict) -> float | None:
         options = q.get("options") if isinstance(q.get("options"), list) else []
         if len(options) == 4:
             expl_matches = option_indices_matching_value(options, from_expl)
-            if len(expl_matches) == 1:
+            comp_matches = option_indices_matching_value(options, computed)
+            if len(expl_matches) == 1 and len(comp_matches) != 1:
                 return from_expl
     if computed is not None:
         return computed

@@ -28,10 +28,12 @@ def test_legacy_templates_via_layout():
     assert ids == {"top", "left", "right"}
 
 
-def test_iso_tower_six_faces():
+def test_iso_tower_visible_iso_faces():
     tpl = get_region_template("iso_tower_2")
     assert tpl is not None
-    assert len(tpl["regions"]) == 6
+    ids = {r["id"] for r in tpl["regions"]}
+    assert ids >= {"lower_left", "lower_right", "upper_top", "upper_left", "upper_right"}
+    assert len(tpl["regions"]) == 5
 
 
 def test_building_projections_roundtrip():

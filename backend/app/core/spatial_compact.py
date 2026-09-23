@@ -421,16 +421,13 @@ def parse_net_build_items(raw: object) -> list[dict[str, Any]]:
             continue
         if not prompt or rows < 3 or rows > 8 or cols < 3 or cols > 8:
             continue
-        answer = item.get("answer")
-        if answer is None:
-            answer = "valid_net"
         out.append(
             {
                 "prompt": prompt[:500],
                 "hint": str(item.get("hint") or "")[:300] or None,
                 "rows": rows,
                 "cols": cols,
-                "answer": answer,
+                "answer": "valid_net",
             }
         )
     return out[:4]
@@ -663,7 +660,7 @@ def spatial_raw_to_practice_items(
                 "prompt": raw["prompt"],
                 "hint": raw.get("hint"),
                 "answer_type": "net_build",
-                "answer": json.dumps(raw.get("answer"), ensure_ascii=False),
+                "answer": json.dumps("valid_net", ensure_ascii=False),
                 "net_build": {"rows": raw["rows"], "cols": raw["cols"]},
                 "source": quiz_source,
             }

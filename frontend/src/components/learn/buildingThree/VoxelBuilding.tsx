@@ -28,13 +28,6 @@ function heightAt(matrix: HeightMatrix, x: number, y: number): number {
   return matrix[y][x] ?? 0;
 }
 
-function faceVisible(matrix: HeightMatrix, x: number, y: number, z: number, face: string): boolean {
-  if (face === "top") return z + 1 >= heightAt(matrix, x, y);
-  if (face === "left") return z >= heightAt(matrix, x - 1, y);
-  if (face === "right") return z >= heightAt(matrix, x, y - 1);
-  return false;
-}
-
 type VoxelProps = {
   gx: number;
   gy: number;
@@ -106,13 +99,7 @@ export function VoxelBuilding({
       for (let gx = 0; gx < cols; gx++) {
         const h = heightAt(matrix, gx, gy);
         for (let gz = 0; gz < h; gz++) {
-          if (
-            faceVisible(matrix, gx, gy, gz, "top") ||
-            faceVisible(matrix, gx, gy, gz, "left") ||
-            faceVisible(matrix, gx, gy, gz, "right")
-          ) {
-            out.push({ gx, gy, gz });
-          }
+          out.push({ gx, gy, gz });
         }
       }
     }
