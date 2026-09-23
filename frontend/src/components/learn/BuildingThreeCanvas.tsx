@@ -8,6 +8,8 @@ import { VoxelBuilding } from "@/components/learn/buildingThree/VoxelBuilding";
 import { BuildingOrientationLabels } from "@/components/learn/buildingThree/BuildingOrientationLabels";
 import { ViewpointSceneMarkers } from "@/components/learn/buildingThree/ViewpointSceneMarkers";
 import type { ViewpointCandidateLike } from "@/lib/viewpointWorld";
+import type { SpatialCameraPreset } from "@/lib/spatialCoordinates";
+import { BuildingCameraRig } from "@/components/learn/buildingThree/BuildingCameraRig";
 
 export type BuildingThreeCanvasProps = {
   matrix: HeightMatrix;
@@ -17,6 +19,10 @@ export type BuildingThreeCanvasProps = {
   slotCorrect?: Map<string, boolean>;
   heightPx?: number;
   showOrientationLabels?: boolean;
+  /** Feste didaktische Kamera; Standard «oblique» (frühere Default-Ansicht). */
+  cameraPreset?: SpatialCameraPreset;
+  /** Kein Drehen/Zoomen (z. B. «reicht diese Sicht?»). */
+  cameraLocked?: boolean;
   viewpointCandidates?: ViewpointCandidateLike[];
   selectedViewpointId?: string | null;
   onViewpointPick?: (id: string) => void;
@@ -31,6 +37,8 @@ export function BuildingThreeCanvas({
   slotCorrect,
   heightPx = 300,
   showOrientationLabels = false,
+  cameraPreset = "oblique",
+  cameraLocked = false,
   viewpointCandidates,
   selectedViewpointId,
   onViewpointPick,
@@ -44,6 +52,7 @@ export function BuildingThreeCanvas({
         orthographic
         gl={{ antialias: true }}
       >
+        <BuildingCameraRig matrix={matrix} preset={cameraPreset} />
         <ambientLight intensity={0.75} />
         <directionalLight position={[12, 18, 10]} intensity={0.95} />
         <Suspense fallback={null}>
@@ -65,7 +74,14 @@ export function BuildingThreeCanvas({
             />
           )}
         </Suspense>
-        <OrbitControls makeDefault enableDamping dampingFactor={0.08} />
+        <OrbitControls
+          makeDefault
+          enableDamping
+          dampingFactor={0.08}
+          enableRotate={!cameraLocked}
+          enablePan={!cameraLocked}
+          enableZoom={!cameraLocked}
+        />
       </Canvas>
     </div>
   );

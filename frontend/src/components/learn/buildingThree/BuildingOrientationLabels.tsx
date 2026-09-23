@@ -12,7 +12,7 @@ type Props = {
 
 /**
  * Richtungsbeschriftung am Gebäude (mitdrehend mit dem Modell, nicht mit der Kamera).
- * Entspricht backend building_projections: Vorne = Blick von niedrigem y (Zeile 0) nach innen.
+ * Entspricht spatial_coordinates: Zeile 0 = vorne (−Z im lokalen Modell).
  */
 export function BuildingOrientationLabels({ matrix }: Props) {
   const cols = matrix[0]?.length ?? 1;

@@ -28,6 +28,18 @@ Legacy `region_paint` **ohne** `height_matrix` nutzt weiterhin SVG-Polygone (alt
 - `net_build` **validate**: `given_cells` + answer `valid`/`invalid`; Quader-Netze → `image_choice`.
 - `synthetic_viewpoint`: Kandidaten mit `label` + Plan-`x`/`y`; UI: Grundriss-Kompass + **3D-👁-Marker** (`ViewpointSceneMarkers`) und Richtungslabels am Gebäude.
 
+## Raumvertrag (Prio 1)
+
+- Python: `backend/app/core/spatial_coordinates.py`
+- Frontend: `frontend/src/lib/spatialCoordinates.ts`, Kameras `buildingCamera.ts` + `BuildingCameraRig`
+- Zeile 0 = **vorne**; Three.js: `gy` → Welt-Z, Vorne ≈ −Z
+- Presets: `oblique` (Default), `front`, `right`, `top`, `front_left`, … — `BuildingThreeCanvas` Props `cameraPreset`, `cameraLocked`
+- `BuildingIsoPreview`: optional `showCameraToggle` für Schräg/Vorne/Rechts/Oben
+
+## Projektionen (Prio 2)
+
+`building_projections()` in `iso_building.py`: Vorderansicht = **max pro Spalte** (Silhouette), Rechtsansicht = **max pro Zeile**, Aufsicht = Höhenzahlen. Tests: `test_spatial_coordinates.py` (asymmetrische Golden-Matrix).
+
 ## Backend / KI-Schema
 
 Unverändert: `height_matrix`, `colored_faces` (`x,y,z,face`), `building_paint`, `derived_projection`, `net_build`, `synthetic_viewpoint`.
