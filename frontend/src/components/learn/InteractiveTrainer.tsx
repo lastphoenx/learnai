@@ -1434,7 +1434,14 @@ export function InteractiveTrainer({
                   key={`${currentPractice.module_id}:${currentPractice.exercise_index}`}
                   config={currentPractice.spatial_sequence}
                   busy={busy}
-                  result={practiceResult ? { correct: practiceResult.correct } : null}
+                  result={
+                    practiceResult
+                      ? {
+                          correct: practiceResult.correct,
+                          label_slots: practiceResult.label_slots,
+                        }
+                      : null
+                  }
                   onSubmit={async (answer) => {
                     setBusy(true);
                     setError(null);
@@ -1445,7 +1452,12 @@ export function InteractiveTrainer({
                         answer,
                       });
                       onStateChange({ ...state, progress: res.progress, summary: res.summary });
-                      setPracticeResult({ correct: res.correct, hint: res.hint, expected: res.expected });
+                      setPracticeResult({
+                        correct: res.correct,
+                        hint: res.hint,
+                        expected: res.expected,
+                        label_slots: res.label_slots,
+                      });
                     } catch (err) {
                       setError(err instanceof Error ? err.message : "Antwort fehlgeschlagen");
                     } finally {

@@ -298,6 +298,9 @@ def parse_grid_fill_items(raw: object) -> list[dict[str, Any]]:
             ref_matrix = normalize_height_matrix(answer_raw.get("height_matrix"))
         if cell_type == "number" and ref_matrix is None:
             continue
+        from app.core.spatial_grid_size import normalize_grid_size_hint
+
+        grid_size_hint = normalize_grid_size_hint(item.get("grid_size_hint"))
         out.append(
             {
                 "prompt": prompt[:500],
@@ -307,6 +310,7 @@ def parse_grid_fill_items(raw: object) -> list[dict[str, Any]]:
                 "cell_type": cell_type,
                 "palette": pal[:6],
                 "validation": validation,
+                "grid_size_hint": grid_size_hint,
                 "answer": answer_payload,
                 "reference_height_matrix": ref_matrix,
             }
@@ -723,7 +727,15 @@ def parse_spatial_sequence_items(raw: object) -> list[dict[str, Any]]:
     return out[:3]
 
 
-def score_spatial_sequence_answer(expected_json: str, user_text: str) -> dict[str, Any]:
+def score_spatial_sequence_answer(
+    expected_json: str,
+    user_text: str,
+    *,
+    grid_size_hint: str = "given",
+) -> dict[str, Any]:
+    from app.core.spatial_grid_size import GRID_SIZE_DERIVE, grid_dimensions, normalize_grid_size_hint
+
+    size_mode = normalize_grid_size_hint(grid_size_hint)
     try:
         expected = json.loads(expected_json)
     except json.JSONDecodeError:
@@ -744,7 +756,24 @@ def score_spatial_sequence_answer(expected_json: str, user_text: str) -> dict[st
         exp = exp_proj.get(key)
         if exp is None:
             continue
-        ok = _grids_equal(exp, user_proj.get(key))
+        user_g = user_proj.get(key)
+        exp_dim = grid_dimensions(exp)
+        user_dim = grid_dimensions(user_g)
+        if size_mode == GRID_SIZE_DERIVE:
+            size_ok = exp_dim is not None and exp_dim == user_dim
+            slots.append(
+                {
+                    "id": f"{key}_size",
+                    "correct": size_ok,
+                    "expected_term": f"{exp_dim[0]}×{exp_dim[1]}" if exp_dim else None,
+                    "user_term": f"{user_dim[0]}×{user_dim[1]}" if user_dim else None,
+                }
+            )
+            if not size_ok:
+                all_ok = False
+                slots.append({"id": key, "correct": False})
+                continue
+        ok = _grids_equal(exp, user_g)
         if not ok:
             all_ok = False
         slots.append({"id": key, "correct": ok})
@@ -938,6 +967,7 @@ def spatial_raw_to_practice_items(
                     "cell_type": raw["cell_type"],
                     "palette": raw.get("palette") or list(_GRID_COLOR_PALETTE),
                     "validation": raw.get("validation") or "exact_match",
+                    "grid_size_hint": raw.get("grid_size_hint") or "given",
                     "reference_height_matrix": raw.get("reference_height_matrix"),
                 },
                 "source": quiz_source,
@@ -1126,7 +1156,11 @@ def score_grid_fill_answer(
     user_text: str,
     *,
     validation: str = "exact_match",
+    grid_size_hint: str = "given",
 ) -> dict[str, Any]:
+    from app.core.spatial_grid_size import GRID_SIZE_DERIVE, grid_dimensions, normalize_grid_size_hint
+
+    size_mode = normalize_grid_size_hint(grid_size_hint)
     if str(validation or "").strip().lower() == "derived_projection":
         from app.core.iso_building import score_derived_projection_answer
 
@@ -1143,6 +1177,22 @@ def score_grid_fill_answer(
         return {"correct": False, "slots": []}
     slots: list[dict[str, Any]] = []
     all_ok = True
+    if size_mode == GRID_SIZE_DERIVE:
+        exp_dim = grid_dimensions(expected)
+        user_dim = grid_dimensions(user)
+        size_ok = exp_dim is not None and exp_dim == user_dim
+        slots.append(
+            {
+                "id": "grid_size",
+                "row": -1,
+                "col": -1,
+                "correct": size_ok,
+                "expected": f"{exp_dim[0]}×{exp_dim[1]}" if exp_dim else None,
+                "user": f"{user_dim[0]}×{user_dim[1]}" if user_dim else None,
+            }
+        )
+        if not size_ok:
+            return {"correct": False, "slots": slots}
     for ri, exp_row in enumerate(expected):
         if not isinstance(exp_row, list):
             all_ok = False

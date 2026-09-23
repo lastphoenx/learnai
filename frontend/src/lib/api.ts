@@ -342,6 +342,7 @@ export type TrainerGridFillConfig = {
   cell_type: "number" | "color";
   palette?: string[];
   validation?: "exact_match" | "derived_projection";
+  grid_size_hint?: "given" | "derive";
   reference_height_matrix?: number[][] | null;
 };
 
@@ -401,7 +402,7 @@ export type TrainerSpatialSequenceStage =
       hint_only?: boolean;
     }
   | { type: "visibility_decision" }
-  | { type: "projection_fill"; views?: string[] };
+  | { type: "projection_fill"; views?: string[]; grid_size_hint?: "given" | "derive" };
 
 export type TrainerSpatialSequenceConfig = {
   schema_version?: number;

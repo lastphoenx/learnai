@@ -8,6 +8,11 @@ import { BuildingThreeCanvas } from "@/components/learn/BuildingThreeCanvas";
 import { ProjectionFillGrids } from "@/components/learn/ProjectionFillGrids";
 import { emptyProjectionDraft, type SpatialSequenceAnswer, type SpatialSequenceStage } from "@/lib/spatialSequence";
 import {
+  emptyNumberGrid,
+  normalizeGridSizeHint,
+  type ViewSize,
+} from "@/lib/spatialGridSize";
+import {
   canUnlockSpatialHint,
   secondCameraPresetFromConfig,
   spatialSequenceProjectionIndex,
@@ -16,7 +21,15 @@ import {
 type Props = {
   config: TrainerSpatialSequenceConfig;
   busy: boolean;
-  result: { correct: boolean } | null;
+  result: {
+    correct: boolean;
+    label_slots?: Array<{
+      id: string;
+      correct: boolean;
+      expected_term?: string | null;
+      user_term?: string | null;
+    }> | null;
+  } | null;
   onSubmit: (answerJson: string) => void;
   onContinue: () => void;
 };
@@ -39,6 +52,12 @@ function nextStageIndex(stages: SpatialSequenceStage[], from: number): number {
   return i;
 }
 
+type InspectStage = Extract<SpatialSequenceStage, { type: "inspect" }>;
+
+function asInspectStage(stage: SpatialSequenceStage | undefined): InspectStage | undefined {
+  return stage?.type === "inspect" ? stage : undefined;
+}
+
 export function SpatialSequenceExercise({ config, busy, result, onSubmit, onContinue }: Props) {
   const matrix = config.height_matrix;
   const stages = (config.stages ?? []) as SpatialSequenceStage[];
@@ -54,14 +73,31 @@ export function SpatialSequenceExercise({ config, busy, result, onSubmit, onCont
   const solutionOverlay = useMemo(() => (overlayHint ? buildingProjections(matrix) : null), [overlayHint, matrix]);
 
   const current = stages[stageIndex];
-  const stageCamera: SpatialCameraPreset =
-    (current?.type === "inspect" ? (current.camera as SpatialCameraPreset) : "oblique") ?? "oblique";
-  const cameraLocked = current?.type === "inspect" ? Boolean(current.camera_locked) : false;
+  const inspectStage = asInspectStage(current);
+  const stageCamera: SpatialCameraPreset = (inspectStage?.camera as SpatialCameraPreset) ?? "oblique";
+  const cameraLocked = Boolean(inspectStage?.camera_locked);
 
   const projectionStageIndex = spatialSequenceProjectionIndex(stages);
+  const projectionFillStage = stages.find((s) => s.type === "projection_fill");
+  const gridSizeHint = normalizeGridSizeHint(
+    projectionFillStage?.type === "projection_fill" ? projectionFillStage.grid_size_hint : undefined,
+  );
+
+  const [viewSizes, setViewSizes] = useState<Partial<Record<"front" | "right" | "top", ViewSize>>>(() => {
+    const views = projectionFillStage?.views ?? ["front", "right", "top"];
+    const initial: Partial<Record<"front" | "right" | "top", ViewSize>> = {};
+    for (const key of views) {
+      if (key === "front" || key === "right" || key === "top") {
+        initial[key] = { rows: 1, cols: 1 };
+      }
+    }
+    return initial;
+  });
 
   const primaryFillCamera = useMemo((): SpatialCameraPreset => {
-    const mainInspect = stages.find((s) => s.type === "inspect" && !s.hint_only);
+    const mainInspect = stages.find(
+      (s): s is InspectStage => s.type === "inspect" && !s.hint_only,
+    );
     const cam = mainInspect?.camera ?? config.first_camera ?? "oblique";
     return cam as SpatialCameraPreset;
   }, [stages, config.first_camera]);
@@ -73,14 +109,20 @@ export function SpatialSequenceExercise({ config, busy, result, onSubmit, onCont
     return { rows, cols, maxH };
   }, [matrix]);
 
-  const projectionViewCaptions = useMemo(
-    () => ({
+  const projectionViewCaptions = useMemo(() => {
+    if (gridSizeHint === "derive") {
+      return {
+        front: "Lege Zeilen (Höhe) und Spalten (Breite von vorne) fest, dann 0/1 eintragen.",
+        right: "Spalten = Gebäudetiefe von der Seite (nicht die Vorderbreite).",
+        top: "Zeilen und Spalten entsprechen dem Grundriss von oben.",
+      };
+    }
+    return {
       front: `${buildingFootprint.maxH} Zeilen (Höhe) × ${buildingFootprint.cols} Spalten (Breite von vorne)`,
       right: `${buildingFootprint.maxH} Zeilen (Höhe) × ${buildingFootprint.rows} Spalten (Tiefe — von rechts gesehen, nicht die Vorderbreite)`,
       top: `${buildingFootprint.rows} Zeilen × ${buildingFootprint.cols} Spalten (Grundriss von oben)`,
-    }),
-    [buildingFootprint],
-  );
+    };
+  }, [buildingFootprint, gridSizeHint]);
 
   const viewTemplates = useMemo(() => {
     const pf = stages.find((s) => s.type === "projection_fill");
@@ -98,6 +140,26 @@ export function SpatialSequenceExercise({ config, busy, result, onSubmit, onCont
       keys: views as ("front" | "right" | "top")[],
     };
   }, [matrix, stages]);
+
+  const displayViews = useMemo(() => {
+    if (gridSizeHint === "given") {
+      return viewTemplates.views;
+    }
+    const out: { top?: number[][]; front?: number[][]; right?: number[][] } = {};
+    for (const key of viewTemplates.keys) {
+      const sz = viewSizes[key] ?? { rows: 1, cols: 1 };
+      out[key] = emptyNumberGrid(sz.rows, sz.cols);
+    }
+    return out;
+  }, [gridSizeHint, viewSizes, viewTemplates]);
+
+  function handleViewSizeChange(view: "front" | "right" | "top", size: ViewSize) {
+    setViewSizes((prev) => ({ ...prev, [view]: size }));
+    setProjections((prev) => ({
+      ...prev,
+      [view]: emptyNumberGrid(size.rows, size.cols),
+    }));
+  }
 
   const nextHintId = hints[unlockedHints];
   const nextHintAllowed =
@@ -203,7 +265,11 @@ export function SpatialSequenceExercise({ config, busy, result, onSubmit, onCont
 
       {current?.type === "projection_fill" && (
         <>
-          <p>Trage die drei Ansichten ein (0 = leer, 1 = belegt bei Vorder-/Rechtsansicht).</p>
+          <p>
+            {gridSizeHint === "derive"
+              ? "Wähle pro Ansicht die Rastergrösse, dann trage die Werte ein (0 = leer, 1 = belegt bei Vorder-/Rechtsansicht)."
+              : "Trage die drei Ansichten ein (0 = leer, 1 = belegt bei Vorder-/Rechtsansicht)."}
+          </p>
           <div className="spatial-seq-fill-workspace">
             <div className="spatial-seq-fill-building stack">
               <p className="muted">
@@ -230,15 +296,19 @@ export function SpatialSequenceExercise({ config, busy, result, onSubmit, onCont
             </div>
             <ProjectionFillGrids
               views={{
-                top: viewTemplates.views.top,
-                front: viewTemplates.views.front,
-                right: viewTemplates.views.right,
+                top: displayViews.top,
+                front: displayViews.front,
+                right: displayViews.right,
               }}
               editable={!result}
               values={projections}
               onChange={setProjections}
               solutionOverlay={solutionOverlay}
               viewCaptions={projectionViewCaptions}
+              gridSizeHint={gridSizeHint}
+              viewSizes={viewSizes}
+              onViewSizeChange={gridSizeHint === "derive" ? handleViewSizeChange : undefined}
+              slotFeedback={result?.label_slots ?? undefined}
             />
           </div>
         </>

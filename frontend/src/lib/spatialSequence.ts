@@ -20,4 +20,4 @@ export type SpatialSequenceStage =
       hint_only?: boolean;
     }
   | { type: "visibility_decision" }
-  | { type: "projection_fill"; views?: string[] };
+  | { type: "projection_fill"; views?: string[]; grid_size_hint?: "given" | "derive" };

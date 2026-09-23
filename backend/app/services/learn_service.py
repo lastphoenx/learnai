@@ -654,7 +654,13 @@ def submit_practice_answer(
 
         gf = item.get("grid_fill") if isinstance(item.get("grid_fill"), dict) else {}
         validation = str(gf.get("validation") or "exact_match")
-        grid_score = score_grid_fill_answer(expected, answer_text, validation=validation)
+        grid_size_hint = str(gf.get("grid_size_hint") or "given")
+        grid_score = score_grid_fill_answer(
+            expected,
+            answer_text,
+            validation=validation,
+            grid_size_hint=grid_size_hint,
+        )
         is_correct = bool(grid_score.get("correct"))
         label_score = grid_score
     elif answer_type == "building_paint":
@@ -675,7 +681,14 @@ def submit_practice_answer(
     elif answer_type == "spatial_sequence":
         from app.core.spatial_compact import score_spatial_sequence_answer
 
-        seq_score = score_spatial_sequence_answer(expected, answer_text)
+        from app.core.spatial_grid_size import spatial_sequence_projection_grid_size_hint
+
+        ss_cfg = item.get("spatial_sequence") if isinstance(item.get("spatial_sequence"), dict) else {}
+        seq_score = score_spatial_sequence_answer(
+            expected,
+            answer_text,
+            grid_size_hint=spatial_sequence_projection_grid_size_hint(ss_cfg),
+        )
         is_correct = bool(seq_score.get("correct"))
         label_score = seq_score
     elif answer_type == "region_paint":
@@ -727,7 +740,7 @@ def submit_practice_answer(
         raw_slots = (label_score or {}).get("slots") if isinstance((label_score or {}).get("slots"), list) else []
         label_slots = [
             {
-                "id": f"{s.get('row')}-{s.get('col')}",
+                "id": str(s.get("id") or f"{s.get('row')}-{s.get('col')}"),
                 "correct": bool(s.get("correct")),
                 "expected_term": str(s.get("expected") if s.get("expected") is not None else ""),
                 "user_term": str(s.get("user") if s.get("user") is not None else ""),
@@ -736,6 +749,18 @@ def submit_practice_answer(
             if isinstance(s, dict)
         ]
     elif answer_type in ("region_paint", "building_paint"):
+        raw_slots = (label_score or {}).get("slots") if isinstance((label_score or {}).get("slots"), list) else []
+        label_slots = [
+            {
+                "id": str(s.get("id") or ""),
+                "correct": bool(s.get("correct")),
+                "expected_term": s.get("expected_term"),
+                "user_term": s.get("user_term"),
+            }
+            for s in raw_slots
+            if isinstance(s, dict)
+        ]
+    elif answer_type == "spatial_sequence":
         raw_slots = (label_score or {}).get("slots") if isinstance((label_score or {}).get("slots"), list) else []
         label_slots = [
             {

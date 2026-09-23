@@ -66,6 +66,12 @@ def validate_spatial_sequence_config(config: dict[str, Any]) -> list[str]:
             views = st.get("views")
             if not isinstance(views, list) or not views:
                 errors.append(f"stages[{i}]: projection_fill ohne views")
+            hint = st.get("grid_size_hint")
+            if hint is not None and str(hint).strip():
+                from app.core.spatial_grid_size import GRID_SIZE_DERIVE, GRID_SIZE_GIVEN
+
+                if str(hint).strip().lower() not in (GRID_SIZE_GIVEN, GRID_SIZE_DERIVE):
+                    errors.append(f"stages[{i}]: grid_size_hint muss given oder derive sein")
 
     if not saw_decision:
         errors.append("stages: visibility_decision fehlt")
@@ -138,8 +144,11 @@ def build_spatial_sequence_item(
     hint: str | None = None,
     first_camera: str = "oblique",
     second_camera: str | None = None,
+    grid_size_hint: str = "derive",
 ) -> dict[str, Any]:
     """Deterministische Mehrstufen-Aufgabe — KI liefert nur Matrix + Text."""
+    from app.core.spatial_grid_size import normalize_grid_size_hint
+
     errors = validate_height_matrix(matrix)
     if errors:
         raise ValueError("; ".join(errors))
@@ -160,7 +169,11 @@ def build_spatial_sequence_item(
                 "hint_only": True,
                 "unlock_hint": "show_second_camera",
             },
-            {"type": "projection_fill", "views": ["front", "right", "top"]},
+            {
+                "type": "projection_fill",
+                "views": ["front", "right", "top"],
+                "grid_size_hint": normalize_grid_size_hint(grid_size_hint),
+            },
             {
                 "type": "inspect",
                 "camera": "top",
