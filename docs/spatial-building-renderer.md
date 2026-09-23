@@ -9,6 +9,8 @@
 
 Die frühere SVG/Handformel-Schicht (`isoBuilding.ts` Projektion) bleibt nur noch für **Klassifikation/Hinweise** (`classifyColumnVisibility`); Gebäudebilder laufen über `BuildingThreeCanvas` / `VoxelBuilding`.
 
+**Voxel-Liste:** `listVoxelsFromHeightMatrix` rendert jeden Würfel mit Höhe > 0 (kein Iso-Culling — nötig für freies Drehen mit OrbitControls). Regression: `frontend/src/lib/voxelList.test.ts` (Vitest).
+
 ## Komponenten
 
 - `frontend/src/components/learn/BuildingThreeCanvas.tsx`
@@ -25,7 +27,11 @@ Unverändert: `height_matrix`, `colored_faces` (`x,y,z,face`), `building_paint`,
 
 - Quader-Netze (Flächengrössen)
 - Strenger Normalen-BFS für `valid_cube_net`
-- Optional: `InstancedMesh` für sehr grosse Matrizen
+- Optional: `InstancedMesh` für sehr grosse Matrizen (bei max. 8×8 derzeit nicht nötig)
+
+## net_build
+
+Bewertung akzeptiert jedes gültige Würfelnetz (`answer` in Practice immer `"valid_net"`). KI-Prompt verlangt ebenfalls nur `"valid_net"`.
 
 ## Deploy
 

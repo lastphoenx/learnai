@@ -10,10 +10,12 @@ from app.core.spatial_compact import (
     parse_bbox,
     parse_grid_fill_items,
     parse_image_choice_items,
+    parse_net_build_items,
     parse_point_on_image_items,
     parse_building_paint_items,
     parse_region_paint_items,
     score_grid_fill_answer,
+    score_net_build_answer,
     score_region_paint_answer,
     should_enable_spatial_compact_exercises,
     spatial_raw_to_practice_items,
@@ -170,6 +172,32 @@ def test_building_paint_to_practice():
     )
     assert items[0]["answer_type"] == "building_paint"
     assert items[0]["building_paint"]["regions"]
+
+
+def test_net_build_answer_always_valid_net():
+    raw = parse_net_build_items(
+        [
+            {
+                "prompt": "Lege ein Würfelnetz.",
+                "rows": 4,
+                "cols": 4,
+                "answer": [[0, 1], [1, 1], [2, 1], [1, 0], [1, 2], [1, 3]],
+            }
+        ]
+    )
+    assert len(raw) == 1
+    assert raw[0]["answer"] == "valid_net"
+    items = spatial_raw_to_practice_items(
+        image_choice=[],
+        point_on_image=[],
+        grid_fill=[],
+        region_paint=[],
+        net_build=raw,
+        source_ids=[],
+    )
+    assert json.loads(items[0]["answer"]) == "valid_net"
+    cross = json.dumps([[0, 1], [1, 1], [2, 1], [1, 0], [1, 2], [1, 3]])
+    assert score_net_build_answer(items[0]["answer"], cross)["correct"]
 
 
 def test_count_spatial_practice_in_modules():

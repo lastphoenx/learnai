@@ -81,7 +81,7 @@ POSTEN_COMPACT_SPATIAL_EXTRA = (
     "- building_paint_items: Gebäude aus height_matrix (Zahlenraster wie grid_fill, max 8×8), "
     'colored_faces: {"0,0,0,top":"yellow",...} — Flächen-IDs x,y,z,top|left|right.\n'
     '- grid_fill validation "derived_projection": answer mit height_matrix; optional reference_height_matrix fürs Zielgebäude.\n'
-    "- net_build_items: Würfelnetz — rows/cols 3-8, answer \"valid_net\" oder Liste [[col,row],...].\n"
+    '- net_build_items: Würfelnetz — rows/cols 3-8, answer immer exakt "valid_net" (keine Zellenliste).\n'
     "- synthetic_viewpoint_items: height_matrix, candidates [{id:\"A\"},...], answer = id (Standpunkt ohne Foto).\n"
     "- Pflicht bei Raumgeometrie: mindestens 2 Einträge gesamt in den spatial-Listen "
     "(nicht nur cards/quiz). Quiz um 2-4 Fragen kürzen.\n"

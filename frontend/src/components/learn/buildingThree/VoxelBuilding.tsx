@@ -6,6 +6,7 @@ import { Edges } from "@react-three/drei";
 import type { HeightMatrix } from "@/lib/isoBuilding";
 import { faceId } from "@/lib/isoBuilding";
 import { paletteColor } from "@/lib/buildingColors";
+import { listVoxelsFromHeightMatrix } from "@/lib/voxelList";
 
 const BOX = 0.94;
 const GAP = 1.02;
@@ -22,11 +23,6 @@ const MATERIAL_TO_FACE: Record<number, string> = {
   2: "top",
   5: "right",
 };
-
-function heightAt(matrix: HeightMatrix, x: number, y: number): number {
-  if (y < 0 || y >= matrix.length || x < 0 || x >= matrix[0].length) return 0;
-  return matrix[y][x] ?? 0;
-}
 
 type VoxelProps = {
   gx: number;
@@ -91,20 +87,7 @@ export function VoxelBuilding({
   onFaceClick,
   slotCorrect,
 }: VoxelBuildingProps) {
-  const voxels = useMemo(() => {
-    const out: { gx: number; gy: number; gz: number }[] = [];
-    const rows = matrix.length;
-    const cols = matrix[0]?.length ?? 0;
-    for (let gy = 0; gy < rows; gy++) {
-      for (let gx = 0; gx < cols; gx++) {
-        const h = heightAt(matrix, gx, gy);
-        for (let gz = 0; gz < h; gz++) {
-          out.push({ gx, gy, gz });
-        }
-      }
-    }
-    return out;
-  }, [matrix]);
+  const voxels = useMemo(() => listVoxelsFromHeightMatrix(matrix), [matrix]);
 
   const cols = matrix[0]?.length ?? 1;
   const rows = matrix.length;
