@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import type { TrainerSpatialSequenceConfig } from "@/lib/api";
 import type { SpatialCameraPreset } from "@/lib/spatialCoordinates";
 import { buildingProjections } from "@/lib/buildingProjections";
@@ -8,10 +8,8 @@ import { ProjectionFillGrids } from "@/components/learn/ProjectionFillGrids";
 import { BuildingViewsWorkshopShell } from "@/components/learn/buildingWorkshop/BuildingViewsWorkshopShell";
 import { BuildingWorkshopModelPanel } from "@/components/learn/buildingWorkshop/BuildingWorkshopModelPanel";
 import type { WorkshopModelMode } from "@/components/learn/buildingWorkshop/workshopModelTypes";
-import {
-  workshopModelUnlockForSpatialSequence,
-  workshopUnlockedHintIds,
-} from "@/lib/workshopModelUnlock";
+import { spatialSequenceModelUnlock } from "@/lib/workshop/spatialSequenceCapabilities";
+import { useWorkshopFlow } from "@/lib/workshop/useWorkshopFlow";
 import { VisibilityDecisionPanel } from "@/components/learn/buildingWorkshop/VisibilityDecisionPanel";
 import { emptyProjectionDraft, type SpatialSequenceAnswer, type SpatialSequenceStage } from "@/lib/spatialSequence";
 import {
@@ -87,7 +85,6 @@ export function SpatialSequenceExercise({ config, busy, result, onSubmit, onCont
   const hasBuilding = heightMatrixHasVoxels(matrix);
   const flowConfig = config;
   const [stageIndex, setStageIndex] = useState(0);
-  const [unlockedHints, setUnlockHints] = useState(0);
   const [visibility, setVisibility] = useState<SpatialSequenceAnswer["visibility"] | null>(null);
   const stages = useMemo(
     () => navigableSpatialSequenceStages(flowConfig, visibility) as SpatialSequenceStage[],
@@ -95,39 +92,37 @@ export function SpatialSequenceExercise({ config, busy, result, onSubmit, onCont
   );
   const hints = useMemo(() => activeSpatialSequenceHints(flowConfig, visibility), [flowConfig, visibility]);
   const [projections, setProjections] = useState(emptyProjectionDraft());
-  const [overlayHint, setOverlayHint] = useState(false);
-  const [modelMode, setModelMode] = useState<WorkshopModelMode>("oblique");
-
   const current = stages[stageIndex];
   const projectionStageIndex = spatialSequenceProjectionIndex(stages);
   const phase = useWorkshopPhase(current, stageIndex, projectionStageIndex);
 
-  const unlockedHintIds = useMemo(
-    () => workshopUnlockedHintIds(hints, unlockedHints),
-    [hints, unlockedHints],
-  );
+  const unlockContext = useMemo(() => ({ phase, visibility }), [phase, visibility]);
 
-  const modelUnlock = useMemo(
-    () =>
-      workshopModelUnlockForSpatialSequence({
-        phase,
-        visibility,
-        unlockedHintIds,
-      }),
-    [phase, visibility, unlockedHintIds],
-  );
+  const workshop = useWorkshopFlow({
+    hints,
+    initialMode: "oblique" as WorkshopModelMode,
+    unlockContext,
+    resolveModelUnlock: spatialSequenceModelUnlock,
+    canUnlockHint: (hintId) => canUnlockSpatialHint(hintId, stageIndex, visibility, stages),
+  });
+
+  const {
+    modelMode,
+    setModelMode,
+    modelUnlock,
+    overlayActive: overlayHint,
+    setOverlayActive: setOverlayHint,
+    unlockedHintCount: unlockedHints,
+    unlockNextHint: unlockNextHintBase,
+    nextHintId,
+    nextHintAllowed,
+  } = workshop;
 
   const solutionOverlay = useMemo(
     () =>
       overlayHint && modelUnlock.solutionOverlayAllowed ? buildingProjections(matrix) : null,
     [overlayHint, modelUnlock.solutionOverlayAllowed, matrix],
   );
-
-  useEffect(() => {
-    if (!modelUnlock.solutionOverlayAllowed && overlayHint) {
-      setOverlayHint(false);
-    }
-  }, [modelUnlock.solutionOverlayAllowed, overlayHint]);
 
   const projectionFillStage = stages.find((s) => s.type === "projection_fill");
   const gridSizeHint = normalizeGridSizeHint(
@@ -212,26 +207,18 @@ export function SpatialSequenceExercise({ config, busy, result, onSubmit, onCont
     }));
   }
 
-  const nextHintId = hints[unlockedHints];
-  const nextHintAllowed =
-    nextHintId && canUnlockSpatialHint(nextHintId, stageIndex, visibility, stages);
-
   function unlockNextHint() {
     const id = hints[unlockedHints];
     if (!id || !canUnlockSpatialHint(id, stageIndex, visibility, stages)) {
       return;
     }
-    setUnlockHints((n) => Math.min(n + 1, hints.length));
-    if (id === "show_top_view") {
-      setModelMode("top");
-    }
+    unlockNextHintBase();
+    if (id === "show_top_view") setModelMode("top");
     if (id === "show_solution_overlay") {
       setModelMode("heights");
       setOverlayHint(true);
     }
-    if (id === "show_second_camera") {
-      setModelMode("second");
-    }
+    if (id === "show_second_camera") setModelMode("second");
   }
 
   function advanceStage() {

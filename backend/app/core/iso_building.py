@@ -418,24 +418,16 @@ def _rotate90(v: Vec3, axis: Vec3) -> Vec3:
     return _add(_cross(axis, v), _scale(axis, _dot(axis, v)))
 
 
-def valid_cube_net(cells: list[tuple[int, int]]) -> bool:
-    """6 Netz-Zellen per Falt-Simulation prüfen — echtes Würfelnetz, nicht nur Zusammenhang/Form.
-
-    Klappt jede Zelle in 3D auf (Normalen-Vektor + lokale Achsen, Drehung um die
-    gemeinsame Kante), gültig nur wenn alle 6 Zellen auf sechs verschiedene
-    Würfelflächen (Normalen) fallen — ohne Überlappung. Erkennt z. B. den
-    klassischen 2×3-Rechteck-Block als ungültig, den die frühere
-    Grad-Heuristik fälschlich akzeptierte.
-    """
+def cube_net_cell_face_mapping(cells: list[tuple[int, int]]) -> dict[tuple[int, int], Vec3] | None:
+    """Zellkoordinaten → Würfelflächen-Normale nach Falt-Simulation (None wenn kein gültiges Netz)."""
     if len(cells) != 6:
-        return False
+        return None
     cell_set = set(cells)
     if len(cell_set) != 6:
-        return False
+        return None
     if not _net_cells_connected(cells):
-        return False
+        return None
     start = cells[0]
-    # Frame je Zelle: (Normale nach aussen, lokale Ost-Achse, lokale Süd-Achse) in 3D.
     frames: dict[tuple[int, int], tuple[Vec3, Vec3, Vec3]] = {
         start: ((0, 0, 1), (1, 0, 0), (0, 1, 0))
     }
@@ -457,5 +449,19 @@ def valid_cube_net(cells: list[tuple[int, int]]) -> bool:
             seen.add(n)
             queue.append(n)
     if len(seen) != 6:
-        return False
-    return len(set(face_of.values())) == 6
+        return None
+    if len(set(face_of.values())) != 6:
+        return None
+    return face_of
+
+
+def valid_cube_net(cells: list[tuple[int, int]]) -> bool:
+    """6 Netz-Zellen per Falt-Simulation prüfen — echtes Würfelnetz, nicht nur Zusammenhang/Form.
+
+    Klappt jede Zelle in 3D auf (Normalen-Vektor + lokale Achsen, Drehung um die
+    gemeinsame Kante), gültig nur wenn alle 6 Zellen auf sechs verschiedene
+    Würfelflächen (Normalen) fallen — ohne Überlappung. Erkennt z. B. den
+    klassischen 2×3-Rechteck-Block als ungültig, den die frühere
+    Grad-Heuristik fälschlich akzeptierte.
+    """
+    return cube_net_cell_face_mapping(cells) is not None

@@ -1,23 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import type { TrainerGridFillConfig } from "@/lib/api";
 import { BuildingIsoPreview } from "@/components/learn/BuildingIsoPreview";
+import { GridFillWorkshopExercise } from "@/components/learn/gridFill/GridFillWorkshopExercise";
 import {
-  initialGridFillDimensions,
-  normalizeGridSizeHint,
-  PROJECTION_MAX_COLS,
-  PROJECTION_MAX_ROWS,
-} from "@/lib/spatialGridSize";
-
-const COLOR_MAP: Record<string, string> = {
-  yellow: "#e6c200",
-  green: "#2d9f4e",
-  purple: "#8b4bb8",
-  blue: "#3b82c4",
-  orange: "#e07b2d",
-  empty: "transparent",
-};
+  GridFillPlanEditor,
+  useGridFillPlanState,
+} from "@/components/learn/gridFill/GridFillPlanEditor";
+import { normalizeGridSizeHint } from "@/lib/spatialGridSize";
 
 type Props = {
   config: TrainerGridFillConfig;
@@ -30,38 +21,28 @@ type Props = {
   onContinue: () => void;
 };
 
-function emptyGrid(rows: number, cols: number): (string | number | null)[][] {
-  return Array.from({ length: rows }, () => Array.from({ length: cols }, () => null));
+function isGridFillWorkshopV2(config: TrainerGridFillConfig): boolean {
+  return (
+    config.presentation === "workshop_v2"
+    && config.validation === "derived_projection"
+    && Boolean(config.reference_height_matrix?.length)
+  );
 }
 
-function resizeGrid(
-  prev: (string | number | null)[][],
-  rows: number,
-  cols: number,
-): (string | number | null)[][] {
-  const next = emptyGrid(rows, cols);
-  for (let ri = 0; ri < rows; ri++) {
-    for (let ci = 0; ci < cols; ci++) {
-      if (ri < prev.length && ci < (prev[ri]?.length ?? 0)) {
-        next[ri][ci] = prev[ri][ci];
-      }
-    }
+export function GridFillExercise(props: Props) {
+  if (isGridFillWorkshopV2(props.config)) {
+    return <GridFillWorkshopExercise {...props} />;
   }
-  return next;
+  return <GridFillClassicExercise {...props} />;
 }
 
-export function GridFillExercise({ config, busy, result, onSubmit, onContinue }: Props) {
-  const { rows: configRows, cols: configCols, cell_type, palette = [] } = config;
+function GridFillClassicExercise({ config, busy, result, onSubmit, onContinue }: Props) {
+  const { rows: configRows, cols: configCols, cell_type } = config;
   const gridSizeHint = normalizeGridSizeHint(config.grid_size_hint);
   const isNumber = cell_type === "number";
-  const initialDims = initialGridFillDimensions(configRows, configCols, config.grid_size_hint);
-  const [size, setSize] = useState(initialDims);
+  const { size, setSize, grid, setGrid } = useGridFillPlanState(config);
   const rows = gridSizeHint === "derive" ? size.rows : configRows;
   const cols = gridSizeHint === "derive" ? size.cols : configCols;
-  const [grid, setGrid] = useState<(string | number | null)[][]>(() =>
-    emptyGrid(initialDims.rows, initialDims.cols),
-  );
-  const colorPalette = palette.length ? palette : ["yellow", "green", "purple", "blue", "orange", "empty"];
 
   const slotMap = useMemo(() => {
     const m = new Map<string, { correct: boolean; expected?: string | null; user?: string | null }>();
@@ -77,33 +58,6 @@ export function GridFillExercise({ config, busy, result, onSubmit, onContinue }:
 
   const sizeFeedback = slotMap.get("grid_size");
   const sizeBad = sizeFeedback && !sizeFeedback.correct;
-
-  function setCell(ri: number, ci: number, value: string | number | null) {
-    if (result) return;
-    setGrid((prev) => {
-      const next = prev.map((row) => [...row]);
-      next[ri][ci] = value;
-      return next;
-    });
-  }
-
-  function cycleColor(ri: number, ci: number) {
-    const current = grid[ri][ci];
-    const idx = colorPalette.indexOf(String(current ?? "empty"));
-    const next = colorPalette[(idx + 1) % colorPalette.length];
-    setCell(ri, ci, next === "empty" ? null : next);
-  }
-
-  function bumpSize(field: "rows" | "cols", delta: number) {
-    if (result) return;
-    const max = field === "rows" ? PROJECTION_MAX_ROWS : PROJECTION_MAX_COLS;
-    setSize((prev) => {
-      const nextVal = Math.max(1, Math.min(max, prev[field] + delta));
-      const next = { ...prev, [field]: nextVal };
-      setGrid((g) => resizeGrid(g, next.rows, next.cols));
-      return next;
-    });
-  }
 
   const refMatrix = config.reference_height_matrix;
   const isDerived = config.validation === "derived_projection";
@@ -137,98 +91,16 @@ export function GridFillExercise({ config, busy, result, onSubmit, onContinue }:
           Trage die fehlenden Zahlen ein. Wenn im Auftrag ein Bild fehlt: Einheit neu aufbereiten oder Didaktik prüfen.
         </p>
       )}
-      {gridSizeHint === "derive" && (
-        <div
-          className={`projection-size-controls${sizeBad ? " projection-fill-view--bad" : ""}`}
-          role="group"
-          aria-label="Rastergrösse"
-        >
-          <span className="muted">Raster:</span>
-          <button
-            type="button"
-            className="btn btn-sm btn-secondary"
-            disabled={busy || Boolean(result) || rows <= 1}
-            onClick={() => bumpSize("rows", -1)}
-          >
-            − Zeile
-          </button>
-          <span>{rows}×{cols}</span>
-          <button
-            type="button"
-            className="btn btn-sm btn-secondary"
-            disabled={busy || Boolean(result) || rows >= PROJECTION_MAX_ROWS}
-            onClick={() => bumpSize("rows", 1)}
-          >
-            + Zeile
-          </button>
-          <button
-            type="button"
-            className="btn btn-sm btn-secondary"
-            disabled={busy || Boolean(result) || cols <= 1}
-            onClick={() => bumpSize("cols", -1)}
-          >
-            − Spalte
-          </button>
-          <button
-            type="button"
-            className="btn btn-sm btn-secondary"
-            disabled={busy || Boolean(result) || cols >= PROJECTION_MAX_COLS}
-            onClick={() => bumpSize("cols", 1)}
-          >
-            + Spalte
-          </button>
-          {sizeBad && sizeFeedback ? (
-            <span className="muted" style={{ color: "var(--danger)" }}>
-              Erwartet {sizeFeedback.expected ?? "?"}, du hast {sizeFeedback.user ?? "?"} gewählt.
-            </span>
-          ) : null}
-        </div>
-      )}
-      <div
-        className="grid-fill-table"
-        style={{ gridTemplateColumns: `repeat(${cols}, minmax(2.5rem, 1fr))` }}
-      >
-        {grid.map((row, ri) =>
-          row.map((cell, ci) => {
-            const slot = slotMap.get(`${ri}-${ci}`);
-            return (
-              <div
-                key={`${ri}-${ci}`}
-                className={`grid-fill-cell${slot?.correct ? " slot-ok" : ""}${slot && !slot.correct ? " slot-bad" : ""}`}
-              >
-                {isNumber ? (
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    className="grid-fill-input"
-                    value={cell === null ? "" : String(cell)}
-                    disabled={busy || Boolean(result)}
-                    onChange={(e) => {
-                      const v = e.target.value.trim();
-                      if (!v) setCell(ri, ci, null);
-                      else {
-                        const n = parseInt(v, 10);
-                        if (!Number.isNaN(n)) setCell(ri, ci, n);
-                      }
-                    }}
-                  />
-                ) : (
-                  <button
-                    type="button"
-                    className="grid-fill-color-btn"
-                    disabled={busy || Boolean(result)}
-                    style={{
-                      background: COLOR_MAP[String(cell ?? "empty")] || "var(--surface-2)",
-                    }}
-                    aria-label={`Zelle ${ri + 1}-${ci + 1}`}
-                    onClick={() => cycleColor(ri, ci)}
-                  />
-                )}
-              </div>
-            );
-          }),
-        )}
-      </div>
+      <GridFillPlanEditor
+        config={config}
+        busy={busy}
+        locked={Boolean(result)}
+        grid={grid}
+        setGrid={setGrid}
+        size={size}
+        setSize={setSize}
+        slotMap={slotMap}
+      />
       {!result ? (
         <button
           type="button"

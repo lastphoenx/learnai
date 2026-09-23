@@ -301,6 +301,10 @@ def parse_grid_fill_items(raw: object) -> list[dict[str, Any]]:
         from app.core.spatial_grid_size import normalize_grid_size_hint
 
         grid_size_hint = normalize_grid_size_hint(item.get("grid_size_hint"))
+        presentation_raw = item.get("presentation")
+        presentation = (
+            str(presentation_raw).strip() if presentation_raw is not None and str(presentation_raw).strip() else None
+        )
         out.append(
             {
                 "prompt": prompt[:500],
@@ -313,6 +317,7 @@ def parse_grid_fill_items(raw: object) -> list[dict[str, Any]]:
                 "grid_size_hint": grid_size_hint,
                 "answer": answer_payload,
                 "reference_height_matrix": ref_matrix,
+                "presentation": presentation,
             }
         )
     return out[:6]
@@ -965,6 +970,7 @@ def spatial_raw_to_practice_items(
                     "validation": raw.get("validation") or "exact_match",
                     "grid_size_hint": raw.get("grid_size_hint") or "given",
                     "reference_height_matrix": raw.get("reference_height_matrix"),
+                    "presentation": raw.get("presentation"),
                 },
                 "source": quiz_source,
             }

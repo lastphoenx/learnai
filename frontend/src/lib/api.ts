@@ -344,6 +344,8 @@ export type TrainerGridFillConfig = {
   validation?: "exact_match" | "derived_projection";
   grid_size_hint?: "given" | "derive";
   reference_height_matrix?: number[][] | null;
+  /** Additiv: `workshop_v2` = RaumWerkstatt-Layout (Kap. 4 Bauplan). */
+  presentation?: string | null;
 };
 
 export type TrainerRegionPaintRegion = {
