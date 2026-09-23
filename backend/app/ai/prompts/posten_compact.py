@@ -91,12 +91,14 @@ POSTEN_COMPACT_SPATIAL_EXTRA = (
     'colored_faces {"0,0,0,top":"yellow","0,0,0,left":"green",...}; prompt mit klaren Farben pro Fläche.\n'
     "- region_paint_items: nur mehrstufige Türme — template iso_tower_2; Einzelwürfel immer building_paint.\n"
     '- grid_fill: validation "derived_projection" — answer {"height_matrix":[[...]]}; '
-    "reference_height_matrix optional (Vorschau-Gebäude). Bei «Höhenplan»/«Aufsicht»: derived_projection oder "
-    "exact_match mit reference_height_matrix.\n"
+    "reference_height_matrix = dasselbe Gebäude zur Vorschau. Bei «Höhenplan ergänzen»: exact_match mit "
+    "reference_height_matrix (Zielgebäude) und answer als Lösungsraster; rows/cols = Matrix-Zeilen/-Spalten.\n"
     '- net_build_items: Modus «bauen» — answer "valid_net", leeres Raster. Modus «prüfen» — given_cells '
     '[[col,row],...] (6 Zellen), answer "valid" oder "invalid" (Würfelnetz). '
     "Quader-Netze (ungleiche Rechtecke): image_choice aus Heft-Foto, nicht net_build.\n"
-    "- synthetic_viewpoint_items: height_matrix, candidates [{id:\"A\"},...], answer = id (Standpunkt ohne Foto).\n"
+    "- synthetic_viewpoint_items: height_matrix; candidates mit id, label (deutsch, z. B. «Vorne …»), "
+    "optional direction (vorne/hinten/links/rechts/oben) und x/y (0–1) auf dem Plan; "
+    "answer = id des richtigen Standpunkts — keine leeren A/B/C ohne Beschreibung.\n"
     "- PFLICHT: mindestens 2 Einträge gesamt in den spatial-Listen (zusätzlich zu cards/quiz).\n"
     "- Bevorzuge building_paint/grid_fill/image_choice aus dem Heft-Material, wenn erkennbar.\n"
 )

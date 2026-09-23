@@ -105,7 +105,7 @@ def build_thin_retry_hint(
             "Einzelwürfel: building_paint mit height_matrix [[1]] und colored_faces; "
             'net_build bauen: answer "valid_net"; net prüfen: given_cells + answer "valid"/"invalid"; '
             'grid_fill derived_projection mit height_matrix in answer; synthetic_viewpoint '
-            "(height_matrix, candidates, answer=id). "
+            "(height_matrix, candidates mit label+direction, answer=id). "
             "Keine reinen Text-Quiz-Fragen statt Bildaufgaben.\n"
         )
     return hint

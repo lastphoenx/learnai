@@ -470,6 +470,85 @@ def parse_net_build_items(raw: object) -> list[dict[str, Any]]:
     return out[:4]
 
 
+_VIEWPOINT_DIRECTION_LABELS: dict[str, str] = {
+    "vorne": "Vorne (unterhalb des Plans)",
+    "front": "Vorne (unterhalb des Plans)",
+    "süd": "Vorne (unterhalb des Plans)",
+    "south": "Vorne (unterhalb des Plans)",
+    "hinten": "Hinten (oberhalb des Plans)",
+    "back": "Hinten (oberhalb des Plans)",
+    "nord": "Hinten (oberhalb des Plans)",
+    "north": "Hinten (oberhalb des Plans)",
+    "rechts": "Rechts am Plan",
+    "right": "Rechts am Plan",
+    "ost": "Rechts am Plan",
+    "east": "Rechts am Plan",
+    "links": "Links am Plan",
+    "left": "Links am Plan",
+    "west": "Links am Plan",
+    "oben": "Von oben (Aufsicht)",
+    "top": "Von oben (Aufsicht)",
+}
+
+_VIEWPOINT_DIRECTION_XY: dict[str, tuple[float, float]] = {
+    "vorne": (0.5, 0.9),
+    "front": (0.5, 0.9),
+    "süd": (0.5, 0.9),
+    "south": (0.5, 0.9),
+    "hinten": (0.5, 0.1),
+    "back": (0.5, 0.1),
+    "nord": (0.5, 0.1),
+    "north": (0.5, 0.1),
+    "rechts": (0.88, 0.5),
+    "right": (0.88, 0.5),
+    "ost": (0.88, 0.5),
+    "east": (0.88, 0.5),
+    "links": (0.12, 0.5),
+    "left": (0.12, 0.5),
+    "west": (0.12, 0.5),
+    "oben": (0.5, 0.5),
+    "top": (0.5, 0.5),
+}
+
+_VIEWPOINT_ID_FALLBACK: dict[str, tuple[str, float, float]] = {
+    "A": ("Vorne (unterhalb des Plans)", 0.5, 0.9),
+    "B": ("Rechts am Plan", 0.88, 0.5),
+    "C": ("Hinten (oberhalb des Plans)", 0.5, 0.1),
+    "D": ("Links am Plan", 0.12, 0.5),
+}
+
+
+def _resolve_viewpoint_candidate(raw: dict[str, Any]) -> dict[str, Any] | None:
+    cid = str(raw.get("id") or "").strip().upper()
+    if not cid:
+        return None
+    label = str(raw.get("label") or raw.get("name") or "").strip()
+    direction = str(raw.get("direction") or raw.get("side") or "").strip().lower()
+    if not label and direction:
+        label = _VIEWPOINT_DIRECTION_LABELS.get(direction, "")
+    if not label and cid in _VIEWPOINT_ID_FALLBACK:
+        label = _VIEWPOINT_ID_FALLBACK[cid][0]
+    if len(label) < 3:
+        return None
+    x = y = None
+    try:
+        if raw.get("x") is not None:
+            x = round(_clamp01(float(raw["x"])), 4)
+        if raw.get("y") is not None:
+            y = round(_clamp01(float(raw["y"])), 4)
+    except (TypeError, ValueError):
+        pass
+    if x is None or y is None:
+        if direction and direction in _VIEWPOINT_DIRECTION_XY:
+            x, y = _VIEWPOINT_DIRECTION_XY[direction]
+        elif cid in _VIEWPOINT_ID_FALLBACK:
+            _, fx, fy = _VIEWPOINT_ID_FALLBACK[cid]
+            x, y = fx, fy
+        else:
+            x, y = 0.5, 0.5
+    return {"id": cid[:8], "label": label[:120], "x": x, "y": y}
+
+
 def parse_synthetic_viewpoint_items(raw: object) -> list[dict[str, Any]]:
     from app.core.iso_building import normalize_height_matrix
 
@@ -484,13 +563,13 @@ def parse_synthetic_viewpoint_items(raw: object) -> list[dict[str, Any]]:
         candidates_raw = item.get("candidates")
         if not prompt or not matrix or not isinstance(candidates_raw, list):
             continue
-        candidates: list[dict[str, str]] = []
+        candidates: list[dict[str, Any]] = []
         for c in candidates_raw:
             if not isinstance(c, dict):
                 continue
-            cid = str(c.get("id") or "").strip().upper()
-            if cid:
-                candidates.append({"id": cid[:8]})
+            resolved = _resolve_viewpoint_candidate(c)
+            if resolved:
+                candidates.append(resolved)
         if len(candidates) < 2:
             continue
         answer = str(item.get("answer") or "").strip().upper()

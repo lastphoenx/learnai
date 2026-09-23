@@ -58,11 +58,29 @@ export function GridFillExercise({ config, busy, result, onSubmit, onContinue }:
   }
 
   const refMatrix = config.reference_height_matrix;
+  const isDerived = config.validation === "derived_projection";
 
   return (
     <div className="grid-fill-exercise stack">
+      <p className="muted grid-fill-legend">
+        <strong>Höhenplan:</strong> {rows} Zeile{rows === 1 ? "" : "n"} × {cols} Spalte{cols === 1 ? "" : "n"}.
+        Zeile 1 = <em>vorne</em>, letzte Zeile = <em>hinten</em>; Spalte 1 = <em>links</em>, letzte Spalte = <em>rechts</em>.
+        {isNumber ? " Jede Zelle = Anzahl übereinander gestapelter Würfel an dieser Stelle." : " Tippe Zellen zum Einfärben."}
+      </p>
       {refMatrix && refMatrix.length > 0 && (
-        <BuildingIsoPreview matrix={refMatrix} showInspector={config.validation === "derived_projection"} />
+        <>
+          <p className="muted">
+            {isDerived
+              ? "So sieht das Zielgebäude aus — trage die passenden Höhen in den Plan unten ein."
+              : "Vorgabe-Gebäude (Orientierung: Vorne/Hinten/Links/Rechts am Modell)."}
+          </p>
+          <BuildingIsoPreview matrix={refMatrix} showOrientationLabels={true} />
+        </>
+      )}
+      {!refMatrix?.length && isNumber && (
+        <p className="muted">
+          Trage die fehlenden Zahlen ein. Wenn im Auftrag ein Bild fehlt: Einheit neu aufbereiten oder Didaktik prüfen.
+        </p>
       )}
       <div
         className="grid-fill-table"

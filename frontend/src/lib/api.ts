@@ -384,7 +384,7 @@ export type TrainerNetBuildConfig = {
 
 export type TrainerSyntheticViewpointConfig = {
   height_matrix: number[][];
-  candidates: { id: string }[];
+  candidates: { id: string; label?: string; x?: number; y?: number }[];
   column_visibility?: { all_readable: boolean };
 };
 

@@ -8,10 +8,11 @@ type Props = {
   matrix: HeightMatrix;
   showInspector?: boolean;
   showCameraToggle?: boolean;
+  showOrientationLabels?: boolean;
 };
 
 /** 3D-Vorschau (Three.js) — Drehen/Zoomen statt fester Schrägansicht. */
-export function BuildingIsoPreview({ matrix }: Props) {
+export function BuildingIsoPreview({ matrix, showOrientationLabels = true }: Props) {
   const visibility = useMemo(() => classifyColumnVisibility(matrix), [matrix]);
 
   return (
@@ -22,7 +23,7 @@ export function BuildingIsoPreview({ matrix }: Props) {
         </p>
       )}
       <p className="muted building-iso-hint">Drehen: ziehen · Zoomen: zwei Finger oder Mausrad</p>
-      <BuildingThreeCanvas matrix={matrix} interactive={false} />
+      <BuildingThreeCanvas matrix={matrix} interactive={false} showOrientationLabels={showOrientationLabels} />
     </div>
   );
 }

@@ -741,7 +741,17 @@ def submit_practice_answer(
             if isinstance(s, dict)
         ]
     elif not is_correct:
-        if answer_type in ("image_choice", "point_on_image"):
+        if answer_type == "synthetic_viewpoint":
+            sv = item.get("synthetic_viewpoint") if isinstance(item.get("synthetic_viewpoint"), dict) else {}
+            for cand in sv.get("candidates") or []:
+                if not isinstance(cand, dict):
+                    continue
+                if str(cand.get("id") or "").strip().upper() == str(expected or "").strip().upper():
+                    expected_label = str(cand.get("label") or expected or "")
+                    break
+            if not expected_label:
+                expected_label = expected or None
+        elif answer_type in ("image_choice", "point_on_image"):
             expected_label = expected or None
         elif answer_type == "choice" and str(expected).isdigit():
             correct_index = int(expected)

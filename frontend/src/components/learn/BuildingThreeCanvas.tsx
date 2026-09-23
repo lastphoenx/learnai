@@ -5,6 +5,7 @@ import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import type { HeightMatrix } from "@/lib/isoBuilding";
 import { VoxelBuilding } from "@/components/learn/buildingThree/VoxelBuilding";
+import { BuildingOrientationLabels } from "@/components/learn/buildingThree/BuildingOrientationLabels";
 
 export type BuildingThreeCanvasProps = {
   matrix: HeightMatrix;
@@ -13,6 +14,7 @@ export type BuildingThreeCanvasProps = {
   onFaceClick?: (faceId: string) => void;
   slotCorrect?: Map<string, boolean>;
   heightPx?: number;
+  showOrientationLabels?: boolean;
 };
 
 export function BuildingThreeCanvas({
@@ -22,6 +24,7 @@ export function BuildingThreeCanvas({
   onFaceClick,
   slotCorrect,
   heightPx = 300,
+  showOrientationLabels = false,
 }: BuildingThreeCanvasProps) {
   return (
     <div className="building-three-wrap" style={{ height: heightPx, maxWidth: "28rem", width: "100%" }}>
@@ -41,6 +44,7 @@ export function BuildingThreeCanvas({
             onFaceClick={onFaceClick}
             slotCorrect={slotCorrect}
           />
+          {showOrientationLabels && <BuildingOrientationLabels matrix={matrix} />}
         </Suspense>
         <OrbitControls makeDefault enableDamping dampingFactor={0.08} />
       </Canvas>

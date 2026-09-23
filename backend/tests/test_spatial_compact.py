@@ -283,6 +283,25 @@ def test_net_build_validate_mode():
     assert not score_net_build_answer(items[0]["answer"], json.dumps(False))["correct"]
 
 
+def test_synthetic_viewpoint_requires_meaningful_labels():
+    raw = parse_synthetic_viewpoint_items(
+        [
+            {
+                "prompt": "Wo steht der Betrachter?",
+                "height_matrix": [[1, 2], [1, 0]],
+                "candidates": [
+                    {"id": "A", "label": "Vorne am Plan"},
+                    {"id": "B", "direction": "rechts"},
+                ],
+                "answer": "B",
+            }
+        ]
+    )
+    assert len(raw) == 1
+    assert raw[0]["candidates"][1]["label"].startswith("Rechts")
+    assert "x" in raw[0]["candidates"][0]
+
+
 def test_count_spatial_practice_in_modules():
     modules = [
         {
