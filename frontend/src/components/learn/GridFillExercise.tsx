@@ -30,6 +30,7 @@ function emptyGrid(rows: number, cols: number): (string | number | null)[][] {
 
 export function GridFillExercise({ config, busy, result, onSubmit, onContinue }: Props) {
   const { rows, cols, cell_type, palette = [] } = config;
+  const isNumber = cell_type === "number";
   const [grid, setGrid] = useState<(string | number | null)[][]>(() => emptyGrid(rows, cols));
   const colorPalette = palette.length ? palette : ["yellow", "green", "purple", "blue", "orange", "empty"];
 
@@ -89,7 +90,6 @@ export function GridFillExercise({ config, busy, result, onSubmit, onContinue }:
         {grid.map((row, ri) =>
           row.map((cell, ci) => {
             const slot = slotMap.get(`${ri}-${ci}`);
-            const isNumber = cell_type === "number";
             return (
               <div
                 key={`${ri}-${ci}`}
