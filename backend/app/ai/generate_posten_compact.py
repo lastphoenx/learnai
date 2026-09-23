@@ -103,7 +103,8 @@ def build_thin_retry_hint(
             "building_paint_items, net_build_items und/oder synthetic_viewpoint_items. "
             "Nutze gültige source_index und bbox (0–1) aus den Fotos; "
             "Einzelwürfel: building_paint mit height_matrix [[1]] und colored_faces; "
-            'net_build bauen: answer "valid_net"; net prüfen: given_cells + answer "valid"/"invalid"; '
+            'net_build bauen: rows/cols + optional target_cells (6 Zellen), kein Prosa-Netz im prompt; '
+            'net prüfen: given_cells + answer "valid"/"invalid"; '
             'grid_fill: bei Zahlen-Raster Pflicht reference_height_matrix (exact_match) oder '
             "derived_projection mit height_matrix in answer; synthetic_viewpoint "
             "(height_matrix, candidates mit label+direction, answer=id). "

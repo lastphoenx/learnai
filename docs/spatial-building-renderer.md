@@ -39,7 +39,11 @@ Unverändert: `height_matrix`, `colored_faces` (`x,y,z,face`), `building_paint`,
 
 ## net_build
 
-Bewertung akzeptiert jedes gültige Würfelnetz (`answer` in Practice immer `"valid_net"`). KI-Prompt verlangt ebenfalls nur `"valid_net"`.
+**Bauen:** Freitext-Formulierungen im KI-`prompt` werden beim Parsen verworfen — entweder generischer Text («beliebiges gültiges Netz») oder `target_cells` (6 Koordinaten) mit automatisch erzeugtem Aufgabentext und exakter Zell-Lösung. So entstehen keine Widersprüche wie «zweite Fläche» bei dritter Position.
+
+**Prüfen:** `given_cells` + `valid`/`invalid`.
+
+Ohne `target_cells` akzeptiert die Bewertung jedes gültige Würfelnetz (`answer` = `"valid_net"`). Mit `target_cells` muss die Markierung exakt diesen sechs Feldern entsprechen.
 
 `valid_cube_net()` prüft nicht mehr nur Zusammenhang + Grad-Heuristik, sondern
 faltet die 6 Zellen per Normalen-Simulation tatsächlich zu einem Würfel

@@ -80,6 +80,7 @@ def test_posten_compact_spatial_payload_to_practice():
                 "rows": 2,
                 "cols": 2,
                 "cell_type": "number",
+                "reference_height_matrix": [[1, 2], [3, 1]],
                 "answer": [[1, 2], [3, None]],
             }
         ],

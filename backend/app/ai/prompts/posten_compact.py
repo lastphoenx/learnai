@@ -94,8 +94,10 @@ POSTEN_COMPACT_SPATIAL_EXTRA = (
     "reference_height_matrix PFLICHT bei cell_type number (exact_match: Vorschau-Gebäude; derived_projection: "
     "optional, sonst height_matrix aus answer). Bei «Höhenplan ergänzen»: exact_match + reference_height_matrix "
     "+ answer als Lösungsraster; rows/cols = Matrix-Zeilen/-Spalten.\n"
-    '- net_build_items: Modus «bauen» — answer "valid_net", leeres Raster. Modus «prüfen» — given_cells '
-    '[[col,row],...] (6 Zellen), answer "valid" oder "invalid" (Würfelnetz). '
+    '- net_build_items: Modus «bauen» — rows/cols; KEINE freie Form-Beschreibung im prompt '
+    '(wird serverseitig ersetzt). Optional target_cells [[col,row],...] (6 gültige Netz-Zellen) '
+    'für eine konkrete Vorlage; sonst answer "valid_net" (beliebiges gültiges Netz). '
+    'Modus «prüfen» — given_cells (6 Zellen), answer "valid"/"invalid". '
     "Quader-Netze (ungleiche Rechtecke): image_choice aus Heft-Foto, nicht net_build.\n"
     "- synthetic_viewpoint_items: height_matrix; candidates mit id, label (deutsch, z. B. «Vorne …»), "
     "direction (vorne/hinten/links/rechts) und x/y (0–1) auf dem Plan (Marker in 3D); "

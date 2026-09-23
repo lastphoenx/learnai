@@ -98,6 +98,7 @@ def test_parse_grid_fill_items():
                 "rows": 2,
                 "cols": 2,
                 "cell_type": "number",
+                "reference_height_matrix": [[1, 2], [3, 1]],
                 "answer": [[1, 2], [3, None]],
             }
         ]
@@ -266,7 +267,7 @@ def test_net_build_answer_always_valid_net():
     raw = parse_net_build_items(
         [
             {
-                "prompt": "Lege ein Würfelnetz.",
+                "prompt": "Lege ein Würfelnetz mit vier in einer Reihe und falscher Prosa.",
                 "rows": 4,
                 "cols": 4,
                 "answer": "valid_net",
@@ -275,6 +276,8 @@ def test_net_build_answer_always_valid_net():
     )
     assert len(raw) == 1
     assert raw[0]["answer"] == "valid_net"
+    assert "falscher Prosa" not in raw[0]["prompt"]
+    assert "viele richtige Lösungen" in raw[0]["prompt"]
     items = spatial_raw_to_practice_items(
         image_choice=[],
         point_on_image=[],
@@ -286,6 +289,35 @@ def test_net_build_answer_always_valid_net():
     assert json.loads(items[0]["answer"]) == "valid_net"
     cross = json.dumps([[0, 1], [1, 1], [2, 1], [1, 0], [1, 2], [1, 3]])
     assert score_net_build_answer(items[0]["answer"], cross)["correct"]
+
+
+def test_net_build_target_cells_replaces_prompt_and_scores_exact_cells():
+    cross = [[0, 1], [1, 1], [2, 1], [3, 1], [2, 0], [2, 2]]
+    raw = parse_net_build_items(
+        [
+            {
+                "prompt": "Halluzinierte zweite Fläche — wird ignoriert.",
+                "rows": 4,
+                "cols": 4,
+                "target_cells": cross,
+                "answer": "valid_net",
+            }
+        ]
+    )
+    assert len(raw) == 1
+    assert "dritten" in raw[0]["prompt"]
+    assert "Halluzinierte" not in raw[0]["prompt"]
+    assert raw[0]["answer"] == cross
+    items = spatial_raw_to_practice_items(
+        image_choice=[],
+        point_on_image=[],
+        grid_fill=[],
+        net_build=raw,
+        source_ids=[],
+    )
+    assert score_net_build_answer(items[0]["answer"], json.dumps(cross))["correct"]
+    wrong = json.dumps([[0, 0], [1, 0], [2, 0], [3, 0], [4, 0], [5, 0]])
+    assert not score_net_build_answer(items[0]["answer"], wrong)["correct"]
 
 
 def test_net_build_validate_mode():

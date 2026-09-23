@@ -410,6 +410,63 @@ def parse_building_paint_items(raw: object) -> list[dict[str, Any]]:
     return out[:6]
 
 
+_NET_BUILD_GENERIC_PROMPT = (
+    "Baue ein gültiges Würfelnetz im {rows}×{cols}-Raster. "
+    "Wähle genau sechs zusammenhängende Felder — es gibt viele richtige Lösungen."
+)
+
+_NET_ROW_ORDINAL_DE = ("ersten", "zweiten", "dritten", "vierten", "fünften", "sechsten")
+
+
+def _longest_horizontal_run(cells: set[tuple[int, int]]) -> list[tuple[int, int]] | None:
+    by_row: dict[int, list[int]] = {}
+    for c, r in cells:
+        by_row.setdefault(r, []).append(c)
+    best: list[tuple[int, int]] = []
+    for r, cols_in_row in by_row.items():
+        cols_sorted = sorted(cols_in_row)
+        run_start = cols_sorted[0]
+        prev = cols_sorted[0]
+        run = [(run_start, r)]
+        for c in cols_sorted[1:]:
+            if c == prev + 1:
+                run.append((c, r))
+                prev = c
+            else:
+                if len(run) > len(best):
+                    best = run
+                run_start = c
+                prev = c
+                run = [(c, r)]
+        if len(run) > len(best):
+            best = run
+    return best if len(best) >= 2 else None
+
+
+def describe_net_build_target(rows: int, cols: int, cells: list[tuple[int, int]]) -> str:
+    """Aufgabentext aus Koordinaten — keine frei halluzinierte Form-Beschreibung."""
+    cell_set = set(cells)
+    intro = f"Baue dieses Würfelnetz im {rows}×{cols}-Raster. "
+    run = _longest_horizontal_run(cell_set)
+    if run and len(run) == 4 and len(cell_set) == 6:
+        r0 = run[0][1]
+        c0 = run[0][0]
+        for idx, (cx, _) in enumerate(run):
+            up = (cx, r0 - 1)
+            down = (cx, r0 + 1)
+            if up in cell_set and down in cell_set and cell_set == set(run) | {up, down}:
+                nth = _NET_ROW_ORDINAL_DE[idx] if idx < len(_NET_ROW_ORDINAL_DE) else f"{idx + 1}."
+                return (
+                    intro
+                    + f"Verwende vier quadratische Flächen in einer waagerechten Reihe (Zeile {r0 + 1}) "
+                    f"sowie je eine Fläche oberhalb und unterhalb der {nth} Fläche dieser Reihe."
+                )
+    parts: list[str] = []
+    for c, r in sorted(cells, key=lambda x: (x[1], x[0])):
+        parts.append(f"Zeile {r + 1}, Spalte {c + 1}")
+    return intro + "Markiere genau diese sechs Felder: " + "; ".join(parts) + "."
+
+
 def _parse_net_cell_list(raw: object) -> list[tuple[int, int]] | None:
     if not isinstance(raw, list) or not raw:
         return None
@@ -434,20 +491,23 @@ def parse_net_build_items(raw: object) -> list[dict[str, Any]]:
     for item in raw:
         if not isinstance(item, dict):
             continue
-        prompt = str(item.get("prompt") or "").strip()
+        prompt_raw = str(item.get("prompt") or "").strip()
         try:
             rows = int(item.get("rows", 0))
             cols = int(item.get("cols", 0))
         except (TypeError, ValueError):
             continue
-        if not prompt or rows < 3 or rows > 8 or cols < 3 or cols > 8:
+        if rows < 3 or rows > 8 or cols < 3 or cols > 8:
             continue
         given_cells = _parse_net_cell_list(item.get("given_cells"))
+        target_cells = _parse_net_cell_list(item.get("target_cells"))
         answer_raw = item.get("answer")
         mode = "build"
         answer: Any = "valid_net"
+        prompt = prompt_raw
         if given_cells and len(given_cells) == 6:
             mode = "validate"
+            prompt = prompt_raw or "Ist dieses Würfelnetz gültig?"
             if isinstance(answer_raw, bool):
                 answer = answer_raw
             else:
@@ -458,6 +518,15 @@ def parse_net_build_items(raw: object) -> list[dict[str, Any]]:
                     answer = False
                 else:
                     answer = valid_cube_net(given_cells)
+        else:
+            if target_cells and len(target_cells) == 6 and valid_cube_net(target_cells):
+                if not all(0 <= c < cols and 0 <= r < rows for c, r in target_cells):
+                    continue
+                prompt = describe_net_build_target(rows, cols, target_cells)
+                answer = [[c, r] for c, r in target_cells]
+            else:
+                prompt = _NET_BUILD_GENERIC_PROMPT.format(rows=rows, cols=cols)
+                answer = "valid_net"
         out.append(
             {
                 "prompt": prompt[:500],
@@ -852,6 +921,8 @@ def spatial_raw_to_practice_items(
         ans = raw.get("answer", "valid_net")
         if mode == "validate":
             answer_json = json.dumps(bool(ans), ensure_ascii=False)
+        elif isinstance(ans, list):
+            answer_json = json.dumps(ans, ensure_ascii=False)
         else:
             answer_json = json.dumps("valid_net", ensure_ascii=False)
         items.append(
