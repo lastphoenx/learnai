@@ -115,6 +115,14 @@ def validate_spatial_sequence_config(config: dict[str, Any]) -> list[str]:
     if decision == "second_view_required" and not second_camera_informative(matrix, first_cam, second_cam):
         errors.append("second_camera: nicht informativ für diese Matrix")
 
+    exp_vis = config.get("expected_visibility")
+    if exp_vis is not None and str(exp_vis).strip():
+        exp_s = str(exp_vis).strip()
+        if exp_s not in ("one_view_sufficient", "second_view_required"):
+            errors.append("expected_visibility: ungültiger Wert")
+        elif exp_s != decision:
+            errors.append("expected_visibility: widerspricht Sichtbarkeits-Entscheid")
+
     return errors
 
 

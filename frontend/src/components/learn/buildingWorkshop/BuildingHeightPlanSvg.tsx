@@ -1,6 +1,7 @@
 "use client";
 
 import type { HeightMatrix } from "@/lib/isoBuilding";
+import { SPATIAL_COORDINATE_SYSTEM } from "@/lib/spatialCoordinates";
 
 type Props = {
   matrix: HeightMatrix;
@@ -8,6 +9,7 @@ type Props = {
   title?: string;
 };
 
+/** Zeile 0 = vorne — im Plan unten darstellen (wie Betrachter-Guide). */
 export function BuildingHeightPlanSvg({ matrix, showHeights = true, title }: Props) {
   const rows = matrix.length;
   const cols = matrix[0]?.length ?? 1;
@@ -24,8 +26,9 @@ export function BuildingHeightPlanSvg({ matrix, showHeights = true, title }: Pro
       </text>
       {matrix.map((row, y) =>
         row.map((v, x) => {
+          const displayRow = rows - 1 - y;
           const px = ox + x * cell;
-          const py = oy + y * cell;
+          const py = oy + displayRow * cell;
           return (
             <g key={`${x}-${y}`}>
               <rect
@@ -58,7 +61,7 @@ export function BuildingHeightPlanSvg({ matrix, showHeights = true, title }: Pro
         <text
           key={`c${x}`}
           x={ox + x * cell + cell / 2}
-          y={oy + rows * cell + 22}
+          y={oy - 8}
           textAnchor="middle"
           fontSize="12"
           fontWeight="900"
@@ -67,19 +70,25 @@ export function BuildingHeightPlanSvg({ matrix, showHeights = true, title }: Pro
           {String.fromCharCode(65 + x)}
         </text>
       ))}
-      {Array.from({ length: rows }, (_, y) => (
-        <text
-          key={`r${y}`}
-          x={ox - 16}
-          y={oy + y * cell + cell / 2 + 4}
-          textAnchor="middle"
-          fontSize="12"
-          fontWeight="900"
-          fill="#3c76e8"
-        >
-          {y + 1}
-        </text>
-      ))}
+      {Array.from({ length: rows }, (_, y) => {
+        const displayRow = rows - 1 - y;
+        return (
+          <text
+            key={`r${y}`}
+            x={ox - 16}
+            y={oy + displayRow * cell + cell / 2 + 4}
+            textAnchor="middle"
+            fontSize="12"
+            fontWeight="900"
+            fill="#3c76e8"
+          >
+            {y + 1}
+          </text>
+        );
+      })}
+      <text x={w / 2} y={oy + rows * cell + 22} textAnchor="middle" fontSize="12" fontWeight="800" fill="#d9474b">
+        ↓ VORNE — Tiefe 1 ({SPATIAL_COORDINATE_SYSTEM.frontRow + 1})
+      </text>
     </svg>
   );
 }

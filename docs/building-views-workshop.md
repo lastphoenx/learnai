@@ -6,8 +6,9 @@ Referenz-UX: `tempdok/RaumWerkstatt_Koerper_Ansichten_Plaene*.html`, Abschnitt *
 
 | Komponente | Rolle |
 |------------|--------|
-| `BuildingViewsWorkshopShell` | Layout: Taskbar, 2-Spalten (3D \| Betrachter-Guide), Entscheid, Raster, Hilfen |
-| `BuildingWorkshopModelPanel` | Schräg / 2. Sicht / oben / Höhenplan / Belegung + Spalten A–D |
+| `WorkshopShell` | Generisches Layout (workspace, aside, interaction, belowWorkspace, help) |
+| `BuildingViewsWorkshopShell` | Kap. 3: Guide, Silhouetten-Text, Projektionsbereich |
+| `BuildingWorkshopModelPanel` | Kontrolliert: `mode`, `unlockedModes`, `showColumnInspector` — Freischaltung durch `workshopModelUnlock.ts` |
 | `BuildingObserverGuide` | «Wo steht der Betrachter?» |
 | `VisibilityDecisionPanel` | Ja/Nein mit sofortigem Feedback (`expected_visibility`) |
 | `SpatialSequenceExercise` | Erster Konsument des Templates |

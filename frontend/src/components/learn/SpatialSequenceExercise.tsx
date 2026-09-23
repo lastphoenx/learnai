@@ -1,12 +1,17 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { TrainerSpatialSequenceConfig } from "@/lib/api";
 import type { SpatialCameraPreset } from "@/lib/spatialCoordinates";
 import { buildingProjections } from "@/lib/buildingProjections";
 import { ProjectionFillGrids } from "@/components/learn/ProjectionFillGrids";
 import { BuildingViewsWorkshopShell } from "@/components/learn/buildingWorkshop/BuildingViewsWorkshopShell";
 import { BuildingWorkshopModelPanel } from "@/components/learn/buildingWorkshop/BuildingWorkshopModelPanel";
+import type { WorkshopModelMode } from "@/components/learn/buildingWorkshop/workshopModelTypes";
+import {
+  workshopModelUnlockForSpatialSequence,
+  workshopUnlockedHintIds,
+} from "@/lib/workshopModelUnlock";
 import { VisibilityDecisionPanel } from "@/components/learn/buildingWorkshop/VisibilityDecisionPanel";
 import { emptyProjectionDraft, type SpatialSequenceAnswer, type SpatialSequenceStage } from "@/lib/spatialSequence";
 import {
@@ -91,12 +96,38 @@ export function SpatialSequenceExercise({ config, busy, result, onSubmit, onCont
   const hints = useMemo(() => activeSpatialSequenceHints(flowConfig, visibility), [flowConfig, visibility]);
   const [projections, setProjections] = useState(emptyProjectionDraft());
   const [overlayHint, setOverlayHint] = useState(false);
-
-  const solutionOverlay = useMemo(() => (overlayHint ? buildingProjections(matrix) : null), [overlayHint, matrix]);
+  const [modelMode, setModelMode] = useState<WorkshopModelMode>("oblique");
 
   const current = stages[stageIndex];
   const projectionStageIndex = spatialSequenceProjectionIndex(stages);
   const phase = useWorkshopPhase(current, stageIndex, projectionStageIndex);
+
+  const unlockedHintIds = useMemo(
+    () => workshopUnlockedHintIds(hints, unlockedHints),
+    [hints, unlockedHints],
+  );
+
+  const modelUnlock = useMemo(
+    () =>
+      workshopModelUnlockForSpatialSequence({
+        phase,
+        visibility,
+        unlockedHintIds,
+      }),
+    [phase, visibility, unlockedHintIds],
+  );
+
+  const solutionOverlay = useMemo(
+    () =>
+      overlayHint && modelUnlock.solutionOverlayAllowed ? buildingProjections(matrix) : null,
+    [overlayHint, modelUnlock.solutionOverlayAllowed, matrix],
+  );
+
+  useEffect(() => {
+    if (!modelUnlock.solutionOverlayAllowed && overlayHint) {
+      setOverlayHint(false);
+    }
+  }, [modelUnlock.solutionOverlayAllowed, overlayHint]);
 
   const projectionFillStage = stages.find((s) => s.type === "projection_fill");
   const gridSizeHint = normalizeGridSizeHint(
@@ -191,8 +222,15 @@ export function SpatialSequenceExercise({ config, busy, result, onSubmit, onCont
       return;
     }
     setUnlockHints((n) => Math.min(n + 1, hints.length));
+    if (id === "show_top_view") {
+      setModelMode("top");
+    }
     if (id === "show_solution_overlay") {
+      setModelMode("heights");
       setOverlayHint(true);
+    }
+    if (id === "show_second_camera") {
+      setModelMode("second");
     }
   }
 
@@ -239,6 +277,9 @@ export function SpatialSequenceExercise({ config, busy, result, onSubmit, onCont
           matrix={matrix}
           firstCamera={(hintStage?.camera as SpatialCameraPreset) ?? "top"}
           secondCamera={secondCamera}
+          mode="top"
+          onModeChange={setModelMode}
+          unlockedModes={["oblique", "top"]}
           cameraLocked={true}
         />
         <button
@@ -264,7 +305,7 @@ export function SpatialSequenceExercise({ config, busy, result, onSubmit, onCont
         taskPrompt="Erst untersuchen, dann entscheiden, dann die drei Orthogonalansichten markieren."
         instruction={
           phase === "inspect"
-            ? "Schritt 1: Untersuche das Gebäude in der Schrägansicht. Nutze die Werkzeugleiste (zweite Sicht, von oben, Höhenplan)."
+            ? "Schritt 1: Untersuche das Gebäude nur in der ersten Schrägansicht — weitere Hilfen kommen später."
             : null
         }
         modelPanel={
@@ -272,6 +313,10 @@ export function SpatialSequenceExercise({ config, busy, result, onSubmit, onCont
             matrix={matrix}
             firstCamera={firstCamera}
             secondCamera={secondCamera}
+            mode={modelMode}
+            onModeChange={setModelMode}
+            unlockedModes={modelUnlock.unlockedModes}
+            showColumnInspector={modelUnlock.showColumnInspector}
             cameraLocked={true}
             disabled={modelDisabled}
           />
@@ -327,13 +372,15 @@ export function SpatialSequenceExercise({ config, busy, result, onSubmit, onCont
                         Hilfe: {HINT_LABELS[nextHintId ?? ""] ?? nextHintId}
                       </button>
                     )}
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-secondary"
-                      onClick={() => setOverlayHint((v) => !v)}
-                    >
-                      {overlayHint ? "Lösung ausblenden" : "Lösung überlagern"}
-                    </button>
+                    {modelUnlock.solutionOverlayAllowed ? (
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-secondary"
+                        onClick={() => setOverlayHint((v) => !v)}
+                      >
+                        {overlayHint ? "Lösung ausblenden" : "Lösung überlagern"}
+                      </button>
+                    ) : null}
                   </div>
                   {overlayHint ? (
                     <div className="building-views-solution-legend" aria-hidden={false}>

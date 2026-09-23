@@ -21,21 +21,23 @@ export function BuildingObserverGuide() {
           </text>
         </g>
         <text x="190" y="205" textAnchor="middle" fontSize="12" fontWeight="800" fill="#d9474b">
-          VORNE ↓
+          VORNE (Tiefe 1)
         </text>
-        <line x1="190" y1="178" x2="190" y2="198" stroke="#d9474b" strokeWidth="3" markerEnd="url(#bwg-arr-r)" />
+        {/* Blick von unten nach oben ins Gebäude */}
+        <line x1="190" y1="198" x2="190" y2="178" stroke="#d9474b" strokeWidth="3" markerEnd="url(#bwg-arr-r)" />
         <text x="318" y="108" fontSize="12" fontWeight="800" fill="#3c76e8">
-          RECHTS →
+          RECHTS
         </text>
-        <line x1="268" y1="103" x2="298" y2="103" stroke="#3c76e8" strokeWidth="3" markerEnd="url(#bwg-arr-b)" />
+        {/* Blick von rechts nach links ins Gebäude */}
+        <line x1="298" y1="103" x2="268" y2="103" stroke="#3c76e8" strokeWidth="3" markerEnd="url(#bwg-arr-b)" />
         <text x="62" y="108" fontSize="12" fontWeight="800" fill="#8b4bb8">
           VON OBEN
         </text>
         <text x="62" y="128" fontSize="18" aria-hidden="true">👁</text>
       </svg>
       <p className="muted building-views-guide-note">
-        <strong>Vorne:</strong> Blick von unten auf den Plan in Pfeilrichtung.{" "}
-        <strong>Rechts:</strong> von der rechten Seite. <strong>Von oben:</strong> nur Belegung, keine Höhe.
+        Pfeile zeigen die <strong>Blickrichtung zum Gebäude</strong>. Vorne = Tiefe 1 (unten im Plan). Rechts = von der
+        rechten Seite. Von oben = nur Belegung, keine Höhe.
       </p>
     </div>
   );

@@ -2,6 +2,7 @@
 
 import type { GridSizeHint, ViewSize } from "@/lib/spatialGridSize";
 import { PROJECTION_MAX_COLS, PROJECTION_MAX_ROWS } from "@/lib/spatialGridSize";
+import { projectionReviewClass } from "@/lib/projectionReviewClass";
 
 type Grid = number[][];
 
@@ -144,30 +145,29 @@ function ViewBlock({
         {grid.map((row, ri) =>
           row.map((cell, ci) => {
             const sol = solution?.[ri]?.[ci];
-            const filled = isOccupied(viewKey, cell);
-            const correctCell =
-              solution && sol !== undefined ? cellsEquivalent(viewKey, cell, sol) : false;
-            let reviewClass = "";
-            if (solution && sol !== undefined) {
-              if (filled && correctCell) reviewClass = " review-both";
-              else if (correctCell && !filled) reviewClass = " review-missing";
-              else if (filled && !correctCell) reviewClass = " review-extra";
-            }
+            const userFilled = isOccupied(viewKey, cell);
+            const expectedFilled =
+              solution && sol !== undefined ? isOccupied(viewKey, sol) : false;
+            const review =
+              solution && sol !== undefined
+                ? projectionReviewClass(userFilled, expectedFilled)
+                : "";
+            const reviewClass = review ? ` ${review}` : "";
             return (
               <div
                 key={`${ri}-${ci}`}
-                className={`grid-fill-cell projection-toggle-cell${filled ? " projection-toggle-cell--on" : ""}${reviewClass}${contentBad ? " slot-bad" : ""}`}
+                className={`grid-fill-cell projection-toggle-cell${userFilled ? " projection-toggle-cell--on" : ""}${reviewClass}${contentBad ? " slot-bad" : ""}`}
               >
                 {editable ? (
                   <button
                     type="button"
                     className="projection-toggle-btn"
-                    aria-pressed={filled}
-                    aria-label={`Zeile ${ri + 1}, Spalte ${ci + 1}${filled ? ", markiert" : ", leer"}`}
+                    aria-pressed={userFilled}
+                    aria-label={`Zeile ${ri + 1}, Spalte ${ci + 1}${userFilled ? ", markiert" : ", leer"}`}
                     onClick={() => onToggle(ri, ci)}
                   />
                 ) : (
-                  <span className="projection-toggle-readonly" aria-hidden={!filled}>{filled ? "■" : ""}</span>
+                  <span className="projection-toggle-readonly" aria-hidden={!userFilled}>{userFilled ? "■" : ""}</span>
                 )}
               </div>
             );
