@@ -83,6 +83,8 @@ def generate_unit_task(self, unit_id: str, user_id: str, provider: str | None = 
             details.append(f"{job['cards']} Karten")
         if job.get("questions"):
             details.append(f"{job['questions']} Quizfragen")
+        if job.get("practice"):
+            details.append(f"{job['practice']} Aufgaben")
         done_message = "Lernblöcke wurden erstellt."
         if details:
             done_message = f"{done_message} ({', '.join(details)})"

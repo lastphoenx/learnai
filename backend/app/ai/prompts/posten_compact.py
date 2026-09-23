@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from app.ai.prompts.interactive import SOURCE_RULES, learner_style_hint, truncate_material
 
 POSTEN_COMPACT_COUNTS = {
@@ -63,8 +65,18 @@ EXAM_REVIEW_SYSTEM_EXTRA = (
 )
 
 
+# Bei Raumgeometrie: weniger Karten/Quiz im JSON — gleiche Aufgabentypen wie im Standard-Trainer.
+SPATIAL_COMPACT_CARD_CAP = 10
+SPATIAL_COMPACT_QUIZ_CAP = 6
+
+
+def spatial_compact_content_targets(card_target: int, question_target: int) -> tuple[int, int]:
+    return min(card_target, SPATIAL_COMPACT_CARD_CAP), min(question_target, SPATIAL_COMPACT_QUIZ_CAP)
+
+
 POSTEN_COMPACT_SPATIAL_EXTRA = (
-    "Zusatz für Raumgeometrie (nur wenn Bildmaterial Ansichten, Baupläne, Netze oder Karten enthält):\n"
+    "Raumgeometrie — PFLICHT (gleiche Qualität/Schwere wie Standard-Lerntrainer, nur kürzer bei Karten/Quiz):\n"
+    "posten_compact bedeutet Umfangsbegrenzung, KEINE Abschwächung der Raumaufgaben.\n"
     "- Reine Zeichenaufgaben («zeichne», «male») nicht als Quiz — stattdessen prüfbare Varianten unten.\n"
     "- image_choice_items: 1-4 Aufgaben mit Bild-Optionen. "
     'Jede Option: {"id":"A","image_ref":{"source_index":0,"x":0.1,"y":0.2,"w":0.15,"h":0.12}} '
@@ -75,7 +87,8 @@ POSTEN_COMPACT_SPATIAL_EXTRA = (
     "- grid_fill_items: 1-3 Bauplan- oder Einfärb-Raster. "
     'rows, cols, cell_type "number" oder "color", answer als 2D-Array (null = leer). '
     "Farben nur: yellow, green, purple, blue, orange, empty.\n"
-    "- region_paint_items: 1-2 Würfelflächen einfärben (isometrisch). "
+    "- region_paint_items: 1-2 Würfel in Schrägansicht einfärben — prompt muss Farben "
+    "pro Fläche nennen (oben/links/rechts oder Template-IDs), nicht «wie im Heft» ohne Lösung. "
     'template: "iso_single_cube" oder "iso_tower_2". '
     'answer: {"top":"yellow","left":"green","right":"purple"} — nur Flächen-IDs des Templates.\n'
     "- building_paint_items: Gebäude aus height_matrix (Zahlenraster wie grid_fill, max 8×8), "
@@ -83,20 +96,40 @@ POSTEN_COMPACT_SPATIAL_EXTRA = (
     '- grid_fill validation "derived_projection": answer mit height_matrix; optional reference_height_matrix fürs Zielgebäude.\n'
     '- net_build_items: Würfelnetz — rows/cols 3-8, answer immer exakt "valid_net" (keine Zellenliste).\n'
     "- synthetic_viewpoint_items: height_matrix, candidates [{id:\"A\"},...], answer = id (Standpunkt ohne Foto).\n"
-    "- Pflicht bei Raumgeometrie: mindestens 2 Einträge gesamt in den spatial-Listen "
-    "(nicht nur cards/quiz). Quiz um 2-4 Fragen kürzen.\n"
+    "- PFLICHT: mindestens 2 Einträge gesamt in den spatial-Listen (zusätzlich zu cards/quiz).\n"
+    "- Bevorzuge building_paint/grid_fill/image_choice aus dem Heft-Material, wenn erkennbar.\n"
 )
 
 
-def build_compact_system_prompt(preset_id: str = "posten_compact", *, spatial_geometry: bool = False) -> str:
+def build_compact_system_prompt(
+    preset_id: str = "posten_compact",
+    *,
+    spatial_geometry: bool = False,
+    card_target: int | None = None,
+    question_target: int | None = None,
+) -> str:
     pid = (preset_id or "posten_compact").strip()
+    counts = compact_preset_counts(pid)
+    cards = card_target if card_target is not None else counts["cards"]
+    quiz = question_target if question_target is not None else counts["quiz"]
     base = POSTEN_COMPACT_SYSTEM
+    if spatial_geometry and (cards != counts["cards"] or quiz != counts["quiz"]):
+        base = re.sub(
+            rf"- cards: genau {POSTEN_COMPACT_COUNTS['cards']} Karten",
+            f"- cards: genau {cards} Karten",
+            base,
+        )
+        base = re.sub(
+            rf"- quiz: genau {POSTEN_COMPACT_COUNTS['quiz']} Fragen",
+            f"- quiz: genau {quiz} Fragen",
+            base,
+        )
     if pid == "exam_review":
         base = base + "\n" + EXAM_REVIEW_SYSTEM_EXTRA
     if spatial_geometry:
         base = (
             base
-            + '\nErweitertes Schema (zusätzliche optionale Felder): '
+            + '\nErweitertes Schema (PFLICHT-Felder bei Raumgeometrie, im JSON mit ausfüllen): '
             + '"image_choice_items":[],"point_on_image_items":[],"grid_fill_items":[],"region_paint_items":[],"building_paint_items":[],"net_build_items":[],"synthetic_viewpoint_items":[]\n'
             + POSTEN_COMPACT_SPATIAL_EXTRA
         )
@@ -163,8 +196,9 @@ def build_posten_compact_prompt(
     )
     if spatial_geometry:
         prompt += (
-            "\nRaumgeometrie: Nutze image_choice_items, point_on_image_items, grid_fill_items "
-            "region_paint_items, building_paint_items (height_matrix) "
-            "für Aufgaben aus Bildern und Gebäude-Einfärben.\n"
+            "\nRaumgeometrie (Pflicht, volle Schwere): Mindestens 2 Einträge in "
+            "image_choice_items, point_on_image_items, grid_fill_items, region_paint_items, "
+            "building_paint_items, net_build_items und/oder synthetic_viewpoint_items — "
+            "inhaltlich aus den Heft-Fotos, mit klaren Arbeitsanweisungen und prüfbaren answers.\n"
         )
     return prompt

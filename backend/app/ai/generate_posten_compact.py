@@ -22,6 +22,7 @@ from app.ai.prompts.posten_compact import (
     build_compact_system_prompt,
     build_posten_compact_prompt,
     compact_preset_counts,
+    spatial_compact_content_targets,
 )
 from app.ai.providers import complete, parse_json_object
 from app.ai.validators.interactive import dedupe_interactive_modules, validate_interactive_modules
@@ -507,7 +508,14 @@ def generate_posten_compact(
         math_focus=str(math_focus) if math_focus else None,
         multimodal=multimodal,
     )
-    system_prompt = build_compact_system_prompt(preset_id, spatial_geometry=spatial_geometry)
+    if spatial_geometry:
+        card_target, question_target = spatial_compact_content_targets(card_target, question_target)
+    system_prompt = build_compact_system_prompt(
+        preset_id,
+        spatial_geometry=spatial_geometry,
+        card_target=card_target,
+        question_target=question_target,
+    )
     num_predict = _compact_num_predict(preset_id)
     facts_min = int(preset_counts["facts_min"])
     source_ids = _source_ids_from_unit(unit)
@@ -708,6 +716,7 @@ def generate_posten_compact(
 
     total_cards = sum(len(m["content"]["cards"]) for m in modules)
     total_questions = sum(len(m["quiz"]["questions"]) for m in modules)
+    total_practice = count_spatial_practice_in_modules(modules)
     meta = dict(result)
     meta["generation_mode"] = preset_id
     meta["multimodal"] = multimodal
@@ -715,7 +724,13 @@ def generate_posten_compact(
     if spatial_warning:
         meta["spatial_generation_warning"] = spatial_warning
     if progress:
-        progress("saving", cards=total_cards, questions=total_questions, ai_tasks=ai_tasks)
+        progress(
+            "saving",
+            cards=total_cards,
+            questions=total_questions,
+            practice=total_practice,
+            ai_tasks=ai_tasks,
+        )
     _save_generated_modules(
         db,
         unit,

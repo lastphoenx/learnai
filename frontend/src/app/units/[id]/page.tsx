@@ -939,14 +939,16 @@ export default function UnitDetailPage() {
                 </Link>
                 <ol className="module-compact-list">
                   {(unit.modules || []).map((m: UnitModule, idx: number) => {
-                    const content = m.content as { cards?: unknown[] } | null;
+                    const content = m.content as { cards?: unknown[]; practice?: unknown[] } | null;
                     const quiz = m.quiz as { questions?: unknown[] } | null;
                     const qCount = quiz?.questions?.length ?? 0;
                     const cardCount = Array.isArray(content?.cards) ? content.cards.length : 0;
+                    const practiceCount = Array.isArray(content?.practice) ? content.practice.length : 0;
                     const isInteractive = unit.task_type === "interactive";
                     const metaParts: string[] = [];
                     if (isInteractive && cardCount > 0) metaParts.push(`${cardCount} Karten`);
                     if (qCount > 0) metaParts.push(`${qCount} Fragen`);
+                    if (practiceCount > 0) metaParts.push(`${practiceCount} Aufgaben`);
                     return (
                       <li key={m.id}>
                         <Link href={`/units/${unit.id}/learn?module=${idx}`} className="module-compact-link">
@@ -966,7 +968,9 @@ export default function UnitDetailPage() {
                   })}
                 </ol>
                 {unit.task_type === "interactive" && (
-                  <p className="muted aside-hint">Im Lerntrainer: Wissen, Karten und Quiz — alle Blöcke nacheinander.</p>
+                  <p className="muted aside-hint">
+                    Im Lerntrainer: Wissen, Karten, Quiz und ggf. interaktive Aufgaben — alle Blöcke nacheinander.
+                  </p>
                 )}
               </section>
             )}

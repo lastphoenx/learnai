@@ -119,7 +119,7 @@ def snapshot_last_generate(job: dict[str, Any] | None) -> dict[str, Any] | None:
         "started_at": job.get("started_at"),
         "updated_at": job.get("updated_at"),
     }
-    for key in ("modules", "cards", "questions"):
+    for key in ("modules", "cards", "questions", "practice"):
         if key in job:
             snapshot[key] = job[key]
     return snapshot
@@ -180,7 +180,7 @@ def set_generate_job(unit_id: str, *, user_id: str, **fields: Any) -> dict[str, 
         "updated_at": _now_iso(),
         "job_id": job_id,
     }
-    for key in ("index", "total", "category", "modules", "cards", "questions", "ai_tasks", *_JOB_META_KEYS):
+    for key in ("index", "total", "category", "modules", "cards", "questions", "practice", "ai_tasks", *_JOB_META_KEYS):
         if key == "job_id":
             continue
         if key in fields:

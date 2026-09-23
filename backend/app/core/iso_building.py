@@ -40,6 +40,18 @@ _LEGACY_FACE_IDS: dict[str, dict[tuple[int, int, int, str], str]] = {
 
 _FACE_NAMES = ("top", "left", "right")
 
+_LEGACY_REGION_LABELS: dict[str, str] = {
+    "top": "oben",
+    "left": "links",
+    "right": "rechts",
+    "lower_top": "unten oben",
+    "lower_left": "unten links",
+    "lower_right": "unten rechts",
+    "upper_top": "oben oben",
+    "upper_left": "oben links",
+    "upper_right": "oben rechts",
+}
+
 
 def iso_point(x: float, y: float, z: float) -> tuple[float, float]:
     px = _ISO_ORIGIN_X + (x - y) * _ISO_DX
@@ -190,10 +202,14 @@ def build_region_paint_layout(
     regions: list[dict[str, Any]] = []
     for (x, y, z, face), points in zip(faces, normalized, strict=True):
         rid = resolve_region_id(x, y, z, face, legacy_template=legacy_template)
+        if legacy_template and rid in _LEGACY_REGION_LABELS:
+            label = _LEGACY_REGION_LABELS[rid]
+        else:
+            label = f"{face} ({x},{y},{z})"
         regions.append(
             {
                 "id": rid,
-                "label": f"{face} ({x},{y},{z})",
+                "label": label,
                 "points": points,
             }
         )

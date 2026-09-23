@@ -64,7 +64,9 @@ export function RegionPaintExercise({ config, busy, result, onSubmit, onContinue
         ))}
       </div>
       <p className="muted region-paint-hint">
-        {useThree ? "Farbe wählen, Würfelfläche antippen (Gebäude drehen erlaubt)." : "Farbe wählen, dann Fläche antippen."}
+        {useThree
+          ? "Farbe wählen, dann die sichtbare Würfelfläche antippen (nur oben/links/rechts sind anklickbar)."
+          : "Farbe wählen, dann die beschriftete Fläche im Bild antippen."}
       </p>
       {useThree ? (
         <BuildingThreeCanvas
@@ -82,16 +84,31 @@ export function RegionPaintExercise({ config, busy, result, onSubmit, onContinue
               const fill = colors[region.id] ? COLOR_MAP[colors[region.id]] || colors[region.id] : "#f8fafc";
               const slot = slotMap.get(region.id);
               return (
-                <polygon
-                  key={region.id}
-                  points={pts}
-                  fill={fill}
-                  stroke={slot === false ? "var(--danger)" : slot ? "var(--accent)" : "#64748b"}
-                  strokeWidth={2}
-                  className="region-paint-face"
-                  onClick={() => paintRegion(region.id)}
-                  style={{ cursor: result || busy ? "default" : "pointer" }}
-                />
+                <g key={region.id}>
+                  <polygon
+                    points={pts}
+                    fill={fill}
+                    stroke={slot === false ? "var(--danger)" : slot ? "var(--accent)" : "#64748b"}
+                    strokeWidth={2}
+                    className="region-paint-face"
+                    onClick={() => paintRegion(region.id)}
+                    style={{ cursor: result || busy ? "default" : "pointer" }}
+                  />
+                  {region.label && (
+                    <text
+                      x={region.points.reduce((s, p) => s + p[0], 0) / region.points.length * vw}
+                      y={region.points.reduce((s, p) => s + p[1], 0) / region.points.length * vh}
+                      textAnchor="middle"
+                      dominantBaseline="middle"
+                      fontSize={11}
+                      fontWeight={700}
+                      fill="#334155"
+                      pointerEvents="none"
+                    >
+                      {region.label}
+                    </text>
+                  )}
+                </g>
               );
             })}
           </svg>

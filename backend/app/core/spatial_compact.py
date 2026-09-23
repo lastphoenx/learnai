@@ -15,6 +15,8 @@ _MIN_BBOX_SIZE = 0.04
 GRID_COLOR_PALETTE = ("yellow", "green", "purple", "blue", "orange", "empty")
 _GRID_COLOR_PALETTE = GRID_COLOR_PALETTE
 
+REGION_PAINT_LEGACY_TEMPLATES = frozenset({"iso_single_cube", "iso_tower_2"})
+
 SPATIAL_ANSWER_TYPES = frozenset(
     {
         "image_choice",
@@ -494,24 +496,51 @@ def apply_spatial_fallback_to_payload(payload: dict[str, Any], *, goal: str = ""
     """Standard-Raumübungen, wenn die KI keine spatial-Listen liefert (ohne Bild-Bbox)."""
     if count_raw_spatial_fields(payload) > 0:
         return False
-    hint = (goal or "").strip()[:120]
-    suffix = f" ({hint})" if hint else ""
     payload["region_paint_items"] = [
         {
-            "prompt": f"Färbe die drei sichtbaren Würfelflächen wie im Heft{suffix}.",
+            "prompt": (
+                "Übung: In der Schrägansicht siehst du drei Flächen des Würfels — "
+                "oben, links und rechts (im Bild beschriftet). "
+                "Färbe die obere Fläche gelb, die linke Seite grün und die rechte Seite blau."
+            ),
+            "hint": "Farbe wählen, dann die passende Fläche im Bild antippen (nicht drehen nötig).",
             "template": "iso_single_cube",
             "answer": {"top": "yellow", "left": "green", "right": "blue"},
         }
     ]
     payload["net_build_items"] = [
         {
-            "prompt": "Lege ein gültiges Würfelnetz aus sechs Quadraten.",
+            "prompt": (
+                "Lege ein gültiges Würfelnetz: wähle genau sechs zusammenhängende "
+                "Quadrate im Raster (wie ein ausgeklapptes Würfelnetz)."
+            ),
+            "hint": "Ein Kreuz aus vier Quadraten plus je ein Quadrat oben und unten ist ein klassisches Netz.",
             "rows": 4,
             "cols": 4,
             "answer": "valid_net",
         }
     ]
     return True
+
+
+def normalize_region_paint_user_answer(expected: dict[str, Any], user: dict[str, Any]) -> dict[str, Any]:
+    """Gleicht Nutzer-Keys ab (z. B. 0,0,0,top → top bei Legacy-Templates)."""
+    if not isinstance(expected, dict) or not isinstance(user, dict):
+        return user
+    exp_keys = {str(k) for k in expected}
+    out: dict[str, Any] = {}
+    for key, value in user.items():
+        sk = str(key)
+        if sk in exp_keys:
+            out[sk] = value
+            continue
+        if "," in sk:
+            face = sk.rsplit(",", 1)[-1].strip()
+            if face in exp_keys:
+                out[face] = value
+                continue
+        out[sk] = value
+    return out
 
 
 def count_spatial_practice_in_modules(modules: list[dict[str, Any]]) -> int:
@@ -638,6 +667,10 @@ def spatial_raw_to_practice_items(
         answer_map = raw.get("answer") if isinstance(raw.get("answer"), dict) else {}
         if not answer_map:
             continue
+        template_id = str(raw.get("template") or "")
+        height_matrix = tpl.get("height_matrix")
+        if template_id in REGION_PAINT_LEGACY_TEMPLATES:
+            height_matrix = None
         items.append(
             {
                 "prompt": raw["prompt"],
@@ -650,7 +683,7 @@ def spatial_raw_to_practice_items(
                     "view_width": tpl.get("view_width", 400),
                     "view_height": tpl.get("view_height", 280),
                     "regions": tpl.get("regions") or [],
-                    "height_matrix": tpl.get("height_matrix"),
+                    "height_matrix": height_matrix,
                     "palette": raw.get("palette") or list(_GRID_COLOR_PALETTE),
                 },
                 "source": quiz_source,
@@ -852,6 +885,7 @@ def score_region_paint_answer(expected_json: str, user_text: str) -> dict[str, A
         return {"correct": False, "slots": []}
     if not isinstance(expected, dict) or not isinstance(user, dict):
         return {"correct": False, "slots": []}
+    user = normalize_region_paint_user_answer(expected, user)
     slots: list[dict[str, Any]] = []
     all_ok = True
     for rid, exp_color in expected.items():

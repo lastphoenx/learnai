@@ -17,7 +17,11 @@ Die frühere SVG/Handformel-Schicht (`isoBuilding.ts` Projektion) bleibt nur noc
 - `frontend/src/components/learn/buildingThree/VoxelBuilding.tsx`
 - `BuildingIsoPreview`, `RegionPaintExercise` (mit `height_matrix`), `GridFillExercise`, `SyntheticViewpointExercise`
 
-Legacy `region_paint` **ohne** `height_matrix` nutzt weiterhin SVG-Polygone (alte Template-IDs).
+Legacy `region_paint` **ohne** `height_matrix` nutzt weiterhin SVG-Polygone (alte Template-IDs `iso_single_cube`, `iso_tower_2`). Die Pipeline setzt für diese Templates `height_matrix` bewusst auf `null`, damit Aufgabenstellung und Bewertung mit Flächen-IDs `top`/`left`/`right` übereinstimmen (kein Three.js-Raycast mit `0,0,0,top`).
+
+## posten_compact + Raumgeometrie
+
+**Kompakt** = weniger Karten/Quiz im JSON (z. B. 10/6 statt 12/8), **nicht** weniger Aufgabentypen oder leichtere Raumaufgaben. Spatial-Listen (`building_paint`, `net_build`, …) sind Pflicht (min. 2 Einträge); Fallback liefert verständliche Texte mit konkreten Farben, nicht «wie im Heft» ohne Referenz.
 
 ## Backend / KI-Schema
 

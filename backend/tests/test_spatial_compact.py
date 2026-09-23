@@ -150,6 +150,28 @@ def test_score_region_paint_answer():
     bad = json.dumps({"top": "green", "left": "purple"})
     assert score_region_paint_answer(expected, ok)["correct"]
     assert not score_region_paint_answer(expected, bad)["correct"]
+    three_js_keys = json.dumps({"0,0,0,top": "green", "0,0,0,left": "yellow"})
+    assert score_region_paint_answer(expected, three_js_keys)["correct"]
+
+
+def test_region_paint_legacy_template_uses_svg_not_three():
+    raw = parse_region_paint_items(
+        [
+            {
+                "prompt": "oben gelb",
+                "template": "iso_single_cube",
+                "answer": {"top": "yellow"},
+            }
+        ]
+    )
+    items = spatial_raw_to_practice_items(
+        image_choice=[],
+        point_on_image=[],
+        grid_fill=[],
+        region_paint=raw,
+        source_ids=[],
+    )
+    assert items[0]["region_paint"].get("height_matrix") is None
 
 
 def test_building_paint_to_practice():
