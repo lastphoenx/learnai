@@ -1,29 +1,32 @@
 # Generischer Gebäude-Renderer (Raumgeometrie)
 
-**Stand:** Phase 1–2 + **Phase 3/4 (Basis)** + **Spalten-Inspektor (§9)**.
+## Rendering-Stack (Stand nach Three.js-Migration)
 
-## Umgesetzt
+| Schicht | Technologie | Rolle |
+|---------|-------------|--------|
+| **Darstellung** | `three` + `@react-three/fiber` + `@react-three/drei` | WebGL, OrbitControls, Raycast-Klicks, `EdgesGeometry` |
+| **Lösung / Prüfung** | `backend/app/core/iso_building.py` | `building_projections`, `score_derived_projection_answer`, `valid_cube_net`, `classify_column_visibility` — **ohne** Three.js |
 
-| Phase | Inhalt |
-|-------|--------|
-| 1 | `iso_building.py`, `isoBuilding.ts`, Legacy-Templates berechnet |
-| 2 | `building_paint`, `grid_fill` + `derived_projection`, `reference_height_matrix` |
-| 3 | `net_build` + `valid_cube_net`, UI `NetBuildExercise` |
-| 4 (Basis) | `synthetic_viewpoint` + `SyntheticViewpointExercise` (Iso-Szene, keine Fotos) |
-| §9 | `buildColumnInspector`, `classifyColumnVisibility`, Rückansicht (`camera: back`), `BuildingIsoPreview` in Grid/Region |
+Die frühere SVG/Handformel-Schicht (`isoBuilding.ts` Projektion) bleibt nur noch für **Klassifikation/Hinweise** (`classifyColumnVisibility`); Gebäudebilder laufen über `BuildingThreeCanvas` / `VoxelBuilding`.
 
-## Spalten-Inspektor
+## Komponenten
 
-- **Schrägansicht allein** kann Spalten verdecken → Hinweis + optional **Rückansicht**.
-- **Spalte A…** öffnet Marker (Tiefe 1–n), massgebliche Tiefe hervorgehoben.
-- Backend: `classify_column_visibility(matrix)` für QA/Generierung.
+- `frontend/src/components/learn/BuildingThreeCanvas.tsx`
+- `frontend/src/components/learn/buildingThree/VoxelBuilding.tsx`
+- `BuildingIsoPreview`, `RegionPaintExercise` (mit `height_matrix`), `GridFillExercise`, `SyntheticViewpointExercise`
 
-## Offen (bewusst)
+Legacy `region_paint` **ohne** `height_matrix` nutzt weiterhin SVG-Polygone (alte Template-IDs).
 
-- Quader-Netze (Rechteckgrössen pro Fläche)
-- Vollständiger Normalen-BFS für `valid_cube_net` (aktuell: Zusammenhang + Grad)
-- Prozedural zufällige Standpunkt-Szenen in der **Generierung** (nur Schema/UI)
+## Backend / KI-Schema
 
-## Referenz
+Unverändert: `height_matrix`, `colored_faces` (`x,y,z,face`), `building_paint`, `derived_projection`, `net_build`, `synthetic_viewpoint`.
 
-Siehe ursprüngliche Spezifikation (Phasenplan §8, Zuordnungstabelle §5) im Team-Chat / Ticket.
+## Offen
+
+- Quader-Netze (Flächengrössen)
+- Strenger Normalen-BFS für `valid_cube_net`
+- Optional: `InstancedMesh` für sehr grosse Matrizen
+
+## Deploy
+
+Nach Pull: `cd frontend && npm install` (neue Pakete `three`, `@react-three/fiber`, `@react-three/drei`).

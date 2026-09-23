@@ -4182,6 +4182,18 @@ button.trainer-flashcard.flipped {
   border-radius: 0.5rem;
 }
 
+.building-three-wrap {
+  border-radius: 0.5rem;
+  overflow: hidden;
+  background: #f1f5f9;
+}
+
+.building-three-wrap canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
 .building-iso-hint,
 .building-iso-breakdown {
   font-size: 0.9rem;

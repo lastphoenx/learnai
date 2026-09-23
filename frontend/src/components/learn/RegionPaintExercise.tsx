@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { TrainerRegionPaintConfig } from "@/lib/api";
-import { BuildingIsoPreview } from "@/components/learn/BuildingIsoPreview";
+import { BuildingThreeCanvas } from "@/components/learn/BuildingThreeCanvas";
 
 const COLOR_MAP: Record<string, string> = {
   yellow: "#e6c200",
@@ -28,10 +28,13 @@ export function RegionPaintExercise({ config, busy, result, onSubmit, onContinue
   const [selectedColor, setSelectedColor] = useState(palette[0] || "yellow");
   const [colors, setColors] = useState<Record<string, string>>({});
 
+  const useThree = Boolean(config.height_matrix && config.height_matrix.length > 0);
+  const matrix = config.height_matrix!;
+
   const slotMap = useMemo(() => {
-    const m = new Map<string, { correct: boolean }>();
+    const m = new Map<string, boolean>();
     for (const s of result?.label_slots ?? []) {
-      m.set(s.id, { correct: s.correct });
+      if (s.id) m.set(s.id, s.correct);
     }
     return m;
   }, [result?.label_slots]);
@@ -60,31 +63,40 @@ export function RegionPaintExercise({ config, busy, result, onSubmit, onContinue
           />
         ))}
       </div>
-      <p className="muted region-paint-hint">Farbe wählen, dann Fläche antippen.</p>
-      {config.height_matrix && config.height_matrix.length > 0 && (
-        <BuildingIsoPreview matrix={config.height_matrix} showInspector={true} showCameraToggle={true} />
+      <p className="muted region-paint-hint">
+        {useThree ? "Farbe wählen, Würfelfläche antippen (Gebäude drehen erlaubt)." : "Farbe wählen, dann Fläche antippen."}
+      </p>
+      {useThree ? (
+        <BuildingThreeCanvas
+          matrix={matrix}
+          faceColors={colors}
+          interactive={!result && !busy}
+          onFaceClick={(id) => paintRegion(id)}
+          slotCorrect={result ? slotMap : undefined}
+        />
+      ) : (
+        <div className="region-paint-stage" style={{ minWidth: 320 }}>
+          <svg viewBox={`0 0 ${vw} ${vh}`} className="region-paint-svg" role="img">
+            {(config.regions || []).map((region) => {
+              const pts = region.points.map(([x, y]) => `${x * vw},${y * vh}`).join(" ");
+              const fill = colors[region.id] ? COLOR_MAP[colors[region.id]] || colors[region.id] : "#f8fafc";
+              const slot = slotMap.get(region.id);
+              return (
+                <polygon
+                  key={region.id}
+                  points={pts}
+                  fill={fill}
+                  stroke={slot === false ? "var(--danger)" : slot ? "var(--accent)" : "#64748b"}
+                  strokeWidth={2}
+                  className="region-paint-face"
+                  onClick={() => paintRegion(region.id)}
+                  style={{ cursor: result || busy ? "default" : "pointer" }}
+                />
+              );
+            })}
+          </svg>
+        </div>
       )}
-      <div className="region-paint-stage" style={{ minWidth: 320 }}>
-        <svg viewBox={`0 0 ${vw} ${vh}`} className="region-paint-svg" role="img">
-          {(config.regions || []).map((region) => {
-            const pts = region.points.map(([x, y]) => `${x * vw},${y * vh}`).join(" ");
-            const fill = colors[region.id] ? COLOR_MAP[colors[region.id]] || colors[region.id] : "#f8fafc";
-            const slot = slotMap.get(region.id);
-            return (
-              <polygon
-                key={region.id}
-                points={pts}
-                fill={fill}
-                stroke={slot?.correct === false ? "var(--danger)" : slot?.correct ? "var(--accent)" : "#64748b"}
-                strokeWidth={2}
-                className="region-paint-face"
-                onClick={() => paintRegion(region.id)}
-                style={{ cursor: result || busy ? "default" : "pointer" }}
-              />
-            );
-          })}
-        </svg>
-      </div>
       {!result ? (
         <button
           type="button"

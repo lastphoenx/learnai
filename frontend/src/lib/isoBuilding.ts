@@ -1,4 +1,7 @@
-/** Isometrischer Gebäude-Renderer (Höhenmatrix → SVG). */
+/**
+ * Höhenmatrix-Hilfen (Klassifikation, Face-IDs).
+ * 3D-Darstellung: `BuildingThreeCanvas` (Three.js), nicht mehr SVG-iso().
+ */
 
 export type HeightMatrix = number[][];
 
