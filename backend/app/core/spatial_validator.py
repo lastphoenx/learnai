@@ -105,17 +105,19 @@ def spatial_sequence_quality_warnings(config: dict[str, Any]) -> list[str]:
     matrix = normalize_height_matrix(config.get("height_matrix"))
     if matrix is None:
         return warnings
-    first_cam = "oblique"
-    second_cam = "front_right"
+    first_cam = str(config.get("first_camera") or "oblique")
+    second_cam = str(config.get("second_camera") or "front_right")
     for st in config.get("stages") or []:
-        if isinstance(st, dict) and st.get("type") == "inspect":
-            if st.get("hint_only"):
-                continue
-            cam = str(st.get("camera") or first_cam)
-            if st.get("unlock_hint") == "show_second_camera":
-                second_cam = cam
-            elif not st.get("unlock_hint"):
-                first_cam = cam
+        if not isinstance(st, dict) or st.get("type") != "inspect":
+            continue
+        cam = str(st.get("camera") or first_cam)
+        if st.get("unlock_hint") == "show_second_camera":
+            second_cam = cam
+            continue
+        if st.get("hint_only"):
+            continue
+        if not st.get("unlock_hint"):
+            first_cam = cam
     optimal = choose_informative_second_camera(matrix, first_cam)
     if optimal != second_cam:
         warnings.append(f"second_camera: {second_cam!r} — optimal wäre {optimal!r}")

@@ -112,12 +112,24 @@ def _building_center(matrix: list[list[int]]) -> tuple[float, float, float]:
     return ((cols - 1) / 2.0 + 0.5, (max_h - 1) / 2.0 + 0.5, (rows - 1) / 2.0 + 0.5)
 
 
-def _camera_world_origin(matrix: list[list[int]], view_dir: tuple[float, float, float]) -> tuple[float, float, float]:
-    cx, cy, cz = _building_center(matrix)
-    span = max(len(matrix[0]), len(matrix), max(max(r) for r in matrix), 1)
-    dist = span * 2.5 + 2.0
+def _ortho_ray_distance(matrix: list[list[int]]) -> float:
+    cols, rows, max_h = _grid_extents(matrix)
+    span = max(cols, rows, max_h, 1)
+    return span * 4.0 + 4.0
+
+
+def _parallel_ray_through_world_point(
+    matrix: list[list[int]],
+    wx: float,
+    wy: float,
+    wz: float,
+    view_dir: tuple[float, float, float],
+) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
+    """Parallelstrahl durch (wx,wy,wz) — entspricht orthographischer Three.js-Kamera."""
     vx, vy, vz = _normalize(view_dir)
-    return (cx + vx * dist, cy + vy * dist, cz + vz * dist)
+    dist = _ortho_ray_distance(matrix)
+    origin = (wx + vx * dist, wy + vy * dist, wz + vz * dist)
+    return origin, (-vx, -vy, -vz)
 
 
 def _ray_first_voxel(
@@ -175,7 +187,7 @@ def _face_occluded_along_view(
     wx, wy, wz = _world_pos(x, y, z)
     nx, ny, nz = _face_normal(face)
     ox, oy, oz = wx + 1e-3 * nx, wy + 1e-3 * ny, wz + 1e-3 * nz
-    vx, vy, vz = view_dir
+    vx, vy, vz = _normalize(view_dir)
     cols, rows, max_h = _grid_extents(matrix)
     entered = False
     t = step
@@ -224,6 +236,14 @@ def _face_toward_camera(
     return not _face_occluded_along_view(matrix, x, y, z, face, view_dir)
 
 
+def _ortho_ray_first_voxel_at(
+    matrix: list[list[int]], x: int, y: int, z: int, view_dir: tuple[float, float, float]
+) -> tuple[int, int, int] | None:
+    wx, wy, wz = _world_pos(x, y, z)
+    origin, direction = _parallel_ray_through_world_point(matrix, wx, wy, wz, view_dir)
+    return _ray_first_voxel(matrix, origin, direction)
+
+
 def _column_center_ray_readable(
     matrix: list[list[int]], col: int, view_dir: tuple[float, float, float]
 ) -> bool:
@@ -231,9 +251,7 @@ def _column_center_ray_readable(
     if critical is None:
         return False
     x, y, z = critical
-    origin = _camera_world_origin(matrix, view_dir)
-    tx, ty, tz = _world_pos(x, y, z)
-    hit = _ray_first_voxel(matrix, origin, (tx - origin[0], ty - origin[1], tz - origin[2]))
+    hit = _ortho_ray_first_voxel_at(matrix, x, y, z, view_dir)
     return hit == critical
 
 

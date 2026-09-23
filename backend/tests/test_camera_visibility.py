@@ -1,8 +1,5 @@
 from app.core.camera_visibility import (
-    _camera_world_origin,
-    _normalize,
-    _ray_first_voxel,
-    _world_pos,
+    _ortho_ray_first_voxel_at,
     camera_visibility_report,
     column_readable_from_camera,
     compute_visibility_decision,
@@ -37,40 +34,29 @@ def test_right_ortho_not_all_width_columns_readable():
     assert not any(c["readable"] for c in report["columns"])
 
 
-def test_ray_first_voxel_enters_from_outside_camera():
+def test_ortho_parallel_ray_hits_target_voxel():
     matrix = normalize_height_matrix([[1, 0], [0, 1]])
     assert matrix is not None
     view_dir = (1.0, 1.28, -1.0)
-    origin = _camera_world_origin(matrix, view_dir)
-    tx, ty, tz = _world_pos(0, 0, 0)
-    direction = _normalize((tx - origin[0], ty - origin[1], tz - origin[2]))
-    hit = _ray_first_voxel(matrix, origin, direction)
+    hit = _ortho_ray_first_voxel_at(matrix, 0, 0, 0, view_dir)
     assert hit == (0, 0, 0)
 
 
-def test_ray_to_rear_cell_hits_that_cell_not_side_column():
-    """Perspektivstrahl Kamera→Ziel: (0,0)-Säule liegt nicht auf dem Weg zu (1,1,0)."""
+def test_ortho_parallel_ray_through_rear_blocked_by_front():
+    """Blick (1,0,-1): vorn (1,0), hinten (0,1) — Parallelstrahl zur hinteren Säule trifft vorn zuerst."""
+    matrix = normalize_height_matrix([[0, 1], [1, 0]])
+    assert matrix is not None
+    view_dir = (1.0, 0.0, -1.0)
+    hit = _ortho_ray_first_voxel_at(matrix, 0, 1, 0, view_dir)
+    assert hit == (1, 0, 0)
+
+
+def test_ortho_parallel_ray_to_front_corner_not_blocked_by_rear():
     matrix = normalize_height_matrix([[2, 0], [0, 1]])
     assert matrix is not None
     view_dir = (1.0, 0.0, -1.0)
-    origin = _camera_world_origin(matrix, view_dir)
-    tx, ty, tz = _world_pos(1, 1, 0)
-    direction = _normalize((tx - origin[0], ty - origin[1], tz - origin[2]))
-    hit = _ray_first_voxel(matrix, origin, direction)
+    hit = _ortho_ray_first_voxel_at(matrix, 1, 1, 0, view_dir)
     assert hit == (1, 1, 0)
-
-
-def test_ray_to_tall_column_top_hits_that_column():
-    """Zielpunkt auf Spalte (0,0) — kein entarteter Gebäudemittelpunkt (Ecken-Diagonale)."""
-    matrix = normalize_height_matrix([[2, 0], [1, 0]])
-    assert matrix is not None
-    view_dir = (1.0, 0.0, -1.0)
-    origin = _camera_world_origin(matrix, view_dir)
-    tx, ty, tz = _world_pos(0, 0, 1)
-    direction = _normalize((tx - origin[0], ty - origin[1], tz - origin[2]))
-    hit = _ray_first_voxel(matrix, origin, direction)
-    assert hit is not None
-    assert hit[0] == 0
 
 
 def test_oblique_may_require_second_view_on_asymmetric():
