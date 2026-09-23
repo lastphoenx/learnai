@@ -164,16 +164,18 @@ export function UnitAssignSection({
     <section className="card unit-section unit-assign-section">
       <h2>{isSandbox ? "Test-Kopie & Zuweisung" : "Kinder & Zuweisung"}</h2>
       {isSandbox ? (
-        <p className="muted section-lead">
-          Sandbox zum Durchtesten. Wenn alles passt: Test abschliessen — dieselbe Einheit wird eine normale
-          Lerneinheit (kein Testkopie-Badge mehr), danach Kind zuweisen und freigeben. Vorher nur
-          «Zum Testen zuweisen» an Erwachsene oder direkt lernen.
-        </p>
-        <div className="filter-row" style={{ marginTop: "0.75rem" }}>
-          <button type="button" className="btn-primary" onClick={onFinalizeTestCopy} disabled={busy}>
-            Test abschliessen — als Lerneinheit übernehmen
-          </button>
-        </div>
+        <>
+          <p className="muted section-lead">
+            Sandbox zum Durchtesten. Wenn alles passt: Test abschliessen — dieselbe Einheit wird eine normale
+            Lerneinheit (kein Testkopie-Badge mehr), danach Kind zuweisen und freigeben. Vorher nur
+            «Zum Testen zuweisen» an Erwachsene oder direkt lernen.
+          </p>
+          <div className="filter-row" style={{ marginTop: "0.75rem" }}>
+            <button type="button" className="btn-primary" onClick={onFinalizeTestCopy} disabled={busy}>
+              Test abschliessen — als Lerneinheit übernehmen
+            </button>
+          </div>
+        </>
       ) : (
         <p className="muted section-lead">
           Diese Einheit kann genau einem Kind zugeordnet sein — oder vorübergehend keinem. Für ein
