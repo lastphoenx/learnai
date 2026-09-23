@@ -11,7 +11,7 @@ from app.core.camera_visibility import (
     compute_visibility_decision,
     second_camera_informative,
 )
-from app.core.iso_building import building_projections, normalize_height_matrix
+from app.core.iso_building import building_projections, normalize_height_matrix, top_occupancy_grid
 
 
 def validate_height_matrix(matrix: object) -> list[str]:
@@ -144,9 +144,11 @@ def canonical_spatial_sequence_prompt(matrix: list[list[int]]) -> str:
 
 
 def build_spatial_sequence_answer(matrix: list[list[int]], first_camera: str = "oblique") -> dict[str, Any]:
+    projections = building_projections(matrix)
+    projections["top"] = top_occupancy_grid(matrix)
     return {
         "visibility": compute_visibility_decision(matrix, first_camera),
-        "projections": building_projections(matrix),
+        "projections": projections,
     }
 
 

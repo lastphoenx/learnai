@@ -8,7 +8,7 @@ import re
 from typing import Any
 
 from app.core.focus_groups import normalize_focus_key
-from app.core.iso_building import _grids_equal
+from app.core.iso_building import _grids_equal, projection_grids_equal
 
 _SPATIAL_MATH_FOCUS = frozenset({"geometry", "geometry_spatial"})
 _BBOX_PADDING = 0.02
@@ -775,7 +775,7 @@ def score_spatial_sequence_answer(
                 all_ok = False
                 slots.append({"id": key, "correct": False})
                 continue
-        ok = _grids_equal(exp, user_g)
+        ok = projection_grids_equal(key, exp, user_g)
         if not ok:
             all_ok = False
         slots.append({"id": key, "correct": ok})

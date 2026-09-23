@@ -122,15 +122,15 @@ export function SpatialSequenceExercise({ config, busy, result, onSubmit, onCont
   const projectionViewCaptions = useMemo(() => {
     if (gridSizeHint === "derive") {
       return {
-        front: "Lege Zeilen (Höhe) und Spalten (Breite von vorne) fest, dann 0/1 eintragen.",
-        right: "Spalten = Gebäudetiefe von der Seite (nicht die Vorderbreite).",
-        top: "Zeilen und Spalten entsprechen dem Grundriss von oben.",
+        front: "Lege Zeilen (Höhe) und Spalten (Breite von vorne) fest, dann sichtbare Felder markieren.",
+        right: "Spalten = Gebäudetiefe von der Seite — sichtbare Felder markieren.",
+        top: "Grundriss: markiere Felder, wo ein Würfel steht (ohne Höhenzahl).",
       };
     }
     return {
-      front: `${buildingFootprint.maxH} Zeilen (Höhe) × ${buildingFootprint.cols} Spalten (Breite von vorne)`,
-      right: `${buildingFootprint.maxH} Zeilen (Höhe) × ${buildingFootprint.rows} Spalten (Tiefe — von rechts gesehen, nicht die Vorderbreite)`,
-      top: `${buildingFootprint.rows} Zeilen × ${buildingFootprint.cols} Spalten (Grundriss von oben)`,
+      front: `${buildingFootprint.maxH}×${buildingFootprint.cols} — Silhouette von vorne markieren`,
+      right: `${buildingFootprint.maxH}×${buildingFootprint.rows} — Silhouette von rechts markieren`,
+      top: `${buildingFootprint.rows}×${buildingFootprint.cols} — belegte Grundriss-Felder markieren (nicht die Stapelhöhe)`,
     };
   }, [buildingFootprint, gridSizeHint]);
 
@@ -294,8 +294,8 @@ export function SpatialSequenceExercise({ config, busy, result, onSubmit, onCont
         <>
           <p>
             {gridSizeHint === "derive"
-              ? "Wähle pro Ansicht die Rastergrösse, dann trage die Werte ein (0 = leer, 1 = belegt bei Vorder-/Rechtsansicht)."
-              : "Trage die drei Ansichten ein (0 = leer, 1 = belegt bei Vorder-/Rechtsansicht)."}
+              ? "Wähle pro Ansicht die Rastergrösse, dann markiere die sichtbaren Felder (Antippen)."
+              : "Markiere in allen drei Ansichten die sichtbaren Felder — Antippen statt Zahlen tippen."}
           </p>
           <div className="spatial-seq-fill-workspace">
             <div className="spatial-seq-fill-building stack">

@@ -265,6 +265,35 @@ def building_projections(matrix: list[list[int]]) -> dict[str, list[list[int]]]:
     return {"top": top, "front": front, "right": right}
 
 
+def top_occupancy_grid(matrix: list[list[int]]) -> list[list[int]]:
+    """Aufsicht: nur belegt/leer (Höhe gehört zum Höhenplan, nicht zur Orthogonal-Aufsicht)."""
+    rows = len(matrix)
+    cols = len(matrix[0]) if matrix else 0
+    out: list[list[int]] = []
+    for y in range(rows):
+        out.append([1 if _height_at(matrix, x, y) > 0 else 0 for x in range(cols)])
+    return out
+
+
+def projection_grids_equal(view: str, expected: object, user: object) -> bool:
+    """Vergleich orthographischer Raster; Aufsicht per Belegung (>0), Front/Rechts exakt 0/1."""
+    if not isinstance(expected, list) or not isinstance(user, list):
+        return False
+    if len(expected) != len(user):
+        return False
+    v = str(view or "").strip().lower()
+    for exp_row, user_row in zip(expected, user, strict=False):
+        if not isinstance(exp_row, list) or not isinstance(user_row, list) or len(exp_row) != len(user_row):
+            return False
+        for ec, uc in zip(exp_row, user_row, strict=False):
+            if v == "top":
+                if (int(ec or 0) > 0) != (int(uc or 0) > 0):
+                    return False
+            elif ec != uc:
+                return False
+    return True
+
+
 def _grids_equal(a: object, b: object) -> bool:
     if not isinstance(a, list) or not isinstance(b, list):
         return False

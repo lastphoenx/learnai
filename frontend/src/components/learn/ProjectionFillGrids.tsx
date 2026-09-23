@@ -29,12 +29,19 @@ function cloneGrid(g: Grid | undefined): Grid {
   return (g ?? []).map((row) => [...row]);
 }
 
-function setCell(grid: Grid, ri: number, ci: number, v: string) {
-  const n = v.trim() === "" ? 0 : Number(v);
-  if (!Number.isFinite(n)) return;
-  while (grid.length <= ri) grid.push([]);
-  while (grid[ri].length <= ci) grid[ri].push(0);
-  grid[ri][ci] = n;
+function isOccupied(view: "front" | "right" | "top", value: number): boolean {
+  return (value ?? 0) > 0;
+}
+
+function cellsEquivalent(
+  view: "front" | "right" | "top",
+  a: number | undefined,
+  b: number | undefined,
+): boolean {
+  if (view === "top") {
+    return isOccupied(view, a ?? 0) === isOccupied(view, b ?? 0);
+  }
+  return (a ?? 0) === (b ?? 0);
 }
 
 function SizeControls({
@@ -89,7 +96,7 @@ function ViewBlock({
   grid,
   editable,
   solution,
-  onCell,
+  onToggle,
   gridSizeHint,
   viewSize,
   onViewSizeChange,
@@ -102,7 +109,7 @@ function ViewBlock({
   grid?: Grid;
   editable: boolean;
   solution?: Grid;
-  onCell: (ri: number, ci: number, v: string) => void;
+  onToggle: (ri: number, ci: number) => void;
   gridSizeHint: GridSizeHint;
   viewSize?: ViewSize;
   onViewSizeChange?: (view: "front" | "right" | "top", size: ViewSize) => void;
@@ -129,30 +136,37 @@ function ViewBlock({
           Rastergrösse: dein {sizeFeedback?.user_term ?? "?"} — erwartet {sizeFeedback?.expected_term ?? "?"}
         </p>
       ) : null}
+      <p className="muted projection-toggle-hint">Tippe ein Feld, um es zu markieren oder zu leeren.</p>
       <div
         className="grid-fill-table projection-fill-table"
-        style={{ gridTemplateColumns: `repeat(${cols}, minmax(1.5rem, 1fr))` }}
+        style={{ gridTemplateColumns: `repeat(${cols}, minmax(2.25rem, 1fr))` }}
       >
         {grid.map((row, ri) =>
           row.map((cell, ci) => {
             const sol = solution?.[ri]?.[ci];
-            const showSol = solution && sol !== undefined && sol !== cell;
+            const filled = isOccupied(viewKey, cell);
+            const showSol = solution && sol !== undefined && !cellsEquivalent(viewKey, cell, sol);
             return (
               <div
                 key={`${ri}-${ci}`}
-                className={`grid-fill-cell${showSol ? " projection-solution-hint" : ""}${contentBad ? " slot-bad" : ""}`}
+                className={`grid-fill-cell projection-toggle-cell${filled ? " projection-toggle-cell--on" : ""}${showSol ? " projection-solution-hint" : ""}${contentBad ? " slot-bad" : ""}`}
               >
                 {editable ? (
-                  <input
-                    type="text"
-                    className="grid-fill-input"
-                    value={cell === 0 && !showSol ? "" : String(cell)}
-                    onChange={(e) => onCell(ri, ci, e.target.value)}
+                  <button
+                    type="button"
+                    className="projection-toggle-btn"
+                    aria-pressed={filled}
+                    aria-label={`Zeile ${ri + 1}, Spalte ${ci + 1}${filled ? ", markiert" : ", leer"}`}
+                    onClick={() => onToggle(ri, ci)}
                   />
                 ) : (
-                  <span>{cell}</span>
+                  <span className="projection-toggle-readonly" aria-hidden={!filled}>{filled ? "■" : ""}</span>
                 )}
-                {showSol && solution && <span className="projection-sol-val">{sol}</span>}
+                {showSol && solution ? (
+                  <span className="projection-sol-val" title="Hinweis">
+                    {isOccupied(viewKey, sol) ? "■" : "·"}
+                  </span>
+                ) : null}
               </div>
             );
           }),
@@ -177,9 +191,12 @@ export function ProjectionFillGrids({
   const keys = (["front", "right", "top"] as const).filter((k) => views[k]?.length);
   const feedbackById = new Map((slotFeedback ?? []).map((s) => [s.id, s]));
 
-  function patch(key: "top" | "front" | "right", ri: number, ci: number, v: string) {
+  function toggleCell(key: "top" | "front" | "right", ri: number, ci: number) {
     const base = cloneGrid(values[key] ?? views[key]);
-    setCell(base, ri, ci, v);
+    while (base.length <= ri) base.push([]);
+    while (base[ri].length <= ci) base[ri].push(0);
+    const cur = base[ri][ci] ?? 0;
+    base[ri][ci] = cur > 0 ? 0 : 1;
     onChange({ ...values, [key]: base });
   }
 
@@ -196,7 +213,7 @@ export function ProjectionFillGrids({
           grid={values[k] ?? views[k]}
           editable={editable}
           solution={solutionOverlay?.[k]}
-          onCell={(ri, ci, v) => patch(k, ri, ci, v)}
+          onToggle={(ri, ci) => toggleCell(k, ri, ci)}
           gridSizeHint={gridSizeHint}
           viewSize={viewSizes?.[k]}
           onViewSizeChange={onViewSizeChange}
