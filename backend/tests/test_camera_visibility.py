@@ -18,6 +18,18 @@ def test_front_camera_reads_all_columns():
     assert report["all_readable"]
 
 
+def test_compute_visibility_ortho_right_requires_second_view():
+    matrix = normalize_height_matrix([[1, 1, 1, 1]])
+    assert matrix is not None
+    assert compute_visibility_decision(matrix, "right") == "second_view_required"
+
+
+def test_compute_visibility_ortho_front_sufficient_for_columns():
+    matrix = normalize_height_matrix([[1, 0, 3], [2, 1, 0]])
+    assert matrix is not None
+    assert compute_visibility_decision(matrix, "front") == "one_view_sufficient"
+
+
 def test_right_ortho_not_all_width_columns_readable():
     matrix = normalize_height_matrix([[1, 1, 1, 1]])
     assert matrix is not None

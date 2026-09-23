@@ -37,6 +37,17 @@ def test_spatial_sequence_has_top_hint_stage():
     assert top_stages[0].get("hint_only") is True
 
 
+def test_second_camera_is_hint_only_not_main_flow():
+    item = build_spatial_sequence_item([[1, 2], [2, 1]], prompt="x")
+    second = [
+        s
+        for s in item["spatial_sequence"]["stages"]
+        if s.get("type") == "inspect" and s.get("unlock_hint") == "show_second_camera"
+    ]
+    assert len(second) == 1
+    assert second[0].get("hint_only") is True
+
+
 def test_parse_ignores_ki_answer_dict():
     matrix = [[1]]
     wrong_answer = {"visibility": "second_view_required", "projections": {"top": [[9]]}}

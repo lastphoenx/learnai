@@ -155,6 +155,7 @@ def build_spatial_sequence_item(
                 "type": "inspect",
                 "camera": second,
                 "camera_locked": True,
+                "hint_only": True,
                 "unlock_hint": "show_second_camera",
             },
             {"type": "projection_fill", "views": ["front", "right", "top"]},

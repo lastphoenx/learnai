@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 from typing import Any
 
-from app.core.iso_building import _height_at, classify_column_visibility
+from app.core.iso_building import _height_at
 
 # Richtungen vom Gebäudezentrum zum Betrachter (Three.js: x, y-up, z).
 _CAMERA_VIEWER_DIRS: dict[str, tuple[float, float, float]] = {
@@ -93,7 +93,7 @@ def _face_visible_6(matrix: list[list[int]], x: int, y: int, z: int, face: str) 
     if face == "top":
         return z + 1 >= h
     if face == "bottom":
-        return z > 0
+        return False
     if face in ("x_neg", "left"):
         return z >= _height_at(matrix, x - 1, y)
     if face == "x_pos":
@@ -247,7 +247,8 @@ def _ortho_column_readable(matrix: list[list[int]], col: int, camera: str) -> bo
     if cam in ("front", "back"):
         return True
     if cam == "top":
-        return True
+        # 3D-Aufsicht ohne Höhenzahlen: Spalten-Maxima nicht zuverlässig (Grundriss → projection_fill).
+        return False
     if cam in ("right", "left") and cols <= 1:
         return True
     return False
@@ -290,13 +291,8 @@ def camera_visibility_report(matrix: list[list[int]], camera: str) -> dict[str, 
 
 
 def compute_visibility_decision(matrix: list[list[int]], first_camera: str) -> str:
-    """«one_view_sufficient» oder «second_view_required» für die erste (oft schräge) Sicht."""
+    """«one_view_sufficient» oder «second_view_required» für die erste Sicht (nur Kamera-Report)."""
     cam = (first_camera or "oblique").strip().lower()
-    if cam in _ORTHO_SILHOUETTE_CAMERAS:
-        return "one_view_sufficient"
-    iso = classify_column_visibility(matrix)
-    if not iso.get("all_readable"):
-        return "second_view_required"
     report = camera_visibility_report(matrix, cam)
     if report["all_readable"]:
         return "one_view_sufficient"
