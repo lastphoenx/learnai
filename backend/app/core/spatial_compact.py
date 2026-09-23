@@ -816,6 +816,12 @@ def spatial_raw_to_practice_items(
         layout = build_region_paint_layout(matrix, title="Gebäude (isometrisch)")
         col_vis = classify_column_visibility(matrix)
         answer_map = raw.get("answer") if isinstance(raw.get("answer"), dict) else {}
+        if not answer_map and isinstance(raw.get("colored_faces"), dict):
+            answer_map = {
+                str(k): str(v)
+                for k, v in raw["colored_faces"].items()
+                if k is not None and v is not None
+            }
         if not answer_map:
             continue
         items.append(

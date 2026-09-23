@@ -15,6 +15,7 @@ from app.core.spatial_compact import (
     parse_point_on_image_items,
     parse_building_paint_items,
     parse_region_paint_items,
+    parse_synthetic_viewpoint_items,
     score_grid_fill_answer,
     score_net_build_answer,
     score_region_paint_answer,
@@ -204,8 +205,8 @@ def test_spatial_fallback_fills_empty_payload():
         image_choice=[],
         point_on_image=[],
         grid_fill=[],
-        building_paint=list(payload.get("building_paint_items") or []),
-        net_build=list(payload.get("net_build_items") or []),
+        building_paint=parse_building_paint_items(payload.get("building_paint_items")),
+        net_build=parse_net_build_items(payload.get("net_build_items")),
         source_ids=[],
     )
     assert len(items) >= 2
