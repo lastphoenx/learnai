@@ -97,6 +97,12 @@ Vollständiger Lauf lokal nur mit echtem Python oder Docker: `cd backend && pyth
 
 Siehe `docs/RUNBOOK.md`.
 
+## Dependencies & Dependabot
+
+- **Kanonisch:** `backend/requirements.txt`, `frontend/package.json` auf `main`.
+- **CVE:** «Dependabot security updates» in GitHub-Repo-Einstellungen.
+- **Version-PRs:** `.github/dependabot.yml` — weekly, gruppiert; semver-major ignoriert (Ausnahme dokumentiert: `redis`). Nach Merge: `git pull` + `bash scripts/deploy.sh` auf CT 135.
+
 ## Trainer-UI
 
 - Check, Lernkarten und Übungsaufgaben teilen die **Sprungleiste** (`JumpStrip.tsx`). Keine extra Zurück/Weiter-Zeile wieder einbauen.
