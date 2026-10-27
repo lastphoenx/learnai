@@ -1,10 +1,10 @@
-fastapi==0.143.3
-starlette==1.8.0
+fastapi==0.162.0
+starlette==1.9.0
 uvicorn[standard]==0.54.0
-sqlalchemy==2.1.5
+sqlalchemy==2.1.6
 psycopg[binary]==3.3.6
-alembic==1.20.0
-pydantic-settings==2.16.0
+alembic==1.20.1
+pydantic-settings==2.16.1
 pydantic[email]==2.14.1
 argon2-cffi==25.1.0
 cryptography==50.0.2
@@ -13,7 +13,7 @@ pyotp==2.10.0
 celery[redis]==5.6.3
 redis==6.4.0  # pinned: kombu[redis] in celery 5.6.x requires redis <6.5
 httpx==0.28.1
-pypdf==6.21.0
+pypdf==6.21.2
 pymupdf==1.28.2
 pymupdf-fonts==1.0.5
 
